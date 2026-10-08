@@ -1,0 +1,425 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ───────────────────────────── Enums ─────────────────────────────
+
+enum UnitKind {
+  LOESCHZUG
+  FUNKTION // Sonderfunktionen, z. B. Atemschutz
+}
+
+enum MemberStatus {
+  AKTIV
+  BEURLAUBT
+  INAKTIV
+}
+
+enum ElectionStatus {
+  DRAFT
+  SCHEDULED
+  ACTIVE
+  ENDED
+  CANCELLED
+}
+
+// ───────────────────── Benutzer, Rollen, Rechte ─────────────────────
+
+/// Interne Website-Benutzer. Ein Benutzer ist NICHT automatisch Feuerwehrmitglied.
+model User {
+  id            String    @id @default(cuid())
+  roleId        String
+  firefighterId String?   @unique
+  active        Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  lastLoginAt   DateTime?
+
+  role             Role             @relation(fields: [roleId], references: [id])
+  firefighter      Firefighter?     @relation(fields: [firefighterId], references: [id], onDelete: SetNull)
+  discordAccount   DiscordAccount?
+  sessions         Session[]
+  extraPermissions UserPermission[]
+
+  @@map("users")
+}
+
+/// Verknüpfung Discord ↔ interner Benutzer. Dient ausschließlich der Authentifizierung.
+model DiscordAccount {
+  id        String   @id @default(cuid())
+  discordId String   @unique
+  userId    String   @unique
+  /// Nur zur Orientierung der Administratoren, wird NICHT als Feuerwehrname verwendet.
+  username  String
+  linkedAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("discord_accounts")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+/// Einmal-Link, mit dem sich ein Feuerwehrmitglied selbst per Discord verknüpfen kann.
+model DiscordLinkToken {
+  id            String    @id @default(cuid())
+  tokenHash     String    @unique
+  firefighterId String
+  expiresAt     DateTime
+  usedAt        DateTime?
+  createdAt     DateTime  @default(now())
+
+  firefighter Firefighter @relation(fields: [firefighterId], references: [id], onDelete: Cascade)
+
+  @@map("discord_link_tokens")
+}
+
+model Role {
+  id          String  @id @default(cuid())
+  key         String  @unique
+  name        String
+  description String?
+  isSystem    Boolean @default(false)
+
+  users       User[]
+  permissions RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  key         String  @id
+  label       String
+  description String?
+  group       String
+
+  roles RolePermission[]
+  users UserPermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId        String
+  permissionKey String
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionKey], references: [key], onDelete: Cascade)
+
+  @@id([roleId, permissionKey])
+  @@map("role_permissions")
+}
+
+/// Zusätzliche, explizit an einen einzelnen Benutzer vergebene Rechte.
+model UserPermission {
+  userId        String
+  permissionKey String
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionKey], references: [key], onDelete: Cascade)
+
+  @@id([userId, permissionKey])
+  @@map("user_permissions")
+}
+
+// ───────────────────────── Feuerwehr-Stammdaten ─────────────────────────
+
+model Rank {
+  id           String  @id @default(cuid())
+  name         String
+  abbreviation String?
+  sortOrder    Int     @default(0)
+  active       Boolean @default(true)
+
+  firefighters Firefighter[]
+
+  @@map("ranks")
+}
+
+model Firefighter {
+  id           String       @id @default(cuid())
+  memberNumber Int          @unique @default(autoincrement())
+  firstName    String
+  lastName     String
+  displayName  String
+  callSign     String?
+  rankId       String?
+  avatarUrl    String?
+  status       MemberStatus @default(AKTIV)
+  joinedAt     DateTime     @default(now())
+  notes        String?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  rank           Rank?                         @relation(fields: [rankId], references: [id], onDelete: SetNull)
+  user           User?
+  units          FirefighterUnit[]
+  offices        FirefighterOffice[]
+  candidacies    Candidate[]
+  ballotReceipts ElectionVoter[]
+  linkTokens     DiscordLinkToken[]
+  eligibleIn     ElectionEligibleFirefighter[]
+  excludedIn     ElectionExcludedFirefighter[]
+  publicVotes    Vote[]
+  ledUnits       FireUnit[]
+
+  @@index([lastName, firstName])
+  @@map("firefighters")
+}
+
+/// Löschzüge und Sonderfunktions-Gruppen – vollständig verwaltbar, nichts ist hartkodiert.
+model FireUnit {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  kind        UnitKind @default(LOESCHZUG)
+  leaderId    String?
+  active      Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  leader     Firefighter?           @relation(fields: [leaderId], references: [id], onDelete: SetNull)
+  members    FirefighterUnit[]
+  eligibleIn ElectionEligibleUnit[]
+
+  @@map("fire_units")
+}
+
+model FirefighterUnit {
+  firefighterId String
+  unitId        String
+  /// Hauptzuordnung (z. B. Stammlöschzug)
+  isPrimary     Boolean  @default(false)
+  assignedAt    DateTime @default(now())
+
+  firefighter Firefighter @relation(fields: [firefighterId], references: [id], onDelete: Cascade)
+  unit        FireUnit    @relation(fields: [unitId], references: [id], onDelete: Cascade)
+
+  @@id([firefighterId, unitId])
+  @@index([unitId])
+  @@map("firefighter_units")
+}
+
+/// Ämter (Wehrführer, Zugführer, …) – frei verwaltbar.
+model Office {
+  id          String  @id @default(cuid())
+  name        String
+  description String?
+  sortOrder   Int     @default(0)
+  active      Boolean @default(true)
+
+  holders   FirefighterOffice[]
+  positions ElectionPosition[]
+
+  @@map("offices")
+}
+
+model FirefighterOffice {
+  firefighterId String
+  officeId      String
+  since         DateTime @default(now())
+
+  firefighter Firefighter @relation(fields: [firefighterId], references: [id], onDelete: Cascade)
+  office      Office      @relation(fields: [officeId], references: [id], onDelete: Cascade)
+
+  @@id([firefighterId, officeId])
+  @@map("firefighter_offices")
+}
+
+// ───────────────────────────── Wahlen ─────────────────────────────
+
+model Election {
+  id                   String         @id @default(cuid())
+  name                 String
+  description          String?
+  status               ElectionStatus @default(DRAFT)
+  /// Geheime Wahl: Mitglied → Stimme wird technisch NICHT gespeichert.
+  secret               Boolean        @default(true)
+  startsAt             DateTime
+  endsAt               DateTime
+  /// Dürfen normale Mitglieder die Ergebnisse nach Ende einsehen?
+  resultsPublic        Boolean        @default(true)
+  cancelReason         String?
+  startedAt            DateTime?
+  endedAt              DateTime?
+  /// Snapshots, die beim Beenden eingefroren werden
+  eligibleSnapshot     Int?
+  participantsSnapshot Int?
+  createdById          String?
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+
+  positions            ElectionPosition[]
+  eligibleUnits        ElectionEligibleUnit[]
+  eligibleFirefighters ElectionEligibleFirefighter[]
+  excludedFirefighters ElectionExcludedFirefighter[]
+  voters               ElectionVoter[]
+  votes                Vote[]
+  results              ElectionResult[]
+
+  @@index([status])
+  @@map("elections")
+}
+
+model ElectionPosition {
+  id          String  @id @default(cuid())
+  electionId  String
+  officeId    String?
+  title       String
+  description String?
+  sortOrder   Int     @default(0)
+
+  election   Election         @relation(fields: [electionId], references: [id], onDelete: Cascade)
+  office     Office?          @relation(fields: [officeId], references: [id], onDelete: SetNull)
+  candidates Candidate[]
+  votes      Vote[]
+  results    ElectionResult[]
+
+  @@index([electionId])
+  @@map("election_positions")
+}
+
+model Candidate {
+  id            String  @id @default(cuid())
+  positionId    String
+  firefighterId String
+  statement     String?
+  sortOrder     Int     @default(0)
+
+  position    ElectionPosition @relation(fields: [positionId], references: [id], onDelete: Cascade)
+  firefighter Firefighter      @relation(fields: [firefighterId], references: [id], onDelete: Restrict)
+  votes       Vote[]
+  results     ElectionResult[]
+
+  @@unique([positionId, firefighterId])
+  @@map("candidates")
+}
+
+model ElectionEligibleUnit {
+  electionId String
+  unitId     String
+
+  election Election @relation(fields: [electionId], references: [id], onDelete: Cascade)
+  unit     FireUnit @relation(fields: [unitId], references: [id], onDelete: Cascade)
+
+  @@id([electionId, unitId])
+  @@map("election_eligible_units")
+}
+
+model ElectionEligibleFirefighter {
+  electionId    String
+  firefighterId String
+
+  election    Election    @relation(fields: [electionId], references: [id], onDelete: Cascade)
+  firefighter Firefighter @relation(fields: [firefighterId], references: [id], onDelete: Cascade)
+
+  @@id([electionId, firefighterId])
+  @@map("election_eligible_firefighters")
+}
+
+model ElectionExcludedFirefighter {
+  electionId    String
+  firefighterId String
+
+  election    Election    @relation(fields: [electionId], references: [id], onDelete: Cascade)
+  firefighter Firefighter @relation(fields: [firefighterId], references: [id], onDelete: Cascade)
+
+  @@id([electionId, firefighterId])
+  @@map("election_excluded_firefighters")
+}
+
+/// Wahlverzeichnis / Stimmabgabe-Vermerk: WER hat abgestimmt und WANN – aber NICHT wie.
+/// Bewusst OHNE Relation zu `Vote`.
+model ElectionVoter {
+  id            String   @id @default(cuid())
+  electionId    String
+  firefighterId String
+  votedAt       DateTime @default(now())
+
+  election    Election    @relation(fields: [electionId], references: [id], onDelete: Cascade)
+  firefighter Firefighter @relation(fields: [firefighterId], references: [id], onDelete: Cascade)
+
+  @@unique([electionId, firefighterId])
+  @@map("election_voters")
+}
+
+/// Stimmen. Bei GEHEIMEN Wahlen sind `voterId` und `castAt` immer NULL (per DB-Trigger erzwungen),
+/// die Zeile besitzt eine zufällige UUID und keinerlei Verweis auf Mitglied oder Zeitpunkt.
+/// Nur bei ÖFFENTLICHEN Wahlen wird `voterId` / `castAt` gespeichert.
+model Vote {
+  id          String    @id @default(uuid())
+  electionId  String
+  positionId  String
+  /// NULL + abstain=true → Enthaltung
+  candidateId String?
+  abstain     Boolean   @default(false)
+  voterId     String?
+  castAt      DateTime?
+
+  election  Election         @relation(fields: [electionId], references: [id], onDelete: Cascade)
+  position  ElectionPosition @relation(fields: [positionId], references: [id], onDelete: Cascade)
+  candidate Candidate?       @relation(fields: [candidateId], references: [id], onDelete: SetNull)
+  voter     Firefighter?     @relation(fields: [voterId], references: [id], onDelete: SetNull)
+
+  @@index([electionId, positionId])
+  @@map("votes")
+}
+
+/// Beim Beenden berechnetes, eingefrorenes Ergebnis.
+model ElectionResult {
+  id           String  @id @default(cuid())
+  electionId   String
+  positionId   String
+  candidateId  String?
+  /// Name als Snapshot, damit das Ergebnis auch nach Änderungen stabil bleibt
+  label        String
+  isAbstention Boolean @default(false)
+  votes        Int
+  sortOrder    Int     @default(0)
+
+  election  Election         @relation(fields: [electionId], references: [id], onDelete: Cascade)
+  position  ElectionPosition @relation(fields: [positionId], references: [id], onDelete: Cascade)
+  candidate Candidate?       @relation(fields: [candidateId], references: [id], onDelete: SetNull)
+
+  @@index([electionId, positionId])
+  @@map("election_results")
+}
+
+// ───────────────────────────── System ─────────────────────────────
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  actorUserId String?
+  actorName   String
+  action      String
+  entityType  String?
+  entityId    String?
+  message     String
+
+  @@index([createdAt])
+  @@index([entityType, entityId])
+  @@map("audit_logs")
+}
+
+model SystemSetting {
+  key   String @id
+  value String
+
+  @@map("system_settings")
+}
