@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { Flame, ShieldCheck } from "lucide-react";
+import { ShieldCheck } from "lucide-react";
 import { devLoginEnabled, getCurrentUser } from "@/lib/auth";
 import { Flash } from "@/components/ui";
 
@@ -26,12 +26,11 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
         <div className="h-1 bg-gradient-to-r from-fire-600 via-fire-400 to-amber-400" />
         <div className="card-pad !p-8">
           <div className="mb-8 flex items-center gap-3">
-            <div className="grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-fire-500 to-fire-700 shadow-[0_8px_24px_-6px_rgba(240,58,46,.7)]">
-              <Flame className="h-6 w-6 text-white" />
-            </div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/wappen.png" alt="Wappen Freiwillige Feuerwehr Stadt Falkenwalde" className="h-20 w-20 object-contain drop-shadow-[0_8px_20px_rgba(0,0,0,.6)]" />
             <div>
               <div className="text-lg font-bold leading-tight text-white">Wahlplattform</div>
-              <div className="text-xs text-slate-400">Freiwillige Feuerwehr · Interne Verwaltung</div>
+              <div className="text-xs text-slate-400">Freiwillige Feuerwehr Stadt Falkenwalde</div>
             </div>
           </div>
           <Flash error={error ? (ERRORS[error] ?? "Anmeldung fehlgeschlagen.") : undefined} />

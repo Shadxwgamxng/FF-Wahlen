@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Flame, LogOut, Menu } from "lucide-react";
+import { LogOut, Menu } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { syncElections } from "@/lib/elections";
 import { logout } from "@/actions/auth";
@@ -59,9 +59,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const brand = (
     <Link href="/dashboard" className="flex items-center gap-3">
-      <div className="grid h-10 w-10 place-items-center rounded-xl bg-gradient-to-br from-fire-500 to-fire-700 shadow-[0_6px_18px_-6px_rgba(240,58,46,.8)]">
-        <Flame className="h-5 w-5 text-white" />
-      </div>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/wappen.png" alt="" className="h-11 w-11 object-contain" />
       <div className="leading-tight">
         <div className="text-sm font-bold text-white">Wahlplattform</div>
         <div className="max-w-[10rem] truncate text-[11px] text-slate-500">{org}</div>

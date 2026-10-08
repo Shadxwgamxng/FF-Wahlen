@@ -8,10 +8,16 @@ const OFFICES = [
   "Wehrführer", "Stellvertretender Wehrführer", "Zugführer", "Stellvertretender Zugführer",
   "Gruppenführer Gr. 1", "Gruppenführer Gr. 2", "Gerätewart 1", "Gerätewart 2", "Schriftführer",
 ];
+// Aufsteigend nach Rang: Mannschaft → Brandmeister → Führungsdienstgrade
 const RANKS: [string, string][] = [
-  ["Feuerwehrmann-Anwärter", "FMA"], ["Feuerwehrmann", "FM"], ["Oberfeuerwehrmann", "OFM"],
-  ["Hauptfeuerwehrmann", "HFM"], ["Unterbrandmeister", "UBM"], ["Brandmeister", "BM"],
-  ["Oberbrandmeister", "OBM"], ["Hauptbrandmeister", "HBM"], ["Brandinspektor", "BI"],
+  ["Feuerwehrmannanwärter/in", "FMA"], ["Feuerwehrmann/-frau", "FM"], ["Oberfeuerwehrmann/-frau", "OFM"],
+  ["Hauptfeuerwehrmann/-frau", "HFM"], ["Erster Hauptfeuerwehrmann/-frau", "EHFM"],
+  ["Brandmeister/in", "BM"], ["Oberbrandmeister/in", "OBM"], ["Hauptbrandmeister/in", "HBM"],
+  ["Erster Hauptbrandmeister/in", "EHBM"],
+  ["Brandinspektor/in", "BI"], ["Oberbrandinspektor/in", "OBI"], ["Hauptbrandinspektor/in", "HBI"],
+  ["Erster Hauptbrandinspektor/in", "EHBI"], ["Gemeindebrandinspektor/in", "GBI"],
+  ["Abschnittsbrandinspektor/in", "ABI"], ["Erster Abschnittsbrandinspektor/in", "EABI"],
+  ["Kreisbrandinspektor/in", "KBI"], ["Erster Kreisbrandinspektor/in", "EKBI"],
 ];
 
 async function main() {
@@ -44,7 +50,7 @@ async function main() {
   if ((await db.rank.count()) === 0)
     await db.rank.createMany({ data: RANKS.map(([name, abbreviation], i) => ({ name, abbreviation, sortOrder: i })) });
   await db.systemSetting.upsert({
-    where: { key: "organization_name" }, update: {}, create: { key: "organization_name", value: "Freiwillige Feuerwehr" },
+    where: { key: "organization_name" }, update: {}, create: { key: "organization_name", value: "FF Stadt Falkenwalde" },
   });
 
   // Optional: Demo-Daten für lokale Entwicklung
