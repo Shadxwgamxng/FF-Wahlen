@@ -3,7 +3,14 @@
 Wahlplattform für eine Freiwillige Feuerwehr auf einem FiveM-Roleplay-Server.
 Stack: Next.js 15 (App Router, Server Actions) · TypeScript · Tailwind · PostgreSQL · Prisma · Discord OAuth2.
 
-## Lokal ausführen (schnell)
+## Ein-Klick-Start (empfohlen)
+
+**Windows:** `Start.bat` doppelklicken. **macOS:** `Start.command`. **Linux:** `./start.sh`.
+Beim ersten Mal wird alles automatisch installiert und eingerichtet (eingebettete Datenbank, Schema, Demodaten) –
+danach öffnet sich der Browser. Ab dem zweiten Mal startet es in Sekunden. Daten liegen im Ordner `.data/`.
+Voraussetzung ist nur Node.js (wird unter Windows per `winget` automatisch angeboten).
+
+## Lokal ausführen (mit Docker)
 
 Voraussetzungen: Node.js 20+, Docker (nur für PostgreSQL).
 
