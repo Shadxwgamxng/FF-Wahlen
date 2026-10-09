@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { AlertTriangle, ArrowLeft, Ban, CheckCircle2, Play, Rocket, Square, Trash2, Undo2, UserPlus, X } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowLeft, ArrowUp, Ban, ChevronsRight, CheckCircle2, Play, Rocket, Square, Trash2, Undo2, UserPlus, X } from "lucide-react";
 import { requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getEligibleMembers, loadEligibilityConfig, resolveEligibility } from "@/lib/eligibility";
-import { fmtDateTime, toLocalInput } from "@/lib/utils";
+import { cn, fmtDateTime, toLocalInput } from "@/lib/utils";
 import {
-  addCandidate, addPosition, cancelElection, deleteElection, endElection, publishElection, removeCandidate,
-  removePosition, saveEligibility, startElection, unpublishElection, updateElection,
+  addCandidates, addPosition, advanceRound, cancelElection, deleteElection, endElection, publishElection, removeCandidate,
+  movePosition, removePosition, saveEligibility, startElection, unpublishElection, updateElection,
 } from "@/actions/elections";
 import { ElectionGeneralFields } from "@/components/ElectionGeneralFields";
 import { MultiPick } from "@/components/MultiPick";
@@ -33,7 +33,7 @@ export default async function ManageElection({ params, searchParams }: { params:
     db.office.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } }),
     loadEligibilityConfig(id),
     getEligibleMembers(id),
-    db.electionVoter.findMany({ where: { electionId: id }, include: { firefighter: true }, orderBy: { votedAt: "asc" } }),
+    db.electionVoter.findMany({ where: { electionId: id, position: { status: "OPEN" } }, include: { firefighter: true }, orderBy: { votedAt: "asc" } }),
   ]);
 
   const draft = e.status === "DRAFT";
@@ -42,6 +42,12 @@ export default async function ManageElection({ params, searchParams }: { params:
   const items = members.map((m) => ({ id: m.id, label: m.displayName, sub: m.rank?.abbreviation ?? undefined }));
   const votedIds = new Set(voters.map((v) => v.firefighterId));
   const notVoted = eligible.filter((m) => !votedIds.has(m.id));
+  const openPos = e.positions.find((p) => p.status === "OPEN");
+  const openIdx = openPos ? e.positions.indexOf(openPos) : -1;
+  const nextPos = e.positions.slice(openIdx + 1).find((p) => p.status === "PENDING");
+  // Person → Titel aller Ämter, für die sie kandidiert (für den Hinweis „kandidiert auch für …“)
+  const alsoFor = new Map<string, string[]>();
+  for (const p of e.positions) for (const c of p.candidates) alsoFor.set(c.firefighterId, [...(alsoFor.get(c.firefighterId) ?? []), p.title]);
 
   return (
     <>
@@ -74,6 +80,23 @@ export default async function ManageElection({ params, searchParams }: { params:
             )}
           </div>
         )}
+        {canControl && e.status === "ACTIVE" && (
+          <form action={advanceRound.bind(null, id)} className="mt-4 rounded-xl border border-fire-500/30 bg-fire-500/[0.06] p-4">
+            {openPos ? (
+              <>
+                <div className="text-sm text-slate-300">Läuft: <b className="text-white">Wahlgang {openIdx + 1} – {openPos.title}</b>. Danach {nextPos ? <>folgt <b className="text-white">{nextPos.title}</b>.</> : "endet die Wahl."}</div>
+                <p className="hint">Wird ein Kandidat gewählt, der auch für spätere Ämter kandidiert, wird er dort automatisch zurückgezogen.</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <select name="tieWinner" className="input min-w-[240px] flex-1" defaultValue="">
+                    <option value="">Bei Stimmengleichheit: Abschluss verweigern</option>
+                    {openPos.candidates.filter((c) => !c.withdrawn).map((c) => <option key={c.id} value={c.id}>Bei Gleichstand entscheidet: {c.firefighter.displayName}</option>)}
+                  </select>
+                  <button className="btn-primary" data-confirm={`Wahlgang „${openPos.title}“ jetzt abschließen?`}><ChevronsRight className="h-4 w-4" /> Wahlgang abschließen</button>
+                </div>
+              </>
+            ) : <div className="text-sm text-slate-400">Kein Wahlgang offen.</div>}
+          </form>
+        )}
         {!draft && <p className="hint mt-3">Ämter, Kandidaten und Wahlberechtigung sind nur im Entwurf bearbeitbar.{e.status === "SCHEDULED" && " Setze die Wahl zurück in den Entwurf, um sie zu ändern."}</p>}
       </section>
 
@@ -94,18 +117,28 @@ export default async function ManageElection({ params, searchParams }: { params:
         <div className="card-title mb-4">Ämter & Kandidaten</div>
         <div className="space-y-5">
           {e.positions.length === 0 && <p className="text-sm text-slate-500">Noch keine Ämter hinzugefügt.</p>}
-          {e.positions.map((p) => (
+          {e.positions.length > 1 && <p className="text-xs text-slate-500">Die Ämter werden nacheinander gewählt – in dieser Reihenfolge. Wer in einem Wahlgang gewählt wird, wird aus den späteren Ämtern automatisch zurückgezogen.</p>}
+          {e.positions.map((p, pi) => (
             <div key={p.id} className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4">
               <div className="mb-3 flex items-center justify-between gap-3">
-                <h3 className="font-bold text-white">{p.title}</h3>
+                <h3 className="font-bold text-white"><span className="mr-2 text-fire-400">{pi + 1}.</span>{p.title}
+                  {p.status === "OPEN" && <Pill tone="green">läuft</Pill>}{p.status === "CLOSED" && <Pill>abgeschlossen{p.winnerLabel ? ` · ${p.winnerLabel}` : ""}</Pill>}</h3>
+                <div className="flex items-center gap-1">
+                {canEdit && e.positions.length > 1 && <>
+                  <form action={movePosition.bind(null, id, p.id, "up")}><button disabled={pi === 0} className="grid h-9 w-9 place-items-center rounded-lg text-slate-400 hover:bg-white/10 disabled:opacity-30" aria-label="Nach oben"><ArrowUp className="h-4 w-4" /></button></form>
+                  <form action={movePosition.bind(null, id, p.id, "down")}><button disabled={pi === e.positions.length - 1} className="grid h-9 w-9 place-items-center rounded-lg text-slate-400 hover:bg-white/10 disabled:opacity-30" aria-label="Nach unten"><ArrowDown className="h-4 w-4" /></button></form>
+                </>}
                 {canEdit && <form action={removePosition.bind(null, id, p.id)}><button className="btn-ghost btn-sm text-red-300" data-confirm={`Amt „${p.title}“ samt Kandidaten entfernen?`}><Trash2 className="h-3.5 w-3.5" /> Amt entfernen</button></form>}
+                </div>
               </div>
               <ul className="mb-3 space-y-2">
                 {p.candidates.map((c) => (
-                  <li key={c.id} className="flex items-start gap-3 rounded-lg bg-ink-900/60 p-2.5">
+                  <li key={c.id} className={cn("flex items-start gap-3 rounded-lg bg-ink-900/60 p-2.5", c.withdrawn && "opacity-50")}>
                     <Avatar first={c.firefighter.firstName} last={c.firefighter.lastName} size={32} />
                     <div className="min-w-0 flex-1">
-                      <div className="text-sm font-semibold text-white">{c.firefighter.displayName}</div>
+                      <div className={cn("text-sm font-semibold text-white", c.withdrawn && "line-through")}>{c.firefighter.displayName}</div>
+                      {c.withdrawn && <div className="text-xs text-amber-300">Zurückgezogen: {c.withdrawnNote}</div>}
+                      {(alsoFor.get(c.firefighterId)?.length ?? 0) > 1 && !c.withdrawn && <div className="text-xs text-sky-300">kandidiert auch für: {alsoFor.get(c.firefighterId)!.filter((t) => t !== p.title).join(", ")}</div>}
                       {c.statement && <div className="text-xs italic text-slate-400">„{c.statement}“</div>}
                     </div>
                     {canEdit && <form action={removeCandidate.bind(null, id, c.id)}><button className="grid h-9 w-9 place-items-center rounded-lg text-slate-400 hover:bg-white/10" aria-label="Kandidat entfernen"><X className="h-4 w-4" /></button></form>}
@@ -114,9 +147,9 @@ export default async function ManageElection({ params, searchParams }: { params:
                 {p.candidates.length === 0 && <li className="text-xs text-amber-300">Noch keine Kandidaten.</li>}
               </ul>
               {canEdit && (
-                <form action={addCandidate.bind(null, id, p.id)} className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
-                  <MultiPick name="firefighterId" single items={items.filter((i) => !p.candidates.some((c) => c.firefighterId === i.id))} placeholder="Kandidat aus Mitgliedern wählen …" />
-                  <input name="statement" className="input" maxLength={300} placeholder="Kurze Vorstellung (optional)" />
+                <form action={addCandidates.bind(null, id, p.id)} className="grid gap-2 sm:grid-cols-[1.4fr_1fr_auto]">
+                  <MultiPick name="firefighterIds" items={items.filter((i) => !p.candidates.some((c) => c.firefighterId === i.id))} placeholder="Kandidaten suchen – mehrere möglich …" />
+                  <input name="statement" className="input" maxLength={300} placeholder="Vorstellung (nur bei einer Person)" />
                   <button className="btn-primary"><UserPlus className="h-4 w-4" /> Hinzufügen</button>
                 </form>
               )}
@@ -175,9 +208,9 @@ export default async function ManageElection({ params, searchParams }: { params:
       </section>
 
       {/* Beteiligung */}
-      {e.status !== "DRAFT" && (
+      {openPos && (
         <section className="card card-pad mb-6">
-          <div className="card-title mb-1">Beteiligung</div>
+          <div className="card-title mb-1">Beteiligung{openPos ? ` – Wahlgang ${openIdx + 1}: ${openPos.title}` : ""}</div>
           <p className="mb-4 text-xs text-slate-500">{e.secret ? "Geheime Wahl: Es wird nur angezeigt, wer abgestimmt hat – nicht wie." : "Öffentliche Wahl."}</p>
           <div className="grid gap-6 md:grid-cols-2">
             <div>
@@ -188,9 +221,9 @@ export default async function ManageElection({ params, searchParams }: { params:
               </ul>
             </div>
             <div>
-              <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-white"><AlertTriangle className="h-4 w-4 text-amber-400" /> Noch offen ({e.status === "ACTIVE" || e.status === "SCHEDULED" ? notVoted.length : "–"})</div>
+              <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-white"><AlertTriangle className="h-4 w-4 text-amber-400" /> Noch offen ({notVoted.length})</div>
               <ul className="space-y-1 text-sm">
-                {(e.status === "ACTIVE" || e.status === "SCHEDULED") && notVoted.map((m) => <li key={m.id} className="rounded-lg bg-white/[0.03] px-3 py-1.5">{m.displayName}</li>)}
+                {notVoted.map((m) => <li key={m.id} className="rounded-lg bg-white/[0.03] px-3 py-1.5">{m.displayName}</li>)}
               </ul>
             </div>
           </div>

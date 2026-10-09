@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { requireUser, requirePermission } from "@/lib/auth";
 import { UserError } from "@/lib/errors";
-import { castBallot, finalizeElection, syncElections } from "@/lib/elections";
+import { advanceElection, castBallot, finalizeElection, openNextPosition, syncElections } from "@/lib/elections";
 import { getEligibleMembers } from "@/lib/eligibility";
 import { fromLocalInput } from "@/lib/utils";
 import { bool, ids, optStr, parse, run, str } from "./helpers";
@@ -86,20 +86,38 @@ export async function removePosition(id: string, positionId: string) {
   });
 }
 
-export async function addCandidate(id: string, positionId: string, fd: FormData) {
+export async function addCandidates(id: string, positionId: string, fd: FormData) {
   const actor = await requirePermission("elections.manage");
   await run(manageUrl(id), async () => {
     const e = await draftElection(id);
-    const memberId = str(fd, "firefighterId");
-    if (!memberId) throw new UserError("Bitte wähle ein Mitglied aus der Liste.");
-    const [p, m] = await Promise.all([
-      db.electionPosition.findFirstOrThrow({ where: { id: positionId, electionId: id } }),
-      db.firefighter.findUniqueOrThrow({ where: { id: memberId } }),
-    ]);
-    const sortOrder = await db.candidate.count({ where: { positionId } });
-    await db.candidate.create({ data: { positionId, firefighterId: memberId, statement: optStr(fd, "statement"), sortOrder } });
-    await audit(actor, "election.candidate", `„${m.displayName}“ wurde als Kandidat für „${p.title}“ in „${e.name}“ eingetragen.`, { type: "Election", id });
-    return { ok: `${m.displayName} als Kandidat hinzugefügt.` };
+    const memberIds = ids(fd, "firefighterIds");
+    if (!memberIds.length) throw new UserError("Bitte wähle mindestens ein Mitglied aus der Liste.");
+    const p = await db.electionPosition.findFirstOrThrow({ where: { id: positionId, electionId: id } });
+    const members = await db.firefighter.findMany({ where: { id: { in: memberIds } } });
+    const existing = await db.candidate.findMany({ where: { positionId, firefighterId: { in: memberIds } } });
+    const fresh = members.filter((m) => !existing.some((c) => c.firefighterId === m.id));
+    if (!fresh.length) throw new UserError("Alle gewählten Personen kandidieren bereits für dieses Amt.");
+    const base = await db.candidate.count({ where: { positionId } });
+    const statement = fresh.length === 1 ? optStr(fd, "statement") : null;
+    await db.candidate.createMany({
+      data: fresh.map((m, i) => ({ positionId, firefighterId: m.id, statement, sortOrder: base + i })),
+    });
+    await audit(actor, "election.candidate", `${fresh.map((m) => `„${m.displayName}“`).join(", ")} ${fresh.length === 1 ? "wurde" : "wurden"} als Kandidat(en) für „${p.title}“ in „${e.name}“ eingetragen.`, { type: "Election", id });
+    return { ok: `${fresh.length} Kandidat${fresh.length === 1 ? "" : "en"} hinzugefügt.` };
+  });
+}
+
+export async function movePosition(id: string, positionId: string, dir: "up" | "down") {
+  const actor = await requirePermission("elections.manage");
+  await run(manageUrl(id), async () => {
+    const e = await draftElection(id);
+    const list = await db.electionPosition.findMany({ where: { electionId: id }, orderBy: [{ sortOrder: "asc" }, { id: "asc" }] });
+    const i = list.findIndex((p) => p.id === positionId);
+    const j = dir === "up" ? i - 1 : i + 1;
+    if (i < 0 || j < 0 || j >= list.length) return;
+    [list[i], list[j]] = [list[j], list[i]];
+    await db.$transaction(list.map((p, idx) => db.electionPosition.update({ where: { id: p.id }, data: { sortOrder: idx } })));
+    await audit(actor, "election.position", `Reihenfolge der Wahlgänge in „${e.name}“ wurde geändert.`, { type: "Election", id });
   });
 }
 
@@ -195,7 +213,8 @@ export async function startElection(id: string) {
       data: { status: "ACTIVE", startedAt: now, startsAt: e.startsAt > now ? now : e.startsAt },
     });
     await audit(actor, "election.start", `Wahl „${e.name}“ wurde aktiviert.`, { type: "Election", id });
-    return { ok: "Die Wahl ist jetzt aktiv." };
+    await openNextPosition(id, actor);
+    return { ok: "Die Wahl ist jetzt aktiv. Der erste Wahlgang ist geöffnet." };
   }, ["/wahlen", "/dashboard"]);
 }
 
@@ -205,6 +224,14 @@ export async function endElection(id: string) {
     const ok = await finalizeElection(id, actor, "(manuell)");
     if (!ok) throw new UserError("Nur aktive Wahlen können beendet werden.");
     return { ok: "Wahl beendet. Das Ergebnis wurde berechnet." };
+  }, ["/wahlen", "/dashboard", "/historie"]);
+}
+
+export async function advanceRound(id: string, fd: FormData) {
+  const actor = await requirePermission("elections.control");
+  await run(manageUrl(id), async () => {
+    const res = await advanceElection(id, actor, { tieWinner: optStr(fd, "tieWinner") });
+    return { ok: res.winner ? `${res.winner.firefighter.displayName} wurde als „${res.position.title}“ gewählt.` : `Wahlgang „${res.position.title}“ abgeschlossen.` };
   }, ["/wahlen", "/dashboard", "/historie"]);
 }
 
@@ -241,9 +268,7 @@ export async function submitBallot(id: string, fd: FormData) {
   await run(`/wahlen/${id}`, async () => {
     if (!user.firefighter) throw new UserError("Dein Benutzerkonto ist keinem Feuerwehrmitglied zugeordnet.");
     if (str(fd, "confirm") !== "yes") throw new UserError("Bitte bestätige die endgültige Abgabe.");
-    const choices: Record<string, string> = {};
-    for (const [k, v] of fd.entries()) if (k.startsWith("pos_")) choices[k.slice(4)] = String(v);
-    await castBallot(id, user.firefighter.id, choices);
+    await castBallot(id, user.firefighter.id, str(fd, "positionId"), str(fd, "choice"));
     return { ok: "Deine Stimme wurde endgültig abgegeben. Vielen Dank!" };
   }, ["/dashboard", "/wahlen"]);
 }

@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { BadgeCheck, Ban, CalendarClock, Settings2, ShieldCheck, Lock } from "lucide-react";
+import { BadgeCheck, Ban, CalendarClock, CheckCircle2, Circle, Hourglass, Lock, PlayCircle, Settings2, ShieldCheck } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { loadElectionForUser } from "@/lib/access";
 import { db } from "@/lib/db";
-import { fmtDateTime } from "@/lib/utils";
+import { cn, fmtDateTime } from "@/lib/utils";
 import { submitBallot } from "@/actions/elections";
 import { BallotForm } from "@/components/BallotForm";
 import { Countdown } from "@/components/Countdown";
@@ -17,9 +17,11 @@ export default async function ElectionPage({ params, searchParams }: { params: P
   const user = await requireUser();
   const data = await loadElectionForUser(user, id);
   if (!data) notFound();
-  const { election: e, eligible, voted, manager } = data;
+  const { election: e, eligible, voted, manager, openPosition } = data;
 
-  const canSeeResults = e.status === "ENDED" && (e.resultsPublic || user.can("elections.results"));
+  const resultsAllowed = e.resultsPublic || user.can("elections.results");
+  const hasClosed = e.positions.some((p) => p.status === "CLOSED");
+  const canSeeResults = resultsAllowed && (e.status === "ENDED" || (e.status === "ACTIVE" && hasClosed));
   const canSeeVotes = !e.secret && user.can("elections.view_votes") && ["ACTIVE", "ENDED"].includes(e.status);
   const publicVotes = canSeeVotes
     ? await db.vote.findMany({
@@ -28,11 +30,13 @@ export default async function ElectionPage({ params, searchParams }: { params: P
         include: { voter: true, position: true, candidate: { include: { firefighter: true } } },
       })
     : [];
-  const myVoteAt = voted && user.firefighter
-    ? (await db.electionVoter.findUnique({ where: { electionId_firefighterId: { electionId: id, firefighterId: user.firefighter.id } } }))?.votedAt
+  const myVoteAt = voted && user.firefighter && openPosition
+    ? (await db.electionVoter.findUnique({ where: { positionId_firefighterId: { positionId: openPosition.id, firefighterId: user.firefighter.id } } }))?.votedAt
     : null;
 
-  const showBallot = e.status === "ACTIVE" && eligible && !voted;
+  const showBallot = e.status === "ACTIVE" && eligible && !voted && !!openPosition;
+  const openIdx = openPosition ? e.positions.findIndex((p) => p.id === openPosition.id) : -1;
+  const openCands = openPosition?.candidates.filter((c) => !c.withdrawn) ?? [];
 
   return (
     <>
@@ -55,6 +59,27 @@ export default async function ElectionPage({ params, searchParams }: { params: P
         </div>
       )}
 
+      {/* Ablauf der Wahlgänge */}
+      {e.positions.length > 0 && e.status !== "DRAFT" && (
+        <ol className="mb-6 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {e.positions.map((p, i) => {
+            const Icon = p.status === "CLOSED" ? CheckCircle2 : p.status === "OPEN" ? PlayCircle : Circle;
+            return (
+              <li key={p.id} className={cn("flex items-center gap-3 rounded-xl border p-3 text-sm",
+                p.status === "OPEN" ? "border-fire-500/50 bg-fire-500/10" : "border-white/[0.07] bg-white/[0.02]")}>
+                <Icon className={cn("h-5 w-5 shrink-0", p.status === "CLOSED" ? "text-emerald-400" : p.status === "OPEN" ? "text-fire-400" : "text-slate-600")} />
+                <div className="min-w-0">
+                  <div className="text-[11px] uppercase tracking-wider text-slate-500">Wahlgang {i + 1}</div>
+                  <div className="truncate font-semibold text-white">{p.title}</div>
+                  {p.status === "CLOSED" && resultsAllowed && <div className="truncate text-xs text-slate-400">{p.winnerLabel ? `Gewählt: ${p.winnerLabel}` : "kein Gewinner"}</div>}
+                  {p.status === "OPEN" && <div className="text-xs text-fire-300">läuft jetzt</div>}
+                </div>
+              </li>
+            );
+          })}
+        </ol>
+      )}
+
       {e.status === "CANCELLED" && (
         <div className="card card-pad mb-6 flex items-start gap-3 border-red-500/30">
           <Ban className="mt-0.5 h-5 w-5 text-red-400" />
@@ -62,41 +87,50 @@ export default async function ElectionPage({ params, searchParams }: { params: P
         </div>
       )}
 
-      {voted && (
+      {openPosition && voted && (
         <div className="card card-pad mb-6 flex items-center gap-3 border-emerald-500/30">
-          <BadgeCheck className="h-6 w-6 text-emerald-400" />
-          <div><div className="font-semibold text-white">Du hast bereits abgestimmt.</div>
-            <div className="text-sm text-slate-400">Abgegeben am {fmtDateTime(myVoteAt)}. Die Stimme kann nicht mehr geändert werden.</div></div>
+          <BadgeCheck className="h-6 w-6 shrink-0 text-emerald-400" />
+          <div><div className="font-semibold text-white">Du hast im Wahlgang „{openPosition.title}“ abgestimmt.</div>
+            <div className="text-sm text-slate-400">Abgegeben am {fmtDateTime(myVoteAt)}. Sobald der nächste Wahlgang beginnt, kannst du hier erneut abstimmen.</div></div>
         </div>
       )}
       {e.status === "ACTIVE" && !eligible && user.firefighter && (
         <div className="card card-pad mb-6 text-sm text-slate-400"><Lock className="mr-2 inline h-4 w-4" />Du bist für diese Wahl nicht wahlberechtigt.</div>
       )}
+      {e.status === "ACTIVE" && !openPosition && (
+        <div className="card card-pad mb-6 text-sm text-slate-400"><Hourglass className="mr-2 inline h-4 w-4" />Gerade läuft kein Wahlgang.</div>
+      )}
 
-      {showBallot ? (
-        <BallotForm secret={e.secret} action={submitBallot.bind(null, id)}
-          positions={e.positions.map((p) => ({
-            id: p.id, title: p.title,
-            candidates: p.candidates.map((c) => ({ id: c.id, name: c.firefighter.displayName, sub: c.firefighter.rank?.name, statement: c.statement })),
-          }))} />
-      ) : canSeeResults ? (
-        <Results electionId={id} />
-      ) : (
+      {showBallot && openPosition && (
+        <div className="mb-8">
+          <div className="mb-3 text-sm text-slate-400">Wahlgang {openIdx + 1} von {e.positions.length}</div>
+          <BallotForm secret={e.secret} action={submitBallot.bind(null, id)}
+            position={{
+              id: openPosition.id, title: openPosition.title,
+              candidates: openCands.map((c) => ({ id: c.id, name: c.firefighter.displayName, sub: c.firefighter.rank?.name, statement: c.statement })),
+            }} />
+        </div>
+      )}
+
+      {canSeeResults && <Results electionId={id} />}
+
+      {!showBallot && !canSeeResults && e.status !== "CANCELLED" && (
         <div className="grid gap-4 md:grid-cols-2">
           {e.positions.map((p) => (
             <section key={p.id} className="card card-pad">
               <h3 className="mb-3 font-bold text-white">{p.title}</h3>
               <ul className="space-y-2">
                 {p.candidates.map((c) => (
-                  <li key={c.id} className="rounded-lg bg-white/[0.03] px-3 py-2 text-sm">
-                    <div className="font-medium text-slate-200">{c.firefighter.displayName} <span className="text-xs text-slate-500">{c.firefighter.rank?.abbreviation}</span></div>
-                    {c.statement && <div className="mt-0.5 text-xs italic text-slate-500">„{c.statement}“</div>}
+                  <li key={c.id} className={cn("rounded-lg bg-white/[0.03] px-3 py-2 text-sm", c.withdrawn && "opacity-50")}>
+                    <div className={cn("font-medium text-slate-200", c.withdrawn && "line-through")}>{c.firefighter.displayName} <span className="text-xs text-slate-500">{c.firefighter.rank?.abbreviation}</span></div>
+                    {c.withdrawn && <div className="text-xs text-slate-500">{c.withdrawnNote}</div>}
+                    {c.statement && !c.withdrawn && <div className="mt-0.5 text-xs italic text-slate-500">„{c.statement}“</div>}
                   </li>
                 ))}
               </ul>
             </section>
           ))}
-          {e.status === "ENDED" && !canSeeResults && <div className="card card-pad text-sm text-slate-400">Das Ergebnis wird nicht veröffentlicht.</div>}
+          {e.status === "ENDED" && !resultsAllowed && <div className="card card-pad text-sm text-slate-400">Das Ergebnis wird nicht veröffentlicht.</div>}
         </div>
       )}
 

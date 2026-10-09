@@ -50,10 +50,17 @@ Optional: `GET /api/cron/tick` mit `Authorization: Bearer $CRON_SECRET` schaltet
 | `election_results` | beim Beenden eingefrorenes Ergebnis |
 
 * Ein DB-Trigger (`prisma/migrations/0002_*`) lehnt jede Stimme einer geheimen Wahl mit Wähler/Zeitstempel ab – auch bei direktem SQL-Zugriff – und verbietet den Wechsel der Wahlart nach der ersten Stimme.
-* Doppelte Abstimmung wird per Unique-Constraint in derselben Transaktion verhindert.
+* Doppelte Abstimmung wird je Wahlgang per Unique-Constraint in derselben Transaktion verhindert.
+* Beim Abschluss eines geheimen Wahlgangs werden die Stimmen neu gemischt (neue Zufalls-IDs, neue Einfügereihenfolge), damit sie sich nicht anhand der Reihenfolge den Teilnahmevermerken zuordnen lassen.
 * Audit-Log und Server-Logs enthalten keine Stimmabgaben.
 * Ergebnisse sind erst nach Ende der Wahl sichtbar (keine Live-Zwischenstände).
 * Grenze: Wer Schreibzugriff auf Anwendung/DB-Code hat, könnte die Software ändern; organisatorisch ist der Betrieb daher getrennt von den Wahlverantwortlichen zu halten.
+
+## Wahlablauf
+Pro Wahl können beliebig viele Ämter mit beliebig vielen Kandidaten angelegt werden. Die Ämter werden **nacheinander** gewählt
+(Reihenfolge einstellbar): ein Wahlgang ist offen, der Wahlleiter schließt ihn ab, danach öffnet der nächste. Wird jemand gewählt,
+der auch für spätere Ämter kandidiert, wird die Kandidatur dort automatisch zurückgezogen (bleibt sichtbar, durchgestrichen).
+Bleibt für ein Amt niemand übrig, entfällt der Wahlgang. Bei Stimmengleichheit muss der Wahlleiter beim Abschluss entscheiden.
 
 ## Rollen
 Superadministrator (alles) · Wehrführer · Wahlleiter · Feuerwehrmitglied. Rechte sind feingranular (`src/lib/permissions.ts`),

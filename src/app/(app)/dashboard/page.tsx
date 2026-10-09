@@ -3,6 +3,7 @@ import { ArrowRight, Award, BadgeCheck, CalendarClock, Truck, Users, Vote, Histo
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { isEligible } from "@/lib/eligibility";
+import { votedInOpenRound } from "@/lib/access";
 import { fmtDateTime } from "@/lib/utils";
 import { Countdown } from "@/components/Countdown";
 import { Flash, PageHeader, Pill, SecretBadge, Stat, StatusBadge } from "@/components/ui";
@@ -23,7 +24,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
   for (const e of candidates) {
     const eligible = ff ? await isEligible(e.id, ff.id) : false;
     if (!eligible && !manager) continue;
-    const voted = ff ? !!(await db.electionVoter.findUnique({ where: { electionId_firefighterId: { electionId: e.id, firefighterId: ff.id } } })) : false;
+    const voted = ff ? await votedInOpenRound(e.id, ff.id) : false;
     mine.push({ e, eligible, voted });
   }
   const active = mine.filter((m) => m.e.status === "ACTIVE");
@@ -76,7 +77,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
               </div>
               <div className="mt-5 flex flex-wrap items-center gap-3">
                 {eligible && !voted && <Link href={`/wahlen/${e.id}`} className="btn-primary w-full sm:w-auto">Jetzt abstimmen <ArrowRight className="h-4 w-4" /></Link>}
-                {eligible && voted && <Pill tone="green"><BadgeCheck className="h-3.5 w-3.5" /> Du hast bereits abgestimmt</Pill>}
+                {eligible && voted && <Pill tone="green"><BadgeCheck className="h-3.5 w-3.5" /> Du hast in diesem Wahlgang abgestimmt</Pill>}
                 {!eligible && <Pill>Nicht wahlberechtigt</Pill>}
                 {(!eligible || voted) && <Link href={`/wahlen/${e.id}`} className="btn-ghost btn-sm">Details</Link>}
               </div>

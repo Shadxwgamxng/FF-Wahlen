@@ -3,6 +3,7 @@ import { CalendarClock, Plus } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { isEligible } from "@/lib/eligibility";
+import { votedInOpenRound } from "@/lib/access";
 import { fmtDateTime } from "@/lib/utils";
 import { Flash, PageHeader, Pill, SecretBadge, StatusBadge } from "@/components/ui";
 
@@ -21,7 +22,7 @@ export default async function ElectionsPage({ searchParams }: { searchParams: Pr
   for (const e of all) {
     const eligible = user.firefighter ? await isEligible(e.id, user.firefighter.id) : false;
     if (!manager && !eligible) continue;
-    const voted = user.firefighter ? !!(await db.electionVoter.findUnique({ where: { electionId_firefighterId: { electionId: e.id, firefighterId: user.firefighter.id } } })) : false;
+    const voted = user.firefighter ? await votedInOpenRound(e.id, user.firefighter.id) : false;
     rows.push({ e, eligible, voted });
   }
 
