@@ -39,7 +39,7 @@ Domain → *Node.js*:
 | `SUPERADMIN_DISCORD_IDS` | deine Discord-ID (mehrere mit Komma) |
 | `CRON_SECRET` | optional, langes Zufallspasswort (siehe unten) |
 
-Dann **„NPM install“ NICHT ausführen** (alles ist bereits enthalten) → *Anwendung aktivieren* bzw. *Neu starten*.
+Falls die App mit einem Fehler zur „Prisma Query Engine“ nicht startet: `prisma-engines-zusatz.zip` in denselben Ordner entpacken (zusammenführen). Dann **„NPM install“ NICHT ausführen** (alles ist bereits enthalten) → *Anwendung aktivieren* bzw. *Neu starten*.
 
 ## 5. Erster Login
 `https://DEINE-DOMAIN` öffnen → *Mit Discord anmelden*. Der erste Login mit einer ID aus `SUPERADMIN_DISCORD_IDS` legt den Superadministrator an.

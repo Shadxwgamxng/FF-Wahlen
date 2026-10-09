@@ -31,6 +31,21 @@ Siehe PLESK-ANLEITUNG.md (im selben Ordner). Kurzfassung:
 4. App starten – Datenbank-Tabellen und Standarddaten werden automatisch angelegt.
 TXT
 
+# Zu große Dateien verschlanken: nur die Prisma-Engine für Debian/Ubuntu (OpenSSL 3) im Hauptpaket,
+# die Engines für ältere (OpenSSL 1.1) bzw. RHEL/AlmaLinux-Server liegen in einem Zusatzpaket.
+PC="$OUT/node_modules/.prisma/client"
+rm -f "$PC"/*.wasm "$PC"/wasm* "$PC"/*.d.ts
+EXTRA=dist/zusatz && mkdir -p "$EXTRA/node_modules/.prisma/client"
+mv "$PC"/libquery_engine-debian-openssl-1.1.x.so.node "$PC"/libquery_engine-rhel-openssl-3.0.x.so.node "$EXTRA/node_modules/.prisma/client/"
+cat > "$EXTRA/LIESMICH.txt" <<'TXT'
+Nur nötig, wenn die App mit einer Fehlermeldung zu "Prisma Query Engine" / "binary target" nicht startet:
+Den Ordner node_modules aus diesem Zip in den Anwendungsstamm entpacken (zusammenführen) und die App neu starten.
+ - libquery_engine-debian-openssl-1.1.x : Ubuntu 20.04 / Debian 11 und aelter
+ - libquery_engine-rhel-openssl-3.0.x   : AlmaLinux / Rocky / CentOS 9
+TXT
+(cd dist && python3 -c "
+import shutil; shutil.make_archive('prisma-engines-zusatz','zip','zusatz')")
+
 (cd dist && rm -f ff-wahlen-plesk.zip && python3 -c "
 import shutil; shutil.make_archive('ff-wahlen-plesk','zip','plesk')")
 echo "Fertig: dist/ff-wahlen-plesk.zip"
