@@ -3,6 +3,17 @@
 Wahlplattform für eine Freiwillige Feuerwehr auf einem FiveM-Roleplay-Server.
 Stack: Next.js 15 (App Router, Server Actions) · TypeScript · Tailwind · PostgreSQL · Prisma · Discord OAuth2.
 
+## Lokal ausführen (schnell)
+
+Voraussetzungen: Node.js 20+, Docker (nur für PostgreSQL).
+
+```bash
+./setup-local.sh    # DB starten, installieren, migrieren, Demodaten
+npm run dev         # http://localhost:3000
+```
+Unter Windows: `docker compose up -d`, `copy .env.example .env`, dann `npm install`, `npx prisma migrate deploy`, `npm run db:seed`, `npm run dev`.
+Ohne Discord-App: In `.env` ist `DEV_LOGIN="true"` – auf der Login-Seite erscheint ein Dev-Login (Discord-ID `100000000000000001` = Superadmin).
+
 ## Start
 
 ```bash
