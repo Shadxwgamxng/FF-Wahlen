@@ -2,8 +2,11 @@
 
 
 const nextConfig = {
+  output: "standalone", // eigenständiges Server-Paket (Plesk/Node.js)
+  outputFileTracingIncludes: { "/**": ["./node_modules/.prisma/client/**/*"] },
   reactStrictMode: true,
   poweredByHeader: false,
+  images: { unoptimized: true },
   async headers() {
     return [
       {

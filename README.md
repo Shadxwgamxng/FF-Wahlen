@@ -6,16 +6,19 @@ Stack: Next.js 15 (App Router, Server Actions) · TypeScript · Tailwind · Post
 ## Ein-Klick-Start (empfohlen)
 
 **Windows:** `Start.bat` doppelklicken. **macOS:** `Start.command`. **Linux:** `./start.sh`.
-Beim ersten Mal wird alles automatisch installiert und eingerichtet (eingebettete Datenbank, Schema, Demodaten) –
+Beim ersten Mal wird alles automatisch installiert und eingerichtet (eingebettete Datenbank, Schema, Standarddaten) –
 danach öffnet sich der Browser. Ab dem zweiten Mal startet es in Sekunden. Daten liegen im Ordner `.data/`.
 Voraussetzung ist nur Node.js (wird unter Windows per `winget` automatisch angeboten).
+
+## Plesk / eigener Server (Node.js)
+`./scripts/build-plesk.sh` erzeugt `dist/ff-wahlen-plesk.zip` (ohne Datenbank und Demodaten). Anleitung: [PLESK-ANLEITUNG.md](PLESK-ANLEITUNG.md).
 
 ## Lokal ausführen (mit Docker)
 
 Voraussetzungen: Node.js 20+, Docker (nur für PostgreSQL).
 
 ```bash
-./setup-local.sh    # DB starten, installieren, migrieren, Demodaten
+./setup-local.sh    # DB starten, installieren, migrieren, Standarddaten
 npm run dev         # http://localhost:3000
 ```
 Unter Windows: `docker compose up -d`, `copy .env.example .env`, dann `npm install`, `npx prisma migrate deploy`, `npm run db:seed`, `npm run dev`.
@@ -27,8 +30,8 @@ Ohne Discord-App: In `.env` ist `DEV_LOGIN="true"` – auf der Login-Seite ersch
 cp .env.example .env            # Werte eintragen
 npm install
 npx prisma migrate deploy       # Schema + Trigger für das Wahlgeheimnis
-npm run db:seed                 # Rechte, Rollen, Löschzüge 11/21/31, Ämter, Dienstgrade (SEED_DEMO=true für Demodaten)
-npm run dev                     # bzw. npm run build && npm start
+npm run db:seed                 # Rechte, Rollen, Löschzüge 11/21/31, Ämter, Dienstgrade
+npm run dev                     # Entwicklung; Produktion: siehe Plesk-Paket / `node .next/standalone/server.js`
 ```
 
 **Discord:** In der Discord-Developer-Console eine Anwendung anlegen, Redirect-URI `{APP_URL}/api/auth/discord/callback`

@@ -1,4 +1,4 @@
-// Ein-Klick-Start: eingebettete PostgreSQL-Datenbank + Migration + Demodaten + App + Browser.
+// Ein-Klick-Start: eingebettete PostgreSQL-Datenbank + Migration + Standarddaten + App + Browser.
 // Gestartet über Start.bat (Windows) / Start.command (macOS) / start.sh (Linux).
 import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -78,7 +78,7 @@ try {
   run(npx, ["prisma", "generate"]);
   run(npx, ["prisma", "migrate", "deploy"]);
   const firstRun = !existsSync(path.join(dataDir, ".seeded"));
-  run(npx, ["tsx", "prisma/seed.ts"], firstRun ? { SEED_DEMO: "true" } : {});
+  run(npx, ["tsx", "prisma/seed.ts"], {});
   if (firstRun) writeFileSync(path.join(dataDir, ".seeded"), new Date().toISOString());
 
   // 4) App starten
