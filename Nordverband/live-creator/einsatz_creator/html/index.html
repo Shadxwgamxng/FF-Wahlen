@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Einsatz-Creator</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- ================= Creator ================= -->
+    <div id="editor" class="hidden">
+        <header id="topbar"></header>
+        <aside id="left">
+            <nav id="tabs">
+                <button data-tab="tools" class="tab">Werkzeuge</button>
+                <button data-tab="incident" class="tab">Einsatz</button>
+                <button data-tab="elements" class="tab">Elemente</button>
+                <button data-tab="scenarios" class="tab">Szenarien</button>
+                <button data-tab="active" class="tab">Aktiv</button>
+            </nav>
+            <div id="leftContent" class="scroll"></div>
+        </aside>
+        <main id="viewport"></main>
+        <aside id="right" class="scroll"></aside>
+        <footer id="bottombar"></footer>
+        <div id="modal" class="hidden"></div>
+    </div>
+
+    <!-- ================= Einsatzkraefte ================= -->
+    <div id="alarm" class="hidden"></div>
+    <div id="prompt" class="hidden"></div>
+    <div id="progress" class="hidden">
+        <div class="label"></div>
+        <div class="bar"><div class="fill"></div></div>
+        <div class="hint"></div>
+    </div>
+    <div id="actionMenu" class="hidden"></div>
+    <div id="patientCard" class="hidden"></div>
+    <div id="infoPanel" class="hidden"></div>
+
+    <div id="toasts"></div>
+
+    <script src="app.js"></script>
+</body>
+</html>

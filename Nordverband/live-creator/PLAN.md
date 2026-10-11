@@ -42,12 +42,13 @@ Dieser Plan wird bei jedem Zwischenstand aktualisiert und mitgepusht.
 - ✅ Alarmierung, Blips, Route, Einsatzinfo-Fenster
 
 ## Phase 5 – Oberfläche (NUI)
-- 🔄 Layout: obere Leiste, Werkzeugpanel, Eigenschaften, Statusleiste
-- ⬜ Tabs: Werkzeuge, Einsatz, Elemente, Szenarien, Aktive Einsätze
-- ⬜ Formulare je Einsatzart, Patienten-Editor
-- ⬜ Einsatzkräfte-Ansichten (Alarm, Einsatzinfo, Interaktionsmenü, Fortschritt)
+- ✅ Layout: obere Leiste, Werkzeugpanel, Eigenschaften, Statusleiste
+- ✅ Tabs: Werkzeuge, Einsatz, Elemente, Szenarien, Aktive Einsätze
+- ✅ Formulare je Einsatzart, Patienten-Editor
+- ✅ Einsatzkräfte-Ansichten (Alarm, Einsatzinfo, Interaktionsmenü, Fortschritt)
 
 ## Phase 6 – Abschluss
-- ⬜ Syntaxprüfung aller Lua- und JS-Dateien
-- ⬜ README: Installation, `server.cfg`, Bedienung, Exports/Events, Bridge-Payload, Testcheckliste
-- ⬜ Rückfragen zur Leitstellen-Integration
+- ✅ Syntaxprüfung aller Lua- und JS-Dateien
+- ✅ README: Installation, `server.cfg`, Bedienung, Exports/Events, Bridge-Payload, Testcheckliste
+- ✅ Offline-Testlauf der Server-Logik (`tests/server_test.lua`, 54/54 bestanden)
+- 🔄 Rückfragen zur Leitstellen-Integration (siehe Chat)

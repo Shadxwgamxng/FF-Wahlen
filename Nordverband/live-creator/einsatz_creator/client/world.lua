@@ -30,8 +30,11 @@ local DEFORM = {
     { 0.0, 0.5, 0.9, 160.0, 600.0 },
 }
 
-function World.applyVehicle(veh, props, isLocal)
+-- skipDamage: Schaeden wurden bereits (von einem frueheren Besitzer) angewendet
+function World.applyVehicle(veh, props, isLocal, skipDamage)
     if not DoesEntityExist(veh) then return end
+    -- Vorschau: vor erneutem Anwenden zuruecksetzen, damit sich Schaeden nicht aufsummieren
+    if isLocal then SetVehicleFixed(veh) end
     SetVehicleHasBeenOwnedByPlayer(veh, false)
     SetVehicleNeedsToBeHotwired(veh, false)
     SetVehicleDoorsLocked(veh, props.locked and 2 or 1)
@@ -45,6 +48,7 @@ function World.applyVehicle(veh, props, isLocal)
     if props.colour and props.colour >= 0 then SetVehicleColours(veh, props.colour, props.colour) end
     if props.plate and props.plate ~= '' then SetVehicleNumberPlateText(veh, props.plate) end
 
+    if skipDamage then return end
     local level = props.damage or 0
     if level > 0 then
         SetVehicleEngineHealth(veh, math.max(-100.0, 1000.0 - level * 260.0))
@@ -158,7 +162,10 @@ local function applyLive(entity, state)
         rec.stateRef = state
         rec.poseSince = GetGameTimer()
         if state.k == 'vehicle' then
-            World.applyVehicle(entity, state.p, false)
+            -- Schaeden nur einmal anwenden (werden mit dem Fahrzeug synchronisiert)
+            local done = Entity(entity).state.ecDamage == true
+            World.applyVehicle(entity, state.p, false, done)
+            if not done then Entity(entity).state:set('ecDamage', true, true) end
         elseif state.k == 'ped' then
             World.setupPed(entity, state.p, false, state)
         end
