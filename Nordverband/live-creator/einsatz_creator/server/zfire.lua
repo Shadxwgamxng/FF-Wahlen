@@ -4,7 +4,7 @@
     Verwendet ausschliesslich dokumentierte z_fire-Server-Exports:
       createFire(fire_data, source)   -> uuid | nil
       createSmoke(smoke_data)         -> uuid | nil
-      deleteFires({ { id = uuid }, ... })
+      deleteFire({ { id = uuid }, ... })   (in der Doku "deleteFires")
       getAllFires() / getAllSmoke()   -> Tabellen mit allen aktiven Feuern/Rauchquellen
     Rauch kann laut Doku nur clientseitig geloescht werden (deleteSmokeById):
     der Server beauftragt dafuer einen verbundenen Client.
@@ -27,6 +27,15 @@ function ZFire.available()
 end
 
 local function z() return exports[res()] end
+
+-- z_fire exportiert das Loeschen als "deleteFire" (Doku: deleteFires); beide Namen unterstuetzen
+local function zDeleteFires(payload)
+    local ok, err = pcall(function() return z():deleteFire(payload) end)
+    if ok then return true end
+    local ok2, err2 = pcall(function() return z():deleteFires(payload) end)
+    if ok2 then return true end
+    return false, tostring(err) .. ' / ' .. tostring(err2)
+end
 
 -- Weltversatz -> fahrzeug-/objektlokaler Versatz (z_fire erwartet bei Kopplung einen Offset)
 local function toLocal(entity, offset)
@@ -71,7 +80,9 @@ function ZFire.createForIncident(incident)
         if el.kind == 'fire' then
             local behaviour = behaviourOf(el, attachKind)
             local data = {
-                ptfxData = { type = p.zfEffect, pos = vector3(el.pos.x, el.pos.y, el.pos.z), scale = p.size },
+                -- z_fire verlangt fallbackPos bei JEDEM Feuer (sonst kein Rueckgabewert)
+                ptfxData = { type = p.zfEffect, pos = vector3(el.pos.x, el.pos.y, el.pos.z), scale = p.size,
+                    fallbackPos = vector3(el.pos.x, el.pos.y, el.pos.z) },
                 behaviourType = behaviour,
                 canSpread = p.canSpread,
                 spreadSize = p.spreadRadius,
@@ -94,14 +105,15 @@ function ZFire.createForIncident(incident)
             local ok, uuid = pcall(function() return z():createFire(data, src or -1) end)
             if not ok or not uuid then
                 local why = ok and 'kein Rueckgabewert' or tostring(uuid)
-                if ok and behaviour == 'grass' then why = 'Flaechenbrand auf nicht brennbarem Untergrund? Feuer im Creator neu setzen' end
                 error({ message = ('z_fire konnte Feuer "%s" nicht erzeugen (%s)'):format(el.label ~= '' and el.label or el.id, why) })
             end
             rec.fires[uuid] = el.id
             incident.fire.total = incident.fire.total + 1
         elseif el.kind == 'smoke' then
             local data = {
-                ptfxData = { type = p.zfEffect, pos = vector3(el.pos.x, el.pos.y, el.pos.z), scale = p.size },
+                -- z_fire verlangt fallbackPos bei JEDEM Feuer (sonst kein Rueckgabewert)
+                ptfxData = { type = p.zfEffect, pos = vector3(el.pos.x, el.pos.y, el.pos.z), scale = p.size,
+                    fallbackPos = vector3(el.pos.x, el.pos.y, el.pos.z) },
                 networkEntity = target and target.netId or nil,
                 canDisperse = p.zfDisperse,
             }
@@ -178,8 +190,8 @@ function ZFire.removeIncident(incidentId)
     if #fires > 0 then
         local payload = {}
         for _, id in ipairs(fires) do payload[#payload + 1] = { id = id } end
-        local ok, err = pcall(function() return z():deleteFires(payload) end)
-        if not ok then U.log('error', 'z_fire deleteFires (%s): %s', incidentId, tostring(err)) end
+        local ok, err = zDeleteFires(payload)
+        if not ok then U.log('error', 'z_fire deleteFire (%s): %s', incidentId, tostring(err)) end
     end
     local smokes = ownSmokes(rec) or {}
     deleteSmokes(smokes, rec.src)

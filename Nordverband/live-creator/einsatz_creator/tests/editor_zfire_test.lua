@@ -23,7 +23,7 @@ Cam = {}; Preview = {}; World = {}
 dofile('client/editor.lua')
 local ok, err
 local veh = { id = 'v1', kind = 'vehicle', pos = { x = 0, y = 0, z = 0 }, props = {} }
-local obj = { id = 'o1', kind = 'object', pos = { x = 5, y = 0, z = 0 }, props = {} }
+local obj = { id = 'o1', kind = 'object', model = 'prop_dumpster_01a', pos = { x = 5, y = 0, z = 0 }, props = {} }
 State.draft.elements = { veh, obj }
 local function fire(b) return { kind = 'fire', id = 'f', pos = { x = 1, y = 1, z = 1 }, props = { zfBehaviour = b, roomHash = 0 } } end
 local passed, failed = 0, 0
@@ -39,11 +39,10 @@ f = fire('grass'); interiorAt = 0; ok = Editor.fitZFire(f, nil, true); check(ok,
 f = fire('auto'); interiorAt = 0; ok = Editor.fitZFire(f, 'v1', true); check(ok and Editor.zfBehaviour(f) == 'vehicle', 'Automatisch auf Fahrzeug -> Fahrzeugbrand')
 f = fire('auto'); interiorAt = 7; ok = Editor.fitZFire(f, nil, true); check(ok and Editor.zfBehaviour(f) == 'interior', 'Automatisch im Gebaeude -> Innenraum')
 f = fire('auto'); interiorAt = 0; ok = Editor.fitZFire(f, nil, true); check(ok and Editor.zfBehaviour(f) == 'grass', 'Automatisch im Freien -> Flaeche')
-ground = 'TARMAC'
-f = fire('auto'); interiorAt = 0; ok, err = Editor.fitZFire(f, nil, true); check(not ok and tostring(err):find('Asphalt'), 'Automatisch draussen auf Asphalt abgelehnt (' .. tostring(err) .. ')')
-f = fire('auto'); interiorAt = 0; ok = Editor.fitZFire(f, 'v1', true); check(ok, 'Auf Asphalt, aber auf Fahrzeug geklickt -> ok')
-f = fire('auto'); interiorAt = 7; ok = Editor.fitZFire(f, nil, true); check(ok, 'Im Gebaeude ist der Boden egal')
-ground = 'GRASS'
+obj.model = 'prop_roadcone02a'
+f = fire('auto'); interiorAt = 0; ok, err = Editor.fitZFire(f, 'o1', true); check(not ok and tostring(err):find('nicht brennen'), 'Objektbrand an nicht erlaubtem Objekt abgelehnt')
+obj.model = 'prop_dumpster_01a'
+f = fire('auto'); interiorAt = 0; ok = Editor.fitZFire(f, 'o1', true); check(ok and f.props.attachTo == 'o1', 'Objektbrand an Muellcontainer erlaubt')
 GetResourceState = function() return 'missing' end
 f = fire('vehicle'); ok = Editor.fitZFire(f, nil, true); check(ok, 'Ohne z_fire keine z_fire-Pruefung')
 print(passed .. " bestanden, " .. failed .. " fehlgeschlagen")

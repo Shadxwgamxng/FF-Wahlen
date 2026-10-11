@@ -123,7 +123,7 @@ Bauchschmerzen, Verlegung) mit Variante oder zufällig, Geschlecht, **zufällige
 ### Feuer: z_fire (Standard) und z_hose
 Mit `Config.Fire.backend = 'z_fire'` werden Brände und Rauch über die dokumentierten z_fire-Exports
 (`createFire`, `createSmoke`, `deleteFires`, `getAllFires`, `getAllSmoke`, Client `deleteSmokeById`) erzeugt.
-Löschen mit z_hose, Ausbreitung und Glutnester übernimmt z_fire. Das Brandverhalten wird automatisch bestimmt: auf ein gesetztes Fahrzeug/Objekt geklickt = Fahrzeug-/Objektbrand (gekoppelt), in einem Gebäude = Innenraumbrand (Room-Key wird automatisch erkannt), sonst Flächenbrand. Flächenbrände erzeugt z_fire nur auf brennbarem Untergrund – der Creator prüft den Boden schon beim Setzen (Liste `Config.ZFire.grassMaterials`, mit `flammableMaterials` der z_fire-Config abgleichen). Im Creator: Partikeltyp (`Config.ZFire.fireEffects`
+Löschen mit z_hose, Ausbreitung und Glutnester übernimmt z_fire. Das Brandverhalten wird automatisch bestimmt: auf ein gesetztes Fahrzeug/Objekt geklickt = Fahrzeug-/Objektbrand (gekoppelt), in einem Gebäude = Innenraumbrand (Room-Key wird automatisch erkannt), sonst Flächenbrand. Objektbrände lässt z_fire nur an bestimmten Objekten zu (Müllcontainer, Mülltonnen, Reifenstapel, Grill … – `Config.ZFire.allowedProps`, aus der z_fire-Config übernommen), Züge/Hubschrauber/Fahrräder brennen nicht; der Creator prüft das schon beim Setzen. Die Objekte stehen im Katalog unter „Brandobjekte (z_fire)“. Im Creator: Partikeltyp (`Config.ZFire.fireEffects`
 mit eurer z_fire-Config abgleichen!), Kopplung an Fahrzeuge/Objekte,
 Room-Key für Innenraumbrände („Raum ermitteln“). Beim Beenden werden nur die eigenen UUIDs (und deren Ableger) gelöscht.
 

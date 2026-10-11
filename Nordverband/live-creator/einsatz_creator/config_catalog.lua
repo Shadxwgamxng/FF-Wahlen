@@ -131,6 +131,13 @@ Catalog.Vehicles = {
 -- Objekte / Props
 ----------------------------------------------------------------------------
 Catalog.Props = {
+    -- Objekte, an denen z_fire Objektbraende zulaesst (Config.ZFire.allowedProps)
+    { label = 'Brandobjekte (z_fire)', models = {
+        'prop_dumpster_01a', 'prop_dumpster_02a', 'prop_dumpster_02b', 'prop_dumpster_3a', 'prop_dumpster_4a', 'prop_skip_01a',
+        'prop_skip_03', 'prop_skip_05a', 'prop_bin_05a', 'prop_bin_07a', 'prop_bin_14a', 'prop_cs_bin_03',
+        'prop_rub_pile_01', 'prop_rub_pile_02', 'prop_rub_pile_03', 'prop_bbq_1', 'prop_bbq_5', 'prop_beach_bbq',
+        'prop_homeles_shelter_01', 'prop_homeles_shelter_02', 'prop_skid_trolley_1',
+    } },
     { label = 'Verkehrsunfall & Truemmer', models = {
         'prop_rub_carwreck_2', 'prop_rub_carwreck_3', 'prop_rub_carwreck_5', 'prop_rub_carwreck_7', 'prop_rub_carwreck_8',
         'prop_rub_carwreck_9', 'prop_rub_carwreck_10', 'prop_rub_carwreck_11', 'prop_rub_buswreck_01', 'prop_rub_buswreck_03',

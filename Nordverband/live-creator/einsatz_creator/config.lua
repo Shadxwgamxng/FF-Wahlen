@@ -184,26 +184,29 @@ Config.Fire = {
 -- z_fire (bei Config.Fire.backend = 'z_fire' oder 'auto' mit laufendem z_fire)
 Config.ZFire = {
     resource = 'z_fire',
-    -- Partikeltypen aus cfg.fireTypes / cfg.smokeTypes eurer z_fire-config.lua.
-    -- Standardwerte = Beispiele aus der z_fire-Dokumentation; bitte mit eurer Config abgleichen.
-    fireEffects = { 'normal2', 'grass1', 'grass2', 'veh1', 'interior1' },
-    smokeEffects = { 'linger1', 'normal' },
+    -- Partikeltypen aus cfg.fireTypes / cfg.smokeTypes eurer z_fire config.lua
+    fireEffects = { 'normal', 'normal2', 'normal3', 'normal4', 'veh1', 'grass1', 'grass2', 'chemical', 'electrical' },
+    smokeEffects = { 'normal', 'normal2', 'linger1', 'linger2', 'plume1', 'plume2', 'sparks' },
     defaultFireEffect = 'normal2',
     defaultSmokeEffect = 'linger1',
     -- Brenndauer, wenn im Creator 0 (= bis geloescht) gewaehlt ist
     endlessBurnout = 99999,
-    --[[
-        Flaechenbraende (draussen, nicht an Fahrzeug/Objekt, nicht im Gebaeude) erzeugt z_fire nur auf
-        brennbarem Untergrund. Der Creator prueft das schon beim Setzen.
-        Liste bitte mit cfg.behaviourTypes -> grass -> flammableMaterials eurer z_fire-config.lua abgleichen
-        (Materialnamen oder Material-Hashes). checkGround = false schaltet die Pruefung ab.
-    ]]
-    checkGround = true,
-    grassMaterials = {
-        'GRASS', 'GRASS_LONG', 'GRASS_SHORT', 'HAY', 'BUSHES', 'TWIGS', 'LEAVES', 'WOODCHIPS',
-        'DIRT_TRACK', 'MUD_HARD', 'MUD_SOFT', 'SOIL', 'SAND_LOOSE', 'SAND_COMPACT', 'SAND_DRY_DEEP', 'SAND_TRACK',
-        'GRAVEL_SMALL',
+    -- Aus eurer z_fire config.lua (cfg.behaviourTypes) - der Creator prueft das schon beim Setzen.
+    -- Objektbraende laesst z_fire nur an diesen Objekten zu (prop -> allowedProps). Leer = keine Pruefung.
+    allowedProps = {
+        'prop_beach_bbq', 'prop_bbq_1', 'prop_bbq_5',
+        'prop_rub_pile_01', 'prop_rub_pile_02', 'prop_rub_pile_03',
+        'prop_skip_03', 'prop_skip_05a', 'prop_skip_04', 'prop_skip_02a', 'prop_skip_01a', 'prop_skip_01b', 'prop_skip_01c',
+        'prop_skip_01d', 'prop_skip_01e', 'prop_skip_01f', 'prop_skip_02b', 'prop_skip_02c', 'prop_skip_02d', 'prop_skip_03b',
+        'prop_skip_04b', 'prop_skip_05b', 'prop_dumpster_01a', 'prop_dumpster_02a', 'prop_dumpster_02b', 'prop_dumpster_4b',
+        'prop_dumpster_3a', 'prop_dumpster_4a', 'prop_dumpster_01b', 'prop_dumpster_02c', 'prop_dumpster_02d',
+        'prop_homeles_shelter_01', 'prop_homeles_shelter_02', 'prop_skid_trolley_1', 'prop_skid_trolley_2',
+        'prop_cs_bin_03', 'prop_bin_14a', 'prop_bin_04a', 'prop_bin_05a', 'prop_bin_06a', 'prop_bin_07a', 'prop_bin_09a',
+        'prop_bin_10a', 'prop_bin_10b', 'prop_bin_11a', 'prop_bin_11b', 'prop_bin_12a', 'prop_bin_13a', 'prop_bin_14b',
+        'prop_bin_beach_01d', 'prop_bin_delpiero', 'prop_bin_delpiero_b',
     },
+    -- Fahrzeugklassen, die z_fire nicht brennen laesst (vehicle -> blacklistedClasses): 13 Fahrraeder, 15 Hubschrauber, 21 Zuege
+    blacklistedVehicleClasses = { 13, 15, 21 },
 }
 
 -- z_hose (optional, wird automatisch erkannt)

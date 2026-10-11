@@ -410,6 +410,7 @@ local resources = { z_fire = 'started', emergencydispatch = 'started' }
 GetResourceState = function(r) return resources[r] or 'missing' end
 local zexp = {
     createFire = function(_, data, src)
+        if data == nil or data.ptfxData.fallbackPos == nil then return nil end   -- wie das echte z_fire
         local id = 'zf' .. tostring(#zf.created + 1)
         zf.created[#zf.created + 1] = data
         zf.fires[id] = { ptfxData = data.ptfxData, origin = data.origin }
@@ -418,7 +419,7 @@ local zexp = {
     createSmoke = function(_, data) local id = 'zs' .. tostring(#zf.created + 1) zf.created[#zf.created + 1] = data zf.smokes[id] = data return id end,
     getAllFires = function() return zf.fires end,
     getAllSmoke = function() return zf.smokes end,
-    deleteFires = function(_, list) for _, e in ipairs(list) do zf.fires[e.id] = nil end return true end,
+    deleteFire = function(_, list) for _, e in ipairs(list) do zf.fires[e.id] = nil end return true end,
 }
 exports = setmetatable({}, { __call = function(_, name, fn) exported[name] = fn end, __index = function(_, k) if k == 'z_fire' then return zexp end end })
 Config.Fire.backend = 'auto'
@@ -439,6 +440,7 @@ for _, d in ipairs(zf.created) do
 end
 check(vehFire and vehFire.networkEntity and vehFire.ptfxData.fallbackPos, 'Fahrzeugbrand mit networkEntity und fallbackPos an z_fire')
 check(grassFire and grassFire.canSpread == true and grassFire.spreadSize, 'Flaechenbrand mit Ausbreitung an z_fire')
+check(grassFire and grassFire.ptfxData.fallbackPos ~= nil, 'Auch Flaechenbrand bekommt fallbackPos (von z_fire verlangt)')
 local calls = {}
 for _, ev in ipairs(serverEvents) do if ev.name == 'emergencydispatch:emergencycall:new' then calls[#calls + 1] = ev.args end end
 check(#calls == 1 and calls[1][1] == 'ambulance', 'Fester Job: genau ein Notruf an ambulance (' .. #calls .. ')')

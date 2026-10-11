@@ -536,7 +536,7 @@ function toolPanel(kind) {
 const isZFire = () => S.config && S.config.fireBackend === 'z_fire';
 const ZF_NAME = { vehicle: 'Fahrzeugbrand', prop: 'Objektbrand', interior: 'Innenraumbrand', grass: 'Flächenbrand' };
 const ZF_HINT = {
-    auto: 'Das Brandverhalten wird automatisch bestimmt: auf ein Fahrzeug/Objekt klicken = Fahrzeug-/Objektbrand, in einem Gebäude = Innenraumbrand, draußen = Flächenbrand (nur auf Gras, Erde, Gebüsch – nicht auf Asphalt/Beton).',
+    auto: 'Das Brandverhalten wird automatisch bestimmt: auf ein Fahrzeug/Objekt klicken = Fahrzeug-/Objektbrand, in einem Gebäude = Innenraumbrand, draußen = Flächenbrand. Objektbrände nur an Brandobjekten (Müllcontainer, Tonnen, Reifen, Grill).',
     vehicle: 'Direkt auf ein gesetztes Fahrzeug klicken.',
     prop: 'Direkt auf ein gesetztes Objekt klicken.',
     interior: 'Nur innerhalb eines Gebäudes (Raum wird automatisch erkannt).',
