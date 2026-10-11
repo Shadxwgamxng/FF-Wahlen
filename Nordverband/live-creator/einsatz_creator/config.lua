@@ -244,10 +244,16 @@ Config.Rescue = {
     handoverRadius = 15.0,
     -- Uebergabeorte (Kliniken). Patient wird dort uebergeben, wenn der RTW in Reichweite ist.
     hospitals = {
-        { label = 'Pillbox Hill Medical Center', coords = vector3(294.6, -1448.3, 29.9), radius = 35.0 },
-        { label = 'Mount Zonah', coords = vector3(-449.7, -340.6, 34.5), radius = 35.0 },
-        { label = 'Sandy Shores Medical', coords = vector3(1839.4, 3672.9, 34.3), radius = 30.0 },
-        { label = 'Paleto Bay Medical', coords = vector3(-247.8, 6331.5, 32.4), radius = 30.0 },
+        -- uebernommen aus nv_medicDispatches (Config.Coords.KH)
+        { label = 'St. Fiacre', coords = vector3(3512.7549, 3752.7153, 30.1174), radius = 25.0 },
+        { label = 'Central Medical', coords = vector3(293.8427, -1438.5770, 29.8041), radius = 25.0 },
+        { label = 'Pillbox', coords = vector3(362.0883, -589.9072, 28.6702), radius = 25.0 },
+        { label = 'Mount Zonah', coords = vector3(-492.0538, -336.2079, 34.3725), radius = 25.0 },
+        { label = 'Eclipse Medical Tower', coords = vector3(-678.9181, 298.3909, 82.1767), radius = 25.0 },
+        { label = 'Rehaklinik', coords = vector3(-1526.8976, 856.3002, 181.6011), radius = 25.0 },
+        { label = 'Sandy Shores (alt)', coords = vector3(1828.4731, 3693.8779, 34.2243), radius = 25.0 },
+        { label = 'Paleto (alt)', coords = vector3(-255.4370, 6339.7871, 32.4262), radius = 25.0 },
+        { label = 'BWK', coords = vector3(-1874.8500, -303.2209, 49.4722), radius = 25.0 },
     },
     -- Dauer der Massnahmen in Sekunden je Schweregrad
     durations = {
