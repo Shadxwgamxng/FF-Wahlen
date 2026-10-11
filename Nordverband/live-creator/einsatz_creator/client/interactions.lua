@@ -413,6 +413,23 @@ CreateThread(function()
                             local ok = pcall(function() ox:addEntity(p.net, buildOptions(incId, 'patient', id)) end)
                             if ok then registered[key] = { kind = 'patient', id = id, net = p.net } end
                         end
+                        -- Liegende NPCs trifft der Ziel-Strahl oft nicht (Kollision bleibt aufrecht an der Hueftposition).
+                        -- Deshalb zusaetzlich eine Zone um den Koerper, die dem Patienten folgt.
+                        local ent = patientEntity(p)
+                        if ent and not IsPedInAnyVehicle(ent, false) and not IsEntityAttached(ent) then
+                            local zkey = incId .. ':pz:' .. id
+                            local pos = GetEntityCoords(ent)
+                            local reg = registered[zkey]
+                            if reg and #(reg.pos - pos) > 1.0 then unregister(zkey) reg = nil end
+                            wanted[zkey] = true
+                            if not reg then
+                                local ok, zid = pcall(function()
+                                    return ox:addSphereZone({ coords = pos - vector3(0.0, 0.0, 0.5), radius = 1.2,
+                                        debug = Config.Debug, options = buildOptions(incId, 'patient', id) })
+                                end)
+                                if ok and zid then registered[zkey] = { kind = 'patient', id = id, zone = zid, pos = pos } end
+                            end
+                        end
                     end
                 end
                 local function zone(kind, list, active, radius)

@@ -66,7 +66,7 @@ CreateThread(function()
     end
     -- Rollen regelmaessig aktualisieren (Dienstantritt, Jobwechsel)
     while true do
-        Wait(60000)
+        Wait(15000)
         local ok, roles = Request('myRoles')
         if ok then Interactions.roles = roles or {} end
     end
