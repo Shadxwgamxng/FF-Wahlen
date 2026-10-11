@@ -20,6 +20,26 @@ function log(msg: string) {
 process.on("uncaughtException", (e) => { log(`uncaughtException: ${e instanceof Error ? e.stack : String(e)}`); });
 process.on("unhandledRejection", (e) => { log(`unhandledRejection: ${e instanceof Error ? e.stack : String(e)}`); });
 
+/**
+ * Fallback für Hoster, die "Benutzerdefinierte Umgebungsvariablen" nicht an die App durchreichen:
+ * KEY=VALUE-Zeilen aus `.env` (oder `config.env`) neben app.js lesen. Bereits gesetzte Variablen bleiben unberührt.
+ */
+function loadEnvFile() {
+  for (const name of [".env", "config.env", "env.txt"]) {
+    const file = path.join(__dirname, name);
+    if (!fs.existsSync(file)) continue;
+    let n = 0;
+    for (const raw of fs.readFileSync(file, "utf8").split(/\r?\n/)) {
+      const m = raw.match(/^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/);
+      if (!m || m[0].trim().startsWith("#")) continue;
+      let v = m[2];
+      if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) v = v.slice(1, -1);
+      if (!process.env[m[1]] && v) { process.env[m[1]] = v; n++; }
+    }
+    log(`${name} gelesen (${n} Variable(n) übernommen)`);
+  }
+}
+
 async function migrate() {
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error("DATABASE_URL ist nicht gesetzt (Plesk → Node.js → Benutzerdefinierte Umgebungsvariablen).");
@@ -59,6 +79,7 @@ async function migrate() {
 
 async function main() {
   try { fs.writeFileSync(LOG_FILE, ""); } catch { /* ignore */ }
+  loadEnvFile();
   const has = (k: string) => (process.env[k] ? "gesetzt" : "FEHLT");
   log(`Start: Node ${process.version}, cwd=${process.cwd()}`);
   log(`Variablen: DATABASE_URL ${has("DATABASE_URL")}, APP_URL ${has("APP_URL")}, DISCORD_CLIENT_ID ${has("DISCORD_CLIENT_ID")}, DISCORD_CLIENT_SECRET ${has("DISCORD_CLIENT_SECRET")}, SUPERADMIN_DISCORD_IDS ${has("SUPERADMIN_DISCORD_IDS")}`);
