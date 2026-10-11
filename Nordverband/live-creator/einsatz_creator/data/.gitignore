@@ -1,3 +1,6 @@
 *
 !.gitignore
 !README.md
+!incidents/
+incidents/*
+!incidents/.keep
