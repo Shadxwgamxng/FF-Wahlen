@@ -11,7 +11,7 @@
     JSON-Dateien:
 
     Dateien:
-      scenarios.json  gespeicherte Szenarien (Vorlagen fuer Einsaetze)
+      incidents.json  gespeicherte Einsaetze (Vorlagen; frueher scenarios.json)
       runtime.json    aktuell erzeugte Spielwelt-Elemente (fuer Bereinigung nach Absturz/Neustart)
       history.json    beendete / abgebrochene Einsaetze (Protokoll)
 
@@ -121,9 +121,21 @@ end
 ----------------------------------------------------------------------------
 -- Szenarien
 ----------------------------------------------------------------------------
+local function scenarioFile() return Config.Storage.file or 'incidents.json' end
+
 local function jsonLoadScenarios()
     Storage.scenarios, Storage.invalid = {}, {}
-    local data = Storage.load('scenarios.json')
+    local file = scenarioFile()
+    local data = Storage.load(file)
+    -- Umstieg von scenarios.json (bis Version 1.1.0)
+    if data == nil and file ~= 'scenarios.json' then
+        local old = Storage.load('scenarios.json')
+        if type(old) == 'table' then
+            data = old
+            Storage.migrateFile = true
+            U.log('info', 'Einsaetze aus scenarios.json uebernommen, sie werden ab jetzt in %s gespeichert', file)
+        end
+    end
     if data == false then
         Storage.loadFailed = true
         return
@@ -152,10 +164,10 @@ end
 local function jsonSaveScenarios()
     if Storage.loadFailed then
         -- Nie eine unlesbare Datei mit einem leeren Stand ueberschreiben, ohne dass bewusst gespeichert wurde
-        U.log('warn', 'scenarios.json war beim Start unlesbar; neuer Stand wird jetzt geschrieben (Kopie liegt als .corrupt-*)')
+        U.log('warn', '%s war beim Start unlesbar; neuer Stand wird jetzt geschrieben (Kopie liegt als .corrupt-*)', scenarioFile())
         Storage.loadFailed = false
     end
-    return Storage.save('scenarios.json', { scenarios = Storage.scenarios, invalid = Storage.invalid })
+    return Storage.save(scenarioFile(), { scenarios = Storage.scenarios, invalid = Storage.invalid })
 end
 
 function Storage.newScenarioId()
@@ -378,6 +390,23 @@ function DB.addHistory(entry)
     end
 end
 
+-- Datei-Speicherung, aber Einsaetze liegen noch in der Datenbank (Version 1.1.0): einmalig in die Datei holen
+function DB.importToFile()
+    if oxState() ~= 'started' then return end
+    local t = DB.query("SHOW TABLES LIKE 'einsatz_creator_scenarios'", {}, true)
+    if type(t) ~= 'table' or not t[1] then return end
+    local count = DB.loadScenarios()
+    if not count or count == 0 then return end
+    if jsonSaveScenarios() then
+        U.log('info', '%d Einsaetze aus der Datenbank in %s uebernommen (die Datenbank wird nicht mehr genutzt)', count, scenarioFile())
+    end
+    local settings = DB.loadStore('settings')
+    if type(settings) == 'table' and next(Storage.settings or {}) == nil then
+        Storage.settings = settings
+        jsonSaveSettings()
+    end
+end
+
 ----------------------------------------------------------------------------
 -- Backend-Auswahl und oeffentliche Funktionen
 ----------------------------------------------------------------------------
@@ -414,7 +443,7 @@ function Storage.init()
             local n = U.tableCount(Storage.scenarios) + U.tableCount(Storage.invalid)
             if n > 0 then
                 if DB.saveScenarios() then
-                    U.log('info', '%d Szenarien aus scenarios.json in die Datenbank uebernommen', n)
+                    U.log('info', '%d Einsaetze aus %s in die Datenbank uebernommen', n, scenarioFile())
                 else
                     U.log('error', 'Uebernahme der Szenarien in die Datenbank fehlgeschlagen')
                 end
@@ -438,6 +467,13 @@ function Storage.init()
         jsonLoadScenarios()
         jsonLoadSettings()
         jsonLoadHistory()
+        if not Storage.loadFailed and next(Storage.scenarios) == nil and next(Storage.invalid) == nil then
+            DB.importToFile()
+        end
+        if Storage.migrateFile then
+            Storage.migrateFile = nil
+            jsonSaveScenarios()
+        end
     end
     Storage.ready = true
     U.log('info', 'Speicherung: %s', Storage.backend == 'oxmysql' and 'Datenbank (oxmysql)' or ('JSON-Dateien im Ordner ' .. Config.Storage.directory))

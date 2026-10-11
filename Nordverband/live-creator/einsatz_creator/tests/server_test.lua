@@ -226,7 +226,7 @@ local scenarioId = ok and res.id
 waitRate()
 ok, res = request('saveScenario', { scenario = scenario })
 check(not ok or res.id ~= scenarioId, 'Neues Szenario ohne ID bekommt neue ID')
-check(files['data/scenarios.json'] ~= nil, 'scenarios.json geschrieben')
+check(files['data/incidents.json'] ~= nil, 'incidents.json geschrieben')
 
 print('Ausloesen (live)')
 waitRate()
@@ -393,11 +393,11 @@ CreateVehicleServerSetter = oldCreate
 print('Speicherung: Neustart und beschaedigte Datei')
 Storage.init()
 check(Storage.scenarios[scenarioId] ~= nil, 'Szenario nach Neustart geladen')
-files['data/scenarios.json'] = '{ kaputt'
+files['data/incidents.json'] = '{ kaputt'
 Storage.init()
 check(Storage.scenarios[scenarioId] ~= nil, 'Beschaedigte Datei: Backup geladen')
 local corruptKept = false
-for k in pairs(files) do if k:find('scenarios.json.corrupt', 1, true) then corruptKept = true end end
+for k in pairs(files) do if k:find('incidents.json.corrupt', 1, true) then corruptKept = true end end
 check(corruptKept, 'Beschaedigte Datei als .corrupt gesichert')
 
 print('z_fire-Backend und EmergencyDispatch')
@@ -595,6 +595,7 @@ do
     local fakeOx = { query = function(_, sql, params, cb)
         local r
         if sql:find('^CREATE TABLE') then db.created = db.created + 1 r = {}
+        elseif sql:find('^SHOW TABLES') then r = { { name = 'einsatz_creator_scenarios' } }
         elseif sql:find('^SELECT `id`, `valid`, `data`') then
             r = {} for id, row in pairs(db.scen) do r[#r + 1] = { id = id, valid = row.valid, data = row.data } end
         elseif sql:find('^INSERT INTO `einsatz_creator_scenarios`') then
@@ -614,6 +615,7 @@ do
     exports = setmetatable({}, { __call = oldExports, __index = function(_, k) if k == 'oxmysql' then return fakeOx end return oldExports[k] end })
     GetResourceState = function(r) if r == 'oxmysql' then return 'started' end return oldState(r) end
     local jsonCount = EC.Utils.tableCount(Storage.scenarios)
+    Config.Storage.backend = 'oxmysql'
     Storage.init()
     check(Storage.backend == 'oxmysql' and db.created == 3, 'oxmysql erkannt, Tabellen angelegt')
     check(EC.Utils.tableCount(db.scen) == jsonCount and jsonCount > 0, 'Vorhandene JSON-Szenarien in die Datenbank uebernommen (' .. jsonCount .. ')')
@@ -626,6 +628,7 @@ do
     waitRate()
     okSave, resSave = request('saveScenario', { scenario = sc })
     check(okSave and db.scen[scenarioId] and db.scen[scenarioId].name == 'DB-Test', 'Szenario in der Datenbank aktualisiert')
+    local dbRow = db.scen[scenarioId] and EC.Utils.deepcopy(db.scen[scenarioId])
     -- "Neustart": alles aus der Datenbank laden
     Storage.scenarios = {}
     Storage.init()
@@ -639,7 +642,15 @@ do
     waitRate()
     local okDel = request('deleteScenario', { id = scenarioId })
     check(okDel and db.scen[scenarioId] == nil, 'Geloeschtes Szenario aus der Datenbank entfernt')
-    -- zurueck auf JSON fuer die restlichen Tests
+    -- Zurueck auf Datei: Einsaetze aus der Datenbank werden in incidents.json uebernommen
+    Config.Storage.backend = 'json'
+    files['data/incidents.json'] = nil
+    files['data/incidents.json.bak'] = nil
+    files['data/scenarios.json'] = nil
+    db.scen = { [scenarioId] = dbRow }
+    Storage.init()
+    check(Storage.backend == 'json' and files['data/incidents.json'] ~= nil and Storage.scenarios[scenarioId] ~= nil,
+        'Datei-Speicherung: Einsaetze aus der Datenbank in incidents.json uebernommen')
     exports, GetResourceState = oldExports, oldState
     Storage.init()
 end

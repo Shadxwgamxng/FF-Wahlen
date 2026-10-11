@@ -20,7 +20,7 @@ löschbar. Die Anbindung an eine Leitstelle erfolgt über eine austauschbare Bri
 ## 2. Installation
 
 1. Ordner `einsatz_creator` nach `resources/` kopieren.
-2. Speicherung: Läuft `oxmysql`, wird alles in der Datenbank gespeichert (Tabellen `einsatz_creator_scenarios`, `einsatz_creator_store`, `einsatz_creator_history` werden beim Start automatisch angelegt; vorhandene JSON-Daten werden einmalig übernommen). `ensure oxmysql` muss **vor** `einsatz_creator` stehen. Ohne oxmysql wird in `einsatz_creator/data/` gespeichert (Ordner muss beschreibbar sein). Einstellung: `Config.Storage.backend`.
+2. Speicherung: Alle Einsätze liegen in **einer Datei** `einsatz_creator/data/incidents.json` (keine Datenbank nötig). Der Ordner `data/` muss für den Server beschreibbar sein. Vor jedem Schreiben wird eine `.bak`-Kopie angelegt. Optional geht auch MySQL über oxmysql (`Config.Storage.backend = 'oxmysql'`).
 3. `server.cfg`:
 
 ```cfg
@@ -53,7 +53,7 @@ add_ace group.admin einsatzcreator.delete allow    # fremde Szenarien löschen
    Optional können Creator-Rechte zusätzlich über Jobs vergeben werden (`Config.Permissions.jobs`).
 5. Server neu starten bzw. `ensure einsatz_creator`.
 
-**Updates:** Mit Datenbank liegen alle Einsätze in MySQL und überstehen jedes Update und jeden Neustart. Den Ordner `data/` trotzdem nicht löschen (Laufzeitdaten für die Bereinigung nach Absturz, ggf. alte JSON-Daten).
+**Updates:** den Ordner `data/` niemals überschreiben oder löschen – darin liegt `incidents.json` mit allen Einsätzen. Vorhandene Daten aus `scenarios.json` oder aus der Datenbank (Version 1.1.0) werden beim Start automatisch in `incidents.json` übernommen.
 
 ## 3. Bedienung
 
@@ -153,7 +153,7 @@ Tab **Zufall** im Creator (Recht `einsatzcreator.live`):
 - Je gespeichertem Szenario: *im Zufallspool*, Gewichtung (1–10), Tageszeit (immer/Tag/Nacht),
   Sperrzeit nach einem Start, Mindestanzahl Kräfte **im Dienst** je Rolle.
 - „Jetzt auslösen“ startet sofort einen passenden Einsatz aus dem Pool.
-Zufallseinsätze laufen wie Live-Einsätze (Notruf an EmergencyDispatch). Einstellungen liegen in der Datenbank (bzw. ohne oxmysql in `data/settings.json`).
+Zufallseinsätze laufen wie Live-Einsätze (Notruf an EmergencyDispatch). Einstellungen liegen in `data/settings.json`.
 Export: `exports.einsatz_creator:TriggerRandomIncident()`.
 
 ### Ortsvarianten

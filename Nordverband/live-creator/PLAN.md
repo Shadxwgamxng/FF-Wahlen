@@ -71,8 +71,8 @@ Dieser Plan wird bei jedem Zwischenstand aktualisiert und mitgepusht.
 - ✅ Offline-Tests erweitert (90/90 bestanden)
 - ✅ Keine eigene Alarmierung mehr (keine Popups/Blips/Töne an Jobs) – nur Notruf an EmergencyDispatch
 - ✅ Oberfläche neu im ignis-Stil (dunkel, Geist-Schrift, Seitenleiste, Inspektor), Akzent blau
-- ✅ Speicherung in MySQL über oxmysql (Tabellen automatisch, JSON-Daten werden übernommen)
+- ✅ Speicherung aller Einsätze in einer Datei `data/incidents.json` (MySQL optional)
 - ✅ Leitstelle (EmergencyDispatch-Job) je Einsatz wählbar
 - ✅ Übersicht ohne Kamera (Einsätze, laufende Einsätze, Zufall) und Assistent mit Pflichtangaben für neue Einsätze
-- ✅ Offline-Tests erweitert (106/106 bestanden)
+- ✅ Offline-Tests erweitert (107/107 bestanden)
 - ⬜ Offen: Koordinaten St. Fiacre klären (KH-Liste vs. RTW-Liste)
