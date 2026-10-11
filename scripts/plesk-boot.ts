@@ -22,7 +22,7 @@ process.on("unhandledRejection", (e) => { log(`unhandledRejection: ${e instanceo
 
 /**
  * Fallback für Hoster, die "Benutzerdefinierte Umgebungsvariablen" nicht an die App durchreichen:
- * KEY=VALUE-Zeilen aus `.env` (oder `config.env`) neben app.js lesen. Bereits gesetzte Variablen bleiben unberührt.
+ * KEY=VALUE-Zeilen aus `.env` (oder `config.env`) neben app.js lesen. Die Datei hat Vorrang vor bereits gesetzten Variablen.
  */
 function loadEnvFile() {
   for (const name of [".env", "config.env", "env.txt"]) {
@@ -34,7 +34,7 @@ function loadEnvFile() {
       if (!m || m[0].trim().startsWith("#")) continue;
       let v = m[2];
       if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) v = v.slice(1, -1);
-      if (!process.env[m[1]] && v) { process.env[m[1]] = v; n++; }
+      if (v) { process.env[m[1]] = v; n++; } // Datei hat Vorrang vor dem Plesk-Feld
     }
     log(`${name} gelesen (${n} Variable(n) übernommen)`);
   }
@@ -83,6 +83,13 @@ async function main() {
   const has = (k: string) => (process.env[k] ? "gesetzt" : "FEHLT");
   log(`Start: Node ${process.version}, cwd=${process.cwd()}`);
   log(`Variablen: DATABASE_URL ${has("DATABASE_URL")}, APP_URL ${has("APP_URL")}, DISCORD_CLIENT_ID ${has("DISCORD_CLIENT_ID")}, DISCORD_CLIENT_SECRET ${has("DISCORD_CLIENT_SECRET")}, SUPERADMIN_DISCORD_IDS ${has("SUPERADMIN_DISCORD_IDS")}`);
+  try {
+    const u = new URL(process.env.DATABASE_URL ?? "");
+    const pw = decodeURIComponent(u.password);
+    log(`Verbindung: Benutzer="${decodeURIComponent(u.username)}" Host=${u.hostname} Port=${u.port || "5432"} Datenbank=${u.pathname.slice(1)} Passwortlänge=${pw.length}${/[^A-Za-z0-9]/.test(pw) ? " (enthält Sonderzeichen)" : ""}`);
+  } catch {
+    log("Verbindung: DATABASE_URL ist keine gültige URL (Format: postgresql://BENUTZER:PASSWORT@HOST:5432/DATENBANK)");
+  }
   log("Schritt 1: Datenbank-Migrationen …");
   await migrate();
   log("Schritt 2: Standarddaten …");
