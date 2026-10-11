@@ -536,14 +536,13 @@ function toolPanel(kind) {
 const isZFire = () => S.config && S.config.fireBackend === 'z_fire';
 const ZF_NAME = { vehicle: 'Fahrzeugbrand', prop: 'Objektbrand', interior: 'Innenraumbrand', grass: 'Flächenbrand' };
 const ZF_HINT = {
-    auto: 'Automatisch: auf ein Fahrzeug/Objekt klicken = daran gekoppelt, im Gebäude = Innenraum, sonst Fläche.',
+    auto: 'Das Brandverhalten wird automatisch bestimmt: auf ein Fahrzeug/Objekt klicken = Fahrzeug-/Objektbrand, in einem Gebäude = Innenraumbrand, sonst Flächenbrand.',
     vehicle: 'Direkt auf ein gesetztes Fahrzeug klicken.',
     prop: 'Direkt auf ein gesetztes Objekt klicken.',
     interior: 'Nur innerhalb eines Gebäudes (Raum wird automatisch erkannt).',
     grass: 'Nur im Freien.',
 };
 function zfResolved(p) {
-    if (p.zfBehaviour && p.zfBehaviour !== 'auto') return p.zfBehaviour;
     const t = p.attachTo && S.draft ? S.draft.elements.find(x => x.id === p.attachTo) : null;
     if (t && t.kind === 'vehicle') return 'vehicle';
     if (t && t.kind === 'object') return 'prop';
@@ -555,15 +554,13 @@ function fireFields(p, pre, withRoom) {
     if (isZFire()) {
         const zf = S.config.zfire || {};
         return `${zf.running ? '' : `<div class="alert alert--warn">${icon('triangle-exclamation')}<div>z_fire ist nicht gestartet.</div></div>`}
-            <div class="grid-2">${fSel('Partikeltyp', pre + 'zfEffect', p.zfEffect, arr(zf.fireEffects).map(x => [x, x]))}
-            ${fSel('Brandverhalten', pre + 'zfBehaviour', p.zfBehaviour, [['auto', 'Automatisch'], ['grass', 'Fläche'], ['interior', 'Innenraum'], ['prop', 'Objekt'], ['vehicle', 'Fahrzeug']])}</div>
-            <div class="field__hint">${ZF_HINT[p.zfBehaviour || 'auto']}${withRoom ? ` · Wird übergeben als <b>${esc(ZF_NAME[zfResolved(p)])}</b>` : ''}</div>
+            ${fSel('Partikeltyp', pre + 'zfEffect', p.zfEffect, arr(zf.fireEffects).map(x => [x, x]))}
+            <div class="field__hint">${withRoom ? `Brandverhalten: <b>${esc(ZF_NAME[zfResolved(p)])}</b> (wird automatisch bestimmt)` : ZF_HINT.auto}</div>
             <div class="grid-2">${fNum('Größe', pre + 'size', p.size, { step: 0.1, min: 0.2, max: 5 })}
             ${fNum('Brenndauer (s)', pre + 'burnTime', p.burnTime, { int: true, min: 0, max: 7200, hint: '0 = bis gelöscht' })}</div>
             ${fSwitch('Ausbreitung', pre + 'canSpread', p.canSpread)}
             ${p.canSpread ? fNum('Ausbreitungsradius (m)', pre + 'spreadRadius', p.spreadRadius, { step: 1, min: 1, max: 40 }) : ''}
-            ${withRoom ? `<div class="field"><span class="field__label">Room-Key für Innenraumbrand</span><div class="input-group input-group--btn">
-                <input class="input" type="number" data-path="${pre}roomHash" data-type="int" value="${p.roomHash || 0}"><button class="btn btn--sm" data-act="roomHash">${icon('crosshairs')} Ermitteln</button></div></div>` : ''}
+
             ${fSel('Darstellung in der Vorschau', pre + 'fireType', p.fireType, arr(C.fireTypes).map(f => [f.id, f.label]))}`;
     }
     const smoke = [['auto', 'Automatisch'], ['none', 'Kein Rauch'], ...arr(C.smokeTypes).map(s => [s.id, s.label])];

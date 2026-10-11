@@ -264,7 +264,7 @@ function Props.fire(raw, element)
         offset = offset(raw.offset),
         spreadPoints = points,
         zfEffect = inArray(raw.zfEffect, Config.ZFire.fireEffects, Config.ZFire.defaultFireEffect),
-        zfBehaviour = inArray(raw.zfBehaviour, { 'auto', 'grass', 'interior', 'prop', 'vehicle' }, 'auto'),
+        zfBehaviour = 'auto',   -- wird immer automatisch bestimmt (Kopplung / Raum / Freiflaeche)
         roomHash = math.floor(U.num(raw.roomHash, 0, -2147483648, 4294967295)),
     }
 end
