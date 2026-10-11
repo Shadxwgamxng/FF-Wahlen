@@ -38,6 +38,9 @@ local function advance(ms) clock = clock + ms end
 
 function IsDuplicityVersion() return true end
 function GetCurrentResourceName() return 'einsatz_creator' end
+function GetResourcePath() return '/nicht/vorhanden/einsatz_creator' end
+os.execute = function() return true end
+io.popen = function() return nil end
 function GetResourceState() return 'missing' end
 function GetConvar() return 'on' end
 function Wait(ms) clock = clock + (ms or 0) + 1 end
@@ -226,7 +229,7 @@ local scenarioId = ok and res.id
 waitRate()
 ok, res = request('saveScenario', { scenario = scenario })
 check(not ok or res.id ~= scenarioId, 'Neues Szenario ohne ID bekommt neue ID')
-check(files['data/incidents.json'] ~= nil, 'incidents.json geschrieben')
+check(files['data/incidents/index.json'] ~= nil and files['data/incidents/' .. tostring(scenarioId) .. '.json'] ~= nil, 'Einsatz als eigene Datei gespeichert (incidents/<ID>.json + index.json)')
 
 print('Ausloesen (live)')
 waitRate()
@@ -393,11 +396,11 @@ CreateVehicleServerSetter = oldCreate
 print('Speicherung: Neustart und beschaedigte Datei')
 Storage.init()
 check(Storage.scenarios[scenarioId] ~= nil, 'Szenario nach Neustart geladen')
-files['data/incidents.json'] = '{ kaputt'
+files['data/incidents/index.json'] = '{ kaputt'
 Storage.init()
 check(Storage.scenarios[scenarioId] ~= nil, 'Beschaedigte Datei: Backup geladen')
 local corruptKept = false
-for k in pairs(files) do if k:find('incidents.json.corrupt', 1, true) then corruptKept = true end end
+for k in pairs(files) do if k:find('index.json.corrupt', 1, true) then corruptKept = true end end
 check(corruptKept, 'Beschaedigte Datei als .corrupt gesichert')
 
 print('z_fire-Backend und EmergencyDispatch')
@@ -644,13 +647,27 @@ do
     check(okDel and db.scen[scenarioId] == nil, 'Geloeschtes Szenario aus der Datenbank entfernt')
     -- Zurueck auf Datei: Einsaetze aus der Datenbank werden in incidents.json uebernommen
     Config.Storage.backend = 'json'
-    files['data/incidents.json'] = nil
-    files['data/incidents.json.bak'] = nil
-    files['data/scenarios.json'] = nil
+    for k in pairs(files) do if k:find('^data/incidents') or k:find('^data/scenarios') then files[k] = nil end end
     db.scen = { [scenarioId] = dbRow }
     Storage.init()
-    check(Storage.backend == 'json' and files['data/incidents.json'] ~= nil and Storage.scenarios[scenarioId] ~= nil,
-        'Datei-Speicherung: Einsaetze aus der Datenbank in incidents.json uebernommen')
+    check(Storage.backend == 'json' and files['data/incidents/' .. scenarioId .. '.json'] ~= nil and Storage.scenarios[scenarioId] ~= nil,
+        'Datei-Speicherung: Einsaetze aus der Datenbank als Einzeldateien uebernommen')
+    -- Umstieg von einer Sammeldatei (1.1.1)
+    local single = files['data/incidents/' .. scenarioId .. '.json']
+    for k in pairs(files) do if k:find('^data/incidents') then files[k] = nil end end
+    local rec = json.decode(single).data
+    files['data/incidents.json'] = json.encode({ format = 1, data = { scenarios = { [scenarioId] = rec }, invalid = {} } })
+    exports, GetResourceState = oldExports, oldState
+    Storage.init()
+    check(Storage.scenarios[scenarioId] ~= nil and files['data/incidents/' .. scenarioId .. '.json'] ~= nil, 'Sammeldatei incidents.json in Einzeldateien umgewandelt')
+    -- Loeschen entfernt die Einzeldatei aus dem Index
+    Storage.scenarios[scenarioId] = nil
+    Storage.saveScenarios()
+    local idx = json.decode(files['data/incidents/index.json']).data
+    check(#idx.ids == 0 and (files['data/incidents/' .. scenarioId .. '.json'] or '') == '', 'Geloeschter Einsatz: Datei geleert und aus dem Index entfernt')
+    Storage.scenarios[scenarioId] = { scenario = EC.Schema.normalizeScenario(rec.scenario), meta = rec.meta }
+    Storage.scenarios[scenarioId].scenario.id = scenarioId
+    Storage.saveScenarios()
     exports, GetResourceState = oldExports, oldState
     Storage.init()
 end

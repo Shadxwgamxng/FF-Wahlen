@@ -20,7 +20,7 @@ löschbar. Die Anbindung an eine Leitstelle erfolgt über eine austauschbare Bri
 ## 2. Installation
 
 1. Ordner `einsatz_creator` nach `resources/` kopieren.
-2. Speicherung: Alle Einsätze liegen in **einer Datei** `einsatz_creator/data/incidents.json` (keine Datenbank nötig). Der Ordner `data/` muss für den Server beschreibbar sein. Vor jedem Schreiben wird eine `.bak`-Kopie angelegt. Optional geht auch MySQL über oxmysql (`Config.Storage.backend = 'oxmysql'`).
+2. Speicherung (wie bei visn_are): **jeder Einsatz ist eine eigene Datei** in `einsatz_creator/data/incidents/` (`<ID>.json`, z. B. `SZ-4F2A1C.json`), dazu `index.json` mit der Liste der Einsätze. Keine Datenbank nötig. Der Ordner `data/` muss für den Server beschreibbar sein. Optional geht auch MySQL über oxmysql (`Config.Storage.backend = 'oxmysql'`).
 3. `server.cfg`:
 
 ```cfg
@@ -53,7 +53,7 @@ add_ace group.admin einsatzcreator.delete allow    # fremde Szenarien löschen
    Optional können Creator-Rechte zusätzlich über Jobs vergeben werden (`Config.Permissions.jobs`).
 5. Server neu starten bzw. `ensure einsatz_creator`.
 
-**Updates:** den Ordner `data/` niemals überschreiben oder löschen – darin liegt `incidents.json` mit allen Einsätzen. Vorhandene Daten aus `scenarios.json` oder aus der Datenbank (Version 1.1.0) werden beim Start automatisch in `incidents.json` übernommen.
+**Updates:** den Ordner `data/` niemals überschreiben oder löschen – in `data/incidents/` liegen alle Einsätze. Vorhandene Daten aus `incidents.json`/`scenarios.json` oder aus der Datenbank (Version 1.1.0) werden beim ersten Start automatisch in Einzeldateien umgewandelt.
 
 ## 3. Bedienung
 

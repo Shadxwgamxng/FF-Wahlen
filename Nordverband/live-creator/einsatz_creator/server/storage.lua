@@ -11,7 +11,7 @@
     JSON-Dateien:
 
     Dateien:
-      incidents.json  gespeicherte Einsaetze (Vorlagen; frueher scenarios.json)
+      incidents/      ein Einsatz pro Datei (<ID>.json) + index.json
       runtime.json    aktuell erzeugte Spielwelt-Elemente (fuer Bereinigung nach Absturz/Neustart)
       history.json    beendete / abgebrochene Einsaetze (Protokoll)
 
@@ -92,7 +92,7 @@ function Storage.load(name)
     return doc.data
 end
 
-function Storage.save(name, data)
+function Storage.save(name, data, noBackup)
     local ok, content = pcall(json.encode, { format = FORMAT, savedAt = os.time(), data = data }, { indent = true })
     if not ok or not content then
         U.log('error', '%s konnte nicht kodiert werden: %s', name, tostring(content))
@@ -100,7 +100,7 @@ function Storage.save(name, data)
     end
 
     local previous = readRaw(name)
-    if previous and decode(previous) then
+    if previous and decode(previous) and not noBackup then
         writeRaw(name .. '.bak', previous)
     end
 
@@ -121,53 +121,152 @@ end
 ----------------------------------------------------------------------------
 -- Szenarien
 ----------------------------------------------------------------------------
-local function scenarioFile() return Config.Storage.file or 'incidents.json' end
+--[[
+    Jeder Einsatz liegt in einer eigenen Datei (wie bei visn_are):
+      data/incidents/<ID>.json     ein Einsatz (Vorlage) mit Metadaten
+      data/incidents/index.json    Liste der gespeicherten Einsaetze
+    Fehlt der Index, werden die Dateien im Ordner gesucht (falls der Server das erlaubt).
+]]
+local function dir() return Config.Storage.folder or 'incidents' end
+local function fileOf(id) return ('%s/%s.json'):format(dir(), id) end
+local function validId(id) return type(id) == 'string' and #id <= 32 and id:match('^[%w%-_]+$') ~= nil end
+local savedText = {}   -- id -> zuletzt geschriebener Inhalt (nur Geaendertes schreiben)
+
+local function addRecord(id, record)
+    local sc, err = EC.Schema.normalizeScenario(type(record) == 'table' and record.scenario or nil)
+    if sc then
+        sc.id = id
+        Storage.scenarios[id] = { scenario = sc, meta = type(record.meta) == 'table' and record.meta or {},
+            random = type(record.random) == 'table' and record.random or nil }
+        return true
+    end
+    Storage.invalid[id] = record
+    U.log('warn', 'Einsatz %s ist ungueltig und wird nicht angeboten: %s', tostring(id), tostring(err))
+    return false
+end
+
+-- Dateien im Ordner auflisten (nur als Rueckfall, wenn index.json fehlt)
+local function scanFolder()
+    local ids = {}
+    local base = GetResourcePath(RES) .. '/' .. Config.Storage.directory .. '/' .. dir()
+    local ok = pcall(function()
+        local cmd = package.config:sub(1, 1) == '\\' and ('dir /b "%s"'):format(base:gsub('/', '\\')) or ('ls -1 "%s"'):format(base)
+        local h = io.popen(cmd)
+        if not h then return end
+        for line in h:lines() do
+            local id = line:match('^([%w%-_]+)%.json$')
+            if id and id ~= 'index' and validId(id) then ids[#ids + 1] = id end
+        end
+        h:close()
+    end)
+    return ok and ids or {}
+end
+
+-- Ordner anlegen, falls er fehlt (z. B. nach dem Entpacken ohne leere Ordner)
+local function ensureFolder()
+    if LoadResourceFile(RES, ('%s/%s/.keep'):format(Config.Storage.directory, dir())) then return end
+    pcall(function()
+        local base = GetResourcePath(RES) .. '/' .. Config.Storage.directory .. '/' .. dir()
+        if package.config:sub(1, 1) == '\\' then
+            os.execute(('mkdir "%s" >nul 2>nul'):format(base:gsub('/', '\\')))
+        else
+            os.execute(('mkdir -p "%s"'):format(base))
+        end
+    end)
+    SaveResourceFile(RES, ('%s/%s/.keep'):format(Config.Storage.directory, dir()), 'Ordner fuer gespeicherte Einsaetze. Nicht loeschen.', -1)
+end
 
 local function jsonLoadScenarios()
-    Storage.scenarios, Storage.invalid = {}, {}
-    local file = scenarioFile()
-    local data = Storage.load(file)
-    -- Umstieg von scenarios.json (bis Version 1.1.0)
-    if data == nil and file ~= 'scenarios.json' then
-        local old = Storage.load('scenarios.json')
-        if type(old) == 'table' then
-            data = old
+    ensureFolder()
+    Storage.scenarios, Storage.invalid, savedText = {}, {}, {}
+    local index = Storage.load(dir() .. '/index.json')
+    local ids
+    if type(index) == 'table' then
+        ids = index.ids or {}
+    elseif index == nil then
+        ids = scanFolder()
+        if #ids > 0 then
+            U.log('warn', '%s/index.json fehlt - %d Einsatzdateien im Ordner gefunden', dir(), #ids)
             Storage.migrateFile = true
-            U.log('info', 'Einsaetze aus scenarios.json uebernommen, sie werden ab jetzt in %s gespeichert', file)
         end
+    else
+        ids = scanFolder()
+        Storage.migrateFile = true
     end
-    if data == false then
-        Storage.loadFailed = true
-        return
-    end
-    data = data or {}
+
     local okCount, badCount = 0, 0
-    for id, record in pairs(data.scenarios or {}) do
-        local sc, err = EC.Schema.normalizeScenario(type(record) == 'table' and record.scenario or nil)
-        if sc then
-            sc.id = id
-            Storage.scenarios[id] = { scenario = sc, meta = type(record.meta) == 'table' and record.meta or {},
-                random = type(record.random) == 'table' and record.random or nil }
-            okCount = okCount + 1
-        else
-            Storage.invalid[id] = record
-            badCount = badCount + 1
-            U.log('warn', 'Szenario %s ist ungueltig und wird nicht angeboten: %s', tostring(id), tostring(err))
+    for _, id in ipairs(ids) do
+        if validId(id) then
+            local rec = Storage.load(fileOf(id))
+            if type(rec) == 'table' then
+                if addRecord(id, rec) then okCount = okCount + 1 else badCount = badCount + 1 end
+            else
+                badCount = badCount + 1
+                U.log('error', 'Einsatzdatei %s fehlt oder ist nicht lesbar', fileOf(id))
+            end
         end
     end
-    for id, record in pairs(data.invalid or {}) do
-        Storage.invalid[id] = record
+
+    -- Umstieg von einer Sammeldatei (incidents.json in 1.1.1, scenarios.json davor) - nur solange es noch keinen Index gibt
+    Storage.hasIndex = index ~= nil
+    if okCount + badCount == 0 and index == nil then
+        for _, old in ipairs({ 'incidents.json', 'scenarios.json' }) do
+            local data = Storage.load(old)
+            if type(data) == 'table' and next(data.scenarios or data.invalid or {}) then
+                for id, record in pairs(data.scenarios or {}) do
+                    if validId(id) then if addRecord(id, record) then okCount = okCount + 1 else badCount = badCount + 1 end end
+                end
+                for id, record in pairs(data.invalid or {}) do
+                    if validId(id) then Storage.invalid[id] = record end
+                end
+                Storage.migrateFile = true
+                U.log('info', '%d Einsaetze aus %s uebernommen, sie liegen ab jetzt einzeln in %s/%s/', okCount + badCount, old,
+                    Config.Storage.directory, dir())
+                break
+            end
+        end
     end
-    U.log('info', '%d Szenarien geladen%s', okCount, badCount > 0 and (' (%d ungueltig)'):format(badCount) or '')
+    U.log('info', '%d Einsaetze geladen%s', okCount, badCount > 0 and (' (%d ungueltig/fehlend)'):format(badCount) or '')
 end
 
 local function jsonSaveScenarios()
-    if Storage.loadFailed then
-        -- Nie eine unlesbare Datei mit einem leeren Stand ueberschreiben, ohne dass bewusst gespeichert wurde
-        U.log('warn', '%s war beim Start unlesbar; neuer Stand wird jetzt geschrieben (Kopie liegt als .corrupt-*)', scenarioFile())
-        Storage.loadFailed = false
+    Storage.loadFailed = false
+    local ok = true
+    local ids = {}
+    local function write(id, record)
+        ids[#ids + 1] = id
+        local enc, text = pcall(json.encode, record)
+        if not enc or text == savedText[id] then return end
+        if Storage.save(fileOf(id), record, true) then
+            savedText[id] = text
+        else
+            ok = false
+        end
     end
-    return Storage.save(scenarioFile(), { scenarios = Storage.scenarios, invalid = Storage.invalid })
+    for id, record in pairs(Storage.scenarios) do write(id, record) end
+    for id, record in pairs(Storage.invalid) do if validId(id) then write(id, type(record) == 'table' and record or { raw = record }) end end
+    table.sort(ids)
+    -- Index zuletzt schreiben: er bestimmt, welche Einsaetze gelten
+    if not Storage.save(dir() .. '/index.json', { ids = ids }) then ok = false end
+    -- Dateien entfernter Einsaetze loeschen
+    local keep = {}
+    for _, id in ipairs(ids) do keep[id] = true end
+    for id in pairs(savedText) do
+        if not keep[id] then
+            savedText[id] = nil
+            local path = ('%s/%s/%s'):format(GetResourcePath(RES), Config.Storage.directory, fileOf(id))
+            local okRm, removed = pcall(os.remove, path)
+            if not okRm or not removed then
+                -- Loeschen nicht erlaubt: Datei leeren (sie steht nicht mehr im Index)
+                SaveResourceFile(RES, ('%s/%s'):format(Config.Storage.directory, fileOf(id)), '', -1)
+            end
+        end
+    end
+    if not ok then
+        U.log('error', 'Einsaetze konnten nicht vollstaendig gespeichert werden. Existiert der Ordner %s/%s und ist er beschreibbar?',
+            Config.Storage.directory, dir())
+    end
+    return ok
 end
 
 function Storage.newScenarioId()
@@ -398,7 +497,7 @@ function DB.importToFile()
     local count = DB.loadScenarios()
     if not count or count == 0 then return end
     if jsonSaveScenarios() then
-        U.log('info', '%d Einsaetze aus der Datenbank in %s uebernommen (die Datenbank wird nicht mehr genutzt)', count, scenarioFile())
+        U.log('info', '%d Einsaetze aus der Datenbank in %s uebernommen (die Datenbank wird nicht mehr genutzt)', count, (Config.Storage.directory .. '/' .. dir() .. '/'))
     end
     local settings = DB.loadStore('settings')
     if type(settings) == 'table' and next(Storage.settings or {}) == nil then
@@ -443,7 +542,7 @@ function Storage.init()
             local n = U.tableCount(Storage.scenarios) + U.tableCount(Storage.invalid)
             if n > 0 then
                 if DB.saveScenarios() then
-                    U.log('info', '%d Einsaetze aus %s in die Datenbank uebernommen', n, scenarioFile())
+                    U.log('info', '%d Einsaetze aus %s in die Datenbank uebernommen', n, (Config.Storage.directory .. '/' .. dir() .. '/'))
                 else
                     U.log('error', 'Uebernahme der Szenarien in die Datenbank fehlgeschlagen')
                 end
@@ -467,11 +566,12 @@ function Storage.init()
         jsonLoadScenarios()
         jsonLoadSettings()
         jsonLoadHistory()
-        if not Storage.loadFailed and next(Storage.scenarios) == nil and next(Storage.invalid) == nil then
+        if not Storage.hasIndex and next(Storage.scenarios) == nil and next(Storage.invalid) == nil then
             DB.importToFile()
         end
         if Storage.migrateFile then
             Storage.migrateFile = nil
+            -- alle Dateien neu schreiben
             jsonSaveScenarios()
         end
     end

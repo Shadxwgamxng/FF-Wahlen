@@ -302,12 +302,12 @@ Config.Markers = {
 
 -- Speicherung (JSON im Resource-Ordner)
 Config.Storage = {
-    -- 'json'    alle Einsaetze in einer Datei (data/incidents.json) - keine Datenbank noetig (Standard)
+    -- 'json'    jeder Einsatz als eigene Datei in data/incidents/ (wie visn_are) - keine Datenbank noetig (Standard)
     -- 'oxmysql' Datenbank (Tabellen einsatz_creator_* werden automatisch angelegt)
     -- 'auto'    Datenbank, wenn oxmysql laeuft, sonst Datei
     -- Beim Wechsel werden vorhandene Daten einmalig uebernommen.
     backend = 'json',
-    file = 'incidents.json',  -- Datei der gespeicherten Einsaetze im Ordner directory
+    folder = 'incidents',     -- Unterordner fuer die Einsatzdateien (im Ordner directory)
     mysqlResource = 'oxmysql',
     directory = 'data',       -- relativ zur Resource; bei Updates diesen Ordner NICHT ueberschreiben
     historyLimit = 300,       -- Anzahl gespeicherter beendeter Einsaetze
