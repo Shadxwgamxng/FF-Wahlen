@@ -77,21 +77,39 @@ end
 ----------------------------------------------------------------------------
 -- NPC-Darstellung
 ----------------------------------------------------------------------------
+-- Verletzungsdarstellung (Blut/Verbrennung). Pro NPC nur EINMAL und erst kurz nach dem
+-- Erzeugen anwenden: wiederholtes Anwenden stapelt Decals, zu fruehes Anwenden auf noch
+-- nicht fertig geladene NPCs kann das Spiel abstuerzen lassen.
+local damaged = {}
 local function damagePack(ped, props)
+    if not Config.Rescue.damagePacks then return end
+    if damaged[ped] then return end
     local pt = props.patient or {}
     if pt.severity == 'leicht' then return end
-    local burnt = false
+    damaged[ped] = true
+    local pack = 'BigHitByVehicle'
     for _, inj in ipairs(pt.injuries or {}) do
-        if inj:find('Verbrenn') then burnt = true end
+        if inj:find('Verbrenn') then pack = 'Burnt_Ped_0' end
     end
-    if burnt then
-        ApplyPedDamagePack(ped, 'Burnt_Ped_0', 0.0, 1.0)
-    elseif pt.severity == 'mittel' then
-        ApplyPedDamagePack(ped, 'Car_Crash_Light', 0.0, 1.0)
-    else
-        ApplyPedDamagePack(ped, 'BigHitByVehicle', 0.0, 1.0)
-    end
+    if pack ~= 'Burnt_Ped_0' and pt.severity == 'mittel' then pack = 'Car_Crash_Light' end
+    CreateThread(function()
+        local deadline = GetGameTimer() + 5000
+        Wait(500)
+        while DoesEntityExist(ped) and not HasPedHeadBlendFinished(ped) and GetGameTimer() < deadline do Wait(100) end
+        if not DoesEntityExist(ped) or IsEntityDead(ped) then return end
+        ApplyPedDamagePack(ped, pack, 0.0, 1.0)
+    end)
 end
+
+-- Eintraege geloeschter NPCs aufraeumen
+CreateThread(function()
+    while true do
+        Wait(30000)
+        for ped in pairs(damaged) do
+            if not DoesEntityExist(ped) then damaged[ped] = nil end
+        end
+    end
+end)
 
 function World.playPose(ped, poseId)
     local pose = EC.PoseById[poseId] or EC.PoseById.bewusstlos

@@ -179,8 +179,13 @@ local function placeEntity(ent, el)
     if el.kind == 'ped' then
         if el.props.pose == 'fahrzeug' and el.props.vehicleId then
             local veh = Preview.entityOf(el.props.vehicleId)
-            if veh and DoesEntityExist(veh) then
-                SetPedIntoVehicle(ent, veh, el.props.seat)
+            local seat = tonumber(el.props.seat) or -1
+            if veh and DoesEntityExist(veh) and seat >= -1 and seat < GetVehicleMaxNumberOfPassengers(veh)
+                and (GetPedInVehicleSeat(veh, seat) == 0 or GetPedInVehicleSeat(veh, seat) == ent) then
+                if GetVehiclePedIsIn(ent, false) ~= veh then
+                    FreezeEntityPosition(ent, false)
+                    SetPedIntoVehicle(ent, veh, seat)
+                end
             end
         else
             if IsPedInAnyVehicle(ent, false) then

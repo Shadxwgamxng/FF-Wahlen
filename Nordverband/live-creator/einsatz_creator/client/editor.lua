@@ -535,7 +535,11 @@ function Editor.frame()
             if ghost and ghost.entity and DoesEntityExist(ghost.entity) then
                 local gz = kind == 'ped' and p.z + 0.9 or p.z
                 SetEntityCoordsNoOffset(ghost.entity, p.x, p.y, gz, false, false, false)
-                SetEntityRotation(ghost.entity, rot.x, rot.y, rot.z, 2, true)
+                if kind == 'ped' then
+                    SetEntityHeading(ghost.entity, rot.z + 0.0)
+                else
+                    SetEntityRotation(ghost.entity, rot.x, rot.y, rot.z, 2, true)
+                end
             else
                 -- Markierung fuer Effekte/Positionen
                 local size = (t.template and t.template.props and (t.template.props.radius or t.template.props.width or t.template.props.size)) or 1.0
