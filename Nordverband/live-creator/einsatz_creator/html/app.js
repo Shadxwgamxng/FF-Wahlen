@@ -534,6 +534,22 @@ function toolPanel(kind) {
 }
 
 const isZFire = () => S.config && S.config.fireBackend === 'z_fire';
+const ZF_NAME = { vehicle: 'Fahrzeugbrand', prop: 'Objektbrand', interior: 'Innenraumbrand', grass: 'Flächenbrand' };
+const ZF_HINT = {
+    auto: 'Automatisch: auf ein Fahrzeug/Objekt klicken = daran gekoppelt, im Gebäude = Innenraum, sonst Fläche.',
+    vehicle: 'Direkt auf ein gesetztes Fahrzeug klicken.',
+    prop: 'Direkt auf ein gesetztes Objekt klicken.',
+    interior: 'Nur innerhalb eines Gebäudes (Raum wird automatisch erkannt).',
+    grass: 'Nur im Freien.',
+};
+function zfResolved(p) {
+    if (p.zfBehaviour && p.zfBehaviour !== 'auto') return p.zfBehaviour;
+    const t = p.attachTo && S.draft ? S.draft.elements.find(x => x.id === p.attachTo) : null;
+    if (t && t.kind === 'vehicle') return 'vehicle';
+    if (t && t.kind === 'object') return 'prop';
+    if (p.roomHash) return 'interior';
+    return 'grass';
+}
 function fireFields(p, pre, withRoom) {
     const C = S.catalog;
     if (isZFire()) {
@@ -541,6 +557,7 @@ function fireFields(p, pre, withRoom) {
         return `${zf.running ? '' : `<div class="alert alert--warn">${icon('triangle-exclamation')}<div>z_fire ist nicht gestartet.</div></div>`}
             <div class="grid-2">${fSel('Partikeltyp', pre + 'zfEffect', p.zfEffect, arr(zf.fireEffects).map(x => [x, x]))}
             ${fSel('Brandverhalten', pre + 'zfBehaviour', p.zfBehaviour, [['auto', 'Automatisch'], ['grass', 'Fläche'], ['interior', 'Innenraum'], ['prop', 'Objekt'], ['vehicle', 'Fahrzeug']])}</div>
+            <div class="field__hint">${ZF_HINT[p.zfBehaviour || 'auto']}${withRoom ? ` · Wird übergeben als <b>${esc(ZF_NAME[zfResolved(p)])}</b>` : ''}</div>
             <div class="grid-2">${fNum('Größe', pre + 'size', p.size, { step: 0.1, min: 0.2, max: 5 })}
             ${fNum('Brenndauer (s)', pre + 'burnTime', p.burnTime, { int: true, min: 0, max: 7200, hint: '0 = bis gelöscht' })}</div>
             ${fSwitch('Ausbreitung', pre + 'canSpread', p.canSpread)}
@@ -1179,7 +1196,7 @@ function onPanelChange(e) {
         return;
     }
     handleBound(t, 'change');
-    if (t.closest('[data-scope^="tpl:"]') && ['props.canSpread', 'props.patient.profile'].includes(t.dataset.path)) renderPanel(true);
+    if (t.closest('[data-scope^="tpl:"]') && ['props.canSpread', 'props.patient.profile', 'props.zfBehaviour'].includes(t.dataset.path)) renderPanel(true);
 }
 $('#panelBody').addEventListener('input', onPanelInput);
 $('#panelBody').addEventListener('change', onPanelChange);
@@ -1207,7 +1224,16 @@ const pushInfo = debounce(() => {
     const d = S.draft;
     post('updateInfo', { patch: { name: d.name, keyword: d.keyword, priority: d.priority, info: d.info } });
 }, 300);
-const pushEdit = debounce(async () => { if (!S.edit) return; const r = await post('updateElement', { element: S.edit }); if (!r.ok) renderInspector(true); }, 250);
+const pushEdit = debounce(async () => {
+    if (!S.edit) return;
+    const r = await post('updateElement', { element: S.edit });
+    if (!r.ok) {
+        // abgelehnte Änderung zurücknehmen (z. B. Feuer passt nicht an diese Stelle)
+        const cur = S.draft && S.draft.elements.find(x => x.id === S.edit.id);
+        if (cur) S.edit = clone(cur);
+        renderInspector(true);
+    }
+}, 250);
 function flushEdits() { pushInfo.flush(); if (S.edit) pushEdit.flush(); }
 
 document.addEventListener('focusout', () => setTimeout(() => {
@@ -1377,7 +1403,7 @@ $('#inspector').addEventListener('input', e => handleBound(e.target, 'input'));
 $('#inspector').addEventListener('change', (e) => {
     handleBound(e.target, 'change');
     const path = e.target.dataset && e.target.dataset.path;
-    if (['props.pose', 'props.isPatient', 'props.canSpread', 'props.patient.profile', 'props.patient.destination'].includes(path)) {
+    if (['props.pose', 'props.isPatient', 'props.canSpread', 'props.patient.profile', 'props.patient.destination', 'props.zfBehaviour'].includes(path)) {
         pushEdit.flush();
         setTimeout(() => renderInspector(true), 0);
     }

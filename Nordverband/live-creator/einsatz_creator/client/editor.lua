@@ -136,6 +136,89 @@ local function findEl(id)
     return U.findById(State.draft.elements, id)
 end
 
+----------------------------------------------------------------------------
+-- z_fire: passt das Feuer an diese Stelle? (gleiche Regeln wie beim Aufbau auf dem Server)
+----------------------------------------------------------------------------
+local ZF_LABEL = { vehicle = 'Fahrzeugbrand', prop = 'Objektbrand', interior = 'Innenraumbrand', grass = 'Flaechenbrand' }
+
+-- Raum (Room-Key) an einer Position bestimmen; 0 = kein Innenraum
+function Editor.roomAt(pos)
+    local p = U.vec(pos)
+    if GetInteriorAtCoords(p.x, p.y, p.z) == 0 then return 0 end
+    local hash = LoadModel('prop_cs_cardbox_01') or LoadModel('prop_ld_health_pack')
+    if not hash then return 0 end
+    local obj = CreateObjectNoOffset(hash, p.x, p.y, p.z + 0.2, false, false, false)
+    SetEntityVisible(obj, false, false)
+    SetEntityCollision(obj, false, false)
+    FreezeEntityPosition(obj, true)
+    local room = 0
+    for _ = 1, 30 do
+        Wait(50)
+        room = GetRoomKeyFromEntity(obj)
+        if room ~= 0 then break end
+    end
+    DeleteEntity(obj)
+    SetModelAsNoLongerNeeded(hash)
+    return room
+end
+
+-- Brandverhalten so bestimmen, wie es der Server an z_fire uebergibt
+function Editor.zfBehaviour(el)
+    local p = el.props
+    local b = p.zfBehaviour
+    if b and b ~= 'auto' then return b end
+    local target = p.attachTo and findEl(p.attachTo)
+    if target and target.kind == 'vehicle' then return 'vehicle' end
+    if target and target.kind == 'object' then return 'prop' end
+    if p.roomHash and p.roomHash ~= 0 then return 'interior' end
+    return 'grass'
+end
+
+--[[
+    Feuer fuer z_fire pruefen und passend ergaenzen (Kopplung, Room-Key).
+    targetId: angeklicktes Element (beim Setzen), roomCheck: Raum an der Position neu bestimmen
+    Rueckgabe: true | false, fehlermeldung
+]]
+function Editor.fitZFire(el, targetId, roomCheck)
+    if el.kind ~= 'fire' or EC.fireBackend() ~= 'z_fire' then return true end
+    local p = el.props
+    local b = p.zfBehaviour or 'auto'
+    local target = targetId and findEl(targetId)
+    if target and target.kind ~= 'vehicle' and target.kind ~= 'object' then target = nil end
+
+    -- Kopplung beim Setzen auf ein Fahrzeug/Objekt
+    if target and (b == 'auto' or (b == 'vehicle' and target.kind == 'vehicle') or (b == 'prop' and target.kind == 'object')) then
+        p.attachTo = target.id
+        p.offset = { x = el.pos.x - target.pos.x, y = el.pos.y - target.pos.y, z = el.pos.z - target.pos.z }
+    end
+    local attached = p.attachTo and findEl(p.attachTo)
+
+    if b == 'vehicle' then
+        if not attached or attached.kind ~= 'vehicle' then
+            return false, 'Fahrzeugbrand: bitte direkt auf ein gesetztes Fahrzeug klicken (oder im Feuer "An Fahrzeug koppeln")'
+        end
+    elseif b == 'prop' then
+        if not attached or attached.kind ~= 'object' then
+            return false, 'Objektbrand: bitte direkt auf ein gesetztes Objekt klicken (oder im Feuer "An Objekt koppeln")'
+        end
+    elseif b == 'interior' then
+        if roomCheck or not p.roomHash or p.roomHash == 0 then p.roomHash = Editor.roomAt(el.pos) end
+        if p.roomHash == 0 then
+            return false, 'Innenraumbrand: an dieser Stelle ist kein Raum - bitte innerhalb eines Gebaeudes setzen'
+        end
+    elseif b == 'grass' then
+        if Editor.roomAt(el.pos) ~= 0 then
+            return false, 'Flaechenbrand geht nur im Freien - im Gebaeude bitte "Innenraum" waehlen'
+        end
+        p.roomHash = 0
+    else -- automatisch
+        if not attached then
+            if roomCheck or not p.roomHash then p.roomHash = Editor.roomAt(el.pos) end
+        end
+    end
+    return true
+end
+
 function Editor.markDirty()
     State.dirty = true
     Editor.queueState()
@@ -245,9 +328,15 @@ function Editor.addElement(raw)
         NUI.toast('info', 'Einsatzort wurde automatisch auf das erste Element gesetzt')
     end
     raw.id = U.randomId('', 8)
+    local targetId = raw._target
+    raw._target = nil
     local el, err = normalize(raw)
     if not el then return false, err end
-    if el.kind == 'fire' then Editor.computeSpread(el) end
+    if el.kind == 'fire' then
+        local fok, ferr = Editor.fitZFire(el, targetId, true)
+        if not fok then return false, ferr end
+        Editor.computeSpread(el)
+    end
     local ok, perr = Preview.sync(el)
     if not ok and ENTITY_KINDS[kind] then
         Preview.remove(el.id)
@@ -273,6 +362,10 @@ function Editor.updateElement(id, raw)
     local new, err = normalize(raw)
     if not new then return false, err end
     if new.kind == 'fire' then
+        local moved = U.dist(el.pos, new.pos) > 0.3
+        local changed = (el.props.zfBehaviour ~= new.props.zfBehaviour) or (el.props.attachTo ~= new.props.attachTo)
+        local fok, ferr = Editor.fitZFire(new, nil, moved or changed)
+        if not fok then return false, ferr end
         local a, b = el.props, new.props
         if a.canSpread ~= b.canSpread or a.spreadRadius ~= b.spreadRadius or a.maxSpread ~= b.maxSpread
             or U.dist(el.pos, new.pos) > 0.3 or a.attachTo ~= b.attachTo or #b.spreadPoints == 0 then
@@ -655,6 +748,7 @@ function Editor.click(button, mods)
         raw.kind = t.kind
         raw.pos = U.xyz(p)
         raw.zOffset = nil
+        if t.kind == 'fire' then raw._target = elementFromEntity(entity) end
         local ok, res = Editor.addElement(raw)
         if not ok then
             NUI.toast('error', res)
@@ -877,6 +971,16 @@ local function prepareDraft()
             Editor.computeSpread(el)
         end
     end
+    -- z_fire: jedes Feuer muss zu seinem Brandverhalten passen
+    for _, el in ipairs(d.elements) do
+        if el.kind == 'fire' then
+            local fok, ferr = Editor.fitZFire(el, nil, false)
+            if not fok then
+                Editor.select(el.id)
+                return false, ('Feuer "%s": %s'):format(el.label ~= '' and el.label or el.id, ferr)
+            end
+        end
+    end
     -- vollstaendige Vorpruefung mit denselben Regeln wie der Server
     local sc, err = Schema.normalizeScenario(d)
     if not sc then return false, err end
@@ -1070,24 +1174,8 @@ NUI.on('roomHashAt', function(data)
     requireOpen()
     local el = findEl(data.id)
     if not el then return false, 'Element nicht gefunden' end
-    local p = U.vec(el.pos)
-    local interior = GetInteriorAtCoords(p.x, p.y, p.z)
-    if interior == 0 then return false, 'An dieser Position ist kein Innenraum (Interior) geladen' end
-    local hash = LoadModel('prop_cs_cardbox_01') or LoadModel('prop_ld_health_pack')
-    if not hash then return false, 'Hilfsobjekt konnte nicht geladen werden' end
-    local obj = CreateObjectNoOffset(hash, p.x, p.y, p.z + 0.2, false, false, false)
-    SetEntityVisible(obj, false, false)
-    SetEntityCollision(obj, false, false)
-    FreezeEntityPosition(obj, true)
-    local room = 0
-    for _ = 1, 30 do
-        Wait(50)
-        room = GetRoomKeyFromEntity(obj)
-        if room ~= 0 then break end
-    end
-    DeleteEntity(obj)
-    SetModelAsNoLongerNeeded(hash)
-    if room == 0 then return false, 'Kein Raum gefunden - alternativ /z_fire:roomkey im Raum nutzen' end
+    local room = Editor.roomAt(el.pos)
+    if room == 0 then return false, 'An dieser Position ist kein Raum - alternativ /z_fire:roomkey im Raum nutzen' end
     local copy = U.deepcopy(el)
     copy.props.roomHash = room
     copy.props.zfBehaviour = 'interior'
