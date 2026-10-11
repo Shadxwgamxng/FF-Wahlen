@@ -1,4 +1,4 @@
-/* Einsatz-Creator - NUI
+/* Einsatz-Creator - NUI (Stil: ignis)
  *
  * Lua -> NUI: window.postMessage({ action, data })
  * NUI -> Lua: post(callback, data) -> { ok, data, error }
@@ -12,22 +12,12 @@ const RES = typeof GetParentResourceName === 'function' ? GetParentResourceName(
 /* ------------------------------------------------------------------ */
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
-
-function esc(v) {
-    return String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-}
-// Lua-Tabellen kommen als Array oder Objekt an - hier vereinheitlichen
-function arr(v) {
-    if (Array.isArray(v)) return v;
-    if (v && typeof v === 'object') return Object.values(v);
-    return [];
-}
-function obj(v) {
-    if (v && typeof v === 'object' && !Array.isArray(v)) return v;
-    if (Array.isArray(v) && v.length === 0) return {};
-    return v && typeof v === 'object' ? Object.assign({}, v) : {};
-}
+const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const arr = v => Array.isArray(v) ? v : (v && typeof v === 'object' ? Object.values(v) : []);
+const obj = v => (v && typeof v === 'object' && !Array.isArray(v)) ? v : (Array.isArray(v) && v.length === 0 ? {} : (v && typeof v === 'object' ? Object.assign({}, v) : {}));
 const clone = v => JSON.parse(JSON.stringify(v ?? null));
+const icon = (name, extra = '') => `<i class="fa-solid fa-${name} ${extra}"></i>`;
+
 function debounce(fn, ms) {
     let t = null;
     const d = (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
@@ -35,14 +25,12 @@ function debounce(fn, ms) {
     return d;
 }
 function fmtTime(ts) {
-    if (!ts) return '-';
+    if (!ts) return '–';
     const d = new Date(ts * 1000);
     const p = n => String(n).padStart(2, '0');
     return `${p(d.getDate())}.${p(d.getMonth() + 1)}. ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
-function getPath(o, path) {
-    return path.split('.').reduce((a, k) => (a == null ? undefined : a[k]), o);
-}
+function getPath(o, path) { return path.split('.').reduce((a, k) => (a == null ? undefined : a[k]), o); }
 function setPath(o, path, val) {
     const keys = path.split('.');
     let cur = o;
@@ -57,9 +45,7 @@ function setPath(o, path, val) {
 async function post(name, data = {}, silent = false) {
     try {
         const res = await fetch(`https://${RES}/${name}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json; charset=UTF-8' },
-            body: JSON.stringify(data),
+            method: 'POST', headers: { 'Content-Type': 'application/json; charset=UTF-8' }, body: JSON.stringify(data),
         });
         const json = await res.json();
         if (!json.ok && !silent && json.error) toast('error', json.error);
@@ -69,103 +55,97 @@ async function post(name, data = {}, silent = false) {
     }
 }
 
+const TOAST_ICON = { success: 'circle-check', error: 'circle-exclamation', warn: 'triangle-exclamation', info: 'circle-info' };
 function toast(kind, text) {
     if (!text) return;
+    kind = TOAST_ICON[kind] ? kind : 'info';
     const el = document.createElement('div');
-    el.className = `toast ${kind || 'info'}`;
-    el.textContent = text;
+    el.className = `toast toast--${kind}`;
+    el.innerHTML = `${icon(TOAST_ICON[kind])}<div>${esc(text)}</div>`;
     $('#toasts').appendChild(el);
-    setTimeout(() => el.remove(), kind === 'error' ? 6000 : 4000);
-    while ($('#toasts').children.length > 5) $('#toasts').firstChild.remove();
+    setTimeout(() => el.remove(), kind === 'error' ? 6500 : 4200);
+    while ($('#toasts').children.length > 4) $('#toasts').firstChild.remove();
 }
 
 const store = {
-    get(key, def) { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : def; } catch (e) { return def; } },
-    set(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch (e) { /* ignorieren */ } },
+    get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* */ } },
 };
 
 /* ------------------------------------------------------------------ */
 /* Zustand                                                             */
 /* ------------------------------------------------------------------ */
 const S = {
-    open: false,
-    catalog: null,
-    config: null,
-    perms: {},
-    user: '',
-    draft: null,
-    meta: null,
-    selected: null,
-    dirty: false,
-    tool: { name: 'select' },
-    previewHidden: false,
-    tab: 'tools',
-    sub: null,            // geoeffnetes Werkzeug-Unterpanel
-    tpl: {},              // Vorlagen je Werkzeug
-    search: {},           // Suchtexte
-    scenarios: [],
-    scenarioSearch: '',
-    random: null,
-    incidents: { active: [], history: [] },
-    status: {},
-    edit: null,           // Bearbeitungskopie des ausgewaehlten Elements
-    snapshot: null,       // Stand bei Auswahl (fuer "Zuruecksetzen")
-    editId: null,
+    open: false, catalog: null, config: null, perms: {}, user: '',
+    draft: null, meta: null, selected: null, dirty: false, tool: { name: 'select' }, previewHidden: false,
+    page: 'tools', sub: null, tpl: {}, search: {}, scenarioSearch: '',
+    scenarios: [], incidents: { active: [], history: [] }, random: null, randomForm: null,
+    status: {}, edit: null, snapshot: null, editId: null,
     favs: store.get('ec_favs', { vehicle: [], object: [], ped: [] }),
-    pending: {},          // Panels mit aufgeschobenem Neuzeichnen
+    pending: {},
 };
 
-const KIND_LABEL = {
-    vehicle: 'Fahrzeug', object: 'Objekt', ped: 'NPC / Patient', fire: 'Feuer', smoke: 'Rauch',
-    marker: 'Position', area: 'Gebiet', door: 'Tuer', spill: 'Betriebsstoff',
-};
-const KIND_ICON = {
-    vehicle: '🚗', object: '▣', ped: '✚', fire: '🔥', smoke: '☁', marker: '⚑', area: '◯', door: '🚪', spill: '💧',
+const KIND = {
+    vehicle: { label: 'Fahrzeug', icon: 'car-side' },
+    object: { label: 'Objekt', icon: 'cube' },
+    ped: { label: 'NPC / Patient', icon: 'user-injured' },
+    fire: { label: 'Feuer', icon: 'fire' },
+    smoke: { label: 'Rauch', icon: 'smog' },
+    marker: { label: 'Position', icon: 'location-dot' },
+    area: { label: 'Gebiet', icon: 'circle-dot' },
+    door: { label: 'Tür', icon: 'door-closed' },
+    spill: { label: 'Betriebsstoff', icon: 'droplet' },
 };
 const TOOLS = [
-    { id: 'select', label: 'Auswahl', ico: '⌖' },
-    { id: 'center', label: 'Einsatzort', ico: '◎' },
-    { id: 'vehicle', label: 'Fahrzeug', ico: '🚗' },
-    { id: 'object', label: 'Objekt', ico: '▣' },
-    { id: 'line', label: 'Absperrlinie', ico: '⋯' },
-    { id: 'fire', label: 'Feuer', ico: '🔥' },
-    { id: 'smoke', label: 'Rauch', ico: '☁' },
-    { id: 'ped', label: 'NPC / Patient', ico: '✚' },
-    { id: 'marker', label: 'Position', ico: '⚑' },
-    { id: 'area', label: 'Gebiet', ico: '◯' },
-    { id: 'door', label: 'Tuer', ico: '🚪' },
-    { id: 'spill', label: 'Betriebsstoff', ico: '💧' },
-    { id: 'variant', label: 'Ortsvariante', ico: '⇄' },
+    { id: 'select', label: 'Auswahl', icon: 'arrow-pointer' },
+    { id: 'center', label: 'Einsatzort', icon: 'crosshairs' },
+    { id: 'variant', label: 'Ortsvariante', icon: 'map-location-dot' },
+    { id: 'vehicle', label: 'Fahrzeug', icon: 'car-side' },
+    { id: 'object', label: 'Objekt', icon: 'cube' },
+    { id: 'line', label: 'Absperrlinie', icon: 'road-barrier' },
+    { id: 'ped', label: 'Patient', icon: 'user-injured' },
+    { id: 'fire', label: 'Feuer', icon: 'fire' },
+    { id: 'smoke', label: 'Rauch', icon: 'smog' },
+    { id: 'marker', label: 'Position', icon: 'location-dot' },
+    { id: 'area', label: 'Gebiet', icon: 'circle-dot' },
+    { id: 'door', label: 'Tür', icon: 'door-closed' },
+    { id: 'spill', label: 'Betriebsstoff', icon: 'droplet' },
 ];
 const TOOL_NAMES = {
     select: 'Auswahl', place: 'Setzen', move: 'Verschieben', center: 'Einsatzort', line: 'Absperrlinie',
-    door: 'Tuer waehlen', pickTarget: 'Koppeln', pickVehicle: 'Fahrzeug waehlen', variant: 'Ortsvariante',
+    door: 'Tür wählen', pickTarget: 'Koppeln', pickVehicle: 'Fahrzeug wählen', variant: 'Ortsvariante',
 };
+const PAGES = [
+    { id: 'tools', label: 'Werkzeuge', icon: 'shapes', eyebrow: 'Szene', desc: 'Elemente in die Welt setzen. Rechte Maustaste dreht die Kamera.' },
+    { id: 'incident', label: 'Einsatzdaten', icon: 'file-lines', eyebrow: 'Einsatz', desc: 'Stichwort, Lage und Übergabe an EmergencyDispatch.' },
+    { id: 'elements', label: 'Elemente', icon: 'layer-group', eyebrow: 'Szene', desc: 'Alle gesetzten Elemente dieses Szenarios.' },
+    { id: 'scenarios', label: 'Szenarien', icon: 'folder-open', eyebrow: 'Verwaltung', desc: 'Gespeicherte Szenarien öffnen, kopieren oder löschen.' },
+    { id: 'active', label: 'Aktive Einsätze', icon: 'tower-broadcast', eyebrow: 'Verwaltung', desc: 'Laufende Einsätze steuern und beenden.' },
+    { id: 'random', label: 'Zufallseinsätze', icon: 'shuffle', eyebrow: 'Verwaltung', desc: 'Einsätze automatisch aus dem Pool auslösen.' },
+];
 const VEH_TYPES = ['automobile', 'bike', 'boat', 'heli', 'plane', 'trailer', 'train', 'submarine'];
 const SEATS = [[-1, 'Fahrer'], [0, 'Beifahrer'], [1, 'Hinten links'], [2, 'Hinten rechts'], [3, 'Sitz 4'], [4, 'Sitz 5']];
 
 /* ------------------------------------------------------------------ */
-/* Formular-Bausteine                                                  */
+/* Formularbausteine                                                   */
 /* ------------------------------------------------------------------ */
-function fText(label, path, value, opts = {}) {
-    return `<label class="field"><span>${esc(label)}</span><input type="text" data-path="${path}" data-type="text"
-        value="${esc(value ?? '')}" maxlength="${opts.max || 200}" ${opts.list ? `list="${opts.list}"` : ''} placeholder="${esc(opts.ph || '')}"></label>`;
+const field = (label, control, hint) => `<label class="field"><span class="field__label">${esc(label)}</span>${control}${hint ? `<span class="field__hint">${hint}</span>` : ''}</label>`;
+function fText(label, path, value, o = {}) {
+    return field(label, `<input class="input" type="text" data-path="${path}" data-type="text" value="${esc(value ?? '')}" maxlength="${o.max || 200}" ${o.list ? `list="${o.list}"` : ''} placeholder="${esc(o.ph || '')}">`, o.hint);
 }
-function fArea(label, path, value, opts = {}) {
-    return `<label class="field"><span>${esc(label)}</span><textarea data-path="${path}" data-type="text" rows="${opts.rows || 3}"
-        maxlength="${opts.max || 1500}" placeholder="${esc(opts.ph || '')}">${esc(value ?? '')}</textarea></label>`;
+function fArea(label, path, value, o = {}) {
+    return field(label, `<textarea class="textarea" data-path="${path}" data-type="text" rows="${o.rows || 3}" maxlength="${o.max || 1500}" placeholder="${esc(o.ph || '')}">${esc(value ?? '')}</textarea>`, o.hint);
 }
-function fNum(label, path, value, opts = {}) {
-    return `<label class="field"><span>${esc(label)}</span><input type="number" data-path="${path}" data-type="${opts.int ? 'int' : 'num'}"
-        value="${value ?? 0}" step="${opts.step || 1}" ${opts.min !== undefined ? `min="${opts.min}"` : ''} ${opts.max !== undefined ? `max="${opts.max}"` : ''}></label>`;
+function fNum(label, path, value, o = {}) {
+    return field(label, `<input class="input" type="number" data-path="${path}" data-type="${o.int ? 'int' : 'num'}" value="${value ?? 0}" step="${o.step || 1}" ${o.min !== undefined ? `min="${o.min}"` : ''} ${o.max !== undefined ? `max="${o.max}"` : ''}>`, o.hint);
 }
-function fSel(label, path, value, options, opts = {}) {
-    const o = options.map(([v, l]) => `<option value="${esc(v)}" ${String(v) === String(value) ? 'selected' : ''}>${esc(l)}</option>`).join('');
-    return `<label class="field"><span>${esc(label)}</span><select data-path="${path}" data-type="${opts.type || 'text'}">${o}</select></label>`;
+function fSel(label, path, value, options, o = {}) {
+    const opts = options.map(([v, l]) => `<option value="${esc(v)}" ${String(v) === String(value) ? 'selected' : ''}>${esc(l)}</option>`).join('');
+    return field(label, `<select class="select" data-path="${path}" data-type="${o.type || 'text'}">${opts}</select>`, o.hint);
 }
-function fChk(label, path, value) {
-    return `<label class="check"><input type="checkbox" data-path="${path}" data-type="bool" ${value ? 'checked' : ''}> ${esc(label)}</label>`;
-}
+const fSwitch = (label, path, value) => `<label class="switch"><input type="checkbox" data-path="${path}" data-type="bool" ${value ? 'checked' : ''}><span>${esc(label)}</span></label>`;
+const section = (title, body, extra = '') => `<div class="stack"><div class="section-title">${title}${extra}</div>${body}</div>`;
+
 function readInput(el) {
     const t = el.dataset.type;
     if (t === 'bool') return el.checked;
@@ -173,6 +153,10 @@ function readInput(el) {
     if (t === 'int') { const v = parseInt(el.value, 10); return isNaN(v) ? undefined : v; }
     if (t === 'nullable') return el.value === '' ? null : el.value;
     return el.value;
+}
+function panelBusy(sel) {
+    const a = document.activeElement;
+    return a && a.closest && a.closest(sel) && ['INPUT', 'TEXTAREA', 'SELECT'].includes(a.tagName);
 }
 
 /* ------------------------------------------------------------------ */
@@ -185,9 +169,8 @@ window.addEventListener('message', (e) => {
         case 'editorClose': onEditorClose(); break;
         case 'state': onState(data); break;
         case 'status': onStatus(data); break;
-        case 'incidents': S.incidents = normIncidents(data); if (S.tab === 'active') renderLeft(); break;
+        case 'incidents': S.incidents = normIncidents(data); renderRail(); if (S.page === 'active') renderPanel(); break;
         case 'toast': toast(data.kind, data.text); break;
-        case 'alarm': showAlarm(data); break;
         case 'prompt': showPrompt(data); break;
         case 'progress': showProgress(data); break;
         case 'actionMenu': showActionMenu(data); break;
@@ -197,10 +180,7 @@ window.addEventListener('message', (e) => {
     }
 });
 
-function normIncidents(d) {
-    d = d || {};
-    return { active: arr(d.active), history: arr(d.history) };
-}
+const normIncidents = d => ({ active: arr(d && d.active), history: arr(d && d.history) });
 
 function onEditorOpen(d) {
     S.open = true;
@@ -213,64 +193,60 @@ function onEditorOpen(d) {
     S.sub = null;
     initTemplates();
     $('#editor').classList.remove('hidden');
-    renderAll();
+    renderRail();
 }
 
 function onEditorClose() {
     S.open = false;
-    closeModal();
+    closeDialog();
     $('#editor').classList.add('hidden');
 }
 
 function onState(d) {
-    const prevSel = S.selected;
+    const prev = S.selected;
     S.draft = d.draft;
     S.draft.info = S.draft.info || {};
     S.draft.info.custom = obj(S.draft.info.custom);
     S.draft.elements = arr(S.draft.elements);
+    S.draft.variants = arr(S.draft.variants);
     S.meta = d.meta || null;
     S.selected = d.selected || null;
     S.dirty = !!d.dirty;
     S.tool = d.tool || { name: 'select' };
     S.previewHidden = !!d.previewHidden;
-
     const el = S.selected ? S.draft.elements.find(x => x.id === S.selected) : null;
-    if (S.selected !== prevSel) {
-        S.snapshot = el ? clone(el) : null;
-    }
+    if (S.selected !== prev) S.snapshot = el ? clone(el) : null;
     if (!el) { S.edit = null; S.editId = null; }
-    else if (!panelBusy('#right') || S.editId !== el.id) { S.edit = clone(el); S.editId = el.id; }
-
+    else if (!panelBusy('#inspector') || S.editId !== el.id) { S.edit = clone(el); S.editId = el.id; }
     renderTop();
-    renderLeft();
-    renderRight();
+    renderRail();
+    renderPanel();
+    renderInspector();
 }
 
 function onStatus(d) {
     S.status = d || {};
     const s = S.status;
-    const c = s.cursor ? `${s.cursor.x.toFixed(1)}, ${s.cursor.y.toFixed(1)}, ${s.cursor.z.toFixed(1)}` : '-';
+    const c = s.cursor ? `${s.cursor.x.toFixed(1)}  ${s.cursor.y.toFixed(1)}  ${s.cursor.z.toFixed(1)}` : '–';
     const far = s.centerDist != null && s.maxDist && s.centerDist > s.maxDist * 0.9;
-    $('#bottombar').innerHTML = `
-        <span>Werkzeug: <b>${esc(TOOL_NAMES[s.tool] || s.tool || '-')}</b></span>
-        <span class="hint">${esc(s.hint || '')}</span>
-        <span class="mono">Cursor: ${esc(c)}</span>
-        <span class="${far ? 'warn' : ''}">${s.centerDist != null ? `Abstand Einsatzort: ${s.centerDist} m` : 'Kein Einsatzort'}</span>`;
-}
-
-/* Ein Panel nicht neu zeichnen, solange darin getippt wird */
-function panelBusy(sel) {
-    const a = document.activeElement;
-    return a && a.closest && a.closest(sel) && ['INPUT', 'TEXTAREA', 'SELECT'].includes(a.tagName);
+    const hint = String(s.hint || '').split('|').map(part => {
+        const [k, ...rest] = part.split(':');
+        return rest.length ? `<span class="kbd">${esc(k.trim())}</span><span>${esc(rest.join(':').trim())}</span>` : `<span>${esc(part.trim())}</span>`;
+    }).join('<span class="dim">·</span>');
+    $('#statusbar').innerHTML = `
+        <span>${icon('arrow-pointer')} <b>${esc(TOOL_NAMES[s.tool] || s.tool || '–')}</b></span>
+        <span class="hint">${hint}</span>
+        <span class="mono">${esc(c)}</span>
+        <span class="${far ? 'warn' : ''}">${s.centerDist != null ? `${icon('crosshairs')} ${s.centerDist} m` : 'kein Einsatzort'}</span>`;
 }
 
 /* ------------------------------------------------------------------ */
-/* Vorlagen fuer Werkzeuge                                             */
+/* Vorlagen der Werkzeuge                                              */
 /* ------------------------------------------------------------------ */
 function initTemplates() {
     const d = S.catalog.defaults;
     S.tpl = {
-        vehicle: { model: null, label: '', props: clone(d.vehicle) },
+        vehicle: { model: null, label: '', props: Object.assign(clone(d.vehicle), { damage: 2, hazard: true }) },
         object: { model: null, label: '', props: clone(d.object) },
         line: { model: 'prop_roadcone02a', label: '', spacing: 1.5, props: clone(d.object) },
         ped: { model: null, label: '', props: clone(d.ped) },
@@ -281,53 +257,45 @@ function initTemplates() {
         door: { label: '', props: clone(d.door) },
         spill: { label: '', props: clone(d.spill) },
     };
-    S.tpl.vehicle.props.damage = 2;
-    S.tpl.vehicle.props.hazard = true;
 }
-
 function activateTemplate(kind) {
     const t = S.tpl[kind];
     if (kind === 'line') {
-        if (!t.model) return toast('error', 'Bitte ein Objekt fuer die Linie waehlen');
+        if (!t.model) return toast('error', 'Bitte ein Objekt für die Linie wählen');
         return post('setTool', { name: 'line', template: { model: t.model, label: t.label, spacing: t.spacing, props: t.props, rot: { x: 0, y: 0, z: 0 } } });
     }
-    if (kind === 'door') {
-        return post('setTool', { name: 'door', template: { label: t.label, props: t.props } });
-    }
-    if (['vehicle', 'object', 'ped'].includes(kind) && !t.model) return toast('error', 'Bitte zuerst ein Modell waehlen');
+    if (kind === 'door') return post('setTool', { name: 'door', template: { label: t.label, props: t.props } });
+    if (['vehicle', 'object', 'ped'].includes(kind) && !t.model) return toast('error', 'Bitte zuerst ein Modell wählen');
     return post('setTool', { name: 'place', kind, template: { model: t.model, label: t.label, props: t.props, rot: { x: 0, y: 0, z: 0 } } });
 }
-const refreshPlaceTool = debounce((kind) => {
-    if (S.tool.name === 'place' && S.tool.kind === kind) activateTemplate(kind);
-}, 350);
+const refreshPlaceTool = debounce(kind => { if (S.tool.name === 'place' && S.tool.kind === kind) activateTemplate(kind); }, 350);
 
 /* ------------------------------------------------------------------ */
-/* Obere Leiste                                                        */
+/* Topbar                                                              */
 /* ------------------------------------------------------------------ */
 function renderTop() {
-    if (!S.draft) return;
-    if (panelBusy('#topbar')) return;
-    const cats = arr(S.catalog.categories).map(c => [c.id, c.label]);
-    const saved = S.draft.id
-        ? `<span class="badge ok">Gespeichert · ${esc(S.draft.id)}</span>`
-        : `<span class="badge">Neuer Entwurf</span>`;
-    const dirty = S.dirty ? `<span class="badge warn">ungespeicherte Aenderungen</span>` : '';
+    if (!S.draft || panelBusy('#topbar')) return;
+    const cat = arr(S.catalog.categories).find(c => c.id === S.draft.category);
+    const initials = (S.user || '?').split(/\s+/).map(x => x[0]).join('').slice(0, 2).toUpperCase();
     $('#topbar').innerHTML = `
-        <div class="brand">EINSATZ-CREATOR<small>${esc(S.user)}</small></div>
-        <select data-scope="info" data-path="category" data-type="text" title="Einsatzart">
-            ${cats.map(([v, l]) => `<option value="${esc(v)}" ${v === S.draft.category ? 'selected' : ''}>${esc(l)}</option>`).join('')}
-        </select>
-        <input class="name" data-scope="info" data-path="name" data-type="text" maxlength="64" placeholder="Einsatzname" value="${esc(S.draft.name)}">
-        <span class="state">${saved} ${dirty}</span>
-        <div class="grow"></div>
-        <button data-act="new" title="Neuer Entwurf">Neu</button>
-        <button data-act="save" class="primary" title="Speichern (Strg+S)">Speichern</button>
-        <button data-act="preview" class="${S.previewHidden ? '' : 'active'}" title="Vorschau ein-/ausblenden">Vorschau</button>
-        <div class="sep"></div>
-        <button data-act="test" ${S.perms.test ? '' : 'disabled'} title="In der Welt aufbauen, nur du (und Testempfaenger) werden alarmiert">Test</button>
-        <button data-act="live" class="live" ${S.perms.live ? '' : 'disabled'} title="Einsatz live ausloesen">LIVE</button>
-        <div class="sep"></div>
-        <button data-act="close" class="ghost" title="Schliessen">✕</button>`;
+        <div class="wordmark"><span class="wordmark__sign">${icon('tower-broadcast')}</span><span class="wordmark__word">einsatz<span>creator</span></span></div>
+        <div class="crumbs">
+            <span class="dim">Szenarien</span><i class="fa-solid fa-chevron-right sep"></i>
+            <input class="crumbs__name" data-scope="info" data-path="name" data-type="text" maxlength="64" placeholder="Unbenanntes Szenario" value="${esc(S.draft.name)}">
+            ${cat ? `<span class="chip chip--outline">${esc(cat.label)}</span>` : ''}
+            ${S.draft.id ? `<span class="chip mono">${esc(S.draft.id)}</span>` : '<span class="chip">Neu</span>'}
+            ${S.dirty ? '<span class="chip chip--warn chip--dot">Ungespeichert</span>' : (S.draft.id ? '<span class="chip chip--ok chip--dot">Gespeichert</span>' : '')}
+        </div>
+        <div class="topbar__spacer"></div>
+        <button class="btn btn--ghost btn--sm" data-act="new">${icon('file-circle-plus')} Neu</button>
+        <button class="btn btn--ghost btn--sm ${S.previewHidden ? '' : 'is-on'}" data-act="preview">${icon(S.previewHidden ? 'eye-slash' : 'eye')} Vorschau</button>
+        <span class="topbar__sep"></span>
+        <button class="btn btn--sm" data-act="save">${icon('floppy-disk')} Speichern</button>
+        <button class="btn btn--sm" data-act="test" ${S.perms.test ? '' : 'disabled'}>${icon('flask')} Testen</button>
+        <button class="btn btn--primary btn--sm" data-act="live" ${S.perms.live ? '' : 'disabled'}>${icon('paper-plane')} An Leitstelle übergeben</button>
+        <span class="topbar__sep"></span>
+        <span class="user"><span class="avatar">${esc(initials)}</span>${esc(S.user)}</span>
+        <button class="btn btn--ghost btn--icon" data-act="close" title="Schließen">${icon('xmark')}</button>`;
 }
 
 $('#topbar').addEventListener('click', async (e) => {
@@ -335,20 +303,16 @@ $('#topbar').addEventListener('click', async (e) => {
     if (!b) return;
     const act = b.dataset.act;
     if (act === 'new') {
-        if (S.dirty && !(await confirmBox('Neuer Entwurf', 'Ungespeicherte Aenderungen gehen verloren. Fortfahren?', 'Verwerfen', true))) return;
+        if (S.dirty && !(await confirmBox('Neuer Entwurf', 'Ungespeicherte Änderungen gehen verloren.', 'Verwerfen', 'danger'))) return;
         post('newScenario');
-    } else if (act === 'save') {
-        saveScenario();
-    } else if (act === 'preview') {
-        post('togglePreview');
-    } else if (act === 'test') {
-        triggerIncident('test');
-    } else if (act === 'live') {
-        triggerIncident('live');
-    } else if (act === 'close') {
-        requestClose();
-    }
+    } else if (act === 'save') saveScenario();
+    else if (act === 'preview') post('togglePreview');
+    else if (act === 'test') triggerIncident('test');
+    else if (act === 'live') triggerIncident('live');
+    else if (act === 'close') requestClose();
 });
+$('#topbar').addEventListener('input', e => handleBound(e.target, 'input'));
+$('#topbar').addEventListener('change', e => handleBound(e.target, 'change'));
 
 async function saveScenario() {
     flushEdits();
@@ -356,26 +320,8 @@ async function saveScenario() {
     if (r.ok) {
         toast('success', `Szenario gespeichert (${r.data.id})`);
         if (r.data.scenarios) S.scenarios = arr(r.data.scenarios);
-        if (S.tab === 'scenarios') renderLeft();
+        if (S.page === 'scenarios') renderPanel(true);
     }
-}
-
-function chooseBox(title, text, options) {
-    return new Promise((resolve) => {
-        modalResolve = null;
-        $('#modal').innerHTML = `<div class="box"><h2>${esc(title)}</h2><p>${esc(text)}</p>
-            <select id="chooseSel" class="mt">${options.map(([v, l]) => `<option value="${esc(v)}">${esc(l)}</option>`).join('')}</select>
-            <div class="buttons"><button data-c="no">Abbrechen</button><button data-c="yes" class="primary">Weiter</button></div></div>`;
-        $('#modal').classList.remove('hidden');
-        $('#modal').onclick = (e) => {
-            const b = e.target.closest('[data-c]');
-            if (!b) return;
-            const val = $('#chooseSel').value;
-            $('#modal').onclick = null;
-            closeModal(false);
-            resolve(b.dataset.c === 'yes' ? val : null);
-        };
-    });
 }
 
 async function triggerIncident(mode) {
@@ -383,221 +329,205 @@ async function triggerIncident(mode) {
     let variant = 0;
     const vars = arr(S.draft.variants);
     if (vars.length) {
-        const v = await chooseBox('Einsatzort waehlen', 'Fuer dieses Szenario gibt es Ortsvarianten.',
-            [['0', 'Originalort'], ['random', 'Zufaellig'], ...vars.map((x, i) => [String(i + 1), `Variante ${i + 1}: ${x.label || ''}`])]);
+        const v = await chooseBox('Einsatzort wählen', 'Für dieses Szenario gibt es Ortsvarianten.',
+            [['0', 'Originalort'], ['random', 'Zufällig'], ...vars.map((x, i) => [String(i + 1), `Variante ${i + 1} – ${x.label || ''}`])]);
         if (v === null) return;
         variant = v === 'random' ? 'random' : parseInt(v, 10);
     }
-    const roles = arr(S.draft.info.alarmRoles).map(r => (S.config.roles[r] || {}).label || r).join(', ');
     if (mode === 'live') {
-        const ok = await confirmBox('Einsatz LIVE ausloesen',
-            `„${S.draft.name || 'Unbenannt'}“ wird in der Welt aufgebaut. Alarmiert werden alle Kraefte mit folgenden Rollen: ${roles || '-'}.` +
-            (S.dirty ? ' Hinweis: Der aktuelle (ungespeicherte) Stand wird verwendet.' : ''), 'LIVE ausloesen', true);
+        const ok = await confirmBox('An Leitstelle übergeben',
+            `„${S.draft.name || 'Unbenannt'}“ wird in der Welt aufgebaut und als Notruf an EmergencyDispatch übergeben. Die Alarmierung der Fahrzeuge erfolgt dort.` +
+            (S.dirty ? ' Es wird der aktuelle, ungespeicherte Stand verwendet.' : ''), 'Übergeben', 'primary');
         if (!ok) return;
     }
-    toast('info', mode === 'live' ? 'Einsatz wird aufgebaut ...' : 'Testeinsatz wird aufgebaut ...');
+    toast('info', mode === 'live' ? 'Einsatz wird aufgebaut …' : 'Testaufbau läuft …');
     const r = await post('trigger', { mode, variant });
     if (r.ok) {
-        toast('success', `${mode === 'live' ? 'Live-Einsatz' : 'Testeinsatz'} ${r.data.id} ist aktiv`);
-        if (r.data.warnings > 0) toast('warn', `${r.data.warnings} Element(e) konnten nicht erzeugt werden (Details unter "Aktiv")`);
+        toast('success', mode === 'live' ? `Einsatz ${r.data.id} an EmergencyDispatch übergeben` : `Testeinsatz ${r.data.id} aufgebaut (keine Alarmierung)`);
+        if (r.data.warnings > 0) toast('warn', `${r.data.warnings} Element(e) konnten nicht erzeugt werden`);
         if (r.data.incidents) S.incidents = normIncidents(r.data.incidents);
-        S.tab = 'active';
-        renderLeft();
+        S.page = 'active';
+        renderRail();
+        renderPanel(true);
     }
 }
 
 async function requestClose() {
-    if (S.dirty && !(await confirmBox('Creator schliessen', 'Es gibt ungespeicherte Aenderungen. Trotzdem schliessen?', 'Schliessen', true))) return;
+    if (S.dirty && !(await confirmBox('Creator schließen', 'Es gibt ungespeicherte Änderungen. Trotzdem schließen?', 'Schließen', 'danger'))) return;
     post('close');
 }
 
 /* ------------------------------------------------------------------ */
-/* Linke Seite                                                         */
+/* Navigation                                                          */
 /* ------------------------------------------------------------------ */
-$('#tabs').addEventListener('click', (e) => {
-    const b = e.target.closest('.tab');
+function renderRail() {
+    if (!S.open) return;
+    const activeCount = S.incidents.active.filter(i => i.status === 'aktiv').length;
+    $('#rail').innerHTML = PAGES.map(p => `<button class="rail__item ${S.page === p.id ? 'is-active' : ''}" data-page="${p.id}">
+            ${icon(p.icon)}${p.id === 'active' && activeCount ? `<span class="rail__count">${activeCount}</span>` : ''}
+            <span class="rail__tip">${esc(p.label)}</span></button>`).join('') +
+        `<div class="rail__spacer"></div>
+         <button class="rail__item" data-page="help">${icon('keyboard')}<span class="rail__tip">Tastenbelegung</span></button>`;
+}
+
+$('#rail').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-page]');
     if (!b) return;
-    S.tab = b.dataset.tab;
-    if (S.tab === 'active') post('listIncidents', {}, true).then(r => { if (r.ok) { S.incidents = normIncidents(r.data); renderLeft(); } });
-    if (S.tab === 'scenarios') post('listScenarios', {}, true).then(r => { if (r.ok) { S.scenarios = arr(r.data); renderLeft(); } });
-    if (S.tab === 'random') loadRandom();
-    renderLeft();
+    if (b.dataset.page === 'help') return showHelp();
+    S.page = b.dataset.page;
+    if (S.page === 'active') post('listIncidents', {}, true).then(r => { if (r.ok) { S.incidents = normIncidents(r.data); renderPanel(true); } });
+    if (S.page === 'scenarios') post('listScenarios', {}, true).then(r => { if (r.ok) { S.scenarios = arr(r.data); renderPanel(true); } });
+    if (S.page === 'random') loadRandom();
+    renderRail();
+    renderPanel(true);
 });
 
-function renderLeft(force) {
+/* ------------------------------------------------------------------ */
+/* Panel                                                               */
+/* ------------------------------------------------------------------ */
+function renderPanel(force) {
     if (!S.open || !S.draft) return;
-    $$('#tabs .tab').forEach(t => t.classList.toggle('on', t.dataset.tab === S.tab));
-    if (!force && panelBusy('#leftContent')) { S.pending.left = true; return; }
-    S.pending.left = false;
-    const box = $('#leftContent');
-    const scroll = box.scrollTop;
-    if (S.tab === 'tools') box.innerHTML = renderTools();
-    else if (S.tab === 'incident') box.innerHTML = renderIncidentTab();
-    else if (S.tab === 'elements') box.innerHTML = renderElementsTab();
-    else if (S.tab === 'scenarios') box.innerHTML = renderScenariosTab();
-    else if (S.tab === 'active') box.innerHTML = renderActiveTab();
-    else if (S.tab === 'random') box.innerHTML = renderRandomTab();
-    box.scrollTop = scroll;
+    if (!force && panelBusy('#panel')) { S.pending.panel = true; return; }
+    S.pending.panel = false;
+    const p = PAGES.find(x => x.id === S.page) || PAGES[0];
+    $('#panelHead').innerHTML = `<div class="eyebrow">${esc(p.eyebrow)}</div><div class="page-title">${esc(p.label)}</div><div class="page-desc">${esc(p.desc)}</div>`;
+    const body = $('#panelBody');
+    const scroll = body.scrollTop;
+    body.innerHTML = ({ tools: pageTools, incident: pageIncident, elements: pageElements, scenarios: pageScenarios, active: pageActive, random: pageRandom })[S.page]();
+    body.scrollTop = scroll;
 }
 
 /* ----- Werkzeuge ----- */
-function renderTools() {
-    const activeTool = S.tool.name === 'place' ? S.tool.kind : S.tool.name;
-    let html = `<div class="section"><div class="toolgrid">` + TOOLS.map(t => {
-        const on = (S.sub === t.id) || (t.id === activeTool && !S.sub) || (t.id === 'select' && activeTool === 'select' && !S.sub);
-        return `<div class="tool ${on ? 'on' : ''}" data-tool="${t.id}"><span class="ico">${t.ico}</span>${esc(t.label)}</div>`;
-    }).join('') + `</div></div>`;
-    if (S.sub) html += `<div class="section" data-scope="tpl:${S.sub}">${renderToolPanel(S.sub)}</div>`;
-    else html += `<div class="section dim">Werkzeug waehlen. Mit der rechten Maustaste die Kamera drehen, mit W/A/S/D bewegen, Q/E fuer Hoehe, Shift/Strg fuer Tempo.</div>`;
+function pageTools() {
+    const active = S.tool.name === 'place' ? S.tool.kind : S.tool.name;
+    const tiles = TOOLS.map(t => {
+        const on = S.sub ? S.sub === t.id : t.id === active;
+        return `<div class="tool ${on ? 'is-active' : ''}" data-tool="${t.id}">${icon(t.icon)}${esc(t.label)}</div>`;
+    }).join('');
+    let html = `<div class="tools">${tiles}</div>`;
+    if (S.sub) html += `<div class="card"><div class="card__header">${icon(KIND[S.sub] ? KIND[S.sub].icon : 'road-barrier')}<span class="card__title">${esc(toolTitle(S.sub))}</span></div>
+        <div class="card__body" data-scope="tpl:${S.sub}">${toolPanel(S.sub)}</div></div>`;
+    else html += `<div class="alert alert--info">${icon('circle-info')}<div>Werkzeug wählen und in die Welt klicken. <b>W A S D</b> bewegt die Kamera, <b>Q / E</b> Höhe, <b>Shift / Strg</b> Tempo, rechte Maustaste dreht.</div></div>`;
     return html;
 }
+const toolTitle = id => (TOOLS.find(t => t.id === id) || {}).label || id;
 
 function modelList(kind, cats) {
     const q = (S.search[kind] || '').trim().toLowerCase();
     const t = S.tpl[kind];
     const favs = S.favs[kind === 'line' ? 'object' : kind] || [];
+    const row = (m, ok) => `<div class="model ${ok ? '' : 'is-na'} ${t.model === m ? 'is-active' : ''}" data-model="${esc(m)}" data-ok="${ok ? 1 : 0}">
+        <span>${esc(m)}</span><span class="model__fav ${favs.includes(m) ? 'is-on' : ''}" data-fav="${esc(m)}">${icon('star')}</span></div>`;
     let html = '';
-    const row = (m, ok) => `<div class="m ${ok ? '' : 'na'} ${t.model === m ? 'on' : ''}" data-model="${esc(m)}" data-ok="${ok ? 1 : 0}">
-        <span class="mono">${esc(m)}</span><span class="fav ${favs.includes(m) ? 'on' : ''}" data-fav="${esc(m)}">★</span></div>`;
     const favRows = favs.filter(m => !q || m.includes(q)).map(m => row(m, true)).join('');
-    if (favRows) html += `<div class="cat">Favoriten</div>${favRows}`;
+    if (favRows) html += `<div class="list__group">${icon('star')} Favoriten</div>${favRows}`;
     for (const c of arr(cats)) {
         const ms = arr(c.models).filter(x => !q || x.model.toLowerCase().includes(q) || c.label.toLowerCase().includes(q));
-        if (!ms.length) continue;
-        html += `<div class="cat">${esc(c.label)}</div>` + ms.map(x => row(x.model, x.ok)).join('');
+        if (ms.length) html += `<div class="list__group">${esc(c.label)}<span class="count">${ms.length}</span></div>` + ms.map(x => row(x.model, x.ok)).join('');
     }
-    return `<input type="text" data-search="${kind}" placeholder="Suche nach Spawnname ..." value="${esc(S.search[kind] || '')}">
-        <div class="modellist">${html || '<div class="empty">Keine Treffer</div>'}</div>
-        <div class="row mt-s"><input type="text" data-custom="${kind}" placeholder="Eigener Spawnname"><button class="small" data-act="custom" data-kind="${kind}">Pruefen</button></div>`;
+    return `<div class="input-group">${icon('magnifying-glass')}<input class="input" type="text" data-search="${kind}" placeholder="Spawnname suchen" value="${esc(S.search[kind] || '')}"></div>
+        <div class="list list--scroll scroll">${html || '<div class="empty">Keine Treffer</div>'}</div>
+        <div class="input-group input-group--btn"><input class="input" type="text" data-custom="${kind}" placeholder="Eigener Spawnname"><button class="btn btn--sm" data-act="custom" data-kind="${kind}">Prüfen</button></div>`;
 }
 
-function renderToolPanel(kind) {
+function toolPanel(kind) {
     const C = S.catalog;
     const t = S.tpl[kind];
     const p = t.props;
-    const placeBtn = (label) => `<button class="primary mt" style="width:100%" data-act="place" data-kind="${kind}">${label}</button>`;
+    const place = (label, ic = 'plus') => `<button class="btn btn--primary btn--block" data-act="place" data-kind="${kind}">${icon(ic)} ${esc(label)}</button>`;
     switch (kind) {
         case 'vehicle':
-            return `<h3>Fahrzeug</h3>${modelList('vehicle', C.vehicles)}
+            return `${modelList('vehicle', C.vehicles)}
                 ${fSel('Schaden', 'props.damage', p.damage, arr(C.damageLevels).map(d => [d.id, d.label]), { type: 'int' })}
-                <div class="grid2">${fChk('Warnblinker', 'props.hazard', p.hazard)}${fChk('Licht an', 'props.lights', p.lights)}
-                ${fChk('Verschlossen', 'props.locked', p.locked)}${fChk('Fixiert', 'props.frozen', p.frozen)}
-                ${fChk('Tueren offen', 'props.doorsOpen', p.doorsOpen)}${fChk('Scheiben kaputt', 'props.windowsBroken', p.windowsBroken)}
-                ${fChk('Reifen platt', 'props.tyresBurst', p.tyresBurst)}${fChk('Motor aus', 'props.engineOff', p.engineOff)}</div>
-                ${placeBtn(t.model ? `Setzen: ${esc(t.model)}` : 'Modell waehlen')}`;
+                <div class="switches">${fSwitch('Warnblinker', 'props.hazard', p.hazard)}${fSwitch('Licht an', 'props.lights', p.lights)}
+                ${fSwitch('Verschlossen', 'props.locked', p.locked)}${fSwitch('Fixiert', 'props.frozen', p.frozen)}
+                ${fSwitch('Türen offen', 'props.doorsOpen', p.doorsOpen)}${fSwitch('Scheiben kaputt', 'props.windowsBroken', p.windowsBroken)}
+                ${fSwitch('Reifen platt', 'props.tyresBurst', p.tyresBurst)}${fSwitch('Motor aus', 'props.engineOff', p.engineOff)}</div>
+                ${place(t.model ? `${t.model} setzen` : 'Modell wählen')}`;
         case 'object':
-            return `<h3>Objekt</h3>${modelList('object', C.props)}
-                <div class="grid2">${fChk('Fixiert', 'props.frozen', p.frozen)}${fChk('Kollision', 'props.collision', p.collision)}</div>
-                ${placeBtn(t.model ? `Setzen: ${esc(t.model)}` : 'Modell waehlen')}`;
+            return `${modelList('object', C.props)}<div class="switches">${fSwitch('Fixiert', 'props.frozen', p.frozen)}${fSwitch('Kollision', 'props.collision', p.collision)}</div>
+                ${place(t.model ? `${t.model} setzen` : 'Modell wählen')}`;
         case 'line':
-            return `<h3>Absperrlinie</h3>${modelList('line', C.props)}
-                ${fNum('Abstand (m)', 'spacing', t.spacing, { step: 0.25, min: 0.5, max: 10 })}
-                <p class="dim mt-s">Startpunkt und Endpunkt in der Welt anklicken. Mausrad aendert den Abstand.</p>
-                <button class="primary mt" style="width:100%" data-act="place" data-kind="line">Linie ziehen</button>`;
+            return `${modelList('line', C.props)}${fNum('Abstand in Metern', 'spacing', t.spacing, { step: 0.25, min: 0.5, max: 10, hint: 'Start- und Endpunkt in der Welt anklicken, Mausrad ändert den Abstand.' })}
+                ${place('Linie ziehen', 'road-barrier')}`;
         case 'ped':
-            return `<h3>NPC / Patient</h3>${modelList('ped', C.peds)}
+            return `${modelList('ped', C.peds)}
                 ${fSel('Haltung', 'props.pose', p.pose, arr(C.poses).filter(x => !x.vehicle).map(x => [x.id, x.label]))}
-                ${fChk('Ist Patient', 'props.isPatient', p.isPatient)}
-                ${fChk('Zufaelliges Modell (passend zum Geschlecht)', 'props.randomModel', p.randomModel)}
                 ${C.medical && C.medical.enabled ? fSel('Meldebild', 'props.patient.profile', p.patient.profile, arr(C.medical.profiles).map(x => [x.id, x.label])) : ''}
-                ${fSel('Schweregrad', 'props.patient.severity', p.patient.severity, arr(C.severities).map(s => [s.id, s.label]))}
-                <div class="grid2">${fSel('Bewusstsein', 'props.patient.consciousness', p.patient.consciousness, arr(C.consciousness).map(x => [x, x]))}
-                ${fSel('Mobilitaet', 'props.patient.mobility', p.patient.mobility, arr(C.mobility).map(x => [x, x]))}</div>
-                <p class="dim mt-s">Verletzungen, Vitalwerte und Massnahmen nach dem Setzen rechts bearbeiten. In ein Fahrzeug setzen: NPC auswaehlen und „In Fahrzeug setzen“.</p>
-                ${placeBtn(t.model ? `Setzen: ${esc(t.model)}` : 'Modell waehlen')}`;
-        case 'fire':
-            return `<h3>Feuer</h3>${fireFields(p, 'props.')}${placeBtn('Brandherd setzen')}
-                <p class="dim mt-s">Mehrere Brandherde: einfach mehrfach klicken. Shift+Mausrad aendert die Groesse.${isZFire() ? ' Fahrzeug-/Objektbrand: Feuer setzen und rechts „An Fahrzeug / Objekt koppeln“. Innenraum: rechts „Raum ermitteln“.' : ''}</p>`;
-        case 'smoke':
-            return `<h3>Rauch</h3>${smokeFields(p, 'props.')}${placeBtn('Rauchquelle setzen')}`;
-        case 'marker':
-            return `<h3>Position / Fundstelle</h3>${fText('Bezeichnung', 'label', t.label, { max: 48 })}${markerFields(p, 'props.')}${placeBtn('Position setzen')}`;
-        case 'area':
-            return `<h3>Einsatzgebiet</h3>${fText('Bezeichnung', 'label', t.label, { max: 48 })}${areaFields(p, 'props.')}${placeBtn('Gebiet setzen')}`;
-        case 'door':
-            return `<h3>Tueroeffnung</h3>${doorFields(p, 'props.')}
-                <p class="dim mt-s">Eine echte Tuer in der Welt anklicken. Sie wird waehrend des Einsatzes verriegelt und erst durch die Einsatzkraefte geoeffnet.</p>
-                <button class="primary mt" style="width:100%" data-act="place" data-kind="door">Tuer anklicken</button>`;
-        case 'spill':
-            return `<h3>Betriebsstoff / Oelspur</h3>${spillFields(p, 'props.')}${placeBtn('Betriebsstoff setzen')}
-                <p class="dim mt-s">Fuer eine laengere Spur mehrere Flecken hintereinander setzen.</p>`;
+                <div class="grid-2">${fSel('Schweregrad', 'props.patient.severity', p.patient.severity, arr(C.severities).map(s => [s.id, s.label]))}
+                ${fSel('Mobilität', 'props.patient.mobility', p.patient.mobility, arr(C.mobility).map(x => [x, x]))}</div>
+                <div class="switches">${fSwitch('Ist Patient', 'props.isPatient', p.isPatient)}${fSwitch('Zufälliges Modell', 'props.randomModel', p.randomModel)}</div>
+                ${place(t.model ? `${t.model} setzen` : 'Modell wählen')}`;
+        case 'fire': return `${fireFields(p, 'props.')}${place('Brandherd setzen', 'fire')}`;
+        case 'smoke': return `${smokeFields(p, 'props.')}${place('Rauchquelle setzen', 'smog')}`;
+        case 'marker': return `${fText('Bezeichnung', 'label', t.label, { max: 48 })}${markerFields(p, 'props.')}${place('Position setzen', 'location-dot')}`;
+        case 'area': return `${fText('Bezeichnung', 'label', t.label, { max: 48 })}${areaFields(p, 'props.')}${place('Gebiet setzen', 'circle-dot')}`;
+        case 'door': return `${doorFields(p, 'props.')}<div class="field__hint">Eine echte Tür in der Welt anklicken. Sie bleibt verriegelt, bis sie geöffnet wird.</div>${place('Tür anklicken', 'door-closed')}`;
+        case 'spill': return `${spillFields(p, 'props.')}${place('Betriebsstoff setzen', 'droplet')}`;
     }
     return '';
 }
 
-function isZFire() { return S.config && S.config.fireBackend === 'z_fire'; }
-
-function fireFields(p, pre, withRoomButton) {
+const isZFire = () => S.config && S.config.fireBackend === 'z_fire';
+function fireFields(p, pre, withRoom) {
     const C = S.catalog;
     if (isZFire()) {
         const zf = S.config.zfire || {};
-        return `${zf.running ? '' : '<p class="mt-s" style="color:var(--yellow)">⚠ z_fire ist nicht gestartet - Feuer koennen nicht ausgeloest werden.</p>'}
-            ${fSel('z_fire Partikeltyp', pre + 'zfEffect', p.zfEffect, arr(zf.fireEffects).map(x => [x, x]))}
-            ${fSel('Brandverhalten (z_fire)', pre + 'zfBehaviour', p.zfBehaviour, [['auto', 'Automatisch (Kopplung/Raum)'], ['grass', 'Flaeche / Vegetation (grass)'], ['interior', 'Innenraum (interior)'], ['prop', 'Objekt (prop)'], ['vehicle', 'Fahrzeug (vehicle)']])}
-            <div class="grid2">${fNum('Groesse (scale)', pre + 'size', p.size, { step: 0.1, min: 0.2, max: 5 })}
-            ${fNum('Brenndauer (s, 0 = bis geloescht)', pre + 'burnTime', p.burnTime, { int: true, min: 0, max: 7200 })}</div>
-            ${fChk('Ausbreitung aktiv', pre + 'canSpread', p.canSpread)}
-            ${fNum('Ausbreitungsradius (m)', pre + 'spreadRadius', p.spreadRadius, { step: 1, min: 1, max: 40 })}
-            ${withRoomButton ? `<div class="grid2">${fNum('Room-Key (Innenraum)', pre + 'roomHash', p.roomHash, { int: true })}
-                <label class="field"><span>&nbsp;</span><button style="width:100%" data-act="roomHash">Raum ermitteln</button></label></div>` : ''}
+        return `${zf.running ? '' : `<div class="alert alert--warn">${icon('triangle-exclamation')}<div>z_fire ist nicht gestartet.</div></div>`}
+            <div class="grid-2">${fSel('Partikeltyp', pre + 'zfEffect', p.zfEffect, arr(zf.fireEffects).map(x => [x, x]))}
+            ${fSel('Brandverhalten', pre + 'zfBehaviour', p.zfBehaviour, [['auto', 'Automatisch'], ['grass', 'Fläche'], ['interior', 'Innenraum'], ['prop', 'Objekt'], ['vehicle', 'Fahrzeug']])}</div>
+            <div class="grid-2">${fNum('Größe', pre + 'size', p.size, { step: 0.1, min: 0.2, max: 5 })}
+            ${fNum('Brenndauer (s)', pre + 'burnTime', p.burnTime, { int: true, min: 0, max: 7200, hint: '0 = bis gelöscht' })}</div>
+            ${fSwitch('Ausbreitung', pre + 'canSpread', p.canSpread)}
+            ${p.canSpread ? fNum('Ausbreitungsradius (m)', pre + 'spreadRadius', p.spreadRadius, { step: 1, min: 1, max: 40 }) : ''}
+            ${withRoom ? `<div class="field"><span class="field__label">Room-Key für Innenraumbrand</span><div class="input-group input-group--btn">
+                <input class="input" type="number" data-path="${pre}roomHash" data-type="int" value="${p.roomHash || 0}"><button class="btn btn--sm" data-act="roomHash">${icon('crosshairs')} Ermitteln</button></div></div>` : ''}
             ${fSel('Darstellung in der Vorschau', pre + 'fireType', p.fireType, arr(C.fireTypes).map(f => [f.id, f.label]))}`;
     }
-    const smokeOpts = [['auto', 'Automatisch (passend zum Feuer)'], ['none', 'Kein Rauch'], ...arr(C.smokeTypes).map(s => [s.id, s.label])];
+    const smoke = [['auto', 'Automatisch'], ['none', 'Kein Rauch'], ...arr(C.smokeTypes).map(s => [s.id, s.label])];
     return `${fSel('Feuerart', pre + 'fireType', p.fireType, arr(C.fireTypes).map(f => [f.id, f.label]))}
-        <div class="grid2">${fNum('Groesse', pre + 'size', p.size, { step: 0.1, min: 0.2, max: 5 })}
-        ${fNum('Brenndauer (s, 0 = bis geloescht)', pre + 'burnTime', p.burnTime, { int: true, min: 0, max: 7200 })}</div>
-        ${fSel('Rauch', pre + 'smoke', p.smoke, smokeOpts)}
-        ${fChk('Glutnester / Wiederaufflammen', pre + 'smoulder', p.smoulder)}
-        ${fChk('Ausbreitung aktiv', pre + 'canSpread', p.canSpread)}
-        <div class="grid3">${fNum('Radius (m)', pre + 'spreadRadius', p.spreadRadius, { step: 1, min: 1, max: 40 })}
+        <div class="grid-2">${fNum('Größe', pre + 'size', p.size, { step: 0.1, min: 0.2, max: 5 })}
+        ${fNum('Brenndauer (s)', pre + 'burnTime', p.burnTime, { int: true, min: 0, max: 7200, hint: '0 = bis gelöscht' })}</div>
+        ${fSel('Rauch', pre + 'smoke', p.smoke, smoke)}
+        <div class="switches">${fSwitch('Glutnester', pre + 'smoulder', p.smoulder)}${fSwitch('Ausbreitung', pre + 'canSpread', p.canSpread)}</div>
+        ${p.canSpread ? `<div class="grid-3">${fNum('Radius (m)', pre + 'spreadRadius', p.spreadRadius, { min: 1, max: 40 })}
         ${fNum('Max. Herde', pre + 'maxSpread', p.maxSpread, { int: true, min: 0, max: 20 })}
-        ${fNum('Takt (s)', pre + 'spreadInterval', p.spreadInterval, { int: true, min: 10, max: 600 })}</div>`;
+        ${fNum('Takt (s)', pre + 'spreadInterval', p.spreadInterval, { int: true, min: 10, max: 600 })}</div>` : ''}`;
 }
 function smokeFields(p, pre) {
     const C = S.catalog;
     if (isZFire()) {
         const zf = S.config.zfire || {};
-        return `${fSel('z_fire Partikeltyp', pre + 'zfEffect', p.zfEffect, arr(zf.smokeEffects).map(x => [x, x]))}
-            ${fNum('Groesse (scale)', pre + 'size', p.size, { step: 0.1, min: 0.2, max: 5 })}
-            ${fChk('Rauch verzieht sich mit der Zeit (canDisperse)', pre + 'zfDisperse', p.zfDisperse)}
+        return `<div class="grid-2">${fSel('Partikeltyp', pre + 'zfEffect', p.zfEffect, arr(zf.smokeEffects).map(x => [x, x]))}
+            ${fNum('Größe', pre + 'size', p.size, { step: 0.1, min: 0.2, max: 5 })}</div>
+            ${fSwitch('Verzieht sich mit der Zeit', pre + 'zfDisperse', p.zfDisperse)}
             ${fSel('Darstellung in der Vorschau', pre + 'smokeType', p.smokeType, arr(C.smokeTypes).map(s => [s.id, s.label]))}`;
     }
     return `${fSel('Rauchart', pre + 'smokeType', p.smokeType, arr(C.smokeTypes).map(s => [s.id, s.label]))}
-        <div class="grid2">${fNum('Groesse', pre + 'size', p.size, { step: 0.1, min: 0.2, max: 5 })}
-        ${fSel('Intensitaet', pre + 'density', p.density, [[1, 'Leicht'], [2, 'Mittel'], [3, 'Stark']], { type: 'int' })}</div>
-        ${fChk('Verschwindet, wenn alle Feuer geloescht sind', pre + 'untilFiresOut', p.untilFiresOut)}`;
+        <div class="grid-2">${fNum('Größe', pre + 'size', p.size, { step: 0.1, min: 0.2, max: 5 })}
+        ${fSel('Intensität', pre + 'density', p.density, [[1, 'Leicht'], [2, 'Mittel'], [3, 'Stark']], { type: 'int' })}</div>
+        ${fSwitch('Verschwindet, wenn alle Feuer gelöscht sind', pre + 'untilFiresOut', p.untilFiresOut)}`;
 }
-function markerFields(p, pre) {
-    return `${fSel('Art', pre + 'markerKind', p.markerKind, arr(S.catalog.markerKinds).map(k => [k.id, k.label]))}
-        ${fArea('Beschreibung', pre + 'description', p.description, { max: 400, rows: 2 })}
-        ${fChk('Auf Karte anzeigen (Blip)', pre + 'blip', p.blip)}
-        ${fChk('Interaktion „Fundstelle sichern“', pre + 'interactive', p.interactive)}`;
-}
-function areaFields(p, pre) {
-    return `${fSel('Art', pre + 'areaKind', p.areaKind, arr(S.catalog.areaKinds).map(k => [k.id, k.label]))}
-        ${fNum('Radius (m)', pre + 'radius', p.radius, { step: 5, min: 5, max: 500 })}
-        ${fChk('Auf Karte anzeigen', pre + 'blip', p.blip)}`;
-}
-function doorFields(p, pre) {
-    return `${fSel('Dringlichkeit', pre + 'urgency', p.urgency, [['dringend', 'dringend'], ['nicht dringend', 'nicht dringend']])}
-        ${fArea('Beschreibung', pre + 'description', p.description, { max: 300, rows: 2 })}
-        ${fChk('Echte Tuer verriegeln', pre + 'lockRealDoor', p.lockRealDoor)}`;
-}
-function spillFields(p, pre) {
-    return `${fSel('Stoff', pre + 'spillKind', p.spillKind, arr(S.catalog.spillKinds).map(k => [k.id, k.label]))}
-        ${fNum('Breite (m)', pre + 'width', p.width, { step: 0.25, min: 0.5, max: 8 })}`;
-}
+const markerFields = (p, pre) => `${fSel('Art', pre + 'markerKind', p.markerKind, arr(S.catalog.markerKinds).map(k => [k.id, k.label]))}
+    ${fArea('Beschreibung', pre + 'description', p.description, { max: 400, rows: 2 })}
+    <div class="switches">${fSwitch('Auf Karte zeigen', pre + 'blip', p.blip)}${fSwitch('Fundstelle sichern', pre + 'interactive', p.interactive)}</div>`;
+const areaFields = (p, pre) => `<div class="grid-2">${fSel('Art', pre + 'areaKind', p.areaKind, arr(S.catalog.areaKinds).map(k => [k.id, k.label]))}
+    ${fNum('Radius (m)', pre + 'radius', p.radius, { step: 5, min: 5, max: 500 })}</div>${fSwitch('Auf Karte zeigen', pre + 'blip', p.blip)}`;
+const doorFields = (p, pre) => `${fSel('Dringlichkeit', pre + 'urgency', p.urgency, [['dringend', 'Dringend'], ['nicht dringend', 'Nicht dringend']])}
+    ${fArea('Beschreibung', pre + 'description', p.description, { max: 300, rows: 2 })}${fSwitch('Echte Tür verriegeln', pre + 'lockRealDoor', p.lockRealDoor)}`;
+const spillFields = (p, pre) => `<div class="grid-2">${fSel('Stoff', pre + 'spillKind', p.spillKind, arr(S.catalog.spillKinds).map(k => [k.id, k.label]))}
+    ${fNum('Breite (m)', pre + 'width', p.width, { step: 0.25, min: 0.5, max: 8 })}</div>`;
 
-/* ----- Einsatz-Tab ----- */
-function renderIncidentTab() {
+/* ----- Einsatzdaten ----- */
+function pageIncident() {
     const d = S.draft;
     const info = d.info;
-    const cat = arr(S.catalog.categories).find(c => c.id === d.category) || {};
-    const kwList = `<datalist id="kwlist">${arr(cat.keywords).map(k => `<option value="${esc(k)}">`).join('')}</datalist>`;
+    const cats = arr(S.catalog.categories);
+    const cat = cats.find(c => c.id === d.category) || {};
     const custom = arr(cat.fields).map(f => {
         const path = `info.custom.${f.key}`;
         const v = info.custom[f.key];
-        if (f.type === 'checkbox') return fChk(f.label, path, v);
+        if (f.type === 'checkbox') return fSwitch(f.label, path, v);
         if (f.type === 'number') return fNum(f.label, path, v ?? 0, { int: true, min: 0 });
         if (f.type === 'select') return fSel(f.label, path, v ?? arr(f.options)[0], arr(f.options).map(o => [o, o]));
         if (f.type === 'textarea') return fArea(f.label, path, v);
@@ -605,512 +535,430 @@ function renderIncidentTab() {
     }).join('');
     const units = arr(info.units);
     const roles = arr(info.alarmRoles);
-    const center = d.center ? `${d.center.x.toFixed(1)}, ${d.center.y.toFixed(1)}, ${d.center.z.toFixed(1)}` : 'nicht festgelegt';
-    return `<div class="section" data-scope="info">
-        <h3>Allgemein</h3>
-        ${fText('Einsatzname', 'name', d.name, { max: 64 })}
-        ${kwList}${fText('Einsatzstichwort', 'keyword', d.keyword, { max: 64, list: 'kwlist', ph: 'z. B. ' + (arr(cat.keywords)[0] || '') })}
-        ${fSel('Prioritaet', 'priority', d.priority, arr(S.catalog.priorities).map(p => [p.value, p.label]), { type: 'int' })}
-        <h3>Einsatzort</h3>
-        <div class="row"><span class="mono grow">${esc(center)}</span>
-            <button class="small" data-act="setCenter">Festlegen</button>
-            <button class="small" data-act="camCenter" ${d.center ? '' : 'disabled'}>Kamera</button></div>
-        ${fText('Adresse / Ortsbeschreibung', 'info.address', info.address, { max: 120 })}
-        <h3>Ortsvarianten (${arr(d.variants).length})</h3>
-        <p class="dim">Beim Ausloesen kann die ganze Szene an einen dieser Orte verschoben werden (Zufallseinsaetze waehlen zufaellig).</p>
-        ${arr(d.variants).map((v, i) => `<div class="row mt-s" data-variant="${i}">
-            <span class="badge">${i + 1}</span>
-            <input type="text" data-vfield="label" value="${esc(v.label || '')}" maxlength="48" class="grow">
-            <input type="number" data-vfield="h" value="${Math.round(v.h || 0)}" style="width:62px" title="Drehung (Grad)">
-            <button class="small" data-act="varCam" data-i="${i}">◎</button>
-            <button class="small danger" data-act="varDel" data-i="${i}">✕</button></div>`).join('')}
-        <div class="row mt-s"><button class="small" data-act="varAdd">Ortsvariante setzen</button>
-            <button class="small" data-act="varBack">Kamera zum Original</button></div>
-        <h3>Alarmierung</h3>
-        ${fArea('Alarmtext', 'info.alarmText', info.alarmText, { max: 300, rows: 2, ph: 'Kurzer Text fuer die Alarmierung' })}
-        <p class="dim">Platzhalter: <span class="mono">{anruf}</span> = zufaelliger Notruftext des Meldebilds, <span class="mono">{patient}</span> = Patientenname, <span class="mono">{ziel}</span> = Transportziel</p>
-        <label class="field"><span>Alarmierte Rollen</span><div class="chips">
-            ${Object.entries(S.config.roles).map(([id, r]) => `<span class="chip ${roles.includes(id) ? 'on' : ''}" data-toggle="info.alarmRoles" data-value="${esc(id)}">${esc(r.label)}</span>`).join('')}
-        </div></label>
-        <h3>Lage</h3>
-        ${fArea('Einsatzbeschreibung', 'info.description', info.description, { max: 1500, rows: 4 })}
-        ${fArea('Gefahrenhinweise', 'info.hazards', info.hazards, { max: 600, rows: 2 })}
-        ${fArea('Betroffene Personen', 'info.persons', info.persons, { max: 300, rows: 2 })}
-        <h3>${esc(cat.label || 'Einsatzart')} - Details</h3>
-        ${custom || '<p class="dim">Keine weiteren Felder</p>'}
-        <h3>Erwartete Einsatzmittel</h3>
-        <div class="chips">${arr(S.catalog.units).map(u => `<span class="chip ${units.includes(u) ? 'on' : ''}" data-toggle="info.units" data-value="${esc(u)}">${esc(u)}</span>`).join('')}</div>
-        ${fText('Weitere Einsatzmittel', 'info.unitsText', info.unitsText, { max: 200 })}
-        <h3>Intern</h3>
-        ${fArea('Interne Notizen (nicht fuer Einsatzkraefte)', 'info.notes', info.notes, { max: 1500, rows: 3 })}
-        ${fArea('SOP / Ablaufhinweise (fuer Einsatzkraefte sichtbar)', 'info.sop', info.sop, { max: 3000, rows: 5 })}
-        ${S.meta ? `<p class="dim mt">Erstellt ${fmtTime(S.meta.createdAt)} von ${esc((S.meta.createdBy || {}).name || '?')}${S.meta.updatedAt ? ` · geaendert ${fmtTime(S.meta.updatedAt)} von ${esc((S.meta.updatedBy || {}).name || '?')}` : ''}</p>` : ''}
-    </div>`;
+    const center = d.center ? `${d.center.x.toFixed(1)}  ${d.center.y.toFixed(1)}  ${d.center.z.toFixed(1)}` : 'nicht festgelegt';
+    const jobs = (S.config.dispatchJobs || {});
+    return `<div class="card"><div class="card__header">${icon('file-lines')}<span class="card__title">Allgemein</span></div>
+        <div class="card__body" data-scope="info">
+            ${fSel('Einsatzart', 'category', d.category, cats.map(c => [c.id, c.label]))}
+            ${fText('Einsatzname', 'name', d.name, { max: 64 })}
+            <datalist id="kwlist">${arr(cat.keywords).map(k => `<option value="${esc(k)}">`).join('')}</datalist>
+            <div class="grid-2">${fText('Stichwort', 'keyword', d.keyword, { max: 64, list: 'kwlist' })}
+            ${fSel('Priorität', 'priority', d.priority, arr(S.catalog.priorities).map(p => [p.value, p.label.split(' - ')[0]]), { type: 'int' })}</div>
+        </div></div>
+
+        <div class="card"><div class="card__header">${icon('crosshairs')}<span class="card__title">Einsatzort</span>
+            <span class="chip mono" style="margin-left:auto">${esc(center)}</span></div>
+        <div class="card__body" data-scope="info">
+            <div class="row"><button class="btn btn--sm" data-act="setCenter">${icon('crosshairs')} Festlegen</button>
+                <button class="btn btn--sm btn--ghost" data-act="camCenter" ${d.center ? '' : 'disabled'}>${icon('video')} Kamera</button></div>
+            ${fText('Adresse / Ortsbeschreibung', 'info.address', info.address, { max: 120 })}
+        </div></div>
+
+        <div class="card"><div class="card__header">${icon('map-location-dot')}<span class="card__title">Ortsvarianten</span><span class="chip" style="margin-left:auto">${d.variants.length}</span></div>
+        <div class="card__body">
+            <div class="field__hint">Beim Auslösen kann die ganze Szene an einen dieser Orte verschoben werden. Zufallseinsätze wählen zufällig.</div>
+            ${d.variants.length ? `<div class="list">${d.variants.map((v, i) => `<div class="list__item list__item--tight" data-variant="${i}">
+                <span class="list__icon mono">${i + 1}</span>
+                <div class="grow"><input class="input" type="text" data-vfield="label" value="${esc(v.label || '')}" maxlength="48"></div>
+                <input class="input" type="number" data-vfield="h" value="${Math.round(v.h || 0)}" style="width:56px;flex:none" title="Drehung in Grad">
+                <button class="btn btn--ghost btn--icon btn--sm" data-act="varCam" data-i="${i}" title="Kamera">${icon('video')}</button>
+                <button class="btn btn--ghost-danger btn--icon btn--sm" data-act="varDel" data-i="${i}" title="Entfernen">${icon('trash')}</button></div>`).join('')}</div>` : ''}
+            <div class="row"><button class="btn btn--sm" data-act="varAdd">${icon('plus')} Ortsvariante setzen</button>
+                <button class="btn btn--sm btn--ghost" data-act="varBack">${icon('rotate-left')} Zum Original</button></div>
+        </div></div>
+
+        <div class="card"><div class="card__header">${icon('paper-plane')}<span class="card__title">Übergabe an EmergencyDispatch</span></div>
+        <div class="card__body" data-scope="info">
+            ${fArea('Notrufmeldung', 'info.alarmText', info.alarmText, { max: 300, rows: 3, hint: 'Platzhalter: <span class="mono">{anruf}</span> Notruftext des Meldebilds · <span class="mono">{patient}</span> · <span class="mono">{ziel}</span>' })}
+            <div class="field"><span class="field__label">Leitstellen</span><div class="chips">
+                ${Object.entries(S.config.roles).map(([id, r]) => `<span class="chip chip--toggle ${roles.includes(id) ? 'is-on' : ''}" data-toggle="info.alarmRoles" data-value="${esc(id)}">${esc(r.label)}${jobs[id] ? ` · ${esc(jobs[id])}` : ''}</span>`).join('')}
+            </div><span class="field__hint">Je Leitstelle wird ein Notruf angelegt. Stichwort und Alarmierung legt der Disponent in EmergencyDispatch fest.</span></div>
+        </div></div>
+
+        <div class="card"><div class="card__header">${icon('clipboard-list')}<span class="card__title">Lage</span></div>
+        <div class="card__body" data-scope="info">
+            ${fArea('Einsatzbeschreibung', 'info.description', info.description, { max: 1500, rows: 4 })}
+            ${fArea('Gefahren', 'info.hazards', info.hazards, { max: 600, rows: 2 })}
+            ${fArea('Betroffene Personen', 'info.persons', info.persons, { max: 300, rows: 2 })}
+        </div></div>
+
+        <div class="card"><div class="card__header">${icon('list-check')}<span class="card__title">${esc(cat.label || 'Einsatzart')}</span></div>
+        <div class="card__body" data-scope="info">${custom || '<span class="dim">Keine weiteren Angaben</span>'}</div></div>
+
+        <div class="card"><div class="card__header">${icon('truck-medical')}<span class="card__title">Erwartete Einsatzmittel</span></div>
+        <div class="card__body" data-scope="info">
+            <div class="chips">${arr(S.catalog.units).map(u => `<span class="chip chip--toggle ${units.includes(u) ? 'is-on' : ''}" data-toggle="info.units" data-value="${esc(u)}">${esc(u)}</span>`).join('')}</div>
+            ${fText('Weitere Einsatzmittel', 'info.unitsText', info.unitsText, { max: 200 })}
+        </div></div>
+
+        <div class="card"><div class="card__header">${icon('note-sticky')}<span class="card__title">Intern</span></div>
+        <div class="card__body" data-scope="info">
+            ${fArea('Notizen', 'info.notes', info.notes, { max: 1500, rows: 3, hint: 'Nur im Creator sichtbar.' })}
+            ${fArea('SOP / Ablaufhinweise', 'info.sop', info.sop, { max: 3000, rows: 5, hint: 'Für Einsatzkräfte über /einsatzinfo sichtbar.' })}
+        </div></div>
+        ${S.meta ? `<div class="field__hint">Erstellt ${fmtTime(S.meta.createdAt)} von ${esc((S.meta.createdBy || {}).name || '?')}${S.meta.updatedAt ? ` · geändert ${fmtTime(S.meta.updatedAt)}` : ''}</div>` : ''}`;
 }
 
-/* ----- Elemente-Tab ----- */
-function renderElementsTab() {
-    const els = S.draft.elements;
-    if (!els.length) return `<div class="empty">Noch keine Elemente gesetzt.<br>Werkzeug waehlen und in die Welt klicken.</div>`;
-    const q = (S.search.elements || '').toLowerCase();
-    const limits = S.config.limits;
-    let html = `<div class="section"><input type="text" data-search="elements" placeholder="Elemente filtern ..." value="${esc(S.search.elements || '')}">
-        <p class="dim mt-s">${els.length} / ${limits.total} Elemente</p></div><div class="list">`;
-    for (const kind of Object.keys(KIND_LABEL)) {
-        const list = els.filter(e => e.kind === kind && (!q || elLabel(e).toLowerCase().includes(q)));
-        if (!list.length) continue;
-        const total = els.filter(e => e.kind === kind).length;
-        html += `<div class="group">${KIND_ICON[kind]} ${esc(KIND_LABEL[kind])}<span class="right">${total} / ${limits[kind] ?? '-'}</span></div>`;
-        html += list.map(e => `<div class="item ${e.id === S.selected ? 'on' : ''}" data-el="${esc(e.id)}">
-            <div class="grow"><div class="t">${esc(elLabel(e))}</div><div class="s">${esc(elSub(e))}</div></div>
-            <button class="icon small ghost" data-act="focusEl" data-id="${esc(e.id)}" title="Kamera hierhin">◎</button>
-            <button class="icon small danger" data-act="delEl" data-id="${esc(e.id)}" title="Loeschen">✕</button></div>`).join('');
-    }
-    return html + `</div>`;
-}
-
+/* ----- Elemente ----- */
 function elLabel(e) {
     if (e.label) return e.label;
     const p = e.props || {};
     if (e.kind === 'ped' && p.isPatient && p.patient && p.patient.name) return p.patient.name;
     if (e.model) return e.model;
     const C = S.catalog;
-    if (e.kind === 'fire') return (arr(C.fireTypes).find(f => f.id === p.fireType) || {}).label || 'Feuer';
-    if (e.kind === 'smoke') return (arr(C.smokeTypes).find(f => f.id === p.smokeType) || {}).label || 'Rauch';
-    if (e.kind === 'marker') return (arr(C.markerKinds).find(f => f.id === p.markerKind) || {}).label || 'Position';
-    if (e.kind === 'area') return (arr(C.areaKinds).find(f => f.id === p.areaKind) || {}).label || 'Gebiet';
-    if (e.kind === 'spill') return (arr(C.spillKinds).find(f => f.id === p.spillKind) || {}).label || 'Betriebsstoff';
-    return KIND_LABEL[e.kind] || e.kind;
+    const find = (list, key, val) => (arr(list).find(x => x.id === val) || {}).label;
+    if (e.kind === 'fire') return find(C.fireTypes, 'id', p.fireType) || 'Feuer';
+    if (e.kind === 'smoke') return find(C.smokeTypes, 'id', p.smokeType) || 'Rauch';
+    if (e.kind === 'marker') return find(C.markerKinds, 'id', p.markerKind) || 'Position';
+    if (e.kind === 'area') return find(C.areaKinds, 'id', p.areaKind) || 'Gebiet';
+    if (e.kind === 'spill') return find(C.spillKinds, 'id', p.spillKind) || 'Betriebsstoff';
+    return KIND[e.kind].label;
 }
-function elSub(e) {
+function elMeta(e) {
     const p = e.props || {};
-    const parts = [];
-    if (e.kind === 'ped' && p.isPatient && p.patient) parts.push(`${p.patient.severity}, ${p.patient.mobility}`);
-    if (e.kind === 'ped' && p.vehicleId) parts.push('im Fahrzeug');
-    if ((e.kind === 'fire' || e.kind === 'smoke') && p.attachTo) parts.push('gekoppelt');
-    if (e.kind === 'fire') parts.push(`Groesse ${p.size}${p.canSpread ? ', breitet sich aus' : ''}`);
-    if (e.kind === 'area') parts.push(`r = ${p.radius} m`);
-    if (e.kind === 'door') parts.push(p.doorModel ? 'Kartentuer' : 'logisch');
-    if (e.kind === 'vehicle') parts.push(`Schaden ${p.damage}`);
-    return parts.join(' · ') || KIND_LABEL[e.kind];
+    const out = [];
+    if (e.kind === 'ped' && p.isPatient && p.patient) {
+        const prof = arr(S.catalog.medical && S.catalog.medical.profiles).find(x => x.id === p.patient.profile);
+        out.push(prof && prof.id !== 'none' ? prof.label : p.patient.severity);
+        if (p.vehicleId) out.push('im Fahrzeug');
+    }
+    if ((e.kind === 'fire' || e.kind === 'smoke') && p.attachTo) out.push('gekoppelt');
+    if (e.kind === 'fire') out.push(`Größe ${p.size}`);
+    if (e.kind === 'area') out.push(`${p.radius} m`);
+    if (e.kind === 'door') out.push(p.doorModel ? 'Kartentür' : 'logisch');
+    if (e.kind === 'vehicle') out.push((arr(S.catalog.damageLevels).find(d => d.id === p.damage) || {}).label || '');
+    return out.filter(Boolean).join(' · ') || KIND[e.kind].label;
+}
+function pageElements() {
+    const els = S.draft.elements;
+    if (!els.length) return `<div class="empty">${icon('layer-group')}Noch keine Elemente.<br>Werkzeug wählen und in die Welt klicken.</div>`;
+    const q = (S.search.elements || '').toLowerCase();
+    const limits = S.config.limits;
+    let html = `<div class="input-group">${icon('magnifying-glass')}<input class="input" type="text" data-search="elements" placeholder="Elemente filtern" value="${esc(S.search.elements || '')}"></div>
+        <div class="field__hint">${els.length} von ${limits.total} Elementen</div><div class="list">`;
+    for (const kind of Object.keys(KIND)) {
+        const all = els.filter(e => e.kind === kind);
+        const list = all.filter(e => !q || elLabel(e).toLowerCase().includes(q));
+        if (!list.length) continue;
+        html += `<div class="list__group">${icon(KIND[kind].icon)} ${esc(KIND[kind].label)}<span class="count">${all.length}/${limits[kind] ?? '–'}</span></div>`;
+        html += list.map(e => `<div class="list__item ${e.id === S.selected ? 'is-active' : ''}" data-el="${esc(e.id)}">
+            <span class="list__icon">${icon(KIND[kind].icon)}</span>
+            <div class="grow"><div class="list__title">${esc(elLabel(e))}</div><div class="list__meta">${esc(elMeta(e))}</div></div>
+            <div class="list__actions"><button class="btn btn--ghost btn--icon btn--sm" data-act="focusEl" data-id="${esc(e.id)}" title="Kamera">${icon('video')}</button>
+            <button class="btn btn--ghost-danger btn--icon btn--sm" data-act="delEl" data-id="${esc(e.id)}" title="Löschen">${icon('trash')}</button></div></div>`).join('');
+    }
+    return html + '</div>';
 }
 
-/* ----- Szenarien-Tab ----- */
-function renderScenariosTab() {
+/* ----- Szenarien ----- */
+function pageScenarios() {
     const q = S.scenarioSearch.toLowerCase();
     const list = S.scenarios.filter(s => !q || `${s.name} ${s.keyword} ${s.categoryLabel} ${s.id}`.toLowerCase().includes(q));
-    let html = `<div class="section"><input type="text" data-search="scenarios" placeholder="Szenarien durchsuchen ..." value="${esc(S.scenarioSearch)}"></div>`;
-    if (!list.length) return html + `<div class="empty">Keine gespeicherten Szenarien</div>`;
-    html += list.map(s => `<div class="card ${S.draft.id === s.id ? 'on' : ''}">
-        <div class="row"><div class="title grow">${esc(s.name)}</div><span class="badge">${esc(s.categoryLabel)}</span></div>
-        <div class="meta">${esc(s.keyword || '-')} · ${s.elements} Elemente · <span class="mono">${esc(s.id)}</span></div>
-        <div class="meta">${esc(s.address || '')}</div>
-        <div class="meta">Erstellt ${fmtTime(s.createdAt)} von ${esc(s.createdBy)}${s.updatedAt ? ` · geaendert ${fmtTime(s.updatedAt)}` : ''}</div>
-        <div class="actions">
-            <button class="small primary" data-act="openSc" data-id="${esc(s.id)}">Oeffnen</button>
-            <button class="small" data-act="copySc" data-id="${esc(s.id)}" title="Als neuen Entwurf oeffnen">Als Kopie</button>
-            <button class="small" data-act="dupSc" data-id="${esc(s.id)}" title="Kopie direkt speichern">Duplizieren</button>
-            <button class="small danger" data-act="delSc" data-id="${esc(s.id)}">Loeschen</button>
-        </div></div>`).join('');
-    return html;
+    let html = `<div class="input-group">${icon('magnifying-glass')}<input class="input" type="text" data-search="scenarios" placeholder="Szenarien durchsuchen" value="${esc(S.scenarioSearch)}"></div>`;
+    if (!list.length) return html + `<div class="empty">${icon('folder-open')}Keine gespeicherten Szenarien</div>`;
+    return html + list.map(s => `<div class="card ${S.draft.id === s.id ? 'card--active' : ''}">
+        <div class="card__header"><div class="grow"><div class="card__title">${esc(s.name)}</div><span class="card__subtitle">${esc(s.keyword || '–')}</span></div>
+            <span class="chip chip--outline">${esc(s.categoryLabel)}</span></div>
+        <div class="card__body"><dl class="dl">
+            <dt>Kennung</dt><dd class="mono">${esc(s.id)}</dd>
+            <dt>Elemente</dt><dd>${s.elements}</dd>
+            ${s.address ? `<dt>Ort</dt><dd>${esc(s.address)}</dd>` : ''}
+            <dt>Geändert</dt><dd>${fmtTime(s.updatedAt || s.createdAt)} · ${esc(s.updatedBy || s.createdBy)}</dd></dl></div>
+        <div class="card__footer">
+            <button class="btn btn--ghost-danger btn--sm" data-act="delSc" data-id="${esc(s.id)}">${icon('trash')}</button>
+            <span class="grow"></span>
+            <button class="btn btn--ghost btn--sm" data-act="dupSc" data-id="${esc(s.id)}">${icon('clone')} Duplizieren</button>
+            <button class="btn btn--sm" data-act="copySc" data-id="${esc(s.id)}">Als Kopie</button>
+            <button class="btn btn--primary btn--sm" data-act="openSc" data-id="${esc(s.id)}">Öffnen</button></div></div>`).join('');
 }
 
-/* ----- Aktiv-Tab ----- */
-function renderActiveTab() {
+/* ----- Aktive Einsaetze ----- */
+const PHASE_LABEL = { alarmiert: 'Alarmiert', anfahrt: 'Anfahrt', vor_ort: 'Vor Ort', lage_unter_kontrolle: 'Lage unter Kontrolle', nachalarmierung: 'Nachalarmierung', abschluss: 'Abschluss' };
+function pageActive() {
     const act = S.incidents.active;
-    const phases = arr(S.config.phases);
-    let html = `<div class="section row"><b class="grow">Aktive Einsaetze (${act.length})</b><button class="small" data-act="refreshInc">Aktualisieren</button></div>`;
-    if (!act.length) html += `<div class="empty">Keine aktiven Einsaetze</div>`;
+    let html = `<div class="row"><span class="section-title grow">${act.length} laufende Einsätze</span><button class="btn btn--ghost btn--sm" data-act="refreshInc">${icon('rotate')} Aktualisieren</button></div>`;
+    if (!act.length) html += `<div class="empty">${icon('tower-broadcast')}Keine laufenden Einsätze</div>`;
     html += act.map(i => {
         const fire = i.fire || {};
         const r = i.rescue || {};
-        const byStatus = obj(r.byStatus);
-        const pat = Object.entries(byStatus).map(([k, v]) => `${v}× ${S.config.patientStatus[k] || k}`).join(', ');
-        const errors = arr(i.errors);
+        const pat = Object.entries(obj(r.byStatus)).map(([k, v]) => `${v}× ${S.config.patientStatus[k] || k}`).join(', ');
         const running = i.status === 'aktiv';
+        const errors = arr(i.errors);
         return `<div class="card">
-            <div class="row"><span class="badge ${i.mode === 'live' ? 'live' : 'test'}">${i.mode === 'live' ? 'LIVE' : 'TEST'}</span>
-                <span class="badge ${running ? 'ok' : i.status === 'fehlerhaft' ? 'err' : ''}">${esc(i.statusLabel)}</span>
-                ${i.random ? '<span class="badge">Zufall</span>' : ''}
-                <span class="mono dim right">${esc(i.id)}</span></div>
-            <div class="title mt-s">${esc(i.keyword || i.name)}</div>
-            <div class="meta">${esc(i.name)} · ${esc(i.categoryLabel)}</div>
-            <div class="meta">${esc(i.address || '')}</div>
-            <div class="kv">
-                <span class="k">Erstellt</span><span>${fmtTime(i.createdAt)} · ${esc(i.createdBy)}</span>
-                <span class="k">Elemente</span><span>${i.elements} (davon ${i.entities} in der Welt)</span>
-                <span class="k">Feuer</span><span>${fire.burning || 0} brennend, ${fire.smouldering || 0} glimmend, ${fire.smoke || 0} Rauch</span>
-                <span class="k">Patienten</span><span>${r.patients ? esc(pat) : 'keine'}</span>
+            <div class="card__header"><div class="grow"><div class="card__title">${esc(i.keyword || i.name)}</div><span class="card__subtitle">${esc(i.name)} · <span class="mono">${esc(i.id)}</span></span></div></div>
+            <div class="card__body">
+                <div class="chips">
+                    <span class="chip ${i.mode === 'live' ? 'chip--primary' : 'chip--warn'}">${i.mode === 'live' ? `${icon('paper-plane')} An Leitstelle` : `${icon('flask')} Test`}</span>
+                    <span class="chip chip--dot ${running ? 'chip--ok' : i.status === 'fehlerhaft' ? 'chip--danger' : ''}">${esc(i.statusLabel)}</span>
+                    ${i.random ? `<span class="chip">${icon('shuffle')} Zufall</span>` : ''}
+                    <span class="chip chip--outline">${esc(i.categoryLabel)}</span>
+                </div>
+                <dl class="dl">
+                    ${i.address ? `<dt>Ort</dt><dd>${esc(i.address)}</dd>` : ''}
+                    <dt>Erstellt</dt><dd>${fmtTime(i.createdAt)} · ${esc(i.createdBy)}</dd>
+                    <dt>Szene</dt><dd>${i.elements} Elemente, ${i.entities} in der Welt</dd>
+                    <dt>Feuer</dt><dd>${fire.burning || 0} brennend · ${fire.smoke || 0} Rauch</dd>
+                    <dt>Patienten</dt><dd>${r.patients ? esc(pat) : 'keine'}</dd>
+                </dl>
+                ${running ? fSel('Phase', '', i.phase, arr(S.config.phases).map(p => [p, PHASE_LABEL[p] || p])).replace('data-path=""', `data-phase="${esc(i.id)}"`) : ''}
+                ${errors.length ? `<div class="alert alert--warn">${icon('triangle-exclamation')}<div>${errors.map(esc).join('<br>')}</div></div>` : ''}
             </div>
-            ${running ? `<label class="field"><span>Phase (fuer Leitstelle)</span><select data-phase="${esc(i.id)}">
-                ${phases.map(p => `<option value="${esc(p)}" ${p === i.phase ? 'selected' : ''}>${esc(p)}</option>`).join('')}</select></label>` : ''}
-            ${errors.length ? `<div class="mt-s" style="color:var(--yellow)">⚠ ${errors.map(esc).join('<br>⚠ ')}</div>` : ''}
-            <div class="actions">
-                <button class="small" data-act="incCam" data-id="${esc(i.id)}">Kamera</button>
-                <button class="small" data-act="incWp" data-id="${esc(i.id)}">Wegpunkt</button>
-                <button class="small" data-act="incDetails" data-id="${esc(i.id)}">Details</button>
-                ${running ? `<button class="small" data-act="incRealarm" data-id="${esc(i.id)}">Nachalarmieren</button>
-                <button class="small primary" data-act="incEnd" data-id="${esc(i.id)}">Beenden</button>
-                <button class="small danger" data-act="incCancel" data-id="${esc(i.id)}">Abbrechen</button>` : ''}
+            <div class="card__footer">
+                <button class="btn btn--ghost btn--icon btn--sm" data-act="incCam" data-id="${esc(i.id)}" title="Kamera">${icon('video')}</button>
+                <button class="btn btn--ghost btn--icon btn--sm" data-act="incWp" data-id="${esc(i.id)}" title="Wegpunkt">${icon('route')}</button>
+                <button class="btn btn--ghost btn--sm" data-act="incDetails" data-id="${esc(i.id)}">Details</button>
+                <span class="grow"></span>
+                ${running ? `${i.mode === 'live' ? `<button class="btn btn--ghost btn--sm" data-act="incRealarm" data-id="${esc(i.id)}" title="Erneuten Notruf an EmergencyDispatch">${icon('repeat')} Erneut melden</button>` : ''}
+                <button class="btn btn--ghost-danger btn--sm" data-act="incCancel" data-id="${esc(i.id)}">Abbrechen</button>
+                <button class="btn btn--sm" data-act="incEnd" data-id="${esc(i.id)}">${icon('flag-checkered')} Beenden</button>` : ''}
             </div></div>`;
     }).join('');
     const hist = S.incidents.history;
     if (hist.length) {
-        html += `<div class="section"><h3>Verlauf</h3></div><div class="list">` + hist.map(h => `<div class="item">
-            <div class="grow"><div class="t">${esc(h.keyword || h.name || h.id)}</div>
-            <div class="s"><span class="mono">${esc(h.id)}</span> · ${esc(h.statusLabel || h.status)} · ${h.mode === 'live' ? 'Live' : 'Test'} · ${fmtTime(h.endedAt)}${h.note ? ' · ' + esc(h.note) : ''}</div></div></div>`).join('') + `</div>`;
+        html += `<div class="section-title">Verlauf</div><div class="list">` + hist.map(h => `<div class="list__item" style="cursor:default">
+            <span class="list__icon">${icon(h.status === 'beendet' ? 'flag-checkered' : 'ban')}</span>
+            <div class="grow"><div class="list__title">${esc(h.keyword || h.name || h.id)}</div>
+            <div class="list__meta">${esc(h.statusLabel || h.status)} · ${h.mode === 'live' ? 'Leitstelle' : 'Test'} · ${fmtTime(h.endedAt)}${h.note ? ' · ' + esc(h.note) : ''}</div></div></div>`).join('') + '</div>';
     }
     return html;
 }
 
-/* ----- Zufall-Tab ----- */
+/* ----- Zufall ----- */
 async function loadRandom() {
     const r = await post('randomStatus', {}, true);
-    if (r.ok) { S.random = r.data; S.randomForm = clone(r.data.settings); renderLeft(true); }
+    if (r.ok) { S.random = r.data; S.randomForm = clone(r.data.settings); renderPanel(true); }
 }
-
-function renderRandomTab() {
+function pageRandom() {
     const R = S.random;
-    if (!R) return `<div class="empty">Wird geladen ...</div>`;
+    if (!R) return `<div class="empty">${icon('spinner')}Wird geladen …</div>`;
     const f = S.randomForm || R.settings;
     const can = !!S.perms.live;
-    const next = R.nextAt ? `in ${Math.max(0, Math.round((R.nextAt - R.now) / 60))} min (${fmtTime(R.nextAt)})` : '-';
-    const duty = Object.entries(obj(R.onDuty)).map(([k, v]) => `${esc((S.config.roles[k] || {}).label || k)}: ${v}`).join(' · ');
-    let html = `<div class="section" data-scope="random">
-        <h3>Zufallsgenerator</h3>
-        ${fChk('Zufallseinsaetze aktiv', 'enabled', f.enabled)}
-        <div class="grid2">${fNum('Abstand min. (Minuten)', 'intervalMin', f.intervalMin, { int: true, min: 1, max: 600 })}
-        ${fNum('Abstand max. (Minuten)', 'intervalMax', f.intervalMax, { int: true, min: 1, max: 600 })}</div>
-        ${fNum('Max. gleichzeitige Zufallseinsaetze', 'maxActive', f.maxActive, { int: true, min: 1, max: S.config.limits.activeIncidents })}
-        <div class="grid2">${fNum('Tag beginnt (Std.)', 'dayStart', f.dayStart, { int: true, min: 0, max: 23 })}
-        ${fNum('Tag endet (Std.)', 'dayEnd', f.dayEnd, { int: true, min: 0, max: 24 })}</div>
-        <div class="row mt"><button class="primary grow" data-act="rndSave" ${can ? '' : 'disabled'}>Einstellungen speichern</button>
-        <button data-act="rndNow" ${can ? '' : 'disabled'} title="Sofort einen passenden Einsatz aus dem Pool starten">Jetzt ausloesen</button></div>
-        <div class="kv mt"><span class="k">Naechster Einsatz</span><span>${esc(next)}</span>
-            <span class="k">Aktiv (Zufall)</span><span>${R.activeRandom} / ${R.settings.maxActive}</span>
-            <span class="k">Im Dienst</span><span>${duty || '-'}</span>
-            <span class="k">Letzter Versuch</span><span>${R.lastInfo ? `${fmtTime(R.lastInfo.at)} · ${esc(R.lastInfo.text)}` : '-'}</span></div>
-        </div>`;
-    const inPool = new Set(arr(R.candidates).map(c => c.id));
-    html += `<div class="section"><h3>Zufallspool</h3><p class="dim">Gespeicherte Szenarien, die zufaellig ausgeloest werden duerfen.</p></div>`;
+    const next = R.nextAt ? `in ${Math.max(0, Math.round((R.nextAt - R.now) / 60))} min · ${fmtTime(R.nextAt)}` : '–';
+    const duty = Object.entries(obj(R.onDuty)).map(([k, v]) => `${esc((S.config.roles[k] || {}).label || k)} ${v}`).join(' · ');
+    let html = `<div class="card"><div class="card__header">${icon('shuffle')}<span class="card__title">Generator</span>
+            <span class="chip chip--dot ${R.settings.enabled ? 'chip--ok' : ''}" style="margin-left:auto">${R.settings.enabled ? 'Aktiv' : 'Aus'}</span></div>
+        <div class="card__body" data-scope="random">
+            ${fSwitch('Zufallseinsätze aktiv', 'enabled', f.enabled)}
+            <div class="grid-2">${fNum('Abstand min. (Min.)', 'intervalMin', f.intervalMin, { int: true, min: 1, max: 600 })}${fNum('Abstand max. (Min.)', 'intervalMax', f.intervalMax, { int: true, min: 1, max: 600 })}</div>
+            <div class="grid-3">${fNum('Gleichzeitig', 'maxActive', f.maxActive, { int: true, min: 1, max: S.config.limits.activeIncidents })}${fNum('Tag ab', 'dayStart', f.dayStart, { int: true, min: 0, max: 23 })}${fNum('Tag bis', 'dayEnd', f.dayEnd, { int: true, min: 0, max: 24 })}</div>
+            <dl class="dl"><dt>Nächster Einsatz</dt><dd>${esc(next)}</dd><dt>Laufend</dt><dd>${R.activeRandom} von ${R.settings.maxActive}</dd>
+                <dt>Im Dienst</dt><dd>${duty || '–'}</dd><dt>Zuletzt</dt><dd>${R.lastInfo ? `${fmtTime(R.lastInfo.at)} · ${esc(R.lastInfo.text)}` : '–'}</dd></dl>
+        </div>
+        <div class="card__footer"><button class="btn btn--ghost btn--sm" data-act="rndNow" ${can ? '' : 'disabled'}>${icon('bolt')} Jetzt auslösen</button>
+            <button class="btn btn--primary btn--sm" data-act="rndSave" ${can ? '' : 'disabled'}>Speichern</button></div></div>
+        <div class="section-title">Pool</div>`;
     html += S.scenarios.map(sc => {
         const c = arr(R.candidates).find(x => x.id === sc.id);
         const pool = c ? c.pool : { enabled: false, weight: 1, time: 'immer', cooldown: 30, minOnDuty: {} };
         const mod = obj(pool.minOnDuty);
         return `<div class="card" data-scope="pool" data-id="${esc(sc.id)}">
-            <div class="row"><label class="check grow" style="margin:0"><input type="checkbox" data-pool="enabled" ${pool.enabled ? 'checked' : ''} ${can ? '' : 'disabled'}>
-                <b>${esc(sc.name)}</b></label><span class="badge">${esc(sc.categoryLabel)}</span></div>
-            ${inPool.has(sc.id) ? `<div class="meta">${c.eligible ? '<span style="color:var(--green)">bereit</span>' : esc(c.reason)}${c.lastRun ? ' · zuletzt ' + fmtTime(c.lastRun) : ''}</div>` : ''}
-            ${pool.enabled ? `<div class="grid3">
-                <label class="field"><span>Gewichtung</span><input type="number" data-pool="weight" value="${pool.weight}" min="1" max="10"></label>
-                <label class="field"><span>Tageszeit</span><select data-pool="time">${[['immer', 'immer'], ['tag', 'Tag'], ['nacht', 'Nacht']].map(([v, l]) => `<option value="${v}" ${pool.time === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
-                <label class="field"><span>Sperrzeit (min)</span><input type="number" data-pool="cooldown" value="${pool.cooldown}" min="0" max="1440"></label></div>
-                <div class="grid3">${Object.entries(S.config.roles).map(([role, r]) =>
-                    `<label class="field"><span>Min. ${esc(r.label)}</span><input type="number" data-pool="minOnDuty.${role}" value="${mod[role] || 0}" min="0" max="20"></label>`).join('')}</div>` : ''}
+            <div class="card__header"><label class="switch grow"><input type="checkbox" data-pool="enabled" ${pool.enabled ? 'checked' : ''} ${can ? '' : 'disabled'}><span class="card__title">${esc(sc.name)}</span></label>
+                ${c ? (c.eligible ? '<span class="chip chip--ok chip--dot">bereit</span>' : `<span class="chip chip--warn">${esc(c.reason)}</span>`) : `<span class="chip chip--outline">${esc(sc.categoryLabel)}</span>`}</div>
+            ${pool.enabled ? `<div class="card__body"><div class="grid-3">
+                ${field('Gewichtung', `<input class="input" type="number" data-pool="weight" value="${pool.weight}" min="1" max="10">`)}
+                ${field('Tageszeit', `<select class="select" data-pool="time">${[['immer', 'Immer'], ['tag', 'Tag'], ['nacht', 'Nacht']].map(([v, l]) => `<option value="${v}" ${pool.time === v ? 'selected' : ''}>${l}</option>`).join('')}</select>`)}
+                ${field('Sperrzeit (Min.)', `<input class="input" type="number" data-pool="cooldown" value="${pool.cooldown}" min="0" max="1440">`)}</div>
+                <div class="grid-3">${Object.entries(S.config.roles).map(([role, r]) => field(`Min. ${r.label}`, `<input class="input" type="number" data-pool="minOnDuty.${role}" value="${mod[role] || 0}" min="0" max="20">`)).join('')}</div></div>` : ''}
         </div>`;
-    }).join('') || '<div class="empty">Noch keine gespeicherten Szenarien</div>';
+    }).join('') || `<div class="empty">${icon('folder-open')}Noch keine gespeicherten Szenarien</div>`;
     return html;
 }
-
 async function saveRandomPool(card) {
     const id = card.dataset.id;
     const c = arr(S.random.candidates).find(x => x.id === id);
     const pool = c ? clone(c.pool) : { enabled: false, weight: 1, time: 'immer', cooldown: 30, minOnDuty: {} };
     pool.minOnDuty = obj(pool.minOnDuty);
-    $$('[data-pool]', card).forEach(inp => {
-        const key = inp.dataset.pool;
-        const val = inp.type === 'checkbox' ? inp.checked : (inp.tagName === 'SELECT' ? inp.value : parseInt(inp.value, 10) || 0);
-        setPath(pool, key, val);
-    });
+    $$('[data-pool]', card).forEach(inp => setPath(pool, inp.dataset.pool, inp.type === 'checkbox' ? inp.checked : (inp.tagName === 'SELECT' ? inp.value : parseInt(inp.value, 10) || 0)));
     const r = await post('randomSetPool', { id, pool });
-    if (r.ok) { S.random = r.data; renderLeft(true); }
+    if (r.ok) { S.random = r.data; renderPanel(true); }
 }
 
-/* ----- Ereignisse linke Seite ----- */
-$('#leftContent').addEventListener('click', async (e) => {
-    const toolEl = e.target.closest('.tool');
-    if (toolEl) {
-        const id = toolEl.dataset.tool;
-        if (id === 'select') { S.sub = null; post('setTool', { name: 'select' }); }
-        else if (id === 'center') { S.sub = null; post('setTool', { name: 'center' }); }
-        else if (id === 'variant') { S.sub = null; post('setTool', { name: 'variant' }); toast('info', 'Alternative Einsatzorte anklicken. Mausrad dreht die Szene. Verwaltung im Tab "Einsatz".'); }
-        else { S.sub = S.sub === id ? null : id; }
-        renderLeft(true);
-        return;
+/* ----- Ereignisse im Panel ----- */
+$('#panelBody').addEventListener('click', async (e) => {
+    const tool = e.target.closest('.tool');
+    if (tool) {
+        const id = tool.dataset.tool;
+        if (id === 'select' || id === 'center' || id === 'variant') { S.sub = null; post('setTool', { name: id }); }
+        else S.sub = S.sub === id ? null : id;
+        return renderPanel(true);
     }
     const fav = e.target.closest('[data-fav]');
     if (fav) {
         e.stopPropagation();
         const kind = S.sub === 'line' ? 'object' : S.sub;
         const list = S.favs[kind] || (S.favs[kind] = []);
-        const m = fav.dataset.fav;
-        const i = list.indexOf(m);
-        if (i >= 0) list.splice(i, 1); else list.unshift(m);
+        const i = list.indexOf(fav.dataset.fav);
+        if (i >= 0) list.splice(i, 1); else list.unshift(fav.dataset.fav);
         store.set('ec_favs', S.favs);
-        renderLeft(true);
-        return;
+        return renderPanel(true);
     }
-    const model = e.target.closest('.m[data-model]');
+    const model = e.target.closest('.model[data-model]');
     if (model) {
-        if (model.dataset.ok !== '1') return toast('error', 'Dieses Modell ist auf dem Server nicht verfuegbar');
+        if (model.dataset.ok !== '1') return toast('error', 'Dieses Modell ist auf dem Server nicht verfügbar');
         S.tpl[S.sub].model = model.dataset.model;
-        renderLeft(true);
+        renderPanel(true);
         if (S.sub !== 'line') activateTemplate(S.sub);
         return;
     }
     const chip = e.target.closest('[data-toggle]');
     if (chip) {
-        const path = chip.dataset.toggle;
-        const list = arr(getPath(S.draft, path)).slice();
-        const v = chip.dataset.value;
-        const i = list.indexOf(v);
-        if (i >= 0) list.splice(i, 1); else list.push(v);
-        setPath(S.draft, path, list);
-        chip.classList.toggle('on');
-        pushInfo();
-        return;
+        const list = arr(getPath(S.draft, chip.dataset.toggle)).slice();
+        const i = list.indexOf(chip.dataset.value);
+        if (i >= 0) list.splice(i, 1); else list.push(chip.dataset.value);
+        setPath(S.draft, chip.dataset.toggle, list);
+        chip.classList.toggle('is-on');
+        return pushInfo();
     }
-    const item = e.target.closest('.item[data-el]');
     const b = e.target.closest('button[data-act]');
-    if (b) {
-        const act = b.dataset.act, id = b.dataset.id;
-        if (act === 'place') return activateTemplate(b.dataset.kind);
-        if (act === 'custom') {
+    const item = e.target.closest('.list__item[data-el]');
+    if (!b) { if (item) post('selectElement', { id: item.dataset.el, focus: true }); return; }
+    const act = b.dataset.act, id = b.dataset.id;
+    const reloadIncidents = async () => { const l = await post('listIncidents', {}, true); if (l.ok) { S.incidents = normIncidents(l.data); renderRail(); renderPanel(true); } };
+    switch (act) {
+        case 'place': return activateTemplate(b.dataset.kind);
+        case 'custom': {
             const kind = b.dataset.kind;
-            const input = $(`[data-custom="${kind}"]`);
-            const m = (input.value || '').trim().toLowerCase();
+            const m = ($(`[data-custom="${kind}"]`).value || '').trim().toLowerCase();
             if (!m) return;
             const r = await post('checkModel', { model: m, kind: kind === 'line' ? 'object' : kind });
-            if (r.ok) {
-                S.tpl[kind].model = m;
-                toast('success', `Modell "${m}" ist verfuegbar`);
-                renderLeft(true);
-                if (kind !== 'line') activateTemplate(kind);
-            }
+            if (r.ok) { S.tpl[kind].model = m; toast('success', `Modell „${m}“ ist verfügbar`); renderPanel(true); if (kind !== 'line') activateTemplate(kind); }
             return;
         }
-        if (act === 'setCenter') return post('setTool', { name: 'center' });
-        if (act === 'varAdd') return post('setTool', { name: 'variant' });
-        if (act === 'varBack') return post('cameraToCenterReset');
-        if (act === 'varCam') return post('focusVariant', { index: parseInt(b.dataset.i, 10) + 1 });
-        if (act === 'varDel') {
-            const list = arr(S.draft.variants).slice();
-            list.splice(parseInt(b.dataset.i, 10), 1);
-            return post('updateVariants', { variants: list });
-        }
-        if (act === 'camCenter') return post('cameraToCenter');
-        if (act === 'focusEl') return post('selectElement', { id, focus: true });
-        if (act === 'delEl') return post('deleteElement', { id });
-        if (act === 'openSc' || act === 'copySc') {
-            if (S.dirty && !(await confirmBox('Szenario oeffnen', 'Ungespeicherte Aenderungen gehen verloren. Fortfahren?', 'Oeffnen', true))) return;
-            toast('info', 'Szenario wird geladen ...');
+        case 'setCenter': return post('setTool', { name: 'center' });
+        case 'camCenter': return post('cameraToCenter');
+        case 'varAdd': return post('setTool', { name: 'variant' });
+        case 'varBack': return post('cameraToCenterReset');
+        case 'varCam': return post('focusVariant', { index: parseInt(b.dataset.i, 10) + 1 });
+        case 'varDel': { const list = arr(S.draft.variants).slice(); list.splice(parseInt(b.dataset.i, 10), 1); return post('updateVariants', { variants: list }); }
+        case 'focusEl': return post('selectElement', { id, focus: true });
+        case 'delEl': return post('deleteElement', { id });
+        case 'openSc': case 'copySc': {
+            if (S.dirty && !(await confirmBox('Szenario öffnen', 'Ungespeicherte Änderungen gehen verloren.', 'Öffnen', 'danger'))) return;
             const r = await post('loadScenario', { id, copy: act === 'copySc' });
-            if (r.ok) { S.tab = 'elements'; renderLeft(true); }
+            if (r.ok) { S.page = 'elements'; renderRail(); renderPanel(true); }
             return;
         }
-        if (act === 'dupSc') {
-            const r = await post('duplicateScenario', { id });
-            if (r.ok) { S.scenarios = arr(r.data.scenarios); toast('success', `Kopie gespeichert (${r.data.id})`); renderLeft(true); }
-            return;
-        }
-        if (act === 'delSc') {
+        case 'dupSc': { const r = await post('duplicateScenario', { id }); if (r.ok) { S.scenarios = arr(r.data.scenarios); toast('success', `Kopie gespeichert (${r.data.id})`); renderPanel(true); } return; }
+        case 'delSc': {
             const sc = S.scenarios.find(s => s.id === id);
-            if (!(await confirmBox('Szenario loeschen', `„${sc ? sc.name : id}“ endgueltig loeschen?`, 'Loeschen', true))) return;
+            if (!(await confirmBox('Szenario löschen', `„${sc ? sc.name : id}“ wird endgültig gelöscht.`, 'Löschen', 'danger'))) return;
             const r = await post('deleteScenario', { id });
-            if (r.ok) { S.scenarios = arr(r.data.scenarios); toast('success', 'Szenario geloescht'); renderLeft(true); }
+            if (r.ok) { S.scenarios = arr(r.data.scenarios); toast('success', 'Szenario gelöscht'); renderPanel(true); }
             return;
         }
-        if (act === 'rndSave') {
-            const r = await post('randomSaveSettings', { settings: S.randomForm });
-            if (r.ok) { S.random = r.data; S.randomForm = clone(r.data.settings); toast('success', 'Zufallseinstellungen gespeichert'); renderLeft(true); }
-            return;
-        }
-        if (act === 'rndNow') {
-            const r = await post('randomRunNow');
-            if (r.ok) { S.random = r.data.status; toast('success', `Zufallseinsatz ${r.data.id} gestartet`); renderLeft(true); }
-            return;
-        }
-        if (act === 'refreshInc') {
-            const r = await post('listIncidents');
-            if (r.ok) { S.incidents = normIncidents(r.data); renderLeft(true); }
-            return;
-        }
-        const inc = S.incidents.active.find(x => x.id === id);
-        if (act === 'incCam' && inc) return post('focusPosition', { pos: inc.center, distance: 35 });
-        if (act === 'incWp' && inc) { post('setWaypoint', { pos: inc.center }); return toast('success', 'Wegpunkt gesetzt'); }
-        if (act === 'incDetails') {
-            const r = await post('incidentDetails', { id });
-            if (r.ok) showDetailsModal(r.data);
-            return;
-        }
-        if (act === 'incRealarm') {
-            const r = await post('incidentAction', { id, action: 'realarm' });
-            if (r.ok) toast('success', r.data || 'Nachalarmiert');
-            return;
-        }
-        if (act === 'incEnd' || act === 'incCancel') {
-            const cancel = act === 'incCancel';
-            const ok = await confirmBox(cancel ? 'Einsatz abbrechen' : 'Einsatz beenden',
-                cancel ? 'Der Einsatz wird abgebrochen und alle zugehoerigen Elemente werden sofort entfernt.'
-                       : 'Der Einsatz wird regulaer beendet. Die Szene wird gemaess Konfiguration geraeumt.',
-                cancel ? 'Abbrechen' : 'Beenden', cancel);
-            if (!ok) return;
-            const r = await post('incidentAction', { id, action: cancel ? 'cancel' : 'end' });
-            if (r.ok) toast('success', r.data || 'Erledigt');
-            const l = await post('listIncidents', {}, true);
-            if (l.ok) { S.incidents = normIncidents(l.data); renderLeft(true); }
-            return;
-        }
-        return;
+        case 'refreshInc': return reloadIncidents();
+        case 'rndSave': { const r = await post('randomSaveSettings', { settings: S.randomForm }); if (r.ok) { S.random = r.data; S.randomForm = clone(r.data.settings); toast('success', 'Einstellungen gespeichert'); renderPanel(true); } return; }
+        case 'rndNow': { const r = await post('randomRunNow'); if (r.ok) { S.random = r.data.status; toast('success', `Zufallseinsatz ${r.data.id} an EmergencyDispatch übergeben`); renderPanel(true); } return; }
     }
-    if (item) post('selectElement', { id: item.dataset.el, focus: true });
+    const inc = S.incidents.active.find(x => x.id === id);
+    if (act === 'incCam' && inc) return post('focusPosition', { pos: inc.center, distance: 35 });
+    if (act === 'incWp' && inc) { post('setWaypoint', { pos: inc.center }); return toast('success', 'Wegpunkt gesetzt'); }
+    if (act === 'incDetails') { const r = await post('incidentDetails', { id }); if (r.ok) showDetails(r.data); return; }
+    if (act === 'incRealarm') { const r = await post('incidentAction', { id, action: 'realarm' }); if (r.ok) toast('success', r.data); return; }
+    if (act === 'incEnd' || act === 'incCancel') {
+        const cancel = act === 'incCancel';
+        const ok = await confirmBox(cancel ? 'Einsatz abbrechen' : 'Einsatz beenden',
+            cancel ? 'Der Einsatz wird abgebrochen, alle zugehörigen Elemente werden sofort entfernt.' : 'Der Einsatz wird regulär beendet und die Szene geräumt. Der Einsatz in EmergencyDispatch bleibt davon unberührt.',
+            cancel ? 'Abbrechen' : 'Beenden', cancel ? 'danger' : 'primary');
+        if (!ok) return;
+        const r = await post('incidentAction', { id, action: cancel ? 'cancel' : 'end' });
+        if (r.ok) toast('success', r.data || 'Erledigt');
+        return reloadIncidents();
+    }
 });
 
-$('#leftContent').addEventListener('input', (e) => {
+$('#panelBody').addEventListener('input', (e) => {
     const t = e.target;
     if (t.dataset.search) {
         const k = t.dataset.search;
         if (k === 'scenarios') S.scenarioSearch = t.value; else S.search[k] = t.value;
         const pos = t.selectionStart;
-        renderLeft(true);
+        renderPanel(true);
         const n = $(`[data-search="${k}"]`);
         if (n) { n.focus(); try { n.setSelectionRange(pos, pos); } catch (x) { /* */ } }
         return;
     }
-    handleBound(t, e.type);
+    handleBound(t, 'input');
 });
-$('#leftContent').addEventListener('change', (e) => {
+$('#panelBody').addEventListener('change', (e) => {
     const t = e.target;
+    if (t.dataset.pool) return saveRandomPool(t.closest('[data-scope="pool"]'));
+    if (t.dataset.phase) { post('incidentAction', { id: t.dataset.phase, action: 'phase', phase: t.value }).then(r => { if (r.ok) toast('success', 'Phase gesetzt'); }); return; }
     if (t.dataset.vfield) {
-        const row = t.closest('[data-variant]');
         const list = clone(arr(S.draft.variants));
-        const v = list[parseInt(row.dataset.variant, 10)];
-        if (v) {
-            v[t.dataset.vfield] = t.dataset.vfield === 'h' ? (parseFloat(t.value) || 0) : t.value;
-            post('updateVariants', { variants: list });
-        }
+        const v = list[parseInt(t.closest('[data-variant]').dataset.variant, 10)];
+        if (v) { v[t.dataset.vfield] = t.dataset.vfield === 'h' ? (parseFloat(t.value) || 0) : t.value; post('updateVariants', { variants: list }); }
         return;
     }
-    if (t.dataset.pool) { saveRandomPool(t.closest('[data-scope="pool"]')); return; }
-    if (t.dataset.phase) {
-        post('incidentAction', { id: t.dataset.phase, action: 'phase', phase: t.value }).then(r => { if (r.ok) toast('success', 'Phase gesetzt'); });
-        return;
-    }
-    handleBound(t, e.type);
+    handleBound(t, 'change');
+    if (t.closest('[data-scope^="tpl:"]') && ['props.canSpread', 'props.patient.profile'].includes(t.dataset.path)) renderPanel(true);
 });
-$('#topbar').addEventListener('input', (e) => handleBound(e.target, e.type));
-$('#topbar').addEventListener('change', (e) => handleBound(e.target, e.type));
 
-/* Gebundene Eingaben (Vorlagen, Einsatzinfos, Element) */
+/* Gebundene Eingaben (Vorlagen, Einsatzdaten, Element) */
 function handleBound(t, type) {
     if (!t.dataset || !t.dataset.path) return;
-    const scopeEl = t.closest('[data-scope]') || t;
-    const scope = t.dataset.scope || scopeEl.dataset.scope;
+    const scope = t.dataset.scope || (t.closest('[data-scope]') || {}).dataset?.scope;
     const val = readInput(t);
     if (val === undefined) return;
-    // Text: bei jedem Tastendruck; Auswahl/Checkbox: bei change
     if (type === 'input' && (t.tagName === 'SELECT' || t.type === 'checkbox')) return;
-    // Modellname erst beim Verlassen des Feldes pruefen (nicht bei jedem Tastendruck)
     if (type === 'input' && t.dataset.path === 'model') return;
-    if (scope === 'random') {
-        S.randomForm = S.randomForm || {};
-        setPath(S.randomForm, t.dataset.path, val);
-        return;
-    }
-    if (scope && scope.startsWith('tpl:')) {
-        const kind = scope.slice(4);
-        setPath(S.tpl[kind], t.dataset.path, val);
-        refreshPlaceTool(kind);
-    } else if (scope === 'info') {
-        if (t.dataset.path === 'category') {
-            // ausstehende Aenderungen zuerst senden, dann nur die Einsatzart (setzt art-spezifische Felder zurueck)
-            pushInfo.flush();
-            S.draft.category = val;
-            post('updateInfo', { patch: { category: val } });
-            return;
-        }
+    if (scope === 'random') { S.randomForm = S.randomForm || {}; setPath(S.randomForm, t.dataset.path, val); return; }
+    if (scope && scope.startsWith('tpl:')) { const kind = scope.slice(4); setPath(S.tpl[kind], t.dataset.path, val); refreshPlaceTool(kind); return; }
+    if (scope === 'info') {
+        if (t.dataset.path === 'category') { pushInfo.flush(); S.draft.category = val; post('updateInfo', { patch: { category: val } }); return; }
         setPath(S.draft, t.dataset.path, val);
-        pushInfo();
-    } else if (scope === 'el') {
-        if (!S.edit) return;
-        setPath(S.edit, t.dataset.path, val);
-        pushEdit();
+        return pushInfo();
     }
+    if (scope === 'el' && S.edit) { setPath(S.edit, t.dataset.path, val); pushEdit(); }
 }
-
 const pushInfo = debounce(() => {
     const d = S.draft;
-    post('updateInfo', { patch: { name: d.name, category: d.category, keyword: d.keyword, priority: d.priority, info: d.info } });
+    post('updateInfo', { patch: { name: d.name, keyword: d.keyword, priority: d.priority, info: d.info } });
 }, 300);
+const pushEdit = debounce(async () => { if (!S.edit) return; const r = await post('updateElement', { element: S.edit }); if (!r.ok) renderInspector(true); }, 250);
+function flushEdits() { pushInfo.flush(); if (S.edit) pushEdit.flush(); }
 
-const pushEdit = debounce(async () => {
-    if (!S.edit) return;
-    const r = await post('updateElement', { element: S.edit });
-    if (!r.ok) renderRight(true);
-}, 250);
-
-function flushEdits() {
-    pushInfo.flush();
-    if (S.edit) pushEdit.flush();
-}
-
-document.addEventListener('focusout', () => {
-    setTimeout(() => {
-        if (S.pending.left && !panelBusy('#leftContent')) renderLeft();
-        if (S.pending.right && !panelBusy('#right')) renderRight();
-    }, 0);
-});
+document.addEventListener('focusout', () => setTimeout(() => {
+    if (S.pending.panel && !panelBusy('#panel')) renderPanel();
+    if (S.pending.insp && !panelBusy('#inspector')) renderInspector();
+}, 0));
 
 /* ------------------------------------------------------------------ */
-/* Rechte Seite: Eigenschaften                                          */
+/* Inspector (Eigenschaften des ausgewaehlten Elements)                */
 /* ------------------------------------------------------------------ */
-function renderRight(force) {
-    if (!S.open || !S.draft) return;
-    if (!force && panelBusy('#right')) { S.pending.right = true; return; }
-    S.pending.right = false;
-    const box = $('#right');
+function renderInspector(force) {
+    const box = $('#inspector');
+    if (!S.open || !S.draft || !S.edit) { box.classList.add('hidden'); box.innerHTML = ''; return; }
+    if (!force && panelBusy('#inspector')) { S.pending.insp = true; return; }
+    S.pending.insp = false;
+    box.classList.remove('hidden');
     const e = S.edit;
-    if (!e) {
-        const counts = {};
-        for (const x of S.draft.elements) counts[x.kind] = (counts[x.kind] || 0) + 1;
-        box.innerHTML = `<div class="section"><h3>Eigenschaften</h3><p class="dim">Kein Element ausgewaehlt. Element in der Welt oder in der Liste anklicken.</p></div>
-            <div class="section"><h3>Szene</h3><div class="kv">${Object.keys(KIND_LABEL).map(k =>
-                `<span class="k">${esc(KIND_LABEL[k])}</span><span>${counts[k] || 0} / ${S.config.limits[k] ?? '-'}</span>`).join('')}</div></div>
-            <div class="section"><h3>Tastatur</h3><div class="kv">
-                <span class="k">W A S D</span><span>Kamera bewegen</span><span class="k">Q / E</span><span>runter / hoch</span>
-                <span class="k">Shift / Strg</span><span>schneller / langsamer</span><span class="k">Rechte Maus</span><span>Kamera drehen</span>
-                <span class="k">Linksklick</span><span>setzen / auswaehlen</span><span class="k">Mausrad</span><span>drehen (Alt: fein)</span>
-                <span class="k">Shift+Rad</span><span>Groesse / Radius</span><span class="k">Strg+Rad</span><span>Hoehe</span>
-                <span class="k">G</span><span>verschieben</span><span class="k">Pfeile / Bild↑↓</span><span>fein verschieben</span>
-                <span class="k">Strg+D</span><span>duplizieren</span><span class="k">Entf</span><span>loeschen</span>
-                <span class="k">F</span><span>Kamera zum Element</span><span class="k">Esc</span><span>abbrechen / schliessen</span>
-            </div></div>`;
-        return;
-    }
     const p = e.props;
-    let body = '';
     const entity = ['vehicle', 'object', 'ped'].includes(e.kind);
-    body += fText('Bezeichnung', 'label', e.label, { max: 48 });
-    if (entity) body += fText('Modell (Spawnname)', 'model', e.model, { max: 64 });
-    body += `<h3>Position</h3><div class="grid3">${fNum('X', 'pos.x', e.pos.x, { step: 0.05 })}${fNum('Y', 'pos.y', e.pos.y, { step: 0.05 })}${fNum('Z', 'pos.z', e.pos.z, { step: 0.05 })}</div>`;
-    if (e.kind === 'vehicle' || e.kind === 'object') {
-        body += `<h3>Rotation</h3><div class="grid3">${fNum('Neigung X', 'rot.x', e.rot.x, { step: 1 })}${fNum('Rollen Y', 'rot.y', e.rot.y, { step: 1 })}${fNum('Richtung Z', 'rot.z', e.rot.z, { step: 1 })}</div>`;
-    } else if (e.kind === 'ped' || e.kind === 'spill') {
-        body += fNum('Richtung', 'rot.z', e.rot.z, { step: 1 });
-    }
-    body += `<h3>${esc(KIND_LABEL[e.kind])}</h3>` + kindFields(e);
-    $('#right').innerHTML = `
-        <div class="props-head"><span style="font-size:20px">${KIND_ICON[e.kind]}</span><div class="grow">
-            <div class="kind">${esc(KIND_LABEL[e.kind])}</div><div class="title">${esc(elLabel(e))}</div></div></div>
-        <div class="props-actions">
-            <button data-act="move" ${p.attachTo || (e.kind === 'ped' && p.vehicleId) ? 'disabled' : ''}>Verschieben (G)</button>
-            <button data-act="dup">Duplizieren</button>
-            <button data-act="ground">Auf Boden</button>
-            <button data-act="focus">Kamera hierhin</button>
-            <button data-act="reset">Zuruecksetzen</button>
-            <button data-act="del" class="danger">Loeschen</button>
+    const locked = p.attachTo || (e.kind === 'ped' && p.vehicleId);
+    let pos = `<div class="grid-3">${fNum('X', 'pos.x', e.pos.x, { step: 0.05 })}${fNum('Y', 'pos.y', e.pos.y, { step: 0.05 })}${fNum('Z', 'pos.z', e.pos.z, { step: 0.05 })}</div>`;
+    if (e.kind === 'vehicle' || e.kind === 'object') pos += `<div class="grid-3">${fNum('Neigung', 'rot.x', e.rot.x)}${fNum('Rollen', 'rot.y', e.rot.y)}${fNum('Richtung', 'rot.z', e.rot.z)}</div>`;
+    else if (e.kind === 'ped' || e.kind === 'spill') pos += fNum('Richtung', 'rot.z', e.rot.z);
+    const scroll = box.querySelector('.drawer__body') ? box.querySelector('.drawer__body').scrollTop : 0;
+    box.innerHTML = `
+        <div class="drawer__header"><span class="drawer__icon">${icon(KIND[e.kind].icon)}</span>
+            <div class="grow"><div class="eyebrow">${esc(KIND[e.kind].label)}</div><div class="drawer__title">${esc(elLabel(e))}</div></div>
+            <button class="btn btn--ghost btn--icon btn--sm" data-act="deselect" title="Auswahl aufheben">${icon('xmark')}</button></div>
+        <div class="drawer__body scroll" data-scope="el">
+            ${fText('Bezeichnung', 'label', e.label, { max: 48 })}
+            ${entity ? fText('Modell (Spawnname)', 'model', e.model, { max: 64 }) : ''}
+            ${section('Position', pos)}
+            ${section(esc(KIND[e.kind].label), kindFields(e))}
         </div>
-        <div class="section" data-scope="el">${body}</div>`;
+        <div class="drawer__footer">
+            <button class="btn" data-act="move" ${locked ? 'disabled' : ''}>${icon('up-down-left-right')} Verschieben</button>
+            <button class="btn" data-act="dup">${icon('clone')} Duplizieren</button>
+            <button class="btn" data-act="ground">${icon('arrows-down-to-line')} Boden</button>
+            <button class="btn btn--ghost" data-act="focus">${icon('video')} Kamera</button>
+            <button class="btn btn--ghost" data-act="reset">${icon('rotate-left')} Zurück</button>
+            <button class="btn btn--ghost-danger" data-act="del">${icon('trash')} Löschen</button>
+        </div>`;
+    box.querySelector('.drawer__body').scrollTop = scroll;
 }
 
 function kindFields(e) {
@@ -1120,67 +968,37 @@ function kindFields(e) {
     switch (e.kind) {
         case 'vehicle':
             return `${fSel('Schaden', 'props.damage', p.damage, arr(C.damageLevels).map(d => [d.id, d.label]), { type: 'int' })}
-                <div class="grid2">${fChk('Warnblinker', 'props.hazard', p.hazard)}${fChk('Licht an', 'props.lights', p.lights)}
-                ${fChk('Verschlossen', 'props.locked', p.locked)}${fChk('Fixiert', 'props.frozen', p.frozen)}
-                ${fChk('Tueren offen', 'props.doorsOpen', p.doorsOpen)}${fChk('Scheiben kaputt', 'props.windowsBroken', p.windowsBroken)}
-                ${fChk('Reifen platt', 'props.tyresBurst', p.tyresBurst)}${fChk('Motor aus', 'props.engineOff', p.engineOff)}</div>
-                <div class="grid2">${fText('Kennzeichen', 'props.plate', p.plate, { max: 8 })}${fNum('Farbe (-1 = Standard)', 'props.colour', p.colour, { int: true, min: -1, max: 160 })}</div>
-                ${fSel('Fahrzeugtyp (Server)', 'props.vehType', p.vehType, VEH_TYPES.map(v => [v, v]))}`;
+                <div class="switches">${fSwitch('Warnblinker', 'props.hazard', p.hazard)}${fSwitch('Licht an', 'props.lights', p.lights)}
+                ${fSwitch('Verschlossen', 'props.locked', p.locked)}${fSwitch('Fixiert', 'props.frozen', p.frozen)}
+                ${fSwitch('Türen offen', 'props.doorsOpen', p.doorsOpen)}${fSwitch('Scheiben kaputt', 'props.windowsBroken', p.windowsBroken)}
+                ${fSwitch('Reifen platt', 'props.tyresBurst', p.tyresBurst)}${fSwitch('Motor aus', 'props.engineOff', p.engineOff)}</div>
+                <div class="grid-2">${fText('Kennzeichen', 'props.plate', p.plate, { max: 8 })}${fNum('Farbe', 'props.colour', p.colour, { int: true, min: -1, max: 160, hint: '-1 = Standard' })}</div>
+                ${fSel('Fahrzeugtyp', 'props.vehType', p.vehType, VEH_TYPES.map(v => [v, v]))}`;
         case 'object':
-            return `<div class="grid2">${fChk('Fixiert', 'props.frozen', p.frozen)}${fChk('Kollision', 'props.collision', p.collision)}</div>`;
+            return `<div class="switches">${fSwitch('Fixiert', 'props.frozen', p.frozen)}${fSwitch('Kollision', 'props.collision', p.collision)}</div>`;
         case 'ped': {
             const vehicles = els.filter(x => x.kind === 'vehicle');
-            const pt = p.patient;
-            const inj = arr(pt.injuries);
             let h = fSel('Haltung', 'props.pose', p.pose, arr(C.poses).map(x => [x.id, x.label]));
-            if (p.pose === 'fahrzeug') {
-                h += `<div class="grid2">${fSel('Fahrzeug', 'props.vehicleId', p.vehicleId || '', [['', '- waehlen -'], ...vehicles.map(v => [v.id, elLabel(v)])], { type: 'nullable' })}
-                    ${fSel('Sitz', 'props.seat', p.seat, SEATS, { type: 'int' })}</div>`;
-            }
-            h += `<button class="mt-s" style="width:100%" data-act="pickVehicle">In Fahrzeug setzen (Fahrzeug anklicken)</button>`;
-            h += fChk('Ist Patient', 'props.isPatient', p.isPatient);
-            h += fChk('Zufaelliges Modell beim Ausloesen', 'props.randomModel', p.randomModel);
-            if (p.isPatient && C.medical && C.medical.enabled) h += medicalFields(e);
-            if (p.isPatient) {
-                h += `<h3>Patient</h3>${fText('Name / Kennung', 'props.patient.name', pt.name, { max: 48 })}
-                    ${fSel('Schweregrad', 'props.patient.severity', pt.severity, arr(C.severities).map(s => [s.id, s.label]))}
-                    <div class="grid2">${fSel('Bewusstsein', 'props.patient.consciousness', pt.consciousness, arr(C.consciousness).map(x => [x, x]))}
-                    ${fSel('Mobilitaet', 'props.patient.mobility', pt.mobility, arr(C.mobility).map(x => [x, x]))}</div>
-                    <label class="field"><span>Verletzungen / Erkrankungen (max. 8)</span><div class="chips">
-                        ${arr(C.injuries).map(i => `<span class="chip ${inj.includes(i) ? 'on' : ''}" data-eltoggle="props.patient.injuries" data-value="${esc(i)}">${esc(i)}</span>`).join('')}
-                    </div></label>
-                    ${fArea('Befund / Beschreibung', 'props.patient.description', pt.description, { max: 400, rows: 2 })}
-                    ${fArea('Erforderliche Massnahmen', 'props.patient.measures', pt.measures, { max: 400, rows: 2 })}
-                    <h3>Vitalwerte</h3><div class="grid3">
-                    ${fNum('Puls', 'props.patient.vitals.puls', pt.vitals.puls, { int: true, min: 0, max: 250 })}
-                    ${fText('RR', 'props.patient.vitals.rr', pt.vitals.rr, { max: 16 })}
-                    ${fNum('SpO2 %', 'props.patient.vitals.spo2', pt.vitals.spo2, { int: true, min: 0, max: 100 })}
-                    ${fNum('AF', 'props.patient.vitals.af', pt.vitals.af, { int: true, min: 0, max: 60 })}
-                    ${fNum('GCS', 'props.patient.vitals.gcs', pt.vitals.gcs, { int: true, min: 3, max: 15 })}</div>
-                    ${fChk('Transport erforderlich', 'props.patient.transport', pt.transport)}`;
-            }
+            if (p.pose === 'fahrzeug') h += `<div class="grid-2">${fSel('Fahrzeug', 'props.vehicleId', p.vehicleId || '', [['', 'wählen …'], ...vehicles.map(v => [v.id, elLabel(v)])], { type: 'nullable' })}${fSel('Sitz', 'props.seat', p.seat, SEATS, { type: 'int' })}</div>`;
+            h += `<button class="btn btn--sm" data-act="pickVehicle">${icon('car-side')} In Fahrzeug setzen</button>`;
+            h += `<div class="switches">${fSwitch('Ist Patient', 'props.isPatient', p.isPatient)}${fSwitch('Zufälliges Modell', 'props.randomModel', p.randomModel)}</div>`;
+            if (p.isPatient) h += section('Medizin', medicalFields(e)) + section('Patient', patientFields(e));
             return h;
         }
         case 'fire': {
             const target = p.attachTo ? els.find(x => x.id === p.attachTo) : null;
             return fireFields(p, 'props.', true) + attachBlock(target) +
-                (!isZFire() && p.canSpread && !p.attachTo ? `<div class="row mt-s"><span class="dim grow">${arr(p.spreadPoints).length} Ausbreitungspunkte</span>
-                <button class="small" data-act="spread">Neu berechnen</button></div>` : '');
+                (!isZFire() && p.canSpread && !p.attachTo ? `<div class="row"><span class="dim grow">${arr(p.spreadPoints).length} Ausbreitungspunkte</span><button class="btn btn--sm btn--ghost" data-act="spread">${icon('rotate')} Neu berechnen</button></div>` : '');
         }
-        case 'smoke': {
-            const target = p.attachTo ? els.find(x => x.id === p.attachTo) : null;
-            return smokeFields(p, 'props.') + attachBlock(target);
-        }
+        case 'smoke': return smokeFields(p, 'props.') + attachBlock(p.attachTo ? els.find(x => x.id === p.attachTo) : null);
         case 'marker': return markerFields(p, 'props.');
         case 'area': return areaFields(p, 'props.');
         case 'door': {
             const patients = els.filter(x => x.kind === 'ped' && x.props.isPatient);
             const linked = arr(p.linked);
-            return doorFields(p, 'props.') +
-                `<p class="dim mt-s">${p.doorModel ? 'Echte Kartentuer erkannt (wird verriegelt).' : 'Logische Tuer (keine Kartentuer erkannt).'}</p>
-                <label class="field"><span>Patienten hinter dieser Tuer</span><div class="chips">
-                ${patients.length ? patients.map(x => `<span class="chip ${linked.includes(x.id) ? 'on' : ''}" data-eltoggle="props.linked" data-value="${esc(x.id)}">${esc(elLabel(x))}</span>`).join('') : '<span class="dim">Keine Patienten gesetzt</span>'}
-                </div></label>`;
+            return doorFields(p, 'props.') + `<div class="field__hint">${p.doorModel ? 'Echte Kartentür erkannt.' : 'Logische Tür ohne Kartentür.'}</div>
+                <div class="field"><span class="field__label">Patienten hinter dieser Tür</span><div class="chips">
+                ${patients.length ? patients.map(x => `<span class="chip chip--toggle ${linked.includes(x.id) ? 'is-on' : ''}" data-eltoggle="props.linked" data-value="${esc(x.id)}">${esc(elLabel(x))}</span>`).join('') : '<span class="dim">Keine Patienten gesetzt</span>'}</div></div>`;
         }
         case 'spill': return spillFields(p, 'props.');
     }
@@ -1189,130 +1007,113 @@ function kindFields(e) {
 
 function medicalFields(e) {
     const C = S.catalog;
+    if (!C.medical || !C.medical.enabled) return '';
     const pt = e.props.patient;
     const profiles = arr(C.medical.profiles);
     const prof = profiles.find(x => x.id === pt.profile) || profiles[0];
-    const variants = [[0, 'Zufaellig'], ...arr(prof.variants).map((v, i) => [i + 1, v])];
     const markers = S.draft.elements.filter(x => x.kind === 'marker');
     const body = obj(pt.body);
-    const parts = arr(C.medical.bodyParts);
-    const lvlLabel = ['-', 'kleine Wunde', 'grosse Wunde', 'schwer'];
-    return `<h3>Medizin</h3>
-        ${fSel('Meldebild', 'props.patient.profile', pt.profile, profiles.map(x => [x.id, x.label]))}
-        ${pt.profile !== 'none' ? fSel('Variante', 'props.patient.variant', pt.variant, variants, { type: 'int' }) : '<p class="dim">Ohne Meldebild gelten die Vitalwerte unten.</p>'}
-        <div class="grid2">${fSel('Geschlecht', 'props.patient.gender', pt.gender, [['auto', 'Zufaellig'], ['m', 'maennlich'], ['w', 'weiblich']])}
-        ${fSel('Transportziel', 'props.patient.destination', pt.destination, [['hospital', 'Klinik (beliebig)'], ['other_hospital', 'Andere Klinik (Verlegung)'], ['marker', 'Zielort im Szenario']])}</div>
-        ${pt.destination === 'marker' ? fSel('Zielort', 'props.patient.destMarker', pt.destMarker || '', [['', '- Position waehlen -'], ...markers.map(m => [m.id, elLabel(m)])], { type: 'nullable' }) : ''}
-        <label class="field"><span>Verletzungen (Bodycheck) - leer = laut Meldebild</span></label>
-        <div class="bodygrid">${parts.map(bp => fSel(bp.label, 'props.patient.body.' + bp.id, body[bp.id] || 0,
-            [0, 1, 2, 3].filter(l => l <= bp.maxLevel).map(l => [l, l === 3 ? (bp.severeText || 'schwer') : lvlLabel[l]]), { type: 'int' })).join('')}</div>`;
+    const lvl = ['–', 'Kleine Wunde', 'Große Wunde', 'Schwer'];
+    return `${fSel('Meldebild', 'props.patient.profile', pt.profile, profiles.map(x => [x.id, x.label]))}
+        ${pt.profile !== 'none' ? fSel('Variante', 'props.patient.variant', pt.variant, [[0, 'Zufällig'], ...arr(prof.variants).map((v, i) => [i + 1, v])], { type: 'int' }) : '<div class="field__hint">Ohne Meldebild gelten die Vitalwerte unten.</div>'}
+        <div class="grid-2">${fSel('Geschlecht', 'props.patient.gender', pt.gender, [['auto', 'Zufällig'], ['m', 'Männlich'], ['w', 'Weiblich']])}
+        ${fSel('Transportziel', 'props.patient.destination', pt.destination, [['hospital', 'Beliebige Klinik'], ['other_hospital', 'Andere Klinik'], ['marker', 'Zielort']])}</div>
+        ${pt.destination === 'marker' ? fSel('Zielort', 'props.patient.destMarker', pt.destMarker || '', [['', 'Position wählen …'], ...markers.map(m => [m.id, elLabel(m)])], { type: 'nullable' }) : ''}
+        <div class="field"><span class="field__label">Verletzungen</span><span class="field__hint">Leer = laut Meldebild (Sturz würfelt selbst)</span></div>
+        <div class="grid-2">${arr(C.medical.bodyParts).map(bp => fSel(bp.label, 'props.patient.body.' + bp.id, body[bp.id] || 0,
+            [0, 1, 2, 3].filter(l => l <= bp.maxLevel).map(l => [l, l === 3 ? (bp.severeText || 'Schwer') : lvl[l]]), { type: 'int' })).join('')}</div>`;
 }
 
-function attachBlock(target) {
-    return `<h3>Kopplung</h3>${target
-        ? `<div class="row"><span class="grow">An: <b>${esc(elLabel(target))}</b></span><button class="small" data-act="detach">Loesen</button></div>`
-        : `<button style="width:100%" data-act="attach">An Fahrzeug / Objekt koppeln</button>`}`;
+function patientFields(e) {
+    const C = S.catalog;
+    const pt = e.props.patient;
+    const inj = arr(pt.injuries);
+    return `${fText('Name', 'props.patient.name', pt.name, { max: 48, ph: 'leer = zufälliger Name' })}
+        ${fSel('Schweregrad', 'props.patient.severity', pt.severity, arr(C.severities).map(s => [s.id, s.label]))}
+        <div class="grid-2">${fSel('Bewusstsein', 'props.patient.consciousness', pt.consciousness, arr(C.consciousness).map(x => [x, x]))}
+        ${fSel('Mobilität', 'props.patient.mobility', pt.mobility, arr(C.mobility).map(x => [x, x]))}</div>
+        <div class="field"><span class="field__label">Diagnosen</span><div class="chips">
+            ${arr(C.injuries).map(i => `<span class="chip chip--toggle ${inj.includes(i) ? 'is-on' : ''}" data-eltoggle="props.patient.injuries" data-value="${esc(i)}">${esc(i)}</span>`).join('')}</div></div>
+        ${fArea('Befund', 'props.patient.description', pt.description, { max: 400, rows: 2 })}
+        ${fArea('Erforderliche Maßnahmen', 'props.patient.measures', pt.measures, { max: 400, rows: 2 })}
+        <div class="grid-3">${fNum('Puls', 'props.patient.vitals.puls', pt.vitals.puls, { int: true, min: 0, max: 250 })}
+        ${fText('RR', 'props.patient.vitals.rr', pt.vitals.rr, { max: 16 })}
+        ${fNum('SpO₂', 'props.patient.vitals.spo2', pt.vitals.spo2, { int: true, min: 0, max: 100 })}
+        ${fNum('AF', 'props.patient.vitals.af', pt.vitals.af, { int: true, min: 0, max: 60 })}
+        ${fNum('GCS', 'props.patient.vitals.gcs', pt.vitals.gcs, { int: true, min: 3, max: 15 })}</div>
+        ${fSwitch('Transport erforderlich', 'props.patient.transport', pt.transport)}`;
 }
 
-$('#right').addEventListener('click', async (e) => {
+const attachBlock = target => section('Kopplung', target
+    ? `<div class="row"><span class="chip chip--primary">${icon('link')} ${esc(elLabel(target))}</span><span class="grow"></span><button class="btn btn--sm btn--ghost" data-act="detach">${icon('link-slash')} Lösen</button></div>`
+    : `<button class="btn btn--sm" data-act="attach">${icon('link')} An Fahrzeug oder Objekt koppeln</button>`);
+
+$('#inspector').addEventListener('click', async (e) => {
     const chip = e.target.closest('[data-eltoggle]');
     if (chip && S.edit) {
         const path = chip.dataset.eltoggle;
         const list = arr(getPath(S.edit, path)).slice();
-        const v = chip.dataset.value;
-        const i = list.indexOf(v);
+        const i = list.indexOf(chip.dataset.value);
         if (i >= 0) list.splice(i, 1);
-        else {
-            if (path.endsWith('injuries') && list.length >= 8) return toast('error', 'Maximal 8 Eintraege');
-            list.push(v);
-        }
+        else { if (path.endsWith('injuries') && list.length >= 8) return toast('error', 'Maximal 8 Einträge'); list.push(chip.dataset.value); }
         setPath(S.edit, path, list);
-        chip.classList.toggle('on');
-        pushEdit();
-        return;
+        chip.classList.toggle('is-on');
+        return pushEdit();
     }
     const b = e.target.closest('button[data-act]');
     if (!b || !S.edit) return;
     const id = S.edit.id;
     switch (b.dataset.act) {
+        case 'deselect': post('selectElement', { id: null }); break;
         case 'move': post('setTool', { name: 'move', id }); break;
         case 'dup': post('duplicateElement', { id }); break;
         case 'ground': post('snapToGround', { id }); break;
         case 'focus': post('focusElement', { id }); break;
         case 'del': post('deleteElement', { id }); break;
         case 'reset':
-            if (S.snapshot && S.snapshot.id === id) {
-                S.edit = clone(S.snapshot);
-                await post('updateElement', { element: S.edit });
-                renderRight(true);
-                toast('info', 'Element zurueckgesetzt');
-            }
+            if (S.snapshot && S.snapshot.id === id) { S.edit = clone(S.snapshot); await post('updateElement', { element: S.edit }); renderInspector(true); toast('info', 'Element zurückgesetzt'); }
             break;
         case 'attach': post('setTool', { name: 'pickTarget', forId: id }); break;
-        case 'detach':
-            S.edit.props.attachTo = null;
-            pushEdit.flush();
-            break;
+        case 'detach': S.edit.props.attachTo = null; pushEdit.flush(); break;
         case 'pickVehicle': post('setTool', { name: 'pickVehicle', forId: id }); break;
-        case 'roomHash': {
-            const r = await post('roomHashAt', { id });
-            if (r.ok) { toast('success', `Raum ermittelt: ${r.data.roomHash}`); setTimeout(() => renderRight(true), 50); }
-            break;
-        }
-        case 'spread': {
-            const r = await post('recomputeSpread', { id });
-            if (r.ok) toast('success', `${r.data.count} Ausbreitungspunkte berechnet`);
-            break;
-        }
+        case 'spread': { const r = await post('recomputeSpread', { id }); if (r.ok) toast('success', `${r.data.count} Ausbreitungspunkte berechnet`); break; }
+        case 'roomHash': { const r = await post('roomHashAt', { id }); if (r.ok) { toast('success', `Raum ermittelt: ${r.data.roomHash}`); setTimeout(() => renderInspector(true), 50); } break; }
     }
 });
-$('#right').addEventListener('input', (e) => handleBound(e.target, 'input'));
-$('#right').addEventListener('change', (e) => {
+$('#inspector').addEventListener('input', e => handleBound(e.target, 'input'));
+$('#inspector').addEventListener('change', (e) => {
     handleBound(e.target, 'change');
-    // Felder, die andere Felder ein-/ausblenden, sofort neu zeichnen
     const path = e.target.dataset && e.target.dataset.path;
-    if (['props.pose', 'props.isPatient', 'props.canSpread', 'props.attachTo', 'props.patient.profile', 'props.patient.destination'].includes(path)) {
+    if (['props.pose', 'props.isPatient', 'props.canSpread', 'props.patient.profile', 'props.patient.destination'].includes(path)) {
         pushEdit.flush();
-        setTimeout(() => renderRight(true), 0);
+        setTimeout(() => renderInspector(true), 0);
     }
 });
 
 /* ------------------------------------------------------------------ */
-/* Viewport: Maus                                                      */
+/* Viewport: Maus und Tastatur                                         */
 /* ------------------------------------------------------------------ */
 const vp = $('#viewport');
 let down = null;
-let look = { active: false, dx: 0, dy: 0 };
+const look = { active: false, dx: 0, dy: 0 };
 vp.addEventListener('contextmenu', e => e.preventDefault());
 vp.addEventListener('mousedown', (e) => {
     if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur();
     if (e.button === 0) down = { x: e.clientX, y: e.clientY };
-    if (e.button === 2) {
-        look.active = true;
-        try { vp.requestPointerLock && vp.requestPointerLock(); } catch (x) { /* */ }
-    }
+    if (e.button === 2) { look.active = true; try { vp.requestPointerLock && vp.requestPointerLock(); } catch (x) { /* */ } }
 });
 window.addEventListener('mouseup', (e) => {
     if (e.button === 0 && down) {
-        const moved = Math.abs(e.clientX - down.x) + Math.abs(e.clientY - down.y);
-        if (moved < 6 && e.target === vp) post('viewportClick', { button: 0, shift: e.shiftKey, ctrl: e.ctrlKey, alt: e.altKey }, true)
-            .then(r => { if (!r.ok && r.error) toast('error', r.error); });
+        if (Math.abs(e.clientX - down.x) + Math.abs(e.clientY - down.y) < 6 && e.target === vp) {
+            post('viewportClick', { button: 0, shift: e.shiftKey, ctrl: e.ctrlKey, alt: e.altKey }, true).then(r => { if (!r.ok && r.error) toast('error', r.error); });
+        }
         down = null;
     }
-    if (e.button === 2 && look.active) {
-        look.active = false;
-        try { document.exitPointerLock && document.exitPointerLock(); } catch (x) { /* */ }
-    }
+    if (e.button === 2 && look.active) { look.active = false; try { document.exitPointerLock && document.exitPointerLock(); } catch (x) { /* */ } }
 });
-window.addEventListener('mousemove', (e) => {
-    if (look.active) { look.dx += e.movementX; look.dy += e.movementY; }
-});
+window.addEventListener('mousemove', (e) => { if (look.active) { look.dx += e.movementX; look.dy += e.movementY; } });
 setInterval(() => {
-    if (look.dx || look.dy) {
-        const dx = look.dx, dy = look.dy;
-        look.dx = 0; look.dy = 0;
-        post('look', { dx, dy }, true);
-    }
+    if (look.dx || look.dy) { const dx = look.dx, dy = look.dy; look.dx = 0; look.dy = 0; post('look', { dx, dy }, true); }
 }, 25);
 let lastWheel = 0;
 vp.addEventListener('wheel', (e) => {
@@ -1323,34 +1124,28 @@ vp.addEventListener('wheel', (e) => {
     post('wheel', { delta: e.deltaY < 0 ? 1 : -1, shift: e.shiftKey, ctrl: e.ctrlKey, alt: e.altKey }, true);
 }, { passive: false });
 
-/* ------------------------------------------------------------------ */
-/* Tastatur                                                            */
-/* ------------------------------------------------------------------ */
-document.addEventListener('focusin', (e) => {
-    if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) post('inputFocus', { focused: true }, true);
-});
-document.addEventListener('focusout', (e) => {
-    if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) post('inputFocus', { focused: false }, true);
-});
+const isField = el => el && ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName);
+document.addEventListener('focusin', e => { if (isField(e.target)) post('inputFocus', { focused: true }, true); });
+document.addEventListener('focusout', e => { if (isField(e.target)) post('inputFocus', { focused: false }, true); });
 
 document.addEventListener('keydown', async (e) => {
-    // Overlays der Einsatzkraefte
     if (e.key === 'Escape') {
-        if (!$('#actionMenu').classList.contains('hidden')) { closeActionMenu(); return; }
-        if (!$('#infoPanel').classList.contains('hidden')) { closeInfoPanel(); return; }
+        if (!$('#actionMenu').classList.contains('hidden')) return closeActionMenu();
+        if (!$('#infoPanel').classList.contains('hidden')) return closeInfoPanel();
     }
     if (!S.open) return;
-    const typing = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement && document.activeElement.tagName);
+    const typing = isField(document.activeElement);
+    const dialogOpen = !$('#dialog').classList.contains('hidden');
     if (e.key === 'Escape') {
         e.preventDefault();
-        if (!$('#modal').classList.contains('hidden')) { closeModal(false); return; }
-        if (typing) { document.activeElement.blur(); return; }
+        if (dialogOpen) return closeDialog(false);
+        if (typing) return document.activeElement.blur();
         const r = await post('key', { key: 'Escape' }, true);
         if (r.ok && r.data && r.data.result === 'close') requestClose();
         return;
     }
-    if (e.ctrlKey && (e.key === 's' || e.key === 'S')) { e.preventDefault(); saveScenario(); return; }
-    if (typing || !$('#modal').classList.contains('hidden')) return;
+    if (e.ctrlKey && (e.key === 's' || e.key === 'S')) { e.preventDefault(); return saveScenario(); }
+    if (typing || dialogOpen) return;
     const keys = ['Delete', 'g', 'G', 'f', 'F', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown'];
     if (keys.includes(e.key) || (e.ctrlKey && (e.key === 'd' || e.key === 'D'))) {
         e.preventDefault();
@@ -1359,91 +1154,83 @@ document.addEventListener('keydown', async (e) => {
 });
 
 /* ------------------------------------------------------------------ */
-/* Modal                                                               */
+/* Dialoge                                                             */
 /* ------------------------------------------------------------------ */
-let modalResolve = null;
-function confirmBox(title, text, okLabel = 'OK', danger = false) {
+let dialogResolve = null;
+function openDialog(html, size = '') {
+    $('#dialog').innerHTML = `<div class="dialog ${size}">${html}</div>`;
+    $('#dialog').classList.remove('hidden');
+}
+function closeDialog(result) {
+    $('#dialog').classList.add('hidden');
+    $('#dialog').innerHTML = '';
+    if (dialogResolve) { const r = dialogResolve; dialogResolve = null; r(result ?? null); }
+}
+$('#dialog').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-d]');
+    if (b) return closeDialog(b.dataset.d === 'yes' ? ($('#dlgChoice') ? $('#dlgChoice').value : true) : null);
+    if (e.target.id === 'dialog') closeDialog(null);
+});
+const dialogHead = title => `<div class="dialog__header"><div class="dialog__title">${esc(title)}</div><button class="btn btn--ghost btn--icon btn--sm" data-d="no">${icon('xmark')}</button></div>`;
+function confirmBox(title, text, okLabel = 'OK', variant = 'primary') {
     return new Promise((resolve) => {
-        modalResolve = resolve;
-        $('#modal').innerHTML = `<div class="box"><h2>${esc(title)}</h2><p>${esc(text)}</p>
-            <div class="buttons"><button data-m="no">Abbrechen</button><button data-m="yes" class="${danger ? 'live' : 'primary'}">${esc(okLabel)}</button></div></div>`;
-        $('#modal').classList.remove('hidden');
+        dialogResolve = v => resolve(v === true);
+        openDialog(`${dialogHead(title)}<div class="dialog__body"><p>${esc(text)}</p></div>
+            <div class="dialog__footer"><button class="btn btn--ghost" data-d="no">Abbrechen</button><button class="btn btn--${variant}" data-d="yes">${esc(okLabel)}</button></div>`, 'dialog--sm');
     });
 }
-function closeModal(result) {
-    $('#modal').classList.add('hidden');
-    $('#modal').innerHTML = '';
-    if (modalResolve) { const r = modalResolve; modalResolve = null; r(!!result); }
+function chooseBox(title, text, options) {
+    return new Promise((resolve) => {
+        dialogResolve = v => resolve(v === null ? null : v);
+        openDialog(`${dialogHead(title)}<div class="dialog__body"><p>${esc(text)}</p>
+            <select class="select" id="dlgChoice">${options.map(([v, l]) => `<option value="${esc(v)}">${esc(l)}</option>`).join('')}</select></div>
+            <div class="dialog__footer"><button class="btn btn--ghost" data-d="no">Abbrechen</button><button class="btn btn--primary" data-d="yes">Weiter</button></div>`, 'dialog--sm');
+    });
 }
-$('#modal').addEventListener('click', (e) => {
-    const b = e.target.closest('[data-m]');
-    if (b) closeModal(b.dataset.m === 'yes');
-    else if (e.target.id === 'modal') closeModal(false);
-});
+function showHelp() {
+    const rows = [['W A S D', 'Kamera bewegen'], ['Q / E', 'Kamera runter / hoch'], ['Shift / Strg', 'Schneller / langsamer'], ['Rechte Maustaste', 'Kamera drehen'],
+        ['Linksklick', 'Setzen / auswählen'], ['Mausrad', 'Drehen (Alt: fein)'], ['Shift + Mausrad', 'Größe / Radius'], ['Strg + Mausrad', 'Höhe'],
+        ['G', 'Verschieben'], ['Pfeiltasten', 'Fein verschieben'], ['Bild ↑ / ↓', 'Höhe fein'], ['Strg + D', 'Duplizieren'], ['Entf', 'Löschen'],
+        ['F', 'Kamera zum Element'], ['Strg + S', 'Speichern'], ['Esc', 'Abbrechen / schließen']];
+    dialogResolve = null;
+    openDialog(`${dialogHead('Tastenbelegung')}<div class="dialog__body"><dl class="dl" style="grid-template-columns: 9rem 1fr">
+        ${rows.map(([k, v]) => `<dt>${k.split(' ').map(x => ['/', '+'].includes(x) ? `<span class="dim">${x}</span>` : `<span class="kbd">${esc(x)}</span>`).join(' ')}</dt><dd>${esc(v)}</dd>`).join('')}</dl></div>`, 'dialog--sm');
+}
 
 function detailsHtml(d) {
-    const custom = arr(d.custom).map(c => `<span class="k">${esc(c.label)}</span><span>${esc(c.value)}</span>`).join('');
+    const custom = arr(d.custom).map(c => `<dt>${esc(c.label)}</dt><dd>${esc(c.value)}</dd>`).join('');
     const patients = arr(d.patients);
     const fire = d.fire || {};
-    return `<div class="kv">
-            <span class="k">Einsatz-ID</span><span class="mono">${esc(d.id)}</span>
-            <span class="k">Art</span><span>${esc(d.categoryLabel)} · P${esc(d.priority)}</span>
-            <span class="k">Status</span><span>${esc(d.status)} · ${esc(d.phase || '-')}</span>
-            <span class="k">Adresse</span><span>${esc(d.address || '-')}</span>
-            <span class="k">Alarmtext</span><span>${esc(d.alarmText || '-')}</span>
-            <span class="k">Gefahren</span><span>${esc(d.hazards || '-')}</span>
-            <span class="k">Personen</span><span>${esc(d.persons || '-')}</span>
-            <span class="k">Einsatzmittel</span><span>${esc([...arr(d.units), d.unitsText].filter(Boolean).join(', ') || '-')}</span>
-            <span class="k">Feuer</span><span>${fire.burning || 0} brennend, ${fire.smouldering || 0} glimmend, ${d.fireExtinguished || 0} geloescht</span>
-            ${custom}
-        </div>
-        ${d.description ? `<h3>Lage</h3><pre>${esc(d.description)}</pre>` : ''}
-        ${patients.length ? `<h3>Patienten</h3>${patients.map(p => `<div>• ${esc(p.name)} - ${esc(p.severity)} - <b>${esc(p.statusLabel || p.status)}</b>${p.dest ? ` · Ziel: ${esc(p.dest)}` : ''}</div>`).join('')}` : ''}
-        ${d.sop ? `<h3>SOP / Ablauf</h3><pre>${esc(d.sop)}</pre>` : ''}
-        ${arr(d.log).length ? `<h3>Protokoll</h3>${arr(d.log).map(l => `<div class="dim">${fmtTime(l.at)} · ${esc(l.by)}: ${esc(l.text)}</div>`).join('')}` : ''}`;
+    return `<dl class="dl">
+            <dt>Einsatz</dt><dd class="mono">${esc(d.id)}</dd>
+            <dt>Art</dt><dd>${esc(d.categoryLabel)} · P${esc(d.priority)}</dd>
+            <dt>Status</dt><dd>${esc(d.status)} · ${esc(PHASE_LABEL[d.phase] || d.phase || '–')}</dd>
+            <dt>Ort</dt><dd>${esc(d.address || '–')}</dd>
+            <dt>Meldung</dt><dd>${esc(d.alarmText || '–')}</dd>
+            <dt>Gefahren</dt><dd>${esc(d.hazards || '–')}</dd>
+            <dt>Personen</dt><dd>${esc(d.persons || '–')}</dd>
+            <dt>Einsatzmittel</dt><dd>${esc([...arr(d.units), d.unitsText].filter(Boolean).join(', ') || '–')}</dd>
+            <dt>Feuer</dt><dd>${fire.burning || 0} brennend · ${d.fireExtinguished || 0} gelöscht</dd>${custom}</dl>
+        ${d.description ? `<div class="stack"><div class="section-title">Lage</div><div style="white-space:pre-wrap">${esc(d.description)}</div></div>` : ''}
+        ${patients.length ? `<div class="stack"><div class="section-title">Patienten</div><div class="list">${patients.map(p => `<div class="list__item" style="cursor:default">
+            <span class="list__icon">${icon('user-injured')}</span><div class="grow"><div class="list__title">${esc(p.name)}</div>
+            <div class="list__meta">${esc(p.severity)}${p.dest ? ` · Ziel: ${esc(p.dest)}` : ''}</div></div><span class="chip">${esc(p.statusLabel || p.status)}</span></div>`).join('')}</div></div>` : ''}
+        ${d.sop ? `<div class="stack"><div class="section-title">SOP / Ablauf</div><div style="white-space:pre-wrap">${esc(d.sop)}</div></div>` : ''}
+        ${arr(d.log).length ? `<div class="stack"><div class="section-title">Protokoll</div>${arr(d.log).map(l => `<div class="field__hint"><span class="mono">${fmtTime(l.at)}</span> · ${esc(l.by)} · ${esc(l.text)}</div>`).join('')}</div>` : ''}`;
 }
-
-function showDetailsModal(d) {
-    modalResolve = null;
-    $('#modal').innerHTML = `<div class="box"><h2>${esc(d.keyword || d.name)}</h2><p>${esc(d.name)}</p>${detailsHtml(d)}
-        <div class="buttons"><button data-m="no">Schliessen</button></div></div>`;
-    $('#modal').classList.remove('hidden');
-}
-
-function renderAll() {
-    renderTop();
-    renderLeft(true);
-    renderRight(true);
+function showDetails(d) {
+    dialogResolve = null;
+    openDialog(`${dialogHead(d.keyword || d.name)}<div class="dialog__body scroll">${detailsHtml(d)}</div>`, 'dialog--lg');
 }
 
 /* ------------------------------------------------------------------ */
-/* Einsatzkraefte: Alarm, Hinweis, Fortschritt, Menues                 */
+/* Einsatzkraefte vor Ort                                              */
 /* ------------------------------------------------------------------ */
-let alarmTimer = null;
-function showAlarm(d) {
-    const a = d.alarm || {};
-    const box = $('#alarm');
-    box.className = a.mode === 'test' ? 'test' : '';
-    box.innerHTML = `<div class="head"><span class="pulse"></span>
-            <b>${a.reAlarm ? 'NACHALARMIERUNG' : 'ALARM'}</b>
-            ${a.mode === 'test' ? '<span class="badge test">TEST</span>' : ''}
-            <span class="badge right">P${esc(a.priority)}</span></div>
-        <div class="kw mt-s">${esc(a.keyword || a.categoryLabel)}</div>
-        <div class="name">${esc(a.name)} · ${esc(a.categoryLabel)}</div>
-        ${a.alarmText ? `<div class="text">${esc(a.alarmText)}</div>` : ''}
-        <div class="addr">📍 ${esc(a.address || a.street || '')}</div>
-        ${a.patients ? `<div class="mt-s">Patienten: ${esc(a.patients)}</div>` : ''}
-        ${arr(a.units).length ? `<div class="mt-s dim">Einsatzmittel: ${esc(arr(a.units).join(', '))}</div>` : ''}
-        <div class="foot">${esc(d.routeKey)} = Route · ${esc(d.infoKey)} = Einsatzinfos · ${esc(a.id)}</div>`;
-    box.classList.remove('hidden');
-    clearTimeout(alarmTimer);
-    alarmTimer = setTimeout(() => box.classList.add('hidden'), (d.seconds || 25) * 1000);
-}
-
 function showPrompt(d) {
     const box = $('#prompt');
-    if (!d || !d.text) { box.classList.add('hidden'); return; }
-    box.textContent = d.text;
+    if (!d || !d.text) return box.classList.add('hidden');
+    const m = String(d.text).match(/^\[(.+?)\]\s*(.*)$/);
+    box.innerHTML = m ? `<span class="kbd">${esc(m[1])}</span><span>${esc(m[2])}</span>` : esc(d.text);
     box.classList.remove('hidden');
 }
 
@@ -1451,31 +1238,27 @@ function showProgress(d) {
     const box = $('#progress');
     const fill = $('.fill', box);
     if (!d) { box.classList.add('hidden'); fill.style.transition = 'none'; fill.style.width = '0'; return; }
-    $('.label', box).textContent = d.label || '';
-    $('.hint', box).textContent = `[${d.cancelKey || 'X'}] abbrechen · nicht wegbewegen`;
+    $('.label span', box).textContent = d.label || '';
+    $('.hint', box).innerHTML = `<span class="kbd">${esc(d.cancelKey || 'X')}</span> abbrechen · nicht wegbewegen`;
     fill.style.transition = 'none';
     fill.style.width = '0';
     box.classList.remove('hidden');
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-        fill.style.transition = `width ${d.duration}ms linear`;
-        fill.style.width = '100%';
-    }));
+    requestAnimationFrame(() => requestAnimationFrame(() => { fill.style.transition = `width ${d.duration}ms linear`; fill.style.width = '100%'; }));
 }
 
 function showActionMenu(d) {
     const box = $('#actionMenu');
-    box.innerHTML = `<h2>${esc(d.title)}</h2>${arr(d.actions).map(a =>
-        `<button class="act" data-a="${esc(a.id)}" ${a.enabled ? '' : 'disabled'}>${esc(a.label)}${a.reason ? `<small>${esc(a.reason)}</small>` : ''}</button>`).join('')}
-        <button class="act ghost" data-a="__close">Schliessen (Esc)</button>`;
+    box.innerHTML = `<div class="dialog dialog--sm">${`<div class="dialog__header"><div class="dialog__title">${esc(d.title)}</div><button class="btn btn--ghost btn--icon btn--sm" data-a="__close">${icon('xmark')}</button></div>`}
+        <div class="dialog__body"><div class="list">${arr(d.actions).map(a => `<div class="list__item ${a.enabled ? '' : 'is-disabled'}" data-a="${a.enabled ? esc(a.id) : ''}">
+            <span class="list__icon">${icon('hand-holding-medical')}</span><div class="grow"><div class="list__title">${esc(a.label)}</div>${a.reason ? `<div class="list__meta">${esc(a.reason)}</div>` : ''}</div>
+            ${icon('chevron-right', 'dim')}</div>`).join('')}</div></div></div>`;
     box.classList.remove('hidden');
 }
-function closeActionMenu() {
-    $('#actionMenu').classList.add('hidden');
-    post('actionClose', {}, true);
-}
+function closeActionMenu() { $('#actionMenu').classList.add('hidden'); post('actionClose', {}, true); }
 $('#actionMenu').addEventListener('click', (e) => {
+    if (e.target.id === 'actionMenu') return closeActionMenu();
     const b = e.target.closest('[data-a]');
-    if (!b) return;
+    if (!b || !b.dataset.a) return;
     if (b.dataset.a === '__close') return closeActionMenu();
     $('#actionMenu').classList.add('hidden');
     post('actionChoose', { action: b.dataset.a });
@@ -1483,20 +1266,22 @@ $('#actionMenu').addEventListener('click', (e) => {
 
 let cardTimer = null;
 function showPatientCard(d) {
-    const p = d.patient || {};
-    const sev = arr(d.severities).find(s => s.id === p.severity) || {};
-    const v = p.vitals || {};
     const box = $('#patientCard');
-    box.innerHTML = `<div class="row"><b class="grow" style="font-size:15px">${esc(d.name || 'Patient')}</b><span class="dim">Sichtung</span></div>
-        <div class="mt-s"><span class="sev" style="background:${esc(sev.color || '#888')}"></span>${esc(sev.label || p.severity)}</div>
-        <div class="kv"><span class="k">Bewusstsein</span><span>${esc(p.consciousness)}</span>
-            <span class="k">Mobilitaet</span><span>${esc(p.mobility)}</span>
-            <span class="k">Verletzungen</span><span>${esc(arr(p.injuries).join(', ') || '-')}</span>
-            <span class="k">Transport</span><span>${p.transport ? 'erforderlich' : 'nicht erforderlich'}</span></div>
-        <div class="vitals"><div><b>${esc(v.puls)}</b><span>Puls</span></div><div><b>${esc(v.rr)}</b><span>RR</span></div>
-            <div><b>${esc(v.spo2)}</b><span>SpO2</span></div><div><b>${esc(v.af)}</b><span>AF</span></div><div><b>${esc(v.gcs)}</b><span>GCS</span></div></div>
-        ${p.description ? `<div class="mt">${esc(p.description)}</div>` : ''}
-        ${p.measures ? `<div class="mt" style="color:var(--accent-2)">Massnahmen: ${esc(p.measures)}</div>` : ''}`;
+    if (!d) return box.classList.add('hidden');
+    const p = d.patient || {};
+    const v = p.vitals || {};
+    const sevChip = { leicht: 'chip--ok', mittel: 'chip--warn', schwer: 'chip--danger', kritisch: 'chip--danger' }[p.severity] || '';
+    const sev = arr(d.severities).find(s => s.id === p.severity) || {};
+    box.innerHTML = `<div class="card__header"><span class="list__icon">${icon('user-injured')}</span>
+            <div class="grow"><div class="card__title">${esc(d.name || 'Patient')}</div><span class="card__subtitle">Sichtung</span></div>
+            <span class="chip ${sevChip}">${esc((sev.label || p.severity || '').split(' (')[0])}</span></div>
+        <div class="card__body">
+            <div class="vitals">${[['puls', 'Puls'], ['rr', 'RR'], ['spo2', 'SpO₂'], ['af', 'AF'], ['gcs', 'GCS']].map(([k, l]) => `<div class="vital"><b>${esc(v[k] ?? '–')}</b><span>${l}</span></div>`).join('')}</div>
+            <dl class="dl"><dt>Bewusstsein</dt><dd>${esc(p.consciousness)}</dd><dt>Mobilität</dt><dd>${esc(p.mobility)}</dd>
+                <dt>Diagnosen</dt><dd>${esc(arr(p.injuries).join(', ') || '–')}</dd><dt>Transport</dt><dd>${p.transport ? 'erforderlich' : 'nicht erforderlich'}</dd></dl>
+            ${p.description ? `<div class="field__hint">${esc(p.description)}</div>` : ''}
+            ${p.measures ? `<div class="alert alert--info">${icon('kit-medical')}<div>${esc(p.measures)}</div></div>` : ''}
+        </div>`;
     box.classList.remove('hidden');
     clearTimeout(cardTimer);
     cardTimer = setTimeout(() => box.classList.add('hidden'), 30000);
@@ -1504,30 +1289,27 @@ function showPatientCard(d) {
 
 function showInfoPanel(d) {
     const list = arr(d.incidents);
-    const box = $('#infoPanel');
-    box.innerHTML = `<div class="row"><h2 class="grow">Einsatzinformationen</h2><button data-i="close">Schliessen (Esc)</button></div>
-        <div class="body">${list.map(i => `<div class="inc">
-            <div class="row"><span class="badge ${i.mode === 'live' ? 'live' : 'test'}">${i.mode === 'live' ? 'LIVE' : 'TEST'}</span>
-                <b style="font-size:15px">${esc(i.keyword || i.name)}</b>
-                <button class="small right" data-i="route" data-x="${i.center ? i.center.x : 0}" data-y="${i.center ? i.center.y : 0}">Route</button></div>
-            ${detailsHtml(i)}</div>`).join('')}</div>`;
-    box.classList.remove('hidden');
+    $('#infoPanel').innerHTML = `<div class="dialog dialog--lg"><div class="dialog__header"><div class="dialog__title">Einsatzinformationen</div>
+        <button class="btn btn--ghost btn--icon btn--sm" data-i="close">${icon('xmark')}</button></div>
+        <div class="dialog__body scroll">${list.map(i => `<div class="card"><div class="card__header">
+            <div class="grow"><div class="card__title">${esc(i.keyword || i.name)}</div><span class="card__subtitle">${esc(i.name)}</span></div>
+            <button class="btn btn--sm" data-i="route" data-x="${i.center ? i.center.x : 0}" data-y="${i.center ? i.center.y : 0}">${icon('route')} Route</button></div>
+            <div class="card__body">${detailsHtml(i)}</div></div>`).join('')}</div></div>`;
+    $('#infoPanel').classList.remove('hidden');
 }
-function closeInfoPanel() {
-    $('#infoPanel').classList.add('hidden');
-    post('infoClose', {}, true);
-}
+function closeInfoPanel() { $('#infoPanel').classList.add('hidden'); post('infoClose', {}, true); }
 $('#infoPanel').addEventListener('click', (e) => {
+    if (e.target.id === 'infoPanel') return closeInfoPanel();
     const b = e.target.closest('[data-i]');
     if (!b) return;
     if (b.dataset.i === 'close') return closeInfoPanel();
-    if (b.dataset.i === 'route') post('infoRoute', { pos: { x: parseFloat(b.dataset.x), y: parseFloat(b.dataset.y) } });
+    post('infoRoute', { pos: { x: parseFloat(b.dataset.x), y: parseFloat(b.dataset.y) } });
 });
 
-/* ------------------------------------------------------------------ */
-/* Untertitel (Gespraeche und Befunde der Behandlung)                  */
-/* ------------------------------------------------------------------ */
-let subQueue = [], subTimer = null;
+/* Untertitel der Behandlung */
+const subQueue = [];
+let subTimer = null;
+const WHO = { rd: 'Rettungsdienst', pt: 'Patient', info: 'Befund' };
 function showSubtitles(d) {
     const ms = (d && d.ms) || 3500;
     arr(d && d.lines).forEach(l => subQueue.push({ who: l.who, text: l.text, ms }));
@@ -1537,9 +1319,12 @@ function nextSubtitle() {
     const box = $('#subtitles');
     const item = subQueue.shift();
     if (!item) { subTimer = null; setTimeout(() => { if (!subTimer) box.innerHTML = ''; }, 400); return; }
+    const who = ['rd', 'pt', 'info'].includes(item.who) ? item.who : 'info';
+    // Sprecher steht bei Server-Zeilen vor dem Doppelpunkt ("Patient (undeutlich): ...")
+    const m = String(item.text).match(/^([^:]{2,40}):\s(.+)$/);
     const el = document.createElement('div');
-    el.className = `line ${['rd', 'pt', 'info'].includes(item.who) ? item.who : 'info'}`;
-    el.textContent = item.text;
+    el.className = `sub sub--${who}`;
+    el.innerHTML = `<span class="sub__who">${esc(m && who !== 'info' ? m[1] : WHO[who])}</span><span>${esc(m && who !== 'info' ? m[2] : item.text)}</span>`;
     box.appendChild(el);
     while (box.children.length > 3) box.firstChild.remove();
     subTimer = setTimeout(nextSubtitle, item.ms);

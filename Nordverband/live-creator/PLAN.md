@@ -69,3 +69,6 @@ Dieser Plan wird bei jedem Zwischenstand aktualisiert und mitgepusht.
 - ✅ Krankentransport / Verlegung (Transportziel: Klinik, andere Klinik, Zielort)
 - ✅ RD-Notrufe an Leitstelle `fire`
 - ✅ Offline-Tests erweitert (90/90 bestanden)
+- ✅ Keine eigene Alarmierung mehr (keine Popups/Blips/Töne an Jobs) – nur Notruf an EmergencyDispatch
+- ✅ Oberfläche neu im ignis-Stil (dunkel, Geist-Schrift, Seitenleiste, Inspektor), Akzent blau
+- ⬜ Offen: Koordinaten St. Fiacre klären (KH-Liste vs. RTW-Liste)

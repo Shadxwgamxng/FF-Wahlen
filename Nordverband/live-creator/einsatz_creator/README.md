@@ -15,7 +15,7 @@ löschbar. Die Anbindung an eine Leitstelle erfolgt über eine austauschbare Bri
 | Pflicht-Abhängigkeiten | keine |
 | Pflicht | `ox_lib` (Behandlungsmenü) |
 | Eingerichtet für | `qb-core` (Jobs `fire`, `ambulance`, `ambulance2`, Dienststatus), `z_fire` (Feuer/Rauch), `z_hose` (über z_fire), RTW `bftecrtw`/`bftecrtw2`/`bftecrtw3`, NEF und KTW vorerst `ambulance`, `ox_target` (Interaktionen), `emergencydispatch` (Leitstelle) |
-| Fallbacks | ohne z_fire: eigenes Feuersystem (`Config.Fire.backend = 'internal'`), ohne ox_target: Taste E, ohne Leitstelle: interne Alarmierung |
+| Fallbacks | ohne z_fire: eigenes Feuersystem (`Config.Fire.backend = 'internal'`), ohne ox_target: Taste E. Alarmiert wird ausschließlich über EmergencyDispatch |
 
 ## 2. Installation
 
@@ -47,9 +47,6 @@ add_ace group.admin einsatzcreator.delete allow    # fremde Szenarien löschen
 # add_ace group.feuerwehr einsatzcreator.role.fire allow
 # add_ace group.rettungsdienst einsatzcreator.role.ems allow
 # add_ace group.polizei einsatzcreator.role.police allow
-
-# --- Wer bekommt Testalarme zusätzlich zum Auslösenden? ---
-# add_ace group.admin einsatzcreator.testempfang allow
 ```
 
 4. Mit Framework: Jobnamen der Rollen in `config.lua` → `Config.Roles` prüfen.
@@ -76,10 +73,14 @@ Der Charakter wird eingefroren, eine freie Kamera und die Oberfläche öffnen si
 | Strg+S | speichern |
 | Esc | Werkzeug abbrechen → Auswahl aufheben → schließen |
 
-**Ablauf:** Einsatzart oben wählen → *Einsatzort* setzen → Elemente aus *Werkzeuge* setzen →
-im Tab *Einsatz* Stichwort, Alarmtext, Lage, Gefahren usw. ausfüllen → *Speichern* →
-*Test* (nur Auslösender + Testempfänger werden alarmiert, keine Leitstellenübergabe) oder
-*LIVE*. Im Tab *Aktiv* werden laufende Einsätze verwaltet (Phase, Nachalarmieren, Beenden, Abbrechen).
+**Oberfläche:** links die Seitenleiste (Werkzeuge, Einsatzdaten, Elemente, Szenarien, Aktive Einsätze,
+Zufallseinsätze, Tastenbelegung), daneben die jeweilige Seite, rechts öffnet sich der Inspektor nur,
+wenn ein Element ausgewählt ist. Gestaltet nach dem ignis-Design (dunkel, Geist-Schrift), Akzent blau.
+
+**Ablauf:** *Einsatzort* setzen → Elemente aus *Werkzeuge* setzen → unter *Einsatzdaten* Einsatzart,
+Stichwort, Notrufmeldung, Lage, Gefahren usw. ausfüllen → *Speichern* →
+*Testen* (Szene wird aufgebaut, nur der Auslösende bekommt eine Info, **keine** Übergabe an die Leitstelle) oder
+*An Leitstelle übergeben*. Unter *Aktive Einsätze* werden laufende Einsätze verwaltet (Phase, erneut melden, Beenden, Abbrechen).
 
 Werkzeuge: Fahrzeug, Objekt, Absperrlinie, Feuer, Rauch, NPC/Patient, Position/Fundstelle,
 Einsatzgebiet, Tür (echte Kartentür wird erkannt und verriegelt), Betriebsstoff/Ölspur.
@@ -88,8 +89,7 @@ Feuer/Rauch lassen sich an Fahrzeuge/Objekte koppeln, NPCs in Fahrzeuge setzen (
 ### Einsatzkräfte
 | Befehl / Taste | Funktion |
 |---|---|
-| Alarm | Popup, Blips (Einsatzort, Gebiete, Positionen), Ton |
-| `/einsatzroute` | GPS zum letzten Einsatz |
+| Alarmierung | ausschließlich über EmergencyDispatch (der Creator alarmiert keine Jobs/Spieler selbst) |
 | `/einsatzinfo` | Lage, Gefahren, SOP, Patientenübersicht, Protokoll |
 | ox_target an Patient/Tür/Ölspur/Fundstelle | passende Maßnahmen je Rolle und Zustand (ohne ox_target: Taste `E`) |
 | `X` | laufende Maßnahme abbrechen |
@@ -172,7 +172,7 @@ Zuordnung Rolle → Leitstelle und Meldungstext: `Config.EmergencyDispatch` (fir
 Stichwort-Auswahl und Alarmierung nach AAO macht der Disponent in EmergencyDispatch.
 EmergencyDispatch bietet **keine** Schnittstelle für Statusänderungen oder das Beenden von Einsätzen;
 diese werden zusätzlich als `einsatzcreator:bridge:*`-Events ausgelöst (siehe unten).
-Die interne Alarmierung ist abgeschaltet (`Config.Dispatch.internalAlarm = false`), `/einsatzinfo` funktioniert weiter.
+Der Creator alarmiert selbst keine Jobs oder Spieler (keine Popups, Blips oder Töne) – das übernimmt EmergencyDispatch. `/einsatzinfo` funktioniert weiter.
 
 ### Ausgehend (Creator → Leitstelle)
 Adapter `event` löst lokale Server-Events dieser Resource aus:
@@ -241,8 +241,8 @@ EmergencyDispatch-Notrufe, Zufallseinsätze und Rechte durch.
 - [ ] VU ohne Vorlage aufbauen: 2 Fahrzeuge, NPC eingeklemmt im Fahrzeug, Trümmer, Ölspur
 - [ ] Türöffnung: echte Tür anklicken, Patient hinter der Tür verknüpfen
 - [ ] Speichern, Creator schließen, wieder öffnen, Szenario laden → identisch
-- [ ] Test auslösen → nur Auslösender alarmiert, `[TEST]`-Blip, keine Bridge-Events
-- [ ] Live auslösen → Rollen alarmiert, Bridge `created`
+- [ ] Test auslösen → Szene steht, nur Auslösender bekommt eine Info, kein Notruf in EmergencyDispatch
+- [ ] An Leitstelle übergeben → Notruf erscheint in EmergencyDispatch (Job `fire`), Bridge `created`
 - [ ] Mit z_hose löschen (Wasser/Schaum), Glutnest nachlöschen; Rauch verschwindet danach
 - [ ] Patient: befreien → sichten → versorgen → RTW einladen → Klinik übergeben
 - [ ] Tür öffnen, Ölspur abstreuen, Fundstelle sichern
@@ -259,3 +259,7 @@ EmergencyDispatch-Notrufe, Zufallseinsätze und Rechte durch.
 - Die Ölspur ist ein GTA-Decal und wird lokal auf jedem Client gezeichnet.
 - Die Türverriegelung nutzt das GTA-Türsystem. Bei Konflikten mit einem Doorlock-Script
   `Config.Doors.useDoorSystem = false` setzen (Tür bleibt dann eine logische Station).
+
+## Lizenzen der mitgelieferten Oberflächen-Dateien
+- Font Awesome Free 6.7.2 (Icons: CC BY 4.0, Schrift: SIL OFL 1.1) – `html/vendor/fontawesome/LICENSE.txt`
+- Geist / Geist Mono (Vercel, SIL OFL 1.1) – `html/vendor/geist/OFL.txt`
