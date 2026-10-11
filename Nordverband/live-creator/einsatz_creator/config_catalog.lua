@@ -121,7 +121,9 @@ Catalog.Vehicles = {
     { label = 'Motorraeder / Raeder', models = { 'sanchez', 'bati', 'pcj', 'faggio', 'akuma', 'hexer', 'daemon', 'ruffian', 'vader', 'double', 'bagger', 'bmx', 'scorcher' } },
     { label = 'Busse', models = { 'bus', 'coach', 'airbus' } },
     { label = 'Arbeitsmaschinen', models = { 'tractor2', 'forklift', 'bulldozer', 'rubble', 'dump' } },
-    { label = 'Rettungsdienst (Server)', models = { 'bftecrtw', 'bftecrtw2', 'bftecrtw3' } },
+    { label = 'Rettungsdienst: RTW', models = { 'bftecrtw', 'bftecrtw2', 'bftecrtw3' } },
+    { label = 'Rettungsdienst: NEF', models = { 'ambulance' } },
+    { label = 'Rettungsdienst: KTW', models = { 'ambulance' } },
     { label = 'Einsatzfahrzeuge', models = { 'firetruk', 'ambulance', 'police', 'police2', 'police3', 'sheriff', 'fbi', 'riot', 'lguard', 'pbus' } },
 }
 

@@ -61,6 +61,7 @@ Dieser Plan wird bei jedem Zwischenstand aktualisiert und mitgepusht.
 - ✅ Zufallseinsätze (Pool je Szenario, Gewichtung, Tageszeit, Sperrzeit, Mindestbesetzung) – ingame einstellbar
 - ✅ Offline-Tests erweitert (69/69 bestanden)
 - ✅ RTW aus nv_medicDispatches (bftecrtw, bftecrtw2, bftecrtw3, Sitz 3) übernommen
+- ✅ NEF und KTW vorerst mit `ambulance` als Platzhalter
 - ✅ Kliniken aus nv_medicDispatches (KH-Liste) übernommen
 - ✅ Behandlung aus nv_medicDispatches übernommen (Gespräch, Diagnostik, O2, Medikamente, Bodycheck, Wundversorgung, Trage) – serverseitig, ox_lib-Menü
 - ✅ Namen und NPC-Modelle übernommen, neue Notruftexte je Meldebild (Tag/Nacht)

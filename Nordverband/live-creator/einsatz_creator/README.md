@@ -14,7 +14,7 @@ löschbar. Die Anbindung an eine Leitstelle erfolgt über eine austauschbare Bri
 | FXServer | aktueller Build, **OneSync aktiviert** (Fahrzeuge, Objekte und NPCs werden serverseitig erzeugt) |
 | Pflicht-Abhängigkeiten | keine |
 | Pflicht | `ox_lib` (Behandlungsmenü) |
-| Eingerichtet für | `qb-core` (Jobs `fire`, `ambulance`, `ambulance2`, Dienststatus), `z_fire` (Feuer/Rauch), `z_hose` (über z_fire), RTW `bftecrtw`/`bftecrtw2`/`bftecrtw3`, `ox_target` (Interaktionen), `emergencydispatch` (Leitstelle) |
+| Eingerichtet für | `qb-core` (Jobs `fire`, `ambulance`, `ambulance2`, Dienststatus), `z_fire` (Feuer/Rauch), `z_hose` (über z_fire), RTW `bftecrtw`/`bftecrtw2`/`bftecrtw3`, NEF und KTW vorerst `ambulance`, `ox_target` (Interaktionen), `emergencydispatch` (Leitstelle) |
 | Fallbacks | ohne z_fire: eigenes Feuersystem (`Config.Fire.backend = 'internal'`), ohne ox_target: Taste E, ohne Leitstelle: interne Alarmierung |
 
 ## 2. Installation

@@ -232,9 +232,15 @@ Config.Interaction = {
 Config.Rescue = {
     interactDistance = 2.2,
     vehicleDistance = 7.0,    -- Abstand Patient <-> RTW zum Einladen
+    -- Rettungsdienst-Fahrzeuge je Typ (bftecrtw* + Sitz 3 aus nv_medicDispatches Config.Cars;
+    -- NEF und KTW vorerst mit dem GTA-Modell 'ambulance' als Platzhalter)
+    vehicles = {
+        rtw = { 'bftecrtw', 'bftecrtw2', 'bftecrtw3' },
+        nef = { 'ambulance' },
+        ktw = { 'ambulance' },
+    },
     -- Fahrzeugmodelle, in die Patienten eingeladen werden duerfen (leer = jedes Fahrzeug)
-    -- (bftecrtw* + Sitz 3 uebernommen aus nv_medicDispatches Config.Cars)
-    transportVehicles = { 'bftecrtw', 'bftecrtw2', 'bftecrtw3' },
+    transportVehicles = { 'bftecrtw', 'bftecrtw2', 'bftecrtw3', 'ambulance' },
     -- bevorzugter Sitz je Modell (sonst hinten rechts/links/Beifahrer)
     transportSeats = { bftecrtw = 3, bftecrtw2 = 3, bftecrtw3 = 3 },
     -- Tragen (Fahrzeug-Modelle) - Patient kann darauf gelegt werden (aus nv_medicDispatches)
