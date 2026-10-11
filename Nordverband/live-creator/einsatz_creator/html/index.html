@@ -11,15 +11,24 @@
 <body>
     <!-- Creator -->
     <div id="editor" class="hidden">
-        <header id="topbar"></header>
-        <nav id="rail"></nav>
-        <section id="panel">
-            <div id="panelHead"></div>
-            <div id="panelBody" class="scroll"></div>
-        </section>
-        <main id="viewport"></main>
-        <aside id="inspector" class="hidden"></aside>
-        <footer id="statusbar"></footer>
+        <!-- Uebersicht: Szenarien, aktive Einsaetze, Zufall (ohne Kamera) -->
+        <div id="hub" class="hidden">
+            <header id="hubTop"></header>
+            <div id="hubBody" class="scroll"></div>
+        </div>
+        <!-- Szene bauen: freie Kamera -->
+        <div id="scene" class="hidden">
+            <header id="topbar"></header>
+            <nav id="rail"></nav>
+            <section id="panel">
+                <div id="panelHead"></div>
+                <div id="panelBody" class="scroll"></div>
+            </section>
+            <main id="viewport"></main>
+            <aside id="inspector" class="hidden"></aside>
+            <footer id="statusbar"></footer>
+        </div>
+        <div id="wizard" class="hidden"></div>
         <div id="dialog" class="hidden"></div>
     </div>
 

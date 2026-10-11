@@ -1,5 +1,14 @@
 --[[
-    Persistente Speicherung (JSON im Ordner Config.Storage.directory)
+    Persistente Speicherung
+
+    Config.Storage.backend:
+      'oxmysql'  Szenarien, Einstellungen und Verlauf in der Datenbank (Tabellen werden automatisch angelegt)
+      'json'     alles als JSON im Ordner Config.Storage.directory
+      'auto'     oxmysql, wenn die Resource vorhanden ist, sonst json
+    Beim ersten Start mit Datenbank werden vorhandene JSON-Daten einmalig uebernommen.
+    Laufzeitdaten (runtime.json, nur fuer die Bereinigung nach Absturz) liegen immer als Datei vor.
+
+    JSON-Dateien:
 
     Dateien:
       scenarios.json  gespeicherte Szenarien (Vorlagen fuer Einsaetze)
@@ -112,7 +121,7 @@ end
 ----------------------------------------------------------------------------
 -- Szenarien
 ----------------------------------------------------------------------------
-function Storage.loadScenarios()
+local function jsonLoadScenarios()
     Storage.scenarios, Storage.invalid = {}, {}
     local data = Storage.load('scenarios.json')
     if data == false then
@@ -140,7 +149,7 @@ function Storage.loadScenarios()
     U.log('info', '%d Szenarien geladen%s', okCount, badCount > 0 and (' (%d ungueltig)'):format(badCount) or '')
 end
 
-function Storage.saveScenarios()
+local function jsonSaveScenarios()
     if Storage.loadFailed then
         -- Nie eine unlesbare Datei mit einem leeren Stand ueberschreiben, ohne dass bewusst gespeichert wurde
         U.log('warn', 'scenarios.json war beim Start unlesbar; neuer Stand wird jetzt geschrieben (Kopie liegt als .corrupt-*)')
@@ -170,28 +179,286 @@ end
 ----------------------------------------------------------------------------
 -- Einstellungen (ingame aenderbar, z. B. Zufallseinsaetze)
 ----------------------------------------------------------------------------
-function Storage.loadSettings()
+local function jsonLoadSettings()
     local data = Storage.load('settings.json')
     Storage.settings = type(data) == 'table' and data or {}
     return Storage.settings
 end
 
-function Storage.saveSettings()
+local function jsonSaveSettings()
     return Storage.save('settings.json', Storage.settings or {})
 end
 
 ----------------------------------------------------------------------------
 -- Verlauf
 ----------------------------------------------------------------------------
-function Storage.loadHistory()
+local function jsonLoadHistory()
     local data = Storage.load('history.json')
     Storage.history = type(data) == 'table' and data or {}
 end
 
-function Storage.addHistory(entry)
-    table.insert(Storage.history, 1, entry)
+local function trimHistory()
     while #Storage.history > Config.Storage.historyLimit do
         table.remove(Storage.history)
     end
+end
+
+----------------------------------------------------------------------------
+-- Datenbank (oxmysql)
+----------------------------------------------------------------------------
+local DB = {}
+Storage.DB = DB
+local T_SCEN, T_STORE, T_HIST = 'einsatz_creator_scenarios', 'einsatz_creator_store', 'einsatz_creator_history'
+
+local function oxState() return GetResourceState(Config.Storage.mysqlResource or 'oxmysql') end
+
+-- Abfrage ausfuehren. wait = true wartet auf das Ergebnis (nur in einem Thread/Handler moeglich).
+-- Rueckgabe bei wait: Ergebnis | nil bei Fehler/Zeitueberschreitung
+function DB.query(sql, params, wait)
+    local ox = exports[Config.Storage.mysqlResource or 'oxmysql']
+    if not wait then
+        local ok, err = pcall(function() ox:query(sql, params or {}, function() end) end)
+        if not ok then U.log('error', 'Datenbank: %s', tostring(err)) end
+        return ok
+    end
+    local p = promise.new()
+    local ok, err = pcall(function()
+        ox:query(sql, params or {}, function(result) p:resolve({ result }) end)
+    end)
+    if not ok then
+        U.log('error', 'Datenbank: %s', tostring(err))
+        return nil
+    end
+    SetTimeout(15000, function() p:resolve(false) end)
+    local res = Citizen.Await(p)
+    if res == false then
+        U.log('error', 'Datenbank: Zeitueberschreitung bei "%s"', sql:sub(1, 60))
+        return nil
+    end
+    return res[1]
+end
+
+local function enc(v)
+    local ok, s = pcall(json.encode, v)
+    return ok and s or nil
+end
+
+function DB.init()
+    local stmts = {
+        ([[CREATE TABLE IF NOT EXISTS `%s` (
+            `id` VARCHAR(32) NOT NULL,
+            `name` VARCHAR(100) NOT NULL DEFAULT '',
+            `category` VARCHAR(32) NOT NULL DEFAULT '',
+            `keyword` VARCHAR(100) NOT NULL DEFAULT '',
+            `valid` TINYINT(1) NOT NULL DEFAULT 1,
+            `data` LONGTEXT NOT NULL,
+            `updated_at` INT NOT NULL DEFAULT 0,
+            PRIMARY KEY (`id`)
+        ) DEFAULT CHARSET=utf8mb4]]):format(T_SCEN),
+        ([[CREATE TABLE IF NOT EXISTS `%s` (
+            `name` VARCHAR(32) NOT NULL,
+            `data` LONGTEXT NOT NULL,
+            `updated_at` INT NOT NULL DEFAULT 0,
+            PRIMARY KEY (`name`)
+        ) DEFAULT CHARSET=utf8mb4]]):format(T_STORE),
+        ([[CREATE TABLE IF NOT EXISTS `%s` (
+            `id` INT NOT NULL AUTO_INCREMENT,
+            `incident_id` VARCHAR(32) NOT NULL DEFAULT '',
+            `data` LONGTEXT NOT NULL,
+            `ended_at` INT NOT NULL DEFAULT 0,
+            PRIMARY KEY (`id`),
+            KEY `ended_at` (`ended_at`)
+        ) DEFAULT CHARSET=utf8mb4]]):format(T_HIST),
+    }
+    for _, sql in ipairs(stmts) do
+        if DB.query(sql, {}, true) == nil then return false end
+    end
+    return true
+end
+
+local saved = {}   -- id -> zuletzt gespeicherter JSON-Text (nur Geaendertes schreiben)
+
+local function scenarioRow(id, record, valid)
+    local sc = valid and record.scenario or {}
+    local data = enc(record)
+    return {
+        id, U.cleanText(sc.name or '', 100), tostring(sc.category or ''), U.cleanText(sc.keyword or '', 100),
+        valid and 1 or 0, data, os.time(),
+    }, data
+end
+
+function DB.loadScenarios()
+    local rows = DB.query(('SELECT `id`, `valid`, `data` FROM `%s`'):format(T_SCEN), {}, true)
+    if rows == nil then return false end
+    Storage.scenarios, Storage.invalid, saved = {}, {}, {}
+    local okCount, badCount = 0, 0
+    for _, row in ipairs(rows) do
+        local ok, record = pcall(json.decode, row.data or '')
+        local sc, err
+        if ok and type(record) == 'table' and tonumber(row.valid) ~= 0 then
+            sc, err = EC.Schema.normalizeScenario(record.scenario)
+        end
+        if sc then
+            sc.id = row.id
+            Storage.scenarios[row.id] = { scenario = sc, meta = type(record.meta) == 'table' and record.meta or {},
+                random = type(record.random) == 'table' and record.random or nil }
+            okCount = okCount + 1
+        else
+            Storage.invalid[row.id] = ok and record or row.data
+            badCount = badCount + 1
+            U.log('warn', 'Szenario %s ist ungueltig und wird nicht angeboten: %s', tostring(row.id), tostring(err or 'nicht lesbar'))
+        end
+        saved[row.id] = row.data
+    end
+    U.log('info', '%d Szenarien aus der Datenbank geladen%s', okCount, badCount > 0 and (' (%d ungueltig)'):format(badCount) or '')
+    return okCount + badCount
+end
+
+function DB.saveScenarios()
+    local ok = true
+    local present = {}
+    local function upsert(id, record, valid)
+        present[id] = true
+        local params, data = scenarioRow(id, record, valid)
+        if not data then return end
+        if saved[id] == data then return end
+        local r = DB.query(('INSERT INTO `%s` (`id`, `name`, `category`, `keyword`, `valid`, `data`, `updated_at`) VALUES (?, ?, ?, ?, ?, ?, ?) ' ..
+            'ON DUPLICATE KEY UPDATE `name` = VALUES(`name`), `category` = VALUES(`category`), `keyword` = VALUES(`keyword`), ' ..
+            '`valid` = VALUES(`valid`), `data` = VALUES(`data`), `updated_at` = VALUES(`updated_at`)'):format(T_SCEN), params, true)
+        if r == nil then ok = false else saved[id] = data end
+    end
+    for id, record in pairs(Storage.scenarios) do upsert(id, record, true) end
+    for id, record in pairs(Storage.invalid) do upsert(id, type(record) == 'table' and record or { raw = record }, false) end
+    for id in pairs(saved) do
+        if not present[id] then
+            if DB.query(('DELETE FROM `%s` WHERE `id` = ?'):format(T_SCEN), { id }, true) == nil then ok = false
+            else saved[id] = nil end
+        end
+    end
+    return ok
+end
+
+function DB.loadStore(name)
+    local rows = DB.query(('SELECT `data` FROM `%s` WHERE `name` = ?'):format(T_STORE), { name }, true)
+    if rows == nil then return false end
+    if not rows[1] then return nil end
+    local ok, data = pcall(json.decode, rows[1].data or '')
+    return ok and data or nil
+end
+
+function DB.saveStore(name, data)
+    local text = enc(data)
+    if not text then return false end
+    return DB.query(('INSERT INTO `%s` (`name`, `data`, `updated_at`) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE `data` = VALUES(`data`), `updated_at` = VALUES(`updated_at`)'):format(T_STORE),
+        { name, text, os.time() }, true) ~= nil
+end
+
+function DB.loadHistory()
+    local rows = DB.query(('SELECT `data` FROM `%s` ORDER BY `id` DESC LIMIT ?'):format(T_HIST), { Config.Storage.historyLimit }, true)
+    if rows == nil then return false end
+    Storage.history = {}
+    for _, row in ipairs(rows) do
+        local ok, e = pcall(json.decode, row.data or '')
+        if ok and type(e) == 'table' then Storage.history[#Storage.history + 1] = e end
+    end
+    return #rows
+end
+
+-- Verlaufseintrag schreiben (ohne zu warten, funktioniert auch beim Stoppen der Resource)
+function DB.addHistory(entry)
+    local text = enc(entry)
+    if not text then return end
+    DB.query(('INSERT INTO `%s` (`incident_id`, `data`, `ended_at`) VALUES (?, ?, ?)'):format(T_HIST),
+        { tostring(entry.id or ''), text, tonumber(entry.endedAt) or os.time() }, false)
+    DB.historyWrites = (DB.historyWrites or 0) + 1
+    if DB.historyWrites % 50 == 0 then
+        -- alte Eintraege ueber dem Limit entfernen
+        DB.query(('DELETE FROM `%s` WHERE `id` NOT IN (SELECT `id` FROM (SELECT `id` FROM `%s` ORDER BY `id` DESC LIMIT ?) AS t)'):format(T_HIST, T_HIST),
+            { Config.Storage.historyLimit }, false)
+    end
+end
+
+----------------------------------------------------------------------------
+-- Backend-Auswahl und oeffentliche Funktionen
+----------------------------------------------------------------------------
+-- Ermittelt das Backend. Wartet kurz, falls oxmysql noch startet.
+function Storage.detectBackend()
+    local b = Config.Storage.backend or 'auto'
+    if b == 'json' then return 'json' end
+    local deadline = GetGameTimer() + 15000
+    while oxState() ~= 'started' and oxState() ~= 'missing' and GetGameTimer() < deadline do Wait(250) end
+    if oxState() == 'started' then return 'oxmysql' end
+    if b == 'oxmysql' then
+        U.log('error', 'Config.Storage.backend = oxmysql, aber %s laeuft nicht - es wird vorerst als JSON gespeichert', Config.Storage.mysqlResource or 'oxmysql')
+    end
+    return 'json'
+end
+
+-- Laedt alle Daten. Muss in einem Thread aufgerufen werden.
+function Storage.init()
+    Storage.backend = Storage.detectBackend()
+    if Storage.backend == 'oxmysql' then
+        if not DB.init() then
+            U.log('error', 'Datenbanktabellen konnten nicht angelegt werden - es wird als JSON gespeichert')
+            Storage.backend = 'json'
+        end
+    end
+
+    if Storage.backend == 'oxmysql' then
+        local count = DB.loadScenarios()
+        if count == false then
+            Storage.loadFailed = true
+        elseif count == 0 then
+            -- Erster Start mit Datenbank: vorhandene JSON-Daten uebernehmen
+            jsonLoadScenarios()
+            local n = U.tableCount(Storage.scenarios) + U.tableCount(Storage.invalid)
+            if n > 0 then
+                if DB.saveScenarios() then
+                    U.log('info', '%d Szenarien aus scenarios.json in die Datenbank uebernommen', n)
+                else
+                    U.log('error', 'Uebernahme der Szenarien in die Datenbank fehlgeschlagen')
+                end
+            end
+        end
+        local settings = DB.loadStore('settings')
+        if settings == nil then
+            jsonLoadSettings()
+            if next(Storage.settings) then DB.saveStore('settings', Storage.settings) end
+        else
+            Storage.settings = type(settings) == 'table' and settings or {}
+        end
+        local hist = DB.loadHistory()
+        if hist == 0 then
+            jsonLoadHistory()
+            for i = #Storage.history, 1, -1 do DB.addHistory(Storage.history[i]) end
+        elseif hist == false then
+            Storage.history = {}
+        end
+    else
+        jsonLoadScenarios()
+        jsonLoadSettings()
+        jsonLoadHistory()
+    end
+    Storage.ready = true
+    U.log('info', 'Speicherung: %s', Storage.backend == 'oxmysql' and 'Datenbank (oxmysql)' or ('JSON-Dateien im Ordner ' .. Config.Storage.directory))
+end
+
+function Storage.saveScenarios()
+    if Storage.backend == 'oxmysql' then
+        Storage.loadFailed = false
+        return DB.saveScenarios()
+    end
+    return jsonSaveScenarios()
+end
+
+function Storage.saveSettings()
+    if Storage.backend == 'oxmysql' then return DB.saveStore('settings', Storage.settings or {}) end
+    return jsonSaveSettings()
+end
+
+function Storage.addHistory(entry)
+    table.insert(Storage.history, 1, entry)
+    trimHistory()
+    if Storage.backend == 'oxmysql' then return DB.addHistory(entry) end
     Storage.save('history.json', Storage.history)
 end

@@ -65,7 +65,7 @@ end
 
 -- Mausbewegung waehrend gehaltener rechter Maustaste (Pixel-Delta aus der NUI)
 function Cam.addLook(dx, dy)
-    if not Cam.handle then return end
+    if not Cam.handle or State.hub then return end
     local s = Config.Editor.lookSensitivity * 0.02
     local x = U.clamp(Cam.rot.x - dy * s, -89.0, 89.0)
     local z = (Cam.rot.z - dx * s) % 360.0
@@ -75,7 +75,7 @@ end
 function Cam.update(dt)
     if not Cam.handle then return end
 
-    if not State.inputFocused then
+    if not State.inputFocused and not State.hub then
         local speed = Config.Editor.speed * 60.0 * dt
         if IsDisabledControlPressed(0, CONTROLS.fast) then speed = speed * Config.Editor.fastMultiplier end
         if IsDisabledControlPressed(0, CONTROLS.slow) then speed = speed * Config.Editor.slowMultiplier end

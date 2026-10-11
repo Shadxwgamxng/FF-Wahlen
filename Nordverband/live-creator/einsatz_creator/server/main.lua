@@ -30,6 +30,12 @@ local function scenarioSummary(id, record)
         createdAt = meta.createdAt, createdBy = meta.createdBy and meta.createdBy.name or '?',
         updatedAt = meta.updatedAt, updatedBy = meta.updatedBy and meta.updatedBy.name or nil,
         address = sc.info.address,
+        dispatchJob = sc.info.dispatchJob,
+        variants = (function()
+            local v = {}
+            for i, x in ipairs(sc.variants or {}) do v[i] = { label = x.label } end
+            return v
+        end)(),
     }
 end
 
@@ -308,6 +314,7 @@ RegisterNetEvent(EC.Events.request, function(reqId, name, payload)
     if type(reqId) ~= 'number' or type(name) ~= 'string' then return end
     local h = Handlers[name]
     if not h then return respond(src, reqId, false, 'Unbekannte Anfrage') end
+    if not Storage.ready then return respond(src, reqId, false, 'Daten werden noch geladen, bitte kurz warten') end
 
     if not Validate.rate(src, name, h.rate or 300) then
         return respond(src, reqId, false, 'Zu viele Anfragen, bitte kurz warten')
@@ -395,13 +402,11 @@ AddEventHandler('onResourceStart', function(res)
         U.log('error', 'OneSync ist deaktiviert. Der Einsatz-Creator benoetigt OneSync (Fahrzeuge/Objekte/NPCs werden serverseitig erzeugt).')
     end
     Framework.init()
-    Storage.loadScenarios()
-    Storage.loadHistory()
-    Storage.loadSettings()
     CreateThread(function()
+        Storage.init()
         Wait(1000)
         Incidents.recover()
-        U.log('info', 'Einsatz-Creator bereit (Bridge-Adapter: %s, z_hose: %s)', Config.Dispatch.adapter,
+        U.log('info', 'Einsatz-Creator bereit (Bridge-Adapter: %s, Speicherung: %s, z_hose: %s)', Config.Dispatch.adapter, Storage.backend,
             GetResourceState(Config.ZHose.resource) == 'started' and 'erkannt' or 'nicht gestartet')
     end)
 end)

@@ -43,6 +43,12 @@ function GetConvar() return 'on' end
 function Wait(ms) clock = clock + (ms or 0) + 1 end
 function CreateThread() end
 function SetTimeout(_, fn) fn() end
+promise = { new = function()
+    local p = { done = false }
+    function p:resolve(v) if not self.done then self.done, self.value = true, v end end
+    return p
+end }
+Citizen = { Await = function(p) return p.value end }
 
 local netHandlers, eventHandlers, clientEvents, serverEvents, exported = {}, {}, {}, {}, {}
 function RegisterNetEvent(name, fn) if fn then netHandlers[name] = fn end end
@@ -133,6 +139,8 @@ local files_to_load = {
     'server/incidents.lua', 'server/random.lua', 'server/main.lua',
 }
 for _, f in ipairs(files_to_load) do dofile(f) end
+Storage.init()
+local initBackendOk = Storage.backend == 'json' and Storage.ready
 -- Grundtests mit eigenem Feuersystem und Event-Bridge; z_fire/EmergencyDispatch werden weiter unten getestet
 Config.Fire.backend = 'internal'
 Config.Dispatch.adapter = 'event'
@@ -144,6 +152,7 @@ local function check(cond, msg)
     if cond then passed = passed + 1 print('  ok   ' .. msg)
     else failed = failed + 1 print('  FAIL ' .. msg) end
 end
+check(initBackendOk, 'Ohne oxmysql: JSON-Speicherung')
 
 local function fire(name, ...) for _, fn in ipairs(eventHandlers[name] or {}) do fn(...) end end
 
@@ -382,10 +391,10 @@ check(orphan == 0, 'Rollback: keine halb erzeugten Entities')
 CreateVehicleServerSetter = oldCreate
 
 print('Speicherung: Neustart und beschaedigte Datei')
-Storage.loadScenarios()
+Storage.init()
 check(Storage.scenarios[scenarioId] ~= nil, 'Szenario nach Neustart geladen')
 files['data/scenarios.json'] = '{ kaputt'
-Storage.loadScenarios()
+Storage.init()
 check(Storage.scenarios[scenarioId] ~= nil, 'Beschaedigte Datei: Backup geladen')
 local corruptKept = false
 for k in pairs(files) do if k:find('scenarios.json.corrupt', 1, true) then corruptKept = true end end
@@ -432,14 +441,17 @@ for _, ev in ipairs(serverEvents) do if ev.name == 'emergencydispatch:emergencyc
 check(#calls == 1 and calls[1][1] == 'ambulance', 'Fester Job: genau ein Notruf an ambulance (' .. #calls .. ')')
 check(calls[1] and type(calls[1][2]) == 'string' and calls[1][3].x and calls[1][4] == true, 'Notruf-Parameter: job, meldung, coords, true')
 do
-    local fixed = Config.EmergencyDispatch.job
-    Config.EmergencyDispatch.job = nil
+    local before = zinc.scenario.info.dispatchJob
+    check(before == 'ambulance', 'Szenario ohne Auswahl bekommt Vorauswahl ambulance')
+    zinc.scenario.info.dispatchJob = 'fire'
     serverEvents = {}
     Dispatch.created(zinc)
     local c2 = {}
     for _, ev in ipairs(serverEvents) do if ev.name == 'emergencydispatch:emergencycall:new' then c2[#c2 + 1] = ev.args end end
-    check(#c2 == 2 and c2[1][1] ~= c2[2][1], 'Ohne festen Job: ein Notruf je Leitstelle (fire/ems -> fire, police) (' .. #c2 .. ')')
-    Config.EmergencyDispatch.job = fixed
+    check(#c2 == 1 and c2[1][1] == 'fire', 'Im Szenario gewaehlte Leitstelle wird genutzt (' .. #c2 .. ')')
+    local n = EC.Schema.normalizeScenario({ name = 'x', category = 'brand', center = { x = 1, y = 2, z = 3 }, info = { dispatchJob = 'hacker' } })
+    check(n and n.info.dispatchJob == 'ambulance', 'Unbekannte Leitstelle wird auf Vorauswahl gesetzt')
+    zinc.scenario.info.dispatchJob = before
 end
 local foreignId = 'fremd1'
 zf.fires[foreignId] = { origin = { is = true } }
@@ -575,6 +587,62 @@ player.coords = pt1.dest.coords
 ok, res = doAction('p1', 'handover')
 incId = savedInc
 check(ok and pt1.handedOver, 'Uebergabe an Zielklinik')
+
+
+print('Speicherung: Datenbank (oxmysql)')
+do
+    local db = { scen = {}, store = {}, hist = {}, created = 0 }
+    local fakeOx = { query = function(_, sql, params, cb)
+        local r
+        if sql:find('^CREATE TABLE') then db.created = db.created + 1 r = {}
+        elseif sql:find('^SELECT `id`, `valid`, `data`') then
+            r = {} for id, row in pairs(db.scen) do r[#r + 1] = { id = id, valid = row.valid, data = row.data } end
+        elseif sql:find('^INSERT INTO `einsatz_creator_scenarios`') then
+            db.scen[params[1]] = { name = params[2], valid = params[5], data = params[6] } r = { affectedRows = 1 }
+        elseif sql:find('^DELETE FROM `einsatz_creator_scenarios`') then db.scen[params[1]] = nil r = { affectedRows = 1 }
+        elseif sql:find('^SELECT `data` FROM `einsatz_creator_store`') then
+            r = {} if db.store[params[1]] then r[1] = { data = db.store[params[1]] } end
+        elseif sql:find('^INSERT INTO `einsatz_creator_store`') then db.store[params[1]] = params[2] r = {}
+        elseif sql:find('^SELECT `data` FROM `einsatz_creator_history`') then
+            r = {} for i = #db.hist, 1, -1 do r[#r + 1] = { data = db.hist[i] } end
+        elseif sql:find('^INSERT INTO `einsatz_creator_history`') then db.hist[#db.hist + 1] = params[2] r = {}
+        elseif sql:find('^DELETE FROM `einsatz_creator_history`') then r = {}
+        else error('unbekannte Abfrage: ' .. sql) end
+        if cb then cb(r) end
+    end }
+    local oldExports, oldState = exports, GetResourceState
+    exports = setmetatable({}, { __call = oldExports, __index = function(_, k) if k == 'oxmysql' then return fakeOx end return oldExports[k] end })
+    GetResourceState = function(r) if r == 'oxmysql' then return 'started' end return oldState(r) end
+    local jsonCount = EC.Utils.tableCount(Storage.scenarios)
+    Storage.init()
+    check(Storage.backend == 'oxmysql' and db.created == 3, 'oxmysql erkannt, Tabellen angelegt')
+    check(EC.Utils.tableCount(db.scen) == jsonCount and jsonCount > 0, 'Vorhandene JSON-Szenarien in die Datenbank uebernommen (' .. jsonCount .. ')')
+    check(db.store.settings ~= nil or next(Storage.settings) == nil, 'Einstellungen uebernommen')
+    -- Szenario ueber den normalen Weg speichern
+    waitRate()
+    local okSave, resSave = request('getScenario', { id = scenarioId })
+    local sc = okSave and resSave.scenario
+    sc.name = 'DB-Test'
+    waitRate()
+    okSave, resSave = request('saveScenario', { scenario = sc })
+    check(okSave and db.scen[scenarioId] and db.scen[scenarioId].name == 'DB-Test', 'Szenario in der Datenbank aktualisiert')
+    -- "Neustart": alles aus der Datenbank laden
+    Storage.scenarios = {}
+    Storage.init()
+    check(Storage.scenarios[scenarioId] and Storage.scenarios[scenarioId].scenario.name == 'DB-Test', 'Nach Neustart aus der Datenbank geladen')
+    local histBefore = #db.hist
+    Storage.addHistory({ id = 'EC-TEST', name = 'x', endedAt = os.time() })
+    check(#db.hist == histBefore + 1, 'Verlauf in die Datenbank geschrieben')
+    Storage.settings.random = Storage.settings.random or {}
+    Storage.settings.random.enabled = true
+    check(Storage.saveSettings() and db.store.settings and db.store.settings:find('enabled'), 'Einstellungen in der Datenbank gespeichert')
+    waitRate()
+    local okDel = request('deleteScenario', { id = scenarioId })
+    check(okDel and db.scen[scenarioId] == nil, 'Geloeschtes Szenario aus der Datenbank entfernt')
+    -- zurueck auf JSON fuer die restlichen Tests
+    exports, GetResourceState = oldExports, oldState
+    Storage.init()
+end
 
 print('Berechtigungen')
 IsPlayerAceAllowed = function() return false end

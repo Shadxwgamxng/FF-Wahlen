@@ -16,6 +16,7 @@ State = {
     user = '',
     anchor = nil,         -- Bezugspunkt fuer Kamerareichweite
     inputFocused = false,
+    hub = true,            -- Uebersicht offen (keine Kamera-/Weltsteuerung)
     saved = nil,          -- gesicherter Spielerzustand
 }
 
@@ -91,6 +92,7 @@ function OpenCreator()
     State.busy = false
     State.selected = nil
     State.inputFocused = false
+    State.hub = true
 
     local ped = PlayerPedId()
     State.anchor = GetEntityCoords(ped)
@@ -101,7 +103,7 @@ function OpenCreator()
     Cam.create(camPos, vector3(math.max(-60.0, math.min(10.0, camRot.x)), 0.0, camRot.z))
 
     SetNuiFocus(true, true)
-    SetNuiFocusKeepInput(true)
+    SetNuiFocusKeepInput(false)
     NUI.send('editorOpen', {
         catalog = Editor.catalogPayload(),
         config = {
@@ -113,7 +115,8 @@ function OpenCreator()
             statusLabels = EC.StatusLabels,
             patientStatus = EC.PatientStatus,
             fireBackend = EC.fireBackend(),
-            dispatchJobs = Config.EmergencyDispatch and Config.EmergencyDispatch.jobsByRole or {},
+            dispatchJobs = EC.Schema.dispatchJobs(),
+            defaultDispatchJob = EC.Schema.defaultDispatchJob(),
             zfire = {
                 fireEffects = Config.ZFire.fireEffects,
                 smokeEffects = Config.ZFire.smokeEffects,
@@ -170,8 +173,10 @@ function EditorLoop()
 
         local ok, err = pcall(function()
             Cam.update(dt)
-            Editor.frame(dt)
-            Preview.draw(State.selected)
+            if not State.hub then
+                Editor.frame(dt)
+                Preview.draw(State.selected)
+            end
         end)
         if not ok then
             U.log('error', 'Editor: %s', tostring(err))

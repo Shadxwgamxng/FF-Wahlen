@@ -74,6 +74,7 @@ function Dispatch.payload(incident, change)
         units = U.deepcopy(sc.info.units),
         unitsText = sc.info.unitsText,
         roles = U.deepcopy(sc.info.alarmRoles),
+        dispatchJob = sc.info.dispatchJob,
         persons = {
             total = rescue.patients,
             byStatus = rescue.byStatus,
@@ -123,7 +124,9 @@ local function emergencyCall(payload, template)
     local coords = vector3(payload.coords.x, payload.coords.y, payload.coords.z)
     local message = formatMessage(template, payload)
     local jobs, seen = {}, {}
-    if type(cfg.job) == 'string' and cfg.job ~= '' then
+    if type(payload.dispatchJob) == 'string' and payload.dispatchJob ~= '' then
+        jobs[1] = payload.dispatchJob
+    elseif type(cfg.job) == 'string' and cfg.job ~= '' then
         jobs[1] = cfg.job
     else
         for _, role in ipairs(payload.roles or {}) do

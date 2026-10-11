@@ -167,6 +167,7 @@ end
 ----------------------------------------------------------------------------
 function Editor.newDraft(silent)
     Cam.anchorOverride = nil
+    State.autoAddress = nil
     Preview.clear()
     Editor.setTool({ name = 'select' })
     State.draft = Schema.newScenario(Catalog.Categories[1].id)
@@ -179,6 +180,7 @@ end
 
 function Editor.loadScenario(sc, meta)
     Cam.anchorOverride = nil
+    State.autoAddress = nil
     Editor.setTool({ name = 'select' })
     State.draft = sc
     State.meta = meta
@@ -508,7 +510,7 @@ local HINTS = {
 function Editor.frame()
     local t = Editor.tool
     local hit, coords, entity = false, nil, nil
-    if not State.inputFocused then
+    if not State.inputFocused and not State.hub then
         hit, coords, entity = cursorHit()
     end
     Editor.cursorHit = hit and coords or nil
@@ -639,7 +641,11 @@ function Editor.click(button, mods)
             end
         end
         State.draft.center = p
-        State.draft.info.address = addressAt(p)
+        local auto = addressAt(p)
+        if State.draft.info.address == '' or State.draft.info.address == State.autoAddress then
+            State.draft.info.address = auto
+        end
+        State.autoAddress = auto
         Editor.setTool({ name = 'select' })
         Editor.markDirty()
         NUI.toast('success', 'Einsatzort gesetzt: ' .. State.draft.info.address)
@@ -927,9 +933,26 @@ local function mods(data)
     return { shift = data.shift == true, ctrl = data.ctrl == true, alt = data.alt == true }
 end
 
+local function applyKeepInput()
+    if State.open then SetNuiFocusKeepInput(not State.inputFocused and not State.hub) end
+end
+
 NUI.on('inputFocus', function(data)
     State.inputFocused = data.focused == true
-    if State.open then SetNuiFocusKeepInput(not State.inputFocused) end
+    applyKeepInput()
+    return true
+end)
+
+-- Uebersicht (hub) oder Szene bauen (scene)
+NUI.on('setMode', function(data)
+    requireOpen()
+    State.hub = data.mode ~= 'scene'
+    if State.hub then
+        Editor.setTool({ name = 'select' })
+        State.selected = nil
+    end
+    applyKeepInput()
+    Editor.queueState()
     return true
 end)
 
@@ -1075,29 +1098,17 @@ end)
 
 NUI.on('updateInfo', function(data)
     requireOpen()
-    local d = State.draft
-    local p = type(data.patch) == 'table' and data.patch or {}
-    if p.name ~= nil then d.name = U.cleanText(p.name, 64) end
-    if p.category ~= nil and EC.CategoryById[p.category] and p.category ~= d.category then
-        d.category = p.category
-        d.info.custom = {}
-        d.info.alarmRoles = U.deepcopy(EC.CategoryById[p.category].roles or {})
-    end
-    if p.keyword ~= nil then d.keyword = U.cleanText(p.keyword, 64) end
-    if p.priority ~= nil then d.priority = math.floor(U.num(p.priority, 2, 1, 3)) end
-    if type(p.info) == 'table' then
-        for k, v in pairs(p.info) do
-            if k == 'custom' and type(v) == 'table' then
-                for ck, cv in pairs(v) do d.info.custom[ck] = cv end
-            elseif k == 'units' or k == 'alarmRoles' then
-                if type(v) == 'table' then d.info[k] = v end
-            elseif d.info[k] ~= nil then
-                d.info[k] = type(v) == 'string' and U.cleanText(v, 3000) or v
-            end
-        end
-    end
+    Editor.applyInfoPatch(State.draft, type(data.patch) == 'table' and data.patch or {})
     Editor.markDirty()
     return true
+end)
+
+-- Gespeichertes Szenario direkt aus der Uebersicht ausloesen
+NUI.on('triggerScenario', function(data)
+    requireOpen()
+    local mode = data.mode == 'live' and 'live' or 'test'
+    local variant = data.variant == 'random' and 'random' or math.floor(U.num(data.variant, 0, 0, 20))
+    return Request('trigger', { scenarioId = data.id, mode = mode, variant = variant }, 60000)
 end)
 
 NUI.on('cameraToCenter', function()
@@ -1117,9 +1128,45 @@ NUI.on('checkModel', function(data)
     return true, info
 end)
 
-NUI.on('newScenario', function()
+-- Neuer Einsatz: Daten aus dem Assistenten uebernehmen, danach Szene bauen (Einsatzort zuerst)
+local function applyInfoPatch(d, p)
+    if p.name ~= nil then d.name = U.cleanText(p.name, 64) end
+    if p.category ~= nil and EC.CategoryById[p.category] and p.category ~= d.category then
+        d.category = p.category
+        d.info.custom = {}
+        d.info.alarmRoles = U.deepcopy(EC.CategoryById[p.category].roles or {})
+    end
+    if p.keyword ~= nil then d.keyword = U.cleanText(p.keyword, 64) end
+    if p.priority ~= nil then d.priority = math.floor(U.num(p.priority, 2, 1, 3)) end
+    if type(p.info) == 'table' then
+        for k, v in pairs(p.info) do
+            if k == 'custom' and type(v) == 'table' then
+                for ck, cv in pairs(v) do d.info.custom[ck] = cv end
+            elseif k == 'units' or k == 'alarmRoles' then
+                if type(v) == 'table' then d.info[k] = v end
+            elseif k == 'dispatchJob' then
+                if Schema.isDispatchJob(v) then d.info.dispatchJob = v end
+            elseif d.info[k] ~= nil then
+                d.info[k] = type(v) == 'string' and U.cleanText(v, 3000) or v
+            end
+        end
+    end
+end
+Editor.applyInfoPatch = applyInfoPatch
+
+NUI.on('newScenario', function(data)
     requireOpen()
-    Editor.newDraft()
+    Editor.newDraft(true)
+    if type(data) == 'table' and type(data.init) == 'table' then
+        local init = data.init
+        if init.category and EC.CategoryById[init.category] then applyInfoPatch(State.draft, { category = init.category }) end
+        applyInfoPatch(State.draft, init)
+        State.dirty = true
+        State.hub = false
+        applyKeepInput()
+        Editor.setTool({ name = 'center' })
+    end
+    Editor.pushState()
     return true
 end)
 

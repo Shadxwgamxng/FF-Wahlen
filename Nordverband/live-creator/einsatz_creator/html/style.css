@@ -220,8 +220,9 @@ input[type="number"].input { font-family: var(--mono); }
 /* ======================================================================
    Shell des Creators
    ====================================================================== */
-#editor {
-    position: fixed; inset: 0; display: grid;
+#editor { position: fixed; inset: 0; }
+#scene {
+    position: absolute; inset: 0; display: grid;
     grid-template-columns: var(--rail-w) var(--panel-w) minmax(0, 1fr) auto;
     grid-template-rows: var(--topbar-h) minmax(0, 1fr) var(--status-h);
     grid-template-areas: "top top top top" "rail panel view insp" "status status status status";
@@ -348,3 +349,52 @@ input[type="number"].input { font-family: var(--mono); }
 
 .list__item--tight { gap: 0.4rem; padding-left: 0.6rem; padding-right: 0.5rem; }
 .list__item--tight .grow { min-width: 0; }
+
+/* ======================================================================
+   Uebersicht (ohne Kamera)
+   ====================================================================== */
+#hub { position: absolute; inset: 0; display: flex; flex-direction: column; background: rgba(9, 9, 9, 0.96); }
+#hubTop { flex-shrink: 0; display: flex; align-items: center; gap: 1.25rem; height: 56px; padding: 0 1.25rem; border-bottom: 1px solid var(--border); background: var(--bg-2); }
+#hubBody { flex: 1; min-height: 0; }
+.hub__inner { max-width: 1240px; margin: 0 auto; padding: 1.5rem 1.5rem 3rem; display: flex; flex-direction: column; gap: 1.25rem; }
+.hub__head { display: flex; align-items: flex-end; gap: 1rem; }
+.hub__title { color: var(--text); font-size: 1.35rem; font-weight: 600; letter-spacing: -0.02em; }
+.hub__desc { margin-top: 0.25rem; color: var(--text-3); font-size: var(--fs-sm); }
+.tabs { display: flex; align-items: stretch; gap: 0.25rem; height: 100%; }
+.tab { position: relative; display: inline-flex; align-items: center; gap: 0.45rem; padding: 0 0.8rem; border: 0; background: transparent; color: var(--text-3); font: 500 var(--fs-base) var(--font); cursor: pointer; }
+.tab:hover { color: var(--text); }
+.tab.is-active { color: var(--text); }
+.tab.is-active::after { content: ""; position: absolute; left: 0.6rem; right: 0.6rem; bottom: -1px; height: 2px; border-radius: 2px 2px 0 0; background: var(--accent); }
+.tab .rail__count { position: static; margin-left: 0.15rem; }
+.grid-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 0.85rem; align-items: start; }
+.toolbar { display: flex; align-items: center; gap: 0.6rem; }
+.toolbar .input-group { width: 320px; }
+.kv { display: flex; flex-wrap: wrap; gap: 0.35rem 1rem; color: var(--text-3); font-size: var(--fs-sm); }
+.kv b { color: var(--text-2); font-weight: 500; }
+
+/* ======================================================================
+   Assistent: neuer Einsatz / Einsatzdaten
+   ====================================================================== */
+#wizard { position: absolute; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.6); }
+.wizard { width: min(940px, calc(100% - 3rem)); height: min(740px, calc(100% - 3rem)); display: grid; grid-template-columns: 240px minmax(0, 1fr); border: 1px solid var(--fill-3); border-radius: var(--radius-lg); background: var(--surface); box-shadow: var(--shadow-lg); overflow: hidden; animation: pop .22s var(--ease); }
+.wizard__side { display: flex; flex-direction: column; gap: 0.25rem; padding: 1.1rem 0.75rem; background: var(--bg-2); border-right: 1px solid var(--border); }
+.wizard__side .eyebrow { padding: 0 0.5rem; }
+.wizard__name { padding: 0 0.5rem 0.9rem; color: var(--text); font-weight: 600; font-size: 1rem; letter-spacing: -0.015em; }
+.step { display: flex; align-items: center; gap: 0.65rem; padding: 0.55rem 0.5rem; border-radius: var(--radius); color: var(--text-3); font-size: var(--fs-base); cursor: pointer; }
+.step:hover { background: var(--fill-2); color: var(--text-2); }
+.step.is-active { background: var(--accent-soft); color: var(--text); }
+.step__num { width: 22px; height: 22px; flex-shrink: 0; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--border-strong); font-size: 0.68rem; font-weight: 600; }
+.step.is-active .step__num { border-color: var(--accent); background: var(--accent); color: var(--on-accent); }
+.step.is-done .step__num { border-color: var(--ok); color: var(--ok-text); }
+.step.is-error .step__num { border-color: var(--danger); color: var(--danger-text); }
+.wizard__main { display: flex; flex-direction: column; min-height: 0; }
+.wizard__head { padding: 1.1rem 1.4rem 0.9rem; border-bottom: 1px solid var(--fill-2); }
+.wizard__body { flex: 1; min-height: 0; padding: 1.2rem 1.4rem 1.5rem; display: flex; flex-direction: column; gap: 1rem; }
+.wizard__foot { display: flex; align-items: center; gap: 0.5rem; padding: 0.8rem 1.4rem; border-top: 1px solid var(--fill-2); background: var(--bg-2); }
+.req { color: var(--danger-text); margin-left: 0.2rem; }
+.field.has-error .input, .field.has-error .textarea, .field.has-error .select { border-color: var(--danger); }
+.field__error { color: var(--danger-text); font-size: var(--fs-xs); }
+.summary { display: grid; grid-template-columns: 11rem 1fr; gap: 0.45rem 1rem; font-size: var(--fs-base); }
+.summary dt { color: var(--text-3); }
+.summary dd { margin: 0; color: var(--text); white-space: pre-wrap; }
+.crumbs__title { max-width: 22rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); font-weight: 600; font-size: var(--fs-md); }

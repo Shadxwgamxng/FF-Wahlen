@@ -302,6 +302,11 @@ Config.Markers = {
 
 -- Speicherung (JSON im Resource-Ordner)
 Config.Storage = {
+    -- 'auto' = Datenbank ueber oxmysql, wenn vorhanden, sonst JSON-Dateien | 'oxmysql' | 'json'
+    -- Tabellen (einsatz_creator_scenarios, _store, _history) werden automatisch angelegt;
+    -- vorhandene JSON-Daten werden beim ersten Start einmalig in die Datenbank uebernommen.
+    backend = 'auto',
+    mysqlResource = 'oxmysql',
     directory = 'data',       -- relativ zur Resource; bei Updates diesen Ordner NICHT ueberschreiben
     historyLimit = 300,       -- Anzahl gespeicherter beendeter Einsaetze
 }
@@ -331,9 +336,15 @@ Config.Dispatch = {
 ]]
 Config.EmergencyDispatch = {
     resource = 'emergencydispatch',
-    -- Feste Leitstelle (Job) fuer ALLE Einsaetze. Gesetzt = genau ein Notruf je Einsatz an diesen Job,
-    -- unabhaengig von den alarmierten Rollen. nil = Zuordnung ueber jobsByRole.
+    -- Leitstellen (Jobs), die beim Anlegen eines Einsatzes zur Auswahl stehen.
+    -- Jeder Einsatz geht als genau ein Notruf an die dort gewaehlte Leitstelle.
+    jobs = {
+        { job = 'ambulance', label = 'Rettungsdienst (ambulance)' },
+        { job = 'fire', label = 'Feuerwehr (fire)' },
+    },
+    -- Vorauswahl fuer neue Einsaetze (und fuer alte Szenarien ohne Auswahl)
     job = 'ambulance',
+    -- Nur wenn jobs leer ist und job = nil: Zuordnung ueber die alarmierten Rollen
     -- Welche Leitstelle (Job) bekommt den Notruf je alarmierter Rolle? (nur wenn job = nil)
     jobsByRole = {
         fire = 'fire',

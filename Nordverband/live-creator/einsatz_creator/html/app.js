@@ -78,6 +78,7 @@ const store = {
 const S = {
     open: false, catalog: null, config: null, perms: {}, user: '',
     draft: null, meta: null, selected: null, dirty: false, tool: { name: 'select' }, previewHidden: false,
+    mode: 'hub', hubPage: 'scenarios', wiz: null,
     page: 'tools', sub: null, tpl: {}, search: {}, scenarioSearch: '',
     scenarios: [], incidents: { active: [], history: [] }, random: null, randomForm: null,
     status: {}, edit: null, snapshot: null, editId: null,
@@ -115,13 +116,17 @@ const TOOL_NAMES = {
     select: 'Auswahl', place: 'Setzen', move: 'Verschieben', center: 'Einsatzort', line: 'Absperrlinie',
     door: 'Tür wählen', pickTarget: 'Koppeln', pickVehicle: 'Fahrzeug wählen', variant: 'Ortsvariante',
 };
+// Seiten beim Bauen der Szene (mit Kamera)
 const PAGES = [
+    { id: 'place', label: 'Einsatzort', icon: 'crosshairs', eyebrow: 'Szene', desc: 'Hauptposition festlegen und optionale Ortsvarianten setzen.' },
     { id: 'tools', label: 'Werkzeuge', icon: 'shapes', eyebrow: 'Szene', desc: 'Elemente in die Welt setzen. Rechte Maustaste dreht die Kamera.' },
-    { id: 'incident', label: 'Einsatzdaten', icon: 'file-lines', eyebrow: 'Einsatz', desc: 'Stichwort, Lage und Übergabe an EmergencyDispatch.' },
     { id: 'elements', label: 'Elemente', icon: 'layer-group', eyebrow: 'Szene', desc: 'Alle gesetzten Elemente dieses Szenarios.' },
-    { id: 'scenarios', label: 'Szenarien', icon: 'folder-open', eyebrow: 'Verwaltung', desc: 'Gespeicherte Szenarien öffnen, kopieren oder löschen.' },
-    { id: 'active', label: 'Aktive Einsätze', icon: 'tower-broadcast', eyebrow: 'Verwaltung', desc: 'Laufende Einsätze steuern und beenden.' },
-    { id: 'random', label: 'Zufallseinsätze', icon: 'shuffle', eyebrow: 'Verwaltung', desc: 'Einsätze automatisch aus dem Pool auslösen.' },
+];
+// Seiten der Übersicht (ohne Kamera)
+const HUB_PAGES = [
+    { id: 'scenarios', label: 'Einsätze', icon: 'folder-open', desc: 'Gespeicherte Einsätze bearbeiten, testen oder an die Leitstelle übergeben.' },
+    { id: 'active', label: 'Laufende Einsätze', icon: 'tower-broadcast', desc: 'Aktive Einsätze in der Welt steuern und beenden.' },
+    { id: 'random', label: 'Zufallseinsätze', icon: 'shuffle', desc: 'Einsätze automatisch aus dem Pool erzeugen und an EmergencyDispatch übergeben.' },
 ];
 const VEH_TYPES = ['automobile', 'bike', 'boat', 'heli', 'plane', 'trailer', 'train', 'submarine'];
 const SEATS = [[-1, 'Fahrer'], [0, 'Beifahrer'], [1, 'Hinten links'], [2, 'Hinten rechts'], [3, 'Sitz 4'], [4, 'Sitz 5']];
@@ -169,7 +174,7 @@ window.addEventListener('message', (e) => {
         case 'editorClose': onEditorClose(); break;
         case 'state': onState(data); break;
         case 'status': onStatus(data); break;
-        case 'incidents': S.incidents = normIncidents(data); renderRail(); if (S.page === 'active') renderPanel(); break;
+        case 'incidents': S.incidents = normIncidents(data); if (S.mode === 'hub') renderHub(); break;
         case 'toast': toast(data.kind, data.text); break;
         case 'prompt': showPrompt(data); break;
         case 'progress': showProgress(data); break;
@@ -191,15 +196,50 @@ function onEditorOpen(d) {
     S.scenarios = arr(d.scenarios);
     S.incidents = normIncidents(d.incidents);
     S.sub = null;
+    S.wiz = null;
     initTemplates();
     $('#editor').classList.remove('hidden');
-    renderRail();
+    $('#wizard').classList.add('hidden');
+    showMode('hub');
 }
 
 function onEditorClose() {
     S.open = false;
     closeDialog();
+    S.wiz = null;
+    $('#wizard').classList.add('hidden');
     $('#editor').classList.add('hidden');
+}
+
+/* Übersicht <-> Szene */
+function showMode(mode) {
+    S.mode = mode;
+    $('#hub').classList.toggle('hidden', mode !== 'hub');
+    $('#scene').classList.toggle('hidden', mode !== 'scene');
+    if (mode === 'hub') { refreshHubData(); renderHub(); } else { renderTop(); renderRail(); renderPanel(true); renderInspector(true); }
+}
+async function setMode(mode) {
+    await post('setMode', { mode }, true);
+    showMode(mode);
+}
+async function goHub() {
+    flushEdits();
+    if (S.dirty) {
+        const choice = await buttonsBox('Zurück zur Übersicht', 'Es gibt ungespeicherte Änderungen an diesem Einsatz.',
+            [['cancel', 'Abbrechen', 'ghost'], ['discard', 'Verwerfen', 'ghost-danger'], ['save', 'Speichern', 'primary']]);
+        if (!choice || choice === 'cancel') return;
+        if (choice === 'save') { const ok = await saveScenario(); if (!ok) return; }
+    }
+    await post('newScenario', {}, true);
+    S.hubPage = 'scenarios';
+    await setMode('hub');
+}
+async function openScenario(id, copy) {
+    const r = await post('loadScenario', { id, copy });
+    if (!r.ok) return;
+    S.page = 'tools';
+    S.sub = null;
+    await setMode('scene');
 }
 
 function onState(d) {
@@ -218,6 +258,7 @@ function onState(d) {
     if (S.selected !== prev) S.snapshot = el ? clone(el) : null;
     if (!el) { S.edit = null; S.editId = null; }
     else if (!panelBusy('#inspector') || S.editId !== el.id) { S.edit = clone(el); S.editId = el.id; }
+    if (S.mode !== 'scene') return;
     renderTop();
     renderRail();
     renderPanel();
@@ -278,65 +319,63 @@ function renderTop() {
     const cat = arr(S.catalog.categories).find(c => c.id === S.draft.category);
     const initials = (S.user || '?').split(/\s+/).map(x => x[0]).join('').slice(0, 2).toUpperCase();
     $('#topbar').innerHTML = `
-        <div class="wordmark"><span class="wordmark__sign">${icon('tower-broadcast')}</span><span class="wordmark__word">einsatz<span>creator</span></span></div>
+        <button class="btn btn--ghost btn--sm" data-act="hub">${icon('arrow-left')} Übersicht</button>
+        <span class="topbar__sep"></span>
         <div class="crumbs">
-            <span class="dim">Szenarien</span><i class="fa-solid fa-chevron-right sep"></i>
-            <input class="crumbs__name" data-scope="info" data-path="name" data-type="text" maxlength="64" placeholder="Unbenanntes Szenario" value="${esc(S.draft.name)}">
+            <span class="crumbs__title">${esc(S.draft.name || 'Unbenannter Einsatz')}</span>
             ${cat ? `<span class="chip chip--outline">${esc(cat.label)}</span>` : ''}
+            ${S.draft.keyword ? `<span class="chip">${esc(S.draft.keyword)}</span>` : ''}
             ${S.draft.id ? `<span class="chip mono">${esc(S.draft.id)}</span>` : '<span class="chip">Neu</span>'}
             ${S.dirty ? '<span class="chip chip--warn chip--dot">Ungespeichert</span>' : (S.draft.id ? '<span class="chip chip--ok chip--dot">Gespeichert</span>' : '')}
         </div>
         <div class="topbar__spacer"></div>
-        <button class="btn btn--ghost btn--sm" data-act="new">${icon('file-circle-plus')} Neu</button>
+        <button class="btn btn--ghost btn--sm" data-act="info">${icon('file-pen')} Einsatzdaten</button>
         <button class="btn btn--ghost btn--sm ${S.previewHidden ? '' : 'is-on'}" data-act="preview">${icon(S.previewHidden ? 'eye-slash' : 'eye')} Vorschau</button>
         <span class="topbar__sep"></span>
         <button class="btn btn--sm" data-act="save">${icon('floppy-disk')} Speichern</button>
         <button class="btn btn--sm" data-act="test" ${S.perms.test ? '' : 'disabled'}>${icon('flask')} Testen</button>
         <button class="btn btn--primary btn--sm" data-act="live" ${S.perms.live ? '' : 'disabled'}>${icon('paper-plane')} An Leitstelle übergeben</button>
         <span class="topbar__sep"></span>
-        <span class="user"><span class="avatar">${esc(initials)}</span>${esc(S.user)}</span>
-        <button class="btn btn--ghost btn--icon" data-act="close" title="Schließen">${icon('xmark')}</button>`;
+        <span class="user"><span class="avatar">${esc(initials)}</span>${esc(S.user)}</span>`;
 }
 
 $('#topbar').addEventListener('click', async (e) => {
     const b = e.target.closest('button[data-act]');
     if (!b) return;
     const act = b.dataset.act;
-    if (act === 'new') {
-        if (S.dirty && !(await confirmBox('Neuer Entwurf', 'Ungespeicherte Änderungen gehen verloren.', 'Verwerfen', 'danger'))) return;
-        post('newScenario');
-    } else if (act === 'save') saveScenario();
+    if (act === 'hub') goHub();
+    else if (act === 'info') openWizard('edit');
+    else if (act === 'save') saveScenario();
     else if (act === 'preview') post('togglePreview');
     else if (act === 'test') triggerIncident('test');
     else if (act === 'live') triggerIncident('live');
-    else if (act === 'close') requestClose();
 });
 $('#topbar').addEventListener('input', e => handleBound(e.target, 'input'));
 $('#topbar').addEventListener('change', e => handleBound(e.target, 'change'));
 
 async function saveScenario() {
     flushEdits();
+    const missing = missingInfo(S.draft);
+    if (missing.length) { toast('error', `Bitte zuerst ausfüllen: ${missing.map(m => m.label).join(', ')}`); openWizard('edit', missing[0].step); return false; }
+    if (!S.draft.center) { toast('error', 'Bitte zuerst den Einsatzort festlegen'); S.page = 'place'; renderRail(); renderPanel(true); return false; }
     const r = await post('saveScenario');
     if (r.ok) {
-        toast('success', `Szenario gespeichert (${r.data.id})`);
+        toast('success', `Einsatz gespeichert (${r.data.id})`);
         if (r.data.scenarios) S.scenarios = arr(r.data.scenarios);
-        if (S.page === 'scenarios') renderPanel(true);
     }
+    return r.ok;
 }
 
 async function triggerIncident(mode) {
     flushEdits();
-    let variant = 0;
-    const vars = arr(S.draft.variants);
-    if (vars.length) {
-        const v = await chooseBox('Einsatzort wählen', 'Für dieses Szenario gibt es Ortsvarianten.',
-            [['0', 'Originalort'], ['random', 'Zufällig'], ...vars.map((x, i) => [String(i + 1), `Variante ${i + 1} – ${x.label || ''}`])]);
-        if (v === null) return;
-        variant = v === 'random' ? 'random' : parseInt(v, 10);
-    }
+    const missing = missingInfo(S.draft);
+    if (missing.length) { toast('error', `Bitte zuerst ausfüllen: ${missing.map(m => m.label).join(', ')}`); return openWizard('edit', missing[0].step); }
+    if (!S.draft.center) { toast('error', 'Bitte zuerst den Einsatzort festlegen'); S.page = 'place'; renderRail(); return renderPanel(true); }
+    const variant = await chooseVariant(arr(S.draft.variants));
+    if (variant === null) return;
     if (mode === 'live') {
         const ok = await confirmBox('An Leitstelle übergeben',
-            `„${S.draft.name || 'Unbenannt'}“ wird in der Welt aufgebaut und als Notruf an EmergencyDispatch übergeben. Die Alarmierung der Fahrzeuge erfolgt dort.` +
+            `„${S.draft.name || 'Unbenannt'}“ wird in der Welt aufgebaut und als Notruf an ${dispatchLabel(S.draft.info.dispatchJob)} übergeben. Die Alarmierung der Fahrzeuge erfolgt in EmergencyDispatch.` +
             (S.dirty ? ' Es wird der aktuelle, ungespeicherte Stand verwendet.' : ''), 'Übergeben', 'primary');
         if (!ok) return;
     }
@@ -346,14 +385,41 @@ async function triggerIncident(mode) {
         toast('success', mode === 'live' ? `Einsatz ${r.data.id} an EmergencyDispatch übergeben` : `Testeinsatz ${r.data.id} aufgebaut (keine Alarmierung)`);
         if (r.data.warnings > 0) toast('warn', `${r.data.warnings} Element(e) konnten nicht erzeugt werden`);
         if (r.data.incidents) S.incidents = normIncidents(r.data.incidents);
-        S.page = 'active';
-        renderRail();
-        renderPanel(true);
+    }
+}
+
+// Ortsvariante wählen (0 = Original). Rückgabe null = abgebrochen
+async function chooseVariant(vars) {
+    if (!vars.length) return 0;
+    const v = await chooseBox('Einsatzort wählen', 'Für diesen Einsatz gibt es Ortsvarianten.',
+        [['0', 'Originalort'], ['random', 'Zufällig'], ...vars.map((x, i) => [String(i + 1), `Variante ${i + 1} – ${x.label || ''}`])]);
+    if (v === null) return null;
+    return v === 'random' ? 'random' : parseInt(v, 10);
+}
+
+const dispatchLabel = job => ((arr(S.config && S.config.dispatchJobs).find(j => j.job === job)) || {}).label || job || 'EmergencyDispatch';
+
+async function triggerSaved(id, mode) {
+    const sc = S.scenarios.find(x => x.id === id);
+    const variant = await chooseVariant(arr(sc && sc.variants));
+    if (variant === null) return;
+    if (mode === 'live') {
+        const ok = await confirmBox('An Leitstelle übergeben',
+            `„${sc ? sc.name : id}“ wird in der Welt aufgebaut und als Notruf an ${dispatchLabel(sc && sc.dispatchJob)} übergeben.`, 'Übergeben', 'primary');
+        if (!ok) return;
+    }
+    toast('info', mode === 'live' ? 'Einsatz wird aufgebaut …' : 'Testaufbau läuft …');
+    const r = await post('triggerScenario', { id, mode, variant });
+    if (r.ok) {
+        toast('success', mode === 'live' ? `Einsatz ${r.data.id} an EmergencyDispatch übergeben` : `Testeinsatz ${r.data.id} aufgebaut (keine Alarmierung)`);
+        if (r.data.warnings > 0) toast('warn', `${r.data.warnings} Element(e) konnten nicht erzeugt werden`);
+        if (r.data.incidents) S.incidents = normIncidents(r.data.incidents);
+        S.hubPage = 'active';
+        renderHub();
     }
 }
 
 async function requestClose() {
-    if (S.dirty && !(await confirmBox('Creator schließen', 'Es gibt ungespeicherte Änderungen. Trotzdem schließen?', 'Schließen', 'danger'))) return;
     post('close');
 }
 
@@ -362,11 +428,11 @@ async function requestClose() {
 /* ------------------------------------------------------------------ */
 function renderRail() {
     if (!S.open) return;
-    const activeCount = S.incidents.active.filter(i => i.status === 'aktiv').length;
     $('#rail').innerHTML = PAGES.map(p => `<button class="rail__item ${S.page === p.id ? 'is-active' : ''}" data-page="${p.id}">
-            ${icon(p.icon)}${p.id === 'active' && activeCount ? `<span class="rail__count">${activeCount}</span>` : ''}
+            ${icon(p.icon)}${p.id === 'place' && !(S.draft && S.draft.center) ? '<span class="rail__count">!</span>' : ''}
             <span class="rail__tip">${esc(p.label)}</span></button>`).join('') +
-        `<div class="rail__spacer"></div>
+        `<button class="rail__item" data-page="info">${icon('file-pen')}<span class="rail__tip">Einsatzdaten</span></button>
+         <div class="rail__spacer"></div>
          <button class="rail__item" data-page="help">${icon('keyboard')}<span class="rail__tip">Tastenbelegung</span></button>`;
 }
 
@@ -374,10 +440,8 @@ $('#rail').addEventListener('click', (e) => {
     const b = e.target.closest('[data-page]');
     if (!b) return;
     if (b.dataset.page === 'help') return showHelp();
+    if (b.dataset.page === 'info') return openWizard('edit');
     S.page = b.dataset.page;
-    if (S.page === 'active') post('listIncidents', {}, true).then(r => { if (r.ok) { S.incidents = normIncidents(r.data); renderPanel(true); } });
-    if (S.page === 'scenarios') post('listScenarios', {}, true).then(r => { if (r.ok) { S.scenarios = arr(r.data); renderPanel(true); } });
-    if (S.page === 'random') loadRandom();
     renderRail();
     renderPanel(true);
 });
@@ -386,6 +450,7 @@ $('#rail').addEventListener('click', (e) => {
 /* Panel                                                               */
 /* ------------------------------------------------------------------ */
 function renderPanel(force) {
+    if (S.mode === 'hub') return renderHub();
     if (!S.open || !S.draft) return;
     if (!force && panelBusy('#panel')) { S.pending.panel = true; return; }
     S.pending.panel = false;
@@ -393,7 +458,7 @@ function renderPanel(force) {
     $('#panelHead').innerHTML = `<div class="eyebrow">${esc(p.eyebrow)}</div><div class="page-title">${esc(p.label)}</div><div class="page-desc">${esc(p.desc)}</div>`;
     const body = $('#panelBody');
     const scroll = body.scrollTop;
-    body.innerHTML = ({ tools: pageTools, incident: pageIncident, elements: pageElements, scenarios: pageScenarios, active: pageActive, random: pageRandom })[S.page]();
+    body.innerHTML = ({ tools: pageTools, place: pagePlace, elements: pageElements })[S.page]();
     body.scrollTop = scroll;
 }
 
@@ -518,86 +583,258 @@ const doorFields = (p, pre) => `${fSel('Dringlichkeit', pre + 'urgency', p.urgen
 const spillFields = (p, pre) => `<div class="grid-2">${fSel('Stoff', pre + 'spillKind', p.spillKind, arr(S.catalog.spillKinds).map(k => [k.id, k.label]))}
     ${fNum('Breite (m)', pre + 'width', p.width, { step: 0.25, min: 0.5, max: 8 })}</div>`;
 
-/* ----- Einsatzdaten ----- */
-function pageIncident() {
+/* ----- Einsatzort (Szene) ----- */
+function pagePlace() {
     const d = S.draft;
     const info = d.info;
-    const cats = arr(S.catalog.categories);
-    const cat = cats.find(c => c.id === d.category) || {};
-    const custom = arr(cat.fields).map(f => {
-        const path = `info.custom.${f.key}`;
-        const v = info.custom[f.key];
-        if (f.type === 'checkbox') return fSwitch(f.label, path, v);
-        if (f.type === 'number') return fNum(f.label, path, v ?? 0, { int: true, min: 0 });
-        if (f.type === 'select') return fSel(f.label, path, v ?? arr(f.options)[0], arr(f.options).map(o => [o, o]));
-        if (f.type === 'textarea') return fArea(f.label, path, v);
-        return fText(f.label, path, v, { max: 160 });
-    }).join('');
-    const units = arr(info.units);
-    const roles = arr(info.alarmRoles);
-    const center = d.center ? `${d.center.x.toFixed(1)}  ${d.center.y.toFixed(1)}  ${d.center.z.toFixed(1)}` : 'nicht festgelegt';
-    const jobs = (S.config.dispatchJobs || {});
-    return `<div class="card"><div class="card__header">${icon('file-lines')}<span class="card__title">Allgemein</span></div>
-        <div class="card__body" data-scope="info">
-            ${fSel('Einsatzart', 'category', d.category, cats.map(c => [c.id, c.label]))}
-            ${fText('Einsatzname', 'name', d.name, { max: 64 })}
-            <datalist id="kwlist">${arr(cat.keywords).map(k => `<option value="${esc(k)}">`).join('')}</datalist>
-            <div class="grid-2">${fText('Stichwort', 'keyword', d.keyword, { max: 64, list: 'kwlist' })}
-            ${fSel('Priorität', 'priority', d.priority, arr(S.catalog.priorities).map(p => [p.value, p.label.split(' - ')[0]]), { type: 'int' })}</div>
-        </div></div>
-
+    const center = d.center ? `${d.center.x.toFixed(1)}  ${d.center.y.toFixed(1)}  ${d.center.z.toFixed(1)}` : null;
+    return `${center ? '' : `<div class="alert alert--warn">${icon('crosshairs')}<div><b>Einsatzort fehlt.</b> „Festlegen“ wählen und in die Welt klicken. Erst danach kann der Einsatz gespeichert werden.</div></div>`}
         <div class="card"><div class="card__header">${icon('crosshairs')}<span class="card__title">Einsatzort</span>
-            <span class="chip mono" style="margin-left:auto">${esc(center)}</span></div>
+            ${center ? `<span class="chip mono" style="margin-left:auto">${esc(center)}</span>` : ''}</div>
         <div class="card__body" data-scope="info">
-            <div class="row"><button class="btn btn--sm" data-act="setCenter">${icon('crosshairs')} Festlegen</button>
-                <button class="btn btn--sm btn--ghost" data-act="camCenter" ${d.center ? '' : 'disabled'}>${icon('video')} Kamera</button></div>
-            ${fText('Adresse / Ortsbeschreibung', 'info.address', info.address, { max: 120 })}
+            <div class="row"><button class="btn btn--sm ${center ? '' : 'btn--primary'}" data-act="setCenter">${icon('crosshairs')} Festlegen</button>
+                <button class="btn btn--sm btn--ghost" data-act="camCenter" ${center ? '' : 'disabled'}>${icon('video')} Kamera hin</button></div>
+            ${fText('Adresse / Ortsbeschreibung', 'info.address', info.address, { max: 120, hint: 'Wird beim Festlegen automatisch aus der Karte ergänzt.' })}
         </div></div>
 
         <div class="card"><div class="card__header">${icon('map-location-dot')}<span class="card__title">Ortsvarianten</span><span class="chip" style="margin-left:auto">${d.variants.length}</span></div>
         <div class="card__body">
-            <div class="field__hint">Beim Auslösen kann die ganze Szene an einen dieser Orte verschoben werden. Zufallseinsätze wählen zufällig.</div>
+            <div class="field__hint">Optional. Beim Auslösen kann die ganze Szene an einen dieser Orte verschoben werden. Zufallseinsätze wählen zufällig.</div>
             ${d.variants.length ? `<div class="list">${d.variants.map((v, i) => `<div class="list__item list__item--tight" data-variant="${i}">
                 <span class="list__icon mono">${i + 1}</span>
                 <div class="grow"><input class="input" type="text" data-vfield="label" value="${esc(v.label || '')}" maxlength="48"></div>
                 <input class="input" type="number" data-vfield="h" value="${Math.round(v.h || 0)}" style="width:56px;flex:none" title="Drehung in Grad">
                 <button class="btn btn--ghost btn--icon btn--sm" data-act="varCam" data-i="${i}" title="Kamera">${icon('video')}</button>
                 <button class="btn btn--ghost-danger btn--icon btn--sm" data-act="varDel" data-i="${i}" title="Entfernen">${icon('trash')}</button></div>`).join('')}</div>` : ''}
-            <div class="row"><button class="btn btn--sm" data-act="varAdd">${icon('plus')} Ortsvariante setzen</button>
+            <div class="row"><button class="btn btn--sm" data-act="varAdd" ${center ? '' : 'disabled'}>${icon('plus')} Ortsvariante setzen</button>
                 <button class="btn btn--sm btn--ghost" data-act="varBack">${icon('rotate-left')} Zum Original</button></div>
-        </div></div>
-
-        <div class="card"><div class="card__header">${icon('paper-plane')}<span class="card__title">Übergabe an EmergencyDispatch</span></div>
-        <div class="card__body" data-scope="info">
-            ${fArea('Notrufmeldung', 'info.alarmText', info.alarmText, { max: 300, rows: 3, hint: 'Platzhalter: <span class="mono">{anruf}</span> Notruftext des Meldebilds · <span class="mono">{patient}</span> · <span class="mono">{ziel}</span>' })}
-            <div class="field"><span class="field__label">Leitstellen</span><div class="chips">
-                ${Object.entries(S.config.roles).map(([id, r]) => `<span class="chip chip--toggle ${roles.includes(id) ? 'is-on' : ''}" data-toggle="info.alarmRoles" data-value="${esc(id)}">${esc(r.label)}${jobs[id] ? ` · ${esc(jobs[id])}` : ''}</span>`).join('')}
-            </div><span class="field__hint">Je Leitstelle wird ein Notruf angelegt. Stichwort und Alarmierung legt der Disponent in EmergencyDispatch fest.</span></div>
-        </div></div>
-
-        <div class="card"><div class="card__header">${icon('clipboard-list')}<span class="card__title">Lage</span></div>
-        <div class="card__body" data-scope="info">
-            ${fArea('Einsatzbeschreibung', 'info.description', info.description, { max: 1500, rows: 4 })}
-            ${fArea('Gefahren', 'info.hazards', info.hazards, { max: 600, rows: 2 })}
-            ${fArea('Betroffene Personen', 'info.persons', info.persons, { max: 300, rows: 2 })}
-        </div></div>
-
-        <div class="card"><div class="card__header">${icon('list-check')}<span class="card__title">${esc(cat.label || 'Einsatzart')}</span></div>
-        <div class="card__body" data-scope="info">${custom || '<span class="dim">Keine weiteren Angaben</span>'}</div></div>
-
-        <div class="card"><div class="card__header">${icon('truck-medical')}<span class="card__title">Erwartete Einsatzmittel</span></div>
-        <div class="card__body" data-scope="info">
-            <div class="chips">${arr(S.catalog.units).map(u => `<span class="chip chip--toggle ${units.includes(u) ? 'is-on' : ''}" data-toggle="info.units" data-value="${esc(u)}">${esc(u)}</span>`).join('')}</div>
-            ${fText('Weitere Einsatzmittel', 'info.unitsText', info.unitsText, { max: 200 })}
-        </div></div>
-
-        <div class="card"><div class="card__header">${icon('note-sticky')}<span class="card__title">Intern</span></div>
-        <div class="card__body" data-scope="info">
-            ${fArea('Notizen', 'info.notes', info.notes, { max: 1500, rows: 3, hint: 'Nur im Creator sichtbar.' })}
-            ${fArea('SOP / Ablaufhinweise', 'info.sop', info.sop, { max: 3000, rows: 5, hint: 'Für Einsatzkräfte über /einsatzinfo sichtbar.' })}
-        </div></div>
-        ${S.meta ? `<div class="field__hint">Erstellt ${fmtTime(S.meta.createdAt)} von ${esc((S.meta.createdBy || {}).name || '?')}${S.meta.updatedAt ? ` · geändert ${fmtTime(S.meta.updatedAt)}` : ''}</div>` : ''}`;
+        </div></div>`;
 }
+
+/* ------------------------------------------------------------------ */
+/* Assistent: neuer Einsatz / Einsatzdaten bearbeiten                  */
+/* ------------------------------------------------------------------ */
+const WIZ_STEPS = [
+    { id: 'basis', label: 'Einsatz', title: 'Einsatz', desc: 'Art, Name und Stichwort des Einsatzes.' },
+    { id: 'dispatch', label: 'Leitstelle', title: 'Übergabe an EmergencyDispatch', desc: 'Welche Leitstelle den Notruf bekommt und was der Anrufer meldet.' },
+    { id: 'lage', label: 'Lage', title: 'Lage', desc: 'Was die Einsatzkräfte vor Ort erwartet.' },
+    { id: 'check', label: 'Prüfen', title: 'Zusammenfassung', desc: 'Alles prüfen. Danach wird die Szene in der Welt gebaut.' },
+];
+
+// Pflichtangaben. Rückgabe: Liste { key, label, step }
+function missingInfo(d) {
+    if (!d) return [];
+    const info = d.info || {};
+    const out = [];
+    const need = (ok, key, label, step) => { if (!ok) out.push({ key, label, step }); };
+    need(String(d.name || '').trim(), 'name', 'Einsatzname', 'basis');
+    need(String(d.keyword || '').trim(), 'keyword', 'Stichwort', 'basis');
+    need(String(info.dispatchJob || '').trim(), 'info.dispatchJob', 'Leitstelle', 'dispatch');
+    need(String(info.alarmText || '').trim(), 'info.alarmText', 'Notrufmeldung', 'dispatch');
+    need(String(info.description || '').trim(), 'info.description', 'Einsatzbeschreibung', 'lage');
+    return out;
+}
+
+function openWizard(mode, step) {
+    const d = mode === 'edit' && S.draft ? S.draft : null;
+    const jobs = arr(S.config.dispatchJobs);
+    const cats = arr(S.catalog.categories);
+    const base = d ? { category: d.category, name: d.name, keyword: d.keyword, priority: d.priority, info: clone(d.info) } : {
+        category: (cats[0] || {}).id, name: '', keyword: '', priority: 2,
+        info: { alarmText: '', description: '', address: '', hazards: '', persons: '', units: [], unitsText: '', notes: '', sop: '', custom: {},
+            dispatchJob: S.config.defaultDispatchJob || (jobs[0] || {}).job || '' },
+    };
+    base.info = Object.assign({ units: [], custom: {} }, base.info);
+    base.info.units = arr(base.info.units);
+    base.info.custom = obj(base.info.custom);
+    if (!base.info.dispatchJob) base.info.dispatchJob = S.config.defaultDispatchJob || (jobs[0] || {}).job || '';
+    S.wiz = { mode, step: step || 'basis', data: base, shown: new Set(mode === 'edit' ? WIZ_STEPS.map(x => x.id) : []) };
+    $('#wizard').classList.remove('hidden');
+    renderWizard();
+}
+function closeWizard() {
+    S.wiz = null;
+    $('#wizard').classList.add('hidden');
+    $('#wizard').innerHTML = '';
+}
+
+function wizField(label, key, control, missing, hint, required) {
+    const err = missing.find(m => m.key === key);
+    return `<label class="field ${err ? 'has-error' : ''}"><span class="field__label">${esc(label)}${required ? '<span class="req">*</span>' : ''}</span>${control}
+        ${err ? `<span class="field__error">Pflichtfeld</span>` : (hint ? `<span class="field__hint">${hint}</span>` : '')}</label>`;
+}
+const wInput = (path, value, o = {}) => `<input class="input" type="text" data-wpath="${path}" value="${esc(value ?? '')}" maxlength="${o.max || 200}" ${o.list ? `list="${o.list}"` : ''} placeholder="${esc(o.ph || '')}">`;
+const wArea = (path, value, o = {}) => `<textarea class="textarea" data-wpath="${path}" rows="${o.rows || 3}" maxlength="${o.max || 1500}" placeholder="${esc(o.ph || '')}">${esc(value ?? '')}</textarea>`;
+const wSelect = (path, value, options, type) => `<select class="select" data-wpath="${path}" data-wtype="${type || 'text'}">${options.map(([v, l]) => `<option value="${esc(v)}" ${String(v) === String(value) ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
+
+function wizStepBody(step, d, missing) {
+    const info = d.info;
+    const cats = arr(S.catalog.categories);
+    const cat = cats.find(c => c.id === d.category) || {};
+    const show = m => S.wiz.shown.has(step) ? m : [];
+    const ms = show(missing);
+    if (step === 'basis') {
+        return `${wizField('Einsatzart', 'category', wSelect('category', d.category, cats.map(c => [c.id, c.label])), ms, null, true)}
+            ${wizField('Einsatzname', 'name', wInput('name', d.name, { max: 64, ph: 'z. B. VU B2 Kreuzung Alta Street' }), ms, 'Interner Name, unter dem der Einsatz gespeichert wird.', true)}
+            <datalist id="wkw">${arr(cat.keywords).map(k => `<option value="${esc(k)}">`).join('')}</datalist>
+            <div class="grid-2">${wizField('Stichwort', 'keyword', wInput('keyword', d.keyword, { max: 64, list: 'wkw', ph: 'z. B. VU - Person eingeklemmt' }), ms, null, true)}
+            ${wizField('Priorität', 'priority', wSelect('priority', d.priority, arr(S.catalog.priorities).map(p => [p.value, p.label]), 'int'), ms, null, true)}</div>`;
+    }
+    if (step === 'dispatch') {
+        const jobs = arr(S.config.dispatchJobs);
+        return `<div class="alert alert--info">${icon('circle-info')}<div>Der Einsatz wird als <b>ein Notruf</b> an die gewählte Leitstelle in EmergencyDispatch übergeben, mit der Koordinate des Einsatzorts. Alarmiert wird dort.</div></div>
+            ${wizField('Leitstelle (EmergencyDispatch-Job)', 'info.dispatchJob', wSelect('info.dispatchJob', info.dispatchJob, jobs.map(j => [j.job, j.label])), ms, null, true)}
+            ${wizField('Notrufmeldung', 'info.alarmText', wArea('info.alarmText', info.alarmText, { max: 300, rows: 3, ph: 'Was meldet der Anrufer?' }), ms,
+                'Platzhalter: <span class="mono">{anruf}</span> zufälliger Notruftext des Meldebilds · <span class="mono">{patient}</span> · <span class="mono">{ziel}</span>', true)}
+            ${wizField('Adresse / Ortsbeschreibung', 'info.address', wInput('info.address', info.address, { max: 120, ph: 'optional' }), ms, 'Optional. Wird beim Festlegen des Einsatzorts automatisch aus der Karte ergänzt.')}`;
+    }
+    if (step === 'lage') {
+        const custom = arr(cat.fields).map(f => {
+            const path = `info.custom.${f.key}`;
+            const v = info.custom[f.key];
+            if (f.type === 'checkbox') return `<label class="switch"><input type="checkbox" data-wpath="${path}" data-wtype="bool" ${v ? 'checked' : ''}><span>${esc(f.label)}</span></label>`;
+            if (f.type === 'number') return wizField(f.label, path, `<input class="input" type="number" data-wpath="${path}" data-wtype="int" value="${v ?? 0}" min="0">`, []);
+            if (f.type === 'select') return wizField(f.label, path, wSelect(path, v ?? arr(f.options)[0], arr(f.options).map(o => [o, o])), []);
+            if (f.type === 'textarea') return wizField(f.label, path, wArea(path, v), []);
+            return wizField(f.label, path, wInput(path, v, { max: 160 }), []);
+        }).join('');
+        const units = arr(info.units);
+        return `${wizField('Einsatzbeschreibung', 'info.description', wArea('info.description', info.description, { max: 1500, rows: 4, ph: 'Was ist passiert, was finden die Kräfte vor?' }), ms, null, true)}
+            <div class="grid-2">${wizField('Gefahren', 'info.hazards', wArea('info.hazards', info.hazards, { max: 600, rows: 2, ph: 'optional' }), ms)}
+            ${wizField('Betroffene Personen', 'info.persons', wArea('info.persons', info.persons, { max: 300, rows: 2, ph: 'optional' }), ms)}</div>
+            ${custom ? `<div class="section-title">${esc(cat.label || 'Einsatzart')}</div><div class="grid-2">${custom}</div>` : ''}
+            <div class="field"><span class="field__label">Erwartete Einsatzmittel</span><div class="chips">
+                ${arr(S.catalog.units).map(u => `<span class="chip chip--toggle ${units.includes(u) ? 'is-on' : ''}" data-wtoggle="info.units" data-value="${esc(u)}">${esc(u)}</span>`).join('')}</div></div>
+            ${wizField('Weitere Einsatzmittel', 'info.unitsText', wInput('info.unitsText', info.unitsText, { max: 200, ph: 'optional' }), ms)}
+            ${wizField('SOP / Ablaufhinweise', 'info.sop', wArea('info.sop', info.sop, { max: 3000, rows: 3, ph: 'optional' }), ms, 'Für Einsatzkräfte über /einsatzinfo sichtbar.')}
+            ${wizField('Interne Notizen', 'info.notes', wArea('info.notes', info.notes, { max: 1500, rows: 2, ph: 'optional' }), ms, 'Nur im Creator sichtbar.')}`;
+    }
+    // Zusammenfassung
+    const cat2 = cats.find(c => c.id === d.category) || {};
+    const prio = (arr(S.catalog.priorities).find(p => String(p.value) === String(d.priority)) || {}).label || d.priority;
+    const row = (k, v, req) => `<dt>${esc(k)}</dt><dd>${v ? esc(v) : (req ? '<span class="field__error">fehlt</span>' : '<span class="dim">–</span>')}</dd>`;
+    return `${missing.length ? `<div class="alert alert--warn">${icon('triangle-exclamation')}<div>Es fehlen noch Pflichtangaben: ${missing.map(m => esc(m.label)).join(', ')}.</div></div>` : ''}
+        <dl class="summary">
+            ${row('Einsatzart', cat2.label, true)}${row('Einsatzname', d.name, true)}${row('Stichwort', d.keyword, true)}${row('Priorität', prio, true)}
+            ${row('Leitstelle', dispatchLabel(info.dispatchJob), true)}${row('Notrufmeldung', info.alarmText, true)}${row('Adresse', info.address)}
+            ${row('Einsatzbeschreibung', info.description, true)}${row('Gefahren', info.hazards)}${row('Betroffene Personen', info.persons)}
+            ${row('Einsatzmittel', [...arr(info.units), info.unitsText].filter(Boolean).join(', '))}
+        </dl>
+        ${S.wiz.mode === 'new' ? `<div class="alert alert--info">${icon('crosshairs')}<div>Im nächsten Schritt wird die Szene gebaut: zuerst den <b>Einsatzort</b> in der Welt anklicken, danach Fahrzeuge, Patienten, Feuer usw. setzen.</div></div>` : ''}`;
+}
+
+function renderWizard() {
+    const W = S.wiz;
+    if (!W) return;
+    const d = W.data;
+    const missing = missingInfo(d);
+    const idx = WIZ_STEPS.findIndex(x => x.id === W.step);
+    const st = WIZ_STEPS[idx];
+    const stepState = x => {
+        if (x.id === W.step) return 'is-active';
+        if (!W.shown.has(x.id) || x.id === 'check') return '';
+        return missing.some(m => m.step === x.id) ? 'is-error' : 'is-done';
+    };
+    const last = idx === WIZ_STEPS.length - 1;
+    const scroll = $('.wizard__body', $('#wizard')) ? $('.wizard__body', $('#wizard')).scrollTop : 0;
+    $('#wizard').innerHTML = `<div class="wizard">
+        <aside class="wizard__side">
+            <div class="eyebrow">${W.mode === 'new' ? 'Neuer Einsatz' : 'Einsatzdaten'}</div>
+            <div class="wizard__name">${esc(d.name || 'Unbenannter Einsatz')}</div>
+            ${WIZ_STEPS.map((x, i) => `<div class="step ${stepState(x)}" data-step="${x.id}"><span class="step__num">${stepState(x) === 'is-done' ? icon('check') : stepState(x) === 'is-error' ? '!' : i + 1}</span>${esc(x.label)}</div>`).join('')}
+        </aside>
+        <section class="wizard__main">
+            <div class="wizard__head"><div class="page-title">${esc(st.title)}</div><div class="page-desc">${esc(st.desc)}</div></div>
+            <div class="wizard__body scroll">${wizStepBody(W.step, d, missing)}</div>
+            <div class="wizard__foot">
+                <button class="btn btn--ghost" data-w="cancel">Abbrechen</button>
+                <span class="grow"></span>
+                ${idx > 0 ? `<button class="btn" data-w="back">${icon('arrow-left')} Zurück</button>` : ''}
+                ${last ? `<button class="btn btn--primary" data-w="finish" ${missing.length ? 'disabled' : ''}>${W.mode === 'new' ? `${icon('cube')} Szene bauen` : `${icon('check')} Übernehmen`}</button>`
+                    : `<button class="btn ${W.mode === 'edit' ? '' : 'btn--primary'}" data-w="next">Weiter ${icon('arrow-right')}</button>
+                       ${W.mode === 'edit' ? `<button class="btn btn--primary" data-w="finish">${icon('check')} Übernehmen</button>` : ''}`}
+            </div>
+        </section></div>`;
+    $('.wizard__body', $('#wizard')).scrollTop = scroll;
+}
+
+function wizGo(step) {
+    const W = S.wiz;
+    W.shown.add(W.step);
+    W.step = step;
+    if (step === 'check') WIZ_STEPS.forEach(x => W.shown.add(x.id));
+    renderWizard();
+    $('.wizard__body', $('#wizard')).scrollTop = 0;
+}
+
+$('#wizard').addEventListener('click', async (e) => {
+    const W = S.wiz;
+    if (!W) return;
+    const stepEl = e.target.closest('[data-step]');
+    if (stepEl) return wizGo(stepEl.dataset.step);
+    const chip = e.target.closest('[data-wtoggle]');
+    if (chip) {
+        const list = arr(getPath(W.data, chip.dataset.wtoggle)).slice();
+        const i = list.indexOf(chip.dataset.value);
+        if (i >= 0) list.splice(i, 1); else list.push(chip.dataset.value);
+        setPath(W.data, chip.dataset.wtoggle, list);
+        chip.classList.toggle('is-on');
+        return;
+    }
+    const b = e.target.closest('[data-w]');
+    if (!b) return;
+    const idx = WIZ_STEPS.findIndex(x => x.id === W.step);
+    const act = b.dataset.w;
+    if (act === 'cancel') return closeWizard();
+    if (act === 'back') return wizGo(WIZ_STEPS[idx - 1].id);
+    if (act === 'next') {
+        W.shown.add(W.step);
+        if (missingInfo(W.data).some(m => m.step === W.step)) { renderWizard(); return toast('error', 'Bitte die markierten Pflichtfelder ausfüllen'); }
+        return wizGo(WIZ_STEPS[idx + 1].id);
+    }
+    if (act === 'finish') {
+        const missing = missingInfo(W.data);
+        if (missing.length) return wizGo(missing[0].step);
+        const data = clone(W.data);
+        if (W.mode === 'new') {
+            const r = await post('newScenario', { init: data });
+            if (!r.ok) return;
+            closeWizard();
+            S.page = 'place';
+            S.sub = null;
+            showMode('scene');
+            toast('info', 'Jetzt den Einsatzort in der Welt anklicken');
+        } else {
+            const r = await post('updateInfo', { patch: data });
+            if (!r.ok) return;
+            Object.assign(S.draft, { category: data.category, name: data.name, keyword: data.keyword, priority: data.priority });
+            S.draft.info = Object.assign(S.draft.info, data.info);
+            closeWizard();
+            renderTop();
+            toast('success', 'Einsatzdaten übernommen');
+        }
+    }
+});
+function wizInput(t) {
+    const W = S.wiz;
+    if (!W || !t.dataset.wpath) return;
+    const path = t.dataset.wpath;
+    const type = t.dataset.wtype;
+    let v = t.type === 'checkbox' ? t.checked : t.value;
+    if (type === 'int') v = parseInt(v, 10) || 0;
+    if (path === 'category' && v !== W.data.category) {
+        W.data.category = v;
+        W.data.info.custom = {};
+        return renderWizard();
+    }
+    setPath(W.data, path, v);
+    if (path === 'name') { const n = $('.wizard__name', $('#wizard')); if (n) n.textContent = v || 'Unbenannter Einsatz'; }
+    // Fehlermarkierung live entfernen
+    const f = t.closest('.field');
+    if (f && f.classList.contains('has-error') && String(v).trim()) { f.classList.remove('has-error'); const er = $('.field__error', f); if (er) er.remove(); }
+}
+$('#wizard').addEventListener('input', e => wizInput(e.target));
+$('#wizard').addEventListener('change', e => wizInput(e.target));
 
 /* ----- Elemente ----- */
 function elLabel(e) {
@@ -650,35 +887,87 @@ function pageElements() {
     return html + '</div>';
 }
 
-/* ----- Szenarien ----- */
+/* ------------------------------------------------------------------ */
+/* Übersicht                                                           */
+/* ------------------------------------------------------------------ */
+function refreshHubData() {
+    post('listScenarios', {}, true).then(r => { if (r.ok) { S.scenarios = arr(r.data); if (S.mode === 'hub') renderHub(); } });
+    post('listIncidents', {}, true).then(r => { if (r.ok) { S.incidents = normIncidents(r.data); if (S.mode === 'hub') renderHub(); } });
+    if (S.hubPage === 'random') loadRandom();
+}
+function renderHub(force) {
+    if (!S.open || S.mode !== 'hub') return;
+    const activeCount = S.incidents.active.filter(i => i.status === 'aktiv').length;
+    const initials = (S.user || '?').split(/\s+/).map(x => x[0]).join('').slice(0, 2).toUpperCase();
+    if (!panelBusy('#hubTop')) $('#hubTop').innerHTML = `
+        <div class="wordmark"><span class="wordmark__sign">${icon('tower-broadcast')}</span><span class="wordmark__word">einsatz<span>creator</span></span></div>
+        <nav class="tabs">${HUB_PAGES.map(p => `<button class="tab ${S.hubPage === p.id ? 'is-active' : ''}" data-hub="${p.id}">${icon(p.icon)} ${esc(p.label)}
+            ${p.id === 'active' && activeCount ? `<span class="rail__count">${activeCount}</span>` : ''}</button>`).join('')}</nav>
+        <div class="topbar__spacer"></div>
+        <button class="btn btn--primary btn--sm" data-hubact="new">${icon('plus')} Neuer Einsatz</button>
+        <span class="topbar__sep"></span>
+        <span class="user"><span class="avatar">${esc(initials)}</span>${esc(S.user)}</span>
+        <button class="btn btn--ghost btn--icon" data-hubact="close" title="Schließen (Esc)">${icon('xmark')}</button>`;
+    if (!force && panelBusy('#hubBody')) { S.pending.hub = true; return; }
+    S.pending.hub = false;
+    const p = HUB_PAGES.find(x => x.id === S.hubPage) || HUB_PAGES[0];
+    const body = $('#hubBody');
+    const scroll = body.scrollTop;
+    body.innerHTML = `<div class="hub__inner">
+        <div class="hub__head"><div class="grow"><div class="hub__title">${esc(p.label)}</div><div class="hub__desc">${esc(p.desc)}</div></div>${hubToolbar()}</div>
+        ${({ scenarios: pageScenarios, active: pageActive, random: pageRandom })[S.hubPage]()}</div>`;
+    body.scrollTop = scroll;
+}
+function hubToolbar() {
+    if (S.hubPage === 'scenarios') return `<div class="toolbar"><div class="input-group">${icon('magnifying-glass')}<input class="input" type="text" data-search="scenarios" placeholder="Einsätze durchsuchen" value="${esc(S.scenarioSearch)}"></div></div>`;
+    if (S.hubPage === 'active') return `<div class="toolbar"><button class="btn btn--ghost btn--sm" data-act="refreshInc">${icon('rotate')} Aktualisieren</button></div>`;
+    return '';
+}
+$('#hubTop').addEventListener('click', (e) => {
+    const tab = e.target.closest('[data-hub]');
+    if (tab) {
+        S.hubPage = tab.dataset.hub;
+        if (S.hubPage === 'random') loadRandom();
+        if (S.hubPage === 'active') post('listIncidents', {}, true).then(r => { if (r.ok) { S.incidents = normIncidents(r.data); renderHub(true); } });
+        return renderHub(true);
+    }
+    const b = e.target.closest('[data-hubact]');
+    if (!b) return;
+    if (b.dataset.hubact === 'new') openWizard('new');
+    if (b.dataset.hubact === 'close') requestClose();
+});
+
+/* ----- Einsätze (gespeichert) ----- */
 function pageScenarios() {
     const q = S.scenarioSearch.toLowerCase();
     const list = S.scenarios.filter(s => !q || `${s.name} ${s.keyword} ${s.categoryLabel} ${s.id}`.toLowerCase().includes(q));
-    let html = `<div class="input-group">${icon('magnifying-glass')}<input class="input" type="text" data-search="scenarios" placeholder="Szenarien durchsuchen" value="${esc(S.scenarioSearch)}"></div>`;
-    if (!list.length) return html + `<div class="empty">${icon('folder-open')}Keine gespeicherten Szenarien</div>`;
-    return html + list.map(s => `<div class="card ${S.draft.id === s.id ? 'card--active' : ''}">
+    if (!S.scenarios.length) return `<div class="empty">${icon('folder-open')}Noch keine Einsätze angelegt.<br><br><button class="btn btn--primary" data-act="newSc">${icon('plus')} Ersten Einsatz anlegen</button></div>`;
+    if (!list.length) return `<div class="empty">${icon('magnifying-glass')}Keine Treffer</div>`;
+    return `<div class="grid-cards">` + list.map(s => `<div class="card">
         <div class="card__header"><div class="grow"><div class="card__title">${esc(s.name)}</div><span class="card__subtitle">${esc(s.keyword || '–')}</span></div>
             <span class="chip chip--outline">${esc(s.categoryLabel)}</span></div>
         <div class="card__body"><dl class="dl">
-            <dt>Kennung</dt><dd class="mono">${esc(s.id)}</dd>
-            <dt>Elemente</dt><dd>${s.elements}</dd>
+            <dt>Leitstelle</dt><dd>${esc(dispatchLabel(s.dispatchJob))}</dd>
             ${s.address ? `<dt>Ort</dt><dd>${esc(s.address)}</dd>` : ''}
-            <dt>Geändert</dt><dd>${fmtTime(s.updatedAt || s.createdAt)} · ${esc(s.updatedBy || s.createdBy)}</dd></dl></div>
+            <dt>Szene</dt><dd>${s.elements} Elemente${arr(s.variants).length ? ` · ${arr(s.variants).length} Ortsvarianten` : ''}</dd>
+            <dt>Geändert</dt><dd>${fmtTime(s.updatedAt || s.createdAt)} · ${esc(s.updatedBy || s.createdBy)}</dd>
+            <dt>Kennung</dt><dd class="mono">${esc(s.id)}</dd></dl></div>
         <div class="card__footer">
-            <button class="btn btn--ghost-danger btn--sm" data-act="delSc" data-id="${esc(s.id)}">${icon('trash')}</button>
+            <button class="btn btn--ghost-danger btn--icon btn--sm" data-act="delSc" data-id="${esc(s.id)}" title="Löschen">${icon('trash')}</button>
+            <button class="btn btn--ghost btn--icon btn--sm" data-act="dupSc" data-id="${esc(s.id)}" title="Duplizieren">${icon('clone')}</button>
             <span class="grow"></span>
-            <button class="btn btn--ghost btn--sm" data-act="dupSc" data-id="${esc(s.id)}">${icon('clone')} Duplizieren</button>
-            <button class="btn btn--sm" data-act="copySc" data-id="${esc(s.id)}">Als Kopie</button>
-            <button class="btn btn--primary btn--sm" data-act="openSc" data-id="${esc(s.id)}">Öffnen</button></div></div>`).join('');
+            <button class="btn btn--sm" data-act="openSc" data-id="${esc(s.id)}">${icon('pen')} Bearbeiten</button>
+            <button class="btn btn--sm" data-act="testSc" data-id="${esc(s.id)}" ${S.perms.test ? '' : 'disabled'}>${icon('flask')} Testen</button>
+            <button class="btn btn--primary btn--sm" data-act="liveSc" data-id="${esc(s.id)}" ${S.perms.live ? '' : 'disabled'}>${icon('paper-plane')} Übergeben</button></div></div>`).join('') + `</div>`;
 }
 
 /* ----- Aktive Einsaetze ----- */
 const PHASE_LABEL = { alarmiert: 'Alarmiert', anfahrt: 'Anfahrt', vor_ort: 'Vor Ort', lage_unter_kontrolle: 'Lage unter Kontrolle', nachalarmierung: 'Nachalarmierung', abschluss: 'Abschluss' };
 function pageActive() {
     const act = S.incidents.active;
-    let html = `<div class="row"><span class="section-title grow">${act.length} laufende Einsätze</span><button class="btn btn--ghost btn--sm" data-act="refreshInc">${icon('rotate')} Aktualisieren</button></div>`;
+    let html = '';
     if (!act.length) html += `<div class="empty">${icon('tower-broadcast')}Keine laufenden Einsätze</div>`;
-    html += act.map(i => {
+    html += '<div class="grid-cards">' + act.map(i => {
         const fire = i.fire || {};
         const r = i.rescue || {};
         const pat = Object.entries(obj(r.byStatus)).map(([k, v]) => `${v}× ${S.config.patientStatus[k] || k}`).join(', ');
@@ -704,15 +993,14 @@ function pageActive() {
                 ${errors.length ? `<div class="alert alert--warn">${icon('triangle-exclamation')}<div>${errors.map(esc).join('<br>')}</div></div>` : ''}
             </div>
             <div class="card__footer">
-                <button class="btn btn--ghost btn--icon btn--sm" data-act="incCam" data-id="${esc(i.id)}" title="Kamera">${icon('video')}</button>
-                <button class="btn btn--ghost btn--icon btn--sm" data-act="incWp" data-id="${esc(i.id)}" title="Wegpunkt">${icon('route')}</button>
+                <button class="btn btn--ghost btn--icon btn--sm" data-act="incWp" data-id="${esc(i.id)}" title="Wegpunkt setzen">${icon('route')}</button>
                 <button class="btn btn--ghost btn--sm" data-act="incDetails" data-id="${esc(i.id)}">Details</button>
                 <span class="grow"></span>
-                ${running ? `${i.mode === 'live' ? `<button class="btn btn--ghost btn--sm" data-act="incRealarm" data-id="${esc(i.id)}" title="Erneuten Notruf an EmergencyDispatch">${icon('repeat')} Erneut melden</button>` : ''}
+                ${running ? `${i.mode === 'live' ? `<button class="btn btn--ghost btn--icon btn--sm" data-act="incRealarm" data-id="${esc(i.id)}" title="Erneut an EmergencyDispatch melden">${icon('repeat')}</button>` : ''}
                 <button class="btn btn--ghost-danger btn--sm" data-act="incCancel" data-id="${esc(i.id)}">Abbrechen</button>
                 <button class="btn btn--sm" data-act="incEnd" data-id="${esc(i.id)}">${icon('flag-checkered')} Beenden</button>` : ''}
             </div></div>`;
-    }).join('');
+    }).join('') + '</div>';
     const hist = S.incidents.history;
     if (hist.length) {
         html += `<div class="section-title">Verlauf</div><div class="list">` + hist.map(h => `<div class="list__item" style="cursor:default">
@@ -735,7 +1023,7 @@ function pageRandom() {
     const can = !!S.perms.live;
     const next = R.nextAt ? `in ${Math.max(0, Math.round((R.nextAt - R.now) / 60))} min · ${fmtTime(R.nextAt)}` : '–';
     const duty = Object.entries(obj(R.onDuty)).map(([k, v]) => `${esc((S.config.roles[k] || {}).label || k)} ${v}`).join(' · ');
-    let html = `<div class="card"><div class="card__header">${icon('shuffle')}<span class="card__title">Generator</span>
+    let html = `<div class="card" style="max-width:720px"><div class="card__header">${icon('shuffle')}<span class="card__title">Generator</span>
             <span class="chip chip--dot ${R.settings.enabled ? 'chip--ok' : ''}" style="margin-left:auto">${R.settings.enabled ? 'Aktiv' : 'Aus'}</span></div>
         <div class="card__body" data-scope="random">
             ${fSwitch('Zufallseinsätze aktiv', 'enabled', f.enabled)}
@@ -746,7 +1034,7 @@ function pageRandom() {
         </div>
         <div class="card__footer"><button class="btn btn--ghost btn--sm" data-act="rndNow" ${can ? '' : 'disabled'}>${icon('bolt')} Jetzt auslösen</button>
             <button class="btn btn--primary btn--sm" data-act="rndSave" ${can ? '' : 'disabled'}>Speichern</button></div></div>
-        <div class="section-title">Pool</div>`;
+        <div class="section-title">Pool</div><div class="grid-cards">`;
     html += S.scenarios.map(sc => {
         const c = arr(R.candidates).find(x => x.id === sc.id);
         const pool = c ? c.pool : { enabled: false, weight: 1, time: 'immer', cooldown: 30, minOnDuty: {} };
@@ -760,8 +1048,8 @@ function pageRandom() {
                 ${field('Sperrzeit (Min.)', `<input class="input" type="number" data-pool="cooldown" value="${pool.cooldown}" min="0" max="1440">`)}</div>
                 <div class="grid-3">${Object.entries(S.config.roles).map(([role, r]) => field(`Min. ${r.label}`, `<input class="input" type="number" data-pool="minOnDuty.${role}" value="${mod[role] || 0}" min="0" max="20">`)).join('')}</div></div>` : ''}
         </div>`;
-    }).join('') || `<div class="empty">${icon('folder-open')}Noch keine gespeicherten Szenarien</div>`;
-    return html;
+    }).join('') || `<div class="empty">${icon('folder-open')}Noch keine gespeicherten Einsätze</div>`;
+    return html + '</div>';
 }
 async function saveRandomPool(card) {
     const id = card.dataset.id;
@@ -773,8 +1061,8 @@ async function saveRandomPool(card) {
     if (r.ok) { S.random = r.data; renderPanel(true); }
 }
 
-/* ----- Ereignisse im Panel ----- */
-$('#panelBody').addEventListener('click', async (e) => {
+/* ----- Ereignisse im Panel und in der Übersicht ----- */
+async function onPanelClick(e) {
     const tool = e.target.closest('.tool');
     if (tool) {
         const id = tool.dataset.tool;
@@ -832,18 +1120,16 @@ $('#panelBody').addEventListener('click', async (e) => {
         case 'varDel': { const list = arr(S.draft.variants).slice(); list.splice(parseInt(b.dataset.i, 10), 1); return post('updateVariants', { variants: list }); }
         case 'focusEl': return post('selectElement', { id, focus: true });
         case 'delEl': return post('deleteElement', { id });
-        case 'openSc': case 'copySc': {
-            if (S.dirty && !(await confirmBox('Szenario öffnen', 'Ungespeicherte Änderungen gehen verloren.', 'Öffnen', 'danger'))) return;
-            const r = await post('loadScenario', { id, copy: act === 'copySc' });
-            if (r.ok) { S.page = 'elements'; renderRail(); renderPanel(true); }
-            return;
-        }
+        case 'openSc': case 'copySc': return openScenario(id, act === 'copySc');
+        case 'newSc': return openWizard('new');
+        case 'testSc': return triggerSaved(id, 'test');
+        case 'liveSc': return triggerSaved(id, 'live');
         case 'dupSc': { const r = await post('duplicateScenario', { id }); if (r.ok) { S.scenarios = arr(r.data.scenarios); toast('success', `Kopie gespeichert (${r.data.id})`); renderPanel(true); } return; }
         case 'delSc': {
             const sc = S.scenarios.find(s => s.id === id);
-            if (!(await confirmBox('Szenario löschen', `„${sc ? sc.name : id}“ wird endgültig gelöscht.`, 'Löschen', 'danger'))) return;
+            if (!(await confirmBox('Einsatz löschen', `„${sc ? sc.name : id}“ wird endgültig gelöscht.`, 'Löschen', 'danger'))) return;
             const r = await post('deleteScenario', { id });
-            if (r.ok) { S.scenarios = arr(r.data.scenarios); toast('success', 'Szenario gelöscht'); renderPanel(true); }
+            if (r.ok) { S.scenarios = arr(r.data.scenarios); toast('success', 'Einsatz gelöscht'); renderPanel(true); }
             return;
         }
         case 'refreshInc': return reloadIncidents();
@@ -865,9 +1151,11 @@ $('#panelBody').addEventListener('click', async (e) => {
         if (r.ok) toast('success', r.data || 'Erledigt');
         return reloadIncidents();
     }
-});
+}
+$('#panelBody').addEventListener('click', onPanelClick);
+$('#hubBody').addEventListener('click', onPanelClick);
 
-$('#panelBody').addEventListener('input', (e) => {
+function onPanelInput(e) {
     const t = e.target;
     if (t.dataset.search) {
         const k = t.dataset.search;
@@ -879,8 +1167,8 @@ $('#panelBody').addEventListener('input', (e) => {
         return;
     }
     handleBound(t, 'input');
-});
-$('#panelBody').addEventListener('change', (e) => {
+}
+function onPanelChange(e) {
     const t = e.target;
     if (t.dataset.pool) return saveRandomPool(t.closest('[data-scope="pool"]'));
     if (t.dataset.phase) { post('incidentAction', { id: t.dataset.phase, action: 'phase', phase: t.value }).then(r => { if (r.ok) toast('success', 'Phase gesetzt'); }); return; }
@@ -892,7 +1180,11 @@ $('#panelBody').addEventListener('change', (e) => {
     }
     handleBound(t, 'change');
     if (t.closest('[data-scope^="tpl:"]') && ['props.canSpread', 'props.patient.profile'].includes(t.dataset.path)) renderPanel(true);
-});
+}
+$('#panelBody').addEventListener('input', onPanelInput);
+$('#panelBody').addEventListener('change', onPanelChange);
+$('#hubBody').addEventListener('input', onPanelInput);
+$('#hubBody').addEventListener('change', onPanelChange);
 
 /* Gebundene Eingaben (Vorlagen, Einsatzdaten, Element) */
 function handleBound(t, type) {
@@ -920,6 +1212,7 @@ function flushEdits() { pushInfo.flush(); if (S.edit) pushEdit.flush(); }
 
 document.addEventListener('focusout', () => setTimeout(() => {
     if (S.pending.panel && !panelBusy('#panel')) renderPanel();
+    if (S.pending.hub && !panelBusy('#hubBody')) renderHub();
     if (S.pending.insp && !panelBusy('#inspector')) renderInspector();
 }, 0));
 
@@ -1136,14 +1429,18 @@ document.addEventListener('keydown', async (e) => {
     if (!S.open) return;
     const typing = isField(document.activeElement);
     const dialogOpen = !$('#dialog').classList.contains('hidden');
+    const wizOpen = !!S.wiz;
     if (e.key === 'Escape') {
         e.preventDefault();
         if (dialogOpen) return closeDialog(false);
         if (typing) return document.activeElement.blur();
+        if (wizOpen) return closeWizard();
+        if (S.mode === 'hub') return requestClose();
         const r = await post('key', { key: 'Escape' }, true);
-        if (r.ok && r.data && r.data.result === 'close') requestClose();
+        if (r.ok && r.data && r.data.result === 'close') goHub();
         return;
     }
+    if (S.mode !== 'scene' || wizOpen) return;
     if (e.ctrlKey && (e.key === 's' || e.key === 'S')) { e.preventDefault(); return saveScenario(); }
     if (typing || dialogOpen) return;
     const keys = ['Delete', 'g', 'G', 'f', 'F', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown'];
@@ -1167,6 +1464,8 @@ function closeDialog(result) {
     if (dialogResolve) { const r = dialogResolve; dialogResolve = null; r(result ?? null); }
 }
 $('#dialog').addEventListener('click', (e) => {
+    const bv = e.target.closest('[data-dv]');
+    if (bv) return closeDialog(bv.dataset.dv);
     const b = e.target.closest('[data-d]');
     if (b) return closeDialog(b.dataset.d === 'yes' ? ($('#dlgChoice') ? $('#dlgChoice').value : true) : null);
     if (e.target.id === 'dialog') closeDialog(null);
@@ -1177,6 +1476,13 @@ function confirmBox(title, text, okLabel = 'OK', variant = 'primary') {
         dialogResolve = v => resolve(v === true);
         openDialog(`${dialogHead(title)}<div class="dialog__body"><p>${esc(text)}</p></div>
             <div class="dialog__footer"><button class="btn btn--ghost" data-d="no">Abbrechen</button><button class="btn btn--${variant}" data-d="yes">${esc(okLabel)}</button></div>`, 'dialog--sm');
+    });
+}
+function buttonsBox(title, text, buttons) {
+    return new Promise((resolve) => {
+        dialogResolve = v => resolve(v || null);
+        openDialog(`${dialogHead(title)}<div class="dialog__body"><p>${esc(text)}</p></div>
+            <div class="dialog__footer">${buttons.map(([v, l, variant]) => `<button class="btn btn--${variant || 'ghost'}" data-dv="${esc(v)}">${esc(l)}</button>`).join('')}</div>`, 'dialog--sm');
     });
 }
 function chooseBox(title, text, options) {

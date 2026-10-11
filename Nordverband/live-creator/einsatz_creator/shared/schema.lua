@@ -11,6 +11,27 @@ local U = EC.Utils
 local Schema = {}
 EC.Schema = Schema
 
+-- Leitstellen (EmergencyDispatch-Jobs), die im Creator waehlbar sind
+function Schema.dispatchJobs()
+    local ed = Config.EmergencyDispatch or {}
+    if type(ed.jobs) == 'table' and #ed.jobs > 0 then return ed.jobs end
+    return { { job = ed.job or 'ambulance', label = ed.job or 'ambulance' } }
+end
+
+function Schema.isDispatchJob(job)
+    if type(job) ~= 'string' then return false end
+    for _, j in ipairs(Schema.dispatchJobs()) do
+        if j.job == job then return true end
+    end
+    return false
+end
+
+function Schema.defaultDispatchJob()
+    local ed = Config.EmergencyDispatch or {}
+    if Schema.isDispatchJob(ed.job) then return ed.job end
+    return Schema.dispatchJobs()[1].job
+end
+
 local WORLD = { minX = -4500.0, maxX = 4500.0, minY = -4500.0, maxY = 8500.0, minZ = -200.0, maxZ = 1500.0 }
 
 local function inWorld(p)
@@ -128,6 +149,7 @@ function Schema.newScenario(category)
             alarmText = '', description = '', address = '', hazards = '', persons = '',
             units = {}, unitsText = '', notes = '', sop = '', custom = {},
             alarmRoles = U.deepcopy((EC.CategoryById[category] or Catalog.Categories[1]).roles or {}),
+            dispatchJob = Schema.defaultDispatchJob(),
         },
         center = nil,
         elements = {},
@@ -387,6 +409,8 @@ function Schema.normalizeScenario(raw)
     end
     if #alarmRoles == 0 then alarmRoles = U.deepcopy(EC.CategoryById[category].roles or {}) end
 
+    local dispatchJob = Schema.isDispatchJob(info.dispatchJob) and info.dispatchJob or Schema.defaultDispatchJob()
+
     local sc = {
         schema = EC.SCHEMA_VERSION,
         id = (type(raw.id) == 'string' and raw.id:match('^SZ%-[%w]+$') and #raw.id <= 24) and raw.id or nil,
@@ -406,6 +430,7 @@ function Schema.normalizeScenario(raw)
             sop = U.cleanText(info.sop, 3000),
             custom = custom,
             alarmRoles = alarmRoles,
+            dispatchJob = dispatchJob,
         },
         center = center,
         elements = {},
