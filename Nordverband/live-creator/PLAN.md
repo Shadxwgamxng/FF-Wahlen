@@ -60,7 +60,7 @@ Dieser Plan wird bei jedem Zwischenstand aktualisiert und mitgepusht.
 - ✅ ox_target für Patienten, Türen, Ölspuren, Fundstellen
 - ✅ Zufallseinsätze (Pool je Szenario, Gewichtung, Tageszeit, Sperrzeit, Mindestbesetzung) – ingame einstellbar
 - ✅ Offline-Tests erweitert (69/69 bestanden)
-- ⬜ Fahrzeuge (RTW/KTW/NEF) eintragen – wartet auf Liste
+- ✅ RTW aus nv_medicDispatches (bftecrtw, bftecrtw2, bftecrtw3, Sitz 3) übernommen
 - ✅ Kliniken aus nv_medicDispatches (KH-Liste) übernommen
 - ✅ Behandlung aus nv_medicDispatches übernommen (Gespräch, Diagnostik, O2, Medikamente, Bodycheck, Wundversorgung, Trage) – serverseitig, ox_lib-Menü
 - ✅ Namen und NPC-Modelle übernommen, neue Notruftexte je Meldebild (Tag/Nacht)

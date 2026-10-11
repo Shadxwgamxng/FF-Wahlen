@@ -234,7 +234,7 @@ Config.Rescue = {
     vehicleDistance = 7.0,    -- Abstand Patient <-> RTW zum Einladen
     -- Fahrzeugmodelle, in die Patienten eingeladen werden duerfen (leer = jedes Fahrzeug)
     -- (bftecrtw* + Sitz 3 uebernommen aus nv_medicDispatches Config.Cars)
-    transportVehicles = { 'ambulance', 'bftecrtw', 'bftecrtw2', 'bftecrtw3' },
+    transportVehicles = { 'bftecrtw', 'bftecrtw2', 'bftecrtw3' },
     -- bevorzugter Sitz je Modell (sonst hinten rechts/links/Beifahrer)
     transportSeats = { bftecrtw = 3, bftecrtw2 = 3, bftecrtw3 = 3 },
     -- Tragen (Fahrzeug-Modelle) - Patient kann darauf gelegt werden (aus nv_medicDispatches)
