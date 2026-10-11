@@ -237,6 +237,30 @@ Handlers.myRoles = { rate = 5000, fn = function(src)
     return true, Perm.rolesOf(src)
 end }
 
+-- Zufallseinsaetze
+Handlers.randomStatus = { perm = 'use', rate = 500, fn = function()
+    return true, RandomGen.status()
+end }
+
+Handlers.randomSaveSettings = { perm = 'live', rate = 1000, fn = function(src, p)
+    if not RandomGen.saveSettings(p.settings) then return false, 'Einstellungen konnten nicht gespeichert werden' end
+    U.log('info', 'Zufallseinstellungen geaendert von %s', Perm.actor(src).name)
+    return true, RandomGen.status()
+end }
+
+Handlers.randomSetPool = { perm = 'live', rate = 300, fn = function(_, p)
+    if type(p.id) ~= 'string' then return false, 'Ungueltiges Szenario' end
+    local ok, err = RandomGen.setPool(p.id, p.pool)
+    if not ok then return false, err end
+    return true, RandomGen.status()
+end }
+
+Handlers.randomRunNow = { perm = 'live', rate = 3000, fn = function()
+    local ok, res = RandomGen.run(true)
+    if not ok then return false, res end
+    return true, { id = res, status = RandomGen.status(), incidents = Incidents.listForUi() }
+end }
+
 ----------------------------------------------------------------------------
 -- Router
 ----------------------------------------------------------------------------
@@ -306,6 +330,10 @@ exports('ReAlarmIncident', function(id)
     return Incidents.reAlarm(id, nil)
 end)
 
+exports('TriggerRandomIncident', function()
+    return RandomGen.run(true)
+end)
+
 exports('GetScenarios', function()
     return scenarioList()
 end)
@@ -330,6 +358,7 @@ AddEventHandler('onResourceStart', function(res)
     Framework.init()
     Storage.loadScenarios()
     Storage.loadHistory()
+    Storage.loadSettings()
     CreateThread(function()
         Wait(1000)
         Incidents.recover()

@@ -85,11 +85,12 @@ Schema.Defaults = {
     fire = function()
         return { fireType = 'normal', size = 1.0, canSpread = false, spreadRadius = 8.0, maxSpread = 5,
             spreadInterval = 45, burnTime = 0, smoulder = true, smoke = 'auto', attachTo = nil,
-            offset = { x = 0.0, y = 0.0, z = 0.0 }, spreadPoints = {} }
+            offset = { x = 0.0, y = 0.0, z = 0.0 }, spreadPoints = {},
+            zfEffect = Config.ZFire.defaultFireEffect, zfBehaviour = 'auto', roomHash = 0 }
     end,
     smoke = function()
         return { smokeType = 'mittel', size = 1.0, density = 1, untilFiresOut = true, attachTo = nil,
-            offset = { x = 0.0, y = 0.0, z = 0.0 } }
+            offset = { x = 0.0, y = 0.0, z = 0.0 }, zfEffect = Config.ZFire.defaultSmokeEffect, zfDisperse = true }
     end,
     marker = function() return { markerKind = 'fundstelle', description = '', blip = true, interactive = false } end,
     area = function() return { areaKind = 'einsatzgebiet', radius = 50.0, blip = true } end,
@@ -222,6 +223,9 @@ function Props.fire(raw, element)
         attachTo = idString(raw.attachTo),
         offset = offset(raw.offset),
         spreadPoints = points,
+        zfEffect = inArray(raw.zfEffect, Config.ZFire.fireEffects, Config.ZFire.defaultFireEffect),
+        zfBehaviour = inArray(raw.zfBehaviour, { 'auto', 'grass', 'interior', 'prop', 'vehicle' }, 'auto'),
+        roomHash = math.floor(U.num(raw.roomHash, 0, -2147483648, 4294967295)),
     }
 end
 
@@ -234,6 +238,8 @@ function Props.smoke(raw)
         untilFiresOut = U.bool(raw.untilFiresOut, d.untilFiresOut),
         attachTo = idString(raw.attachTo),
         offset = offset(raw.offset),
+        zfEffect = inArray(raw.zfEffect, Config.ZFire.smokeEffects, Config.ZFire.defaultSmokeEffect),
+        zfDisperse = U.bool(raw.zfDisperse, true),
     }
 end
 

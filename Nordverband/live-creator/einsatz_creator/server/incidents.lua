@@ -52,7 +52,8 @@ function Incidents.persistRuntime()
             for elId, rec in pairs(inc.entities or {}) do
                 ents[#ents + 1] = { net = rec.netId, el = elId, kind = rec.kind }
             end
-            data.incidents[id] = { mode = inc.mode, name = inc.scenario.name, createdAt = inc.createdAt, entities = ents }
+            data.incidents[id] = { mode = inc.mode, name = inc.scenario.name, createdAt = inc.createdAt, entities = ents,
+                zfire = ZFire.snapshot(id) }
         end
     end
     Storage.saveRuntime(data)
@@ -85,6 +86,7 @@ local function summaryOf(inc)
         fire = Fire.summary(inc.id),
         rescue = Rescue.summary(inc),
         errors = inc.errors or {},
+        random = inc.random,
     }
 end
 
@@ -185,7 +187,8 @@ end
     sc: bereits validiertes Szenario, mode: 'test' | 'live'
     Rueckgabe: true, id | false, Fehler
 ]]
-function Incidents.create(src, sc, mode, scenarioId)
+function Incidents.create(src, sc, mode, scenarioId, opts)
+    opts = opts or {}
     if mode ~= 'test' and mode ~= 'live' then return false, 'Unbekannter Modus' end
     if countActive() >= Config.Limits.activeIncidents then
         return false, ('Es sind bereits %d Einsaetze aktiv (Grenze erreicht)'):format(Config.Limits.activeIncidents)
@@ -203,7 +206,7 @@ function Incidents.create(src, sc, mode, scenarioId)
     end
 
     Incidents.locks[lockKey] = true
-    local actor = src and Perm.actor(src) or { name = 'System', id = 'system' }
+    local actor = src and Perm.actor(src) or { name = opts.actorName or 'System', id = 'system' }
 
     local inc = {
         id = newId(),
@@ -219,6 +222,7 @@ function Incidents.create(src, sc, mode, scenarioId)
         log = {},
         errors = {},
         recipients = {},
+        random = opts.random == true,
     }
     inc.statusHistory[1] = { status = inc.status, at = inc.createdAt, by = actor.name }
     inc.log[1] = { at = inc.createdAt, by = actor.name, text = ('Einsatz angelegt (%s)'):format(EC.Modes[mode]) }
@@ -267,8 +271,16 @@ function Incidents.create(src, sc, mode, scenarioId)
     Incidents.persistRuntime()
     Incidents.syncPublic(inc)
     local count = Alarm.send(inc)
-    inc.log[#inc.log + 1] = { at = os.time(), by = 'System', text = ('%d Empfaenger alarmiert'):format(count) }
+    if count > 0 then
+        inc.log[#inc.log + 1] = { at = os.time(), by = 'System', text = ('%d Empfaenger intern alarmiert'):format(count) }
+    end
     Dispatch.created(inc)
+    if inc.dispatchCalls then
+        inc.log[#inc.log + 1] = { at = os.time(), by = 'System', text = ('%d Notruf(e) an die Leitstelle uebergeben'):format(inc.dispatchCalls) }
+        if inc.dispatchCalls == 0 then
+            inc.errors[#inc.errors + 1] = 'Notruf konnte nicht an die Leitstelle uebergeben werden (EmergencyDispatch gestartet? Rollen-Zuordnung?)'
+        end
+    end
     Incidents.broadcastList()
     U.log('info', 'Einsatz %s aktiv (%d Entities, %d Fehler)', inc.id, U.tableCount(inc.entities), #inc.errors)
     return true, inc.id, #inc.errors
@@ -348,8 +360,10 @@ function Incidents.reAlarm(id, src)
     local inc = Incidents.get(id)
     if not inc or inc.status ~= EC.Status.active then return false, 'Einsatz ist nicht aktiv' end
     local n = Alarm.send(inc, true)
-    inc.log[#inc.log + 1] = { at = os.time(), by = src and Perm.actor(src).name or 'System', text = ('Nachalarmierung: %d Empfaenger'):format(n) }
-    return true, ('%d Empfaenger alarmiert'):format(n)
+    local calls = Dispatch.reAlarm(inc)
+    inc.log[#inc.log + 1] = { at = os.time(), by = src and Perm.actor(src).name or 'System',
+        text = ('Nachalarmierung: %d intern, %d Notruf(e) an Leitstelle'):format(n, calls) }
+    return true, ('Nachalarmiert: %d intern, %d Notruf(e) an die Leitstelle'):format(n, calls)
 end
 
 ----------------------------------------------------------------------------
@@ -416,6 +430,10 @@ function Incidents.recover()
                     removed = removed + 1
                 end
             end
+        end
+        if info.zfire then
+            local ok, err = pcall(ZFire.removeSnapshot, info.zfire)
+            if not ok then U.log('warn', 'z_fire-Reste von %s: %s', id, tostring(err)) end
         end
         Storage.addHistory({
             id = id, name = info.name, mode = info.mode, status = EC.Status.cancelled,

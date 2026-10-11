@@ -279,6 +279,16 @@ CreateThread(function()
     end
 end)
 
+-- z_fire-Backend: Rauch kann nur ueber den Client-Export geloescht werden (Auftrag vom Server)
+RegisterNetEvent('einsatzcreator:client:zfireDeleteSmoke', function(ids)
+    if type(ids) ~= 'table' or GetResourceState(Config.ZFire.resource) ~= 'started' then return end
+    for _, id in ipairs(ids) do
+        if type(id) == 'string' then
+            pcall(function() exports[Config.ZFire.resource]:deleteSmokeById(id) end)
+        end
+    end
+end)
+
 AddEventHandler('onResourceStop', function(res)
     if res ~= GetCurrentResourceName() then return end
     for id in pairs(FireClient.fx) do stopFx(id) end

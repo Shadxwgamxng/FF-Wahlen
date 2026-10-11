@@ -105,6 +105,7 @@ const S = {
     search: {},           // Suchtexte
     scenarios: [],
     scenarioSearch: '',
+    random: null,
     incidents: { active: [], history: [] },
     status: {},
     edit: null,           // Bearbeitungskopie des ausgewaehlten Elements
@@ -391,6 +392,7 @@ $('#tabs').addEventListener('click', (e) => {
     S.tab = b.dataset.tab;
     if (S.tab === 'active') post('listIncidents', {}, true).then(r => { if (r.ok) { S.incidents = normIncidents(r.data); renderLeft(); } });
     if (S.tab === 'scenarios') post('listScenarios', {}, true).then(r => { if (r.ok) { S.scenarios = arr(r.data); renderLeft(); } });
+    if (S.tab === 'random') loadRandom();
     renderLeft();
 });
 
@@ -406,6 +408,7 @@ function renderLeft(force) {
     else if (S.tab === 'elements') box.innerHTML = renderElementsTab();
     else if (S.tab === 'scenarios') box.innerHTML = renderScenariosTab();
     else if (S.tab === 'active') box.innerHTML = renderActiveTab();
+    else if (S.tab === 'random') box.innerHTML = renderRandomTab();
     box.scrollTop = scroll;
 }
 
@@ -474,7 +477,7 @@ function renderToolPanel(kind) {
                 ${placeBtn(t.model ? `Setzen: ${esc(t.model)}` : 'Modell waehlen')}`;
         case 'fire':
             return `<h3>Feuer</h3>${fireFields(p, 'props.')}${placeBtn('Brandherd setzen')}
-                <p class="dim mt-s">Mehrere Brandherde: einfach mehrfach klicken. Shift+Mausrad aendert die Groesse.</p>`;
+                <p class="dim mt-s">Mehrere Brandherde: einfach mehrfach klicken. Shift+Mausrad aendert die Groesse.${isZFire() ? ' Fahrzeug-/Objektbrand: Feuer setzen und rechts „An Fahrzeug / Objekt koppeln“. Innenraum: rechts „Raum ermitteln“.' : ''}</p>`;
         case 'smoke':
             return `<h3>Rauch</h3>${smokeFields(p, 'props.')}${placeBtn('Rauchquelle setzen')}`;
         case 'marker':
@@ -492,8 +495,23 @@ function renderToolPanel(kind) {
     return '';
 }
 
-function fireFields(p, pre) {
+function isZFire() { return S.config && S.config.fireBackend === 'z_fire'; }
+
+function fireFields(p, pre, withRoomButton) {
     const C = S.catalog;
+    if (isZFire()) {
+        const zf = S.config.zfire || {};
+        return `${zf.running ? '' : '<p class="mt-s" style="color:var(--yellow)">⚠ z_fire ist nicht gestartet - Feuer koennen nicht ausgeloest werden.</p>'}
+            ${fSel('z_fire Partikeltyp', pre + 'zfEffect', p.zfEffect, arr(zf.fireEffects).map(x => [x, x]))}
+            ${fSel('Brandverhalten (z_fire)', pre + 'zfBehaviour', p.zfBehaviour, [['auto', 'Automatisch (Kopplung/Raum)'], ['grass', 'Flaeche / Vegetation (grass)'], ['interior', 'Innenraum (interior)'], ['prop', 'Objekt (prop)'], ['vehicle', 'Fahrzeug (vehicle)']])}
+            <div class="grid2">${fNum('Groesse (scale)', pre + 'size', p.size, { step: 0.1, min: 0.2, max: 5 })}
+            ${fNum('Brenndauer (s, 0 = bis geloescht)', pre + 'burnTime', p.burnTime, { int: true, min: 0, max: 7200 })}</div>
+            ${fChk('Ausbreitung aktiv', pre + 'canSpread', p.canSpread)}
+            ${fNum('Ausbreitungsradius (m)', pre + 'spreadRadius', p.spreadRadius, { step: 1, min: 1, max: 40 })}
+            ${withRoomButton ? `<div class="grid2">${fNum('Room-Key (Innenraum)', pre + 'roomHash', p.roomHash, { int: true })}
+                <label class="field"><span>&nbsp;</span><button style="width:100%" data-act="roomHash">Raum ermitteln</button></label></div>` : ''}
+            ${fSel('Darstellung in der Vorschau', pre + 'fireType', p.fireType, arr(C.fireTypes).map(f => [f.id, f.label]))}`;
+    }
     const smokeOpts = [['auto', 'Automatisch (passend zum Feuer)'], ['none', 'Kein Rauch'], ...arr(C.smokeTypes).map(s => [s.id, s.label])];
     return `${fSel('Feuerart', pre + 'fireType', p.fireType, arr(C.fireTypes).map(f => [f.id, f.label]))}
         <div class="grid2">${fNum('Groesse', pre + 'size', p.size, { step: 0.1, min: 0.2, max: 5 })}
@@ -507,6 +525,13 @@ function fireFields(p, pre) {
 }
 function smokeFields(p, pre) {
     const C = S.catalog;
+    if (isZFire()) {
+        const zf = S.config.zfire || {};
+        return `${fSel('z_fire Partikeltyp', pre + 'zfEffect', p.zfEffect, arr(zf.smokeEffects).map(x => [x, x]))}
+            ${fNum('Groesse (scale)', pre + 'size', p.size, { step: 0.1, min: 0.2, max: 5 })}
+            ${fChk('Rauch verzieht sich mit der Zeit (canDisperse)', pre + 'zfDisperse', p.zfDisperse)}
+            ${fSel('Darstellung in der Vorschau', pre + 'smokeType', p.smokeType, arr(C.smokeTypes).map(s => [s.id, s.label]))}`;
+    }
     return `${fSel('Rauchart', pre + 'smokeType', p.smokeType, arr(C.smokeTypes).map(s => [s.id, s.label]))}
         <div class="grid2">${fNum('Groesse', pre + 'size', p.size, { step: 0.1, min: 0.2, max: 5 })}
         ${fSel('Intensitaet', pre + 'density', p.density, [[1, 'Leicht'], [2, 'Mittel'], [3, 'Stark']], { type: 'int' })}</div>
@@ -665,6 +690,7 @@ function renderActiveTab() {
         return `<div class="card">
             <div class="row"><span class="badge ${i.mode === 'live' ? 'live' : 'test'}">${i.mode === 'live' ? 'LIVE' : 'TEST'}</span>
                 <span class="badge ${running ? 'ok' : i.status === 'fehlerhaft' ? 'err' : ''}">${esc(i.statusLabel)}</span>
+                ${i.random ? '<span class="badge">Zufall</span>' : ''}
                 <span class="mono dim right">${esc(i.id)}</span></div>
             <div class="title mt-s">${esc(i.keyword || i.name)}</div>
             <div class="meta">${esc(i.name)} · ${esc(i.categoryLabel)}</div>
@@ -694,6 +720,69 @@ function renderActiveTab() {
             <div class="s"><span class="mono">${esc(h.id)}</span> · ${esc(h.statusLabel || h.status)} · ${h.mode === 'live' ? 'Live' : 'Test'} · ${fmtTime(h.endedAt)}${h.note ? ' · ' + esc(h.note) : ''}</div></div></div>`).join('') + `</div>`;
     }
     return html;
+}
+
+/* ----- Zufall-Tab ----- */
+async function loadRandom() {
+    const r = await post('randomStatus', {}, true);
+    if (r.ok) { S.random = r.data; S.randomForm = clone(r.data.settings); renderLeft(true); }
+}
+
+function renderRandomTab() {
+    const R = S.random;
+    if (!R) return `<div class="empty">Wird geladen ...</div>`;
+    const f = S.randomForm || R.settings;
+    const can = !!S.perms.live;
+    const next = R.nextAt ? `in ${Math.max(0, Math.round((R.nextAt - R.now) / 60))} min (${fmtTime(R.nextAt)})` : '-';
+    const duty = Object.entries(obj(R.onDuty)).map(([k, v]) => `${esc((S.config.roles[k] || {}).label || k)}: ${v}`).join(' · ');
+    let html = `<div class="section" data-scope="random">
+        <h3>Zufallsgenerator</h3>
+        ${fChk('Zufallseinsaetze aktiv', 'enabled', f.enabled)}
+        <div class="grid2">${fNum('Abstand min. (Minuten)', 'intervalMin', f.intervalMin, { int: true, min: 1, max: 600 })}
+        ${fNum('Abstand max. (Minuten)', 'intervalMax', f.intervalMax, { int: true, min: 1, max: 600 })}</div>
+        ${fNum('Max. gleichzeitige Zufallseinsaetze', 'maxActive', f.maxActive, { int: true, min: 1, max: S.config.limits.activeIncidents })}
+        <div class="grid2">${fNum('Tag beginnt (Std.)', 'dayStart', f.dayStart, { int: true, min: 0, max: 23 })}
+        ${fNum('Tag endet (Std.)', 'dayEnd', f.dayEnd, { int: true, min: 0, max: 24 })}</div>
+        <div class="row mt"><button class="primary grow" data-act="rndSave" ${can ? '' : 'disabled'}>Einstellungen speichern</button>
+        <button data-act="rndNow" ${can ? '' : 'disabled'} title="Sofort einen passenden Einsatz aus dem Pool starten">Jetzt ausloesen</button></div>
+        <div class="kv mt"><span class="k">Naechster Einsatz</span><span>${esc(next)}</span>
+            <span class="k">Aktiv (Zufall)</span><span>${R.activeRandom} / ${R.settings.maxActive}</span>
+            <span class="k">Im Dienst</span><span>${duty || '-'}</span>
+            <span class="k">Letzter Versuch</span><span>${R.lastInfo ? `${fmtTime(R.lastInfo.at)} · ${esc(R.lastInfo.text)}` : '-'}</span></div>
+        </div>`;
+    const inPool = new Set(arr(R.candidates).map(c => c.id));
+    html += `<div class="section"><h3>Zufallspool</h3><p class="dim">Gespeicherte Szenarien, die zufaellig ausgeloest werden duerfen.</p></div>`;
+    html += S.scenarios.map(sc => {
+        const c = arr(R.candidates).find(x => x.id === sc.id);
+        const pool = c ? c.pool : { enabled: false, weight: 1, time: 'immer', cooldown: 30, minOnDuty: {} };
+        const mod = obj(pool.minOnDuty);
+        return `<div class="card" data-scope="pool" data-id="${esc(sc.id)}">
+            <div class="row"><label class="check grow" style="margin:0"><input type="checkbox" data-pool="enabled" ${pool.enabled ? 'checked' : ''} ${can ? '' : 'disabled'}>
+                <b>${esc(sc.name)}</b></label><span class="badge">${esc(sc.categoryLabel)}</span></div>
+            ${inPool.has(sc.id) ? `<div class="meta">${c.eligible ? '<span style="color:var(--green)">bereit</span>' : esc(c.reason)}${c.lastRun ? ' · zuletzt ' + fmtTime(c.lastRun) : ''}</div>` : ''}
+            ${pool.enabled ? `<div class="grid3">
+                <label class="field"><span>Gewichtung</span><input type="number" data-pool="weight" value="${pool.weight}" min="1" max="10"></label>
+                <label class="field"><span>Tageszeit</span><select data-pool="time">${[['immer', 'immer'], ['tag', 'Tag'], ['nacht', 'Nacht']].map(([v, l]) => `<option value="${v}" ${pool.time === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+                <label class="field"><span>Sperrzeit (min)</span><input type="number" data-pool="cooldown" value="${pool.cooldown}" min="0" max="1440"></label></div>
+                <div class="grid3">${Object.entries(S.config.roles).map(([role, r]) =>
+                    `<label class="field"><span>Min. ${esc(r.label)}</span><input type="number" data-pool="minOnDuty.${role}" value="${mod[role] || 0}" min="0" max="20"></label>`).join('')}</div>` : ''}
+        </div>`;
+    }).join('') || '<div class="empty">Noch keine gespeicherten Szenarien</div>';
+    return html;
+}
+
+async function saveRandomPool(card) {
+    const id = card.dataset.id;
+    const c = arr(S.random.candidates).find(x => x.id === id);
+    const pool = c ? clone(c.pool) : { enabled: false, weight: 1, time: 'immer', cooldown: 30, minOnDuty: {} };
+    pool.minOnDuty = obj(pool.minOnDuty);
+    $$('[data-pool]', card).forEach(inp => {
+        const key = inp.dataset.pool;
+        const val = inp.type === 'checkbox' ? inp.checked : (inp.tagName === 'SELECT' ? inp.value : parseInt(inp.value, 10) || 0);
+        setPath(pool, key, val);
+    });
+    const r = await post('randomSetPool', { id, pool });
+    if (r.ok) { S.random = r.data; renderLeft(true); }
 }
 
 /* ----- Ereignisse linke Seite ----- */
@@ -781,6 +870,16 @@ $('#leftContent').addEventListener('click', async (e) => {
             if (r.ok) { S.scenarios = arr(r.data.scenarios); toast('success', 'Szenario geloescht'); renderLeft(true); }
             return;
         }
+        if (act === 'rndSave') {
+            const r = await post('randomSaveSettings', { settings: S.randomForm });
+            if (r.ok) { S.random = r.data; S.randomForm = clone(r.data.settings); toast('success', 'Zufallseinstellungen gespeichert'); renderLeft(true); }
+            return;
+        }
+        if (act === 'rndNow') {
+            const r = await post('randomRunNow');
+            if (r.ok) { S.random = r.data.status; toast('success', `Zufallseinsatz ${r.data.id} gestartet`); renderLeft(true); }
+            return;
+        }
         if (act === 'refreshInc') {
             const r = await post('listIncidents');
             if (r.ok) { S.incidents = normIncidents(r.data); renderLeft(true); }
@@ -832,6 +931,7 @@ $('#leftContent').addEventListener('input', (e) => {
 });
 $('#leftContent').addEventListener('change', (e) => {
     const t = e.target;
+    if (t.dataset.pool) { saveRandomPool(t.closest('[data-scope="pool"]')); return; }
     if (t.dataset.phase) {
         post('incidentAction', { id: t.dataset.phase, action: 'phase', phase: t.value }).then(r => { if (r.ok) toast('success', 'Phase gesetzt'); });
         return;
@@ -852,6 +952,11 @@ function handleBound(t, type) {
     if (type === 'input' && (t.tagName === 'SELECT' || t.type === 'checkbox')) return;
     // Modellname erst beim Verlassen des Feldes pruefen (nicht bei jedem Tastendruck)
     if (type === 'input' && t.dataset.path === 'model') return;
+    if (scope === 'random') {
+        S.randomForm = S.randomForm || {};
+        setPath(S.randomForm, t.dataset.path, val);
+        return;
+    }
     if (scope && scope.startsWith('tpl:')) {
         const kind = scope.slice(4);
         setPath(S.tpl[kind], t.dataset.path, val);
@@ -996,8 +1101,8 @@ function kindFields(e) {
         }
         case 'fire': {
             const target = p.attachTo ? els.find(x => x.id === p.attachTo) : null;
-            return fireFields(p, 'props.') + attachBlock(target) +
-                (p.canSpread && !p.attachTo ? `<div class="row mt-s"><span class="dim grow">${arr(p.spreadPoints).length} Ausbreitungspunkte</span>
+            return fireFields(p, 'props.', true) + attachBlock(target) +
+                (!isZFire() && p.canSpread && !p.attachTo ? `<div class="row mt-s"><span class="dim grow">${arr(p.spreadPoints).length} Ausbreitungspunkte</span>
                 <button class="small" data-act="spread">Neu berechnen</button></div>` : '');
         }
         case 'smoke': {
@@ -1066,6 +1171,11 @@ $('#right').addEventListener('click', async (e) => {
             pushEdit.flush();
             break;
         case 'pickVehicle': post('setTool', { name: 'pickVehicle', forId: id }); break;
+        case 'roomHash': {
+            const r = await post('roomHashAt', { id });
+            if (r.ok) { toast('success', `Raum ermittelt: ${r.data.roomHash}`); setTimeout(() => renderRight(true), 50); }
+            break;
+        }
         case 'spread': {
             const r = await post('recomputeSpread', { id });
             if (r.ok) toast('success', `${r.data.count} Ausbreitungspunkte berechnet`);

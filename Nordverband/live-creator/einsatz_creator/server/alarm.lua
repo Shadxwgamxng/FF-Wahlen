@@ -66,6 +66,7 @@ end
 function Alarm.send(incident, isReAlarm)
     if not Config.Alarm.enabled then return 0 end
     if incident.mode == 'live' and Config.Dispatch.adapter ~= 'none' and not Config.Dispatch.internalAlarm then
+        -- Alarmierung erfolgt ueber die Leitstelle; Einsatzinfos bleiben per /einsatzinfo fuer die Rollen abrufbar
         return 0
     end
     local recipients = Alarm.recipients(incident)

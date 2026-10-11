@@ -106,6 +106,11 @@ local function candidates(me)
     return best
 end
 
+local function useTarget()
+    return Config.Interaction.mode == 'ox_target' and GetResourceState(Config.Interaction.targetResource) == 'started'
+end
+Interactions.useTarget = useTarget
+
 local function actionsFor(target)
     local list = {}
     local function add(id, enabled, reason)
@@ -235,7 +240,7 @@ CreateThread(function()
     local shown = nil
     while true do
         local sleep = 800
-        if next(World.incidents) and not State.open and not Interactions.running and not Interactions.menuOpen then
+        if next(World.incidents) and not useTarget() and not State.open and not Interactions.running and not Interactions.menuOpen then
             sleep = 300
             local ped = PlayerPedId()
             local target = nil
@@ -298,4 +303,133 @@ end)
 
 NUI.on('patientCardClose', function()
     return true
+end)
+
+----------------------------------------------------------------------------
+-- ox_target (Config.Interaction.mode = 'ox_target')
+--   Patienten:   exports.ox_target:addEntity(netId, options)
+--   Tueren usw.: exports.ox_target:addSphereZone({ coords, radius, options })
+-- Angezeigt werden nur Massnahmen, die zum aktuellen Zustand und zur Rolle passen
+-- (canInteract); der Server prueft jede Massnahme erneut.
+----------------------------------------------------------------------------
+local ICONS = {
+    assess = 'fa-solid fa-stethoscope', free = 'fa-solid fa-screwdriver-wrench', treat = 'fa-solid fa-kit-medical',
+    load = 'fa-solid fa-truck-medical', handover = 'fa-solid fa-hospital', release = 'fa-solid fa-person-walking',
+    open = 'fa-solid fa-door-open', clean = 'fa-solid fa-broom', secure = 'fa-solid fa-flag-checkered',
+}
+local KIND_ACTIONS = {
+    patient = { 'free', 'assess', 'treat', 'load', 'handover', 'release' },
+    door = { 'open' }, spill = { 'clean' }, marker = { 'secure' },
+}
+local registered = {}   -- key -> { kind, net | zone }
+
+local function currentTarget(incidentId, kind, id)
+    local inc = World.incidents[incidentId]
+    local r = inc and inc.rescue
+    if not r then return nil end
+    local data = (kind == 'patient' and r.patients or kind == 'door' and r.doors or kind == 'spill' and r.spills or r.markers)[id]
+    if not data then return nil end
+    local pos
+    if kind == 'patient' then
+        local ent = patientEntity(data)
+        pos = ent and GetEntityCoords(ent) or nil
+    else
+        pos = U.vec(data.pos)
+    end
+    if not pos then return nil end
+    local label = kind == 'patient' and ('Patient: %s'):format(data.name or '?') or kind
+    return { incident = incidentId, kind = kind, id = id, data = data, pos = pos, label = label }
+end
+
+local function buildOptions(incidentId, kind, id)
+    local options = {}
+    for _, action in ipairs(KIND_ACTIONS[kind]) do
+        options[#options + 1] = {
+            name = ('ec_%s_%s'):format(id, action),
+            label = ACTION_LABELS[action],
+            icon = ICONS[action],
+            distance = kind == 'spill' and 4.0 or 2.5,
+            canInteract = function()
+                if Interactions.running or State.open then return false end
+                local t = currentTarget(incidentId, kind, id)
+                if not t then return false end
+                for _, a in ipairs(actionsFor(t)) do
+                    if a.id == action then return a.enabled end
+                end
+                return false
+            end,
+            onSelect = function()
+                local t = currentTarget(incidentId, kind, id)
+                if t then CreateThread(function() Interactions.run(t, action) end) end
+            end,
+        }
+    end
+    return options
+end
+
+local function optionNames(kind, id)
+    local names = {}
+    for _, action in ipairs(KIND_ACTIONS[kind]) do names[#names + 1] = ('ec_%s_%s'):format(id, action) end
+    return names
+end
+
+local function unregister(key)
+    local r = registered[key]
+    if not r then return end
+    local ox = exports[Config.Interaction.targetResource]
+    pcall(function()
+        if r.net then ox:removeEntity(r.net, optionNames(r.kind, r.id)) else ox:removeZone(r.zone) end
+    end)
+    registered[key] = nil
+end
+
+CreateThread(function()
+    while true do
+        Wait(1000)
+        if useTarget() then
+            local ox = exports[Config.Interaction.targetResource]
+            local wanted = {}
+            for incId, inc in pairs(World.incidents) do
+                local r = inc.rescue or {}
+                for id, p in pairs(r.patients or {}) do
+                    if p.net and p.s ~= 'uebergeben' and p.s ~= 'vor_ort_entlassen' then
+                        local key = incId .. ':p:' .. id
+                        wanted[key] = true
+                        if not registered[key] then
+                            local ok = pcall(function() ox:addEntity(p.net, buildOptions(incId, 'patient', id)) end)
+                            if ok then registered[key] = { kind = 'patient', id = id, net = p.net } end
+                        end
+                    end
+                end
+                local function zone(kind, list, active, radius)
+                    for id, d in pairs(list or {}) do
+                        if active(d) then
+                            local key = incId .. ':' .. kind .. ':' .. id
+                            wanted[key] = true
+                            if not registered[key] then
+                                local ok, zid = pcall(function()
+                                    return ox:addSphereZone({ coords = U.vec(d.pos) + vector3(0.0, 0.0, 0.8), radius = radius(d),
+                                        debug = Config.Debug, options = buildOptions(incId, kind, id) })
+                                end)
+                                if ok and zid then registered[key] = { kind = kind, id = id, zone = zid } end
+                            end
+                        end
+                    end
+                end
+                zone('door', r.doors, function(d) return d.s == 'verschlossen' end, function() return 1.2 end)
+                zone('spill', r.spills, function(d) return d.s == 'vorhanden' end, function(d) return math.max(1.0, d.w or 2.0) end)
+                zone('marker', r.markers, function(d) return d.i and d.s == 'offen' end, function() return 1.2 end)
+            end
+            for key in pairs(registered) do
+                if not wanted[key] then unregister(key) end
+            end
+        elseif next(registered) then
+            for key in pairs(registered) do unregister(key) end
+        end
+    end
+end)
+
+AddEventHandler('onResourceStop', function(res)
+    if res ~= GetCurrentResourceName() then return end
+    for key in pairs(registered) do unregister(key) end
 end)

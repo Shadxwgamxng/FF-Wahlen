@@ -125,7 +125,8 @@ function Storage.loadScenarios()
         local sc, err = EC.Schema.normalizeScenario(type(record) == 'table' and record.scenario or nil)
         if sc then
             sc.id = id
-            Storage.scenarios[id] = { scenario = sc, meta = type(record.meta) == 'table' and record.meta or {} }
+            Storage.scenarios[id] = { scenario = sc, meta = type(record.meta) == 'table' and record.meta or {},
+                random = type(record.random) == 'table' and record.random or nil }
             okCount = okCount + 1
         else
             Storage.invalid[id] = record
@@ -164,6 +165,19 @@ end
 
 function Storage.saveRuntime(data)
     return Storage.save('runtime.json', data)
+end
+
+----------------------------------------------------------------------------
+-- Einstellungen (ingame aenderbar, z. B. Zufallseinsaetze)
+----------------------------------------------------------------------------
+function Storage.loadSettings()
+    local data = Storage.load('settings.json')
+    Storage.settings = type(data) == 'table' and data or {}
+    return Storage.settings
+end
+
+function Storage.saveSettings()
+    return Storage.save('settings.json', Storage.settings or {})
 end
 
 ----------------------------------------------------------------------------

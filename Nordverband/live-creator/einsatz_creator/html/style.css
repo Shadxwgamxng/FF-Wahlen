@@ -120,7 +120,7 @@ h3:first-child { margin-top: 0; }
 
 #left { grid-area: left; background: var(--bg); border-right: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; }
 #tabs { display: flex; border-bottom: 1px solid var(--line); }
-#tabs .tab {
+#tabs .tab { font-size: 11px !important;
     flex: 1; border: none; border-radius: 0; background: transparent; padding: 10px 2px;
     color: var(--muted); border-bottom: 2px solid transparent; font-size: 12px;
 }

@@ -13,7 +13,8 @@ löschbar. Die Anbindung an eine Leitstelle erfolgt über eine austauschbare Bri
 |---|---|
 | FXServer | aktueller Build, **OneSync aktiviert** (Fahrzeuge, Objekte und NPCs werden serverseitig erzeugt) |
 | Pflicht-Abhängigkeiten | keine |
-| Optional | `z_hose` (Löschen mit Strahlrohr/Schaum), `es_extended` / `qb-core` / `qbx_core` (Job-Abfragen) |
+| Eingerichtet für | `qb-core` (Jobs `fire`, `ambulance`, `ambulance2`, Dienststatus), `z_fire` (Feuer/Rauch), `z_hose` (über z_fire), `ox_target` (Interaktionen), `emergencydispatch` (Leitstelle) |
+| Fallbacks | ohne z_fire: eigenes Feuersystem (`Config.Fire.backend = 'internal'`), ohne ox_target: Taste E, ohne Leitstelle: interne Alarmierung |
 
 ## 2. Installation
 
@@ -26,8 +27,11 @@ löschbar. Die Anbindung an eine Leitstelle erfolgt über eine austauschbare Bri
 set onesync on
 
 # optionale Ressourcen VOR dem Creator starten
+ensure qb-core
+ensure ox_target
 ensure z_hose
-# ensure es_extended   /  ensure qb-core  /  ensure qbx_core
+ensure z_fire
+ensure emergencydispatch
 
 ensure einsatz_creator
 
@@ -85,15 +89,21 @@ Feuer/Rauch lassen sich an Fahrzeuge/Objekte koppeln, NPCs in Fahrzeuge setzen (
 | Alarm | Popup, Blips (Einsatzort, Gebiete, Positionen), Ton |
 | `/einsatzroute` | GPS zum letzten Einsatz |
 | `/einsatzinfo` | Lage, Gefahren, SOP, Patientenübersicht, Protokoll |
-| `E` an Patient/Tür/Ölspur/Fundstelle | Maßnahmenmenü (nur passende Maßnahmen je Rolle) |
+| ox_target an Patient/Tür/Ölspur/Fundstelle | passende Maßnahmen je Rolle und Zustand (ohne ox_target: Taste `E`) |
 | `X` | laufende Maßnahme abbrechen |
 
 Patientenablauf: *eingeklemmt* → Befreien (Feuerwehr) → Sichten → Versorgen → in RTW einladen →
 an Klinik übergeben (RTW im Radius einer Klinik aus `Config.Rescue.hospitals`).
 Leicht verletzte, gehfähige Patienten können vor Ort entlassen werden.
 
-### Feuer und z_hose
-Das Feuersystem ist eigenständig (Brandherde mit Lebenspunkten, Ausbreitung, Brenndauer,
+### Feuer: z_fire (Standard) und z_hose
+Mit `Config.Fire.backend = 'z_fire'` werden Brände und Rauch über die dokumentierten z_fire-Exports
+(`createFire`, `createSmoke`, `deleteFires`, `getAllFires`, `getAllSmoke`, Client `deleteSmokeById`) erzeugt.
+Löschen mit z_hose, Ausbreitung und Glutnester übernimmt z_fire. Im Creator: Partikeltyp (`Config.ZFire.fireEffects`
+mit eurer z_fire-Config abgleichen!), Brandverhalten (grass/interior/prop/vehicle), Kopplung an Fahrzeuge/Objekte,
+Room-Key für Innenraumbrände („Raum ermitteln“). Beim Beenden werden nur die eigenen UUIDs (und deren Ableger) gelöscht.
+
+Fallback `Config.Fire.backend = 'internal'`: Das Feuersystem ist eigenständig (Brandherde mit Lebenspunkten, Ausbreitung, Brenndauer,
 Glutnester/Wiederaufflammen). Beim Spritzen mit z_hose (`exports.z_hose:IsUsingHose()` und
 Waffen `WEAPON_REELBRANCH` / `WEAPON_FOAMBRANCH`) oder dem GTA-Feuerlöscher werden Treffer
 an den Server gemeldet. Der Server prüft Waffe, Abstand und Trefferrate.
@@ -112,9 +122,30 @@ Wirksamkeit je Feuerart und Löschmittel: `config_catalog.lua` → `Catalog.Fire
 | Rettung | `Config.Rescue` (Dauer, Rollen, RTW-Modelle, Kliniken) |
 | Bridge | `Config.Dispatch.adapter` = `none` \| `event` \| `custom` |
 
-## 5. Leitstellen-Bridge
+## 5. Zufallseinsätze
+
+Tab **Zufall** im Creator (Recht `einsatzcreator.live`):
+- Generator an/aus, Abstand (min/max Minuten), max. gleichzeitige Zufallseinsätze, Tageszeit-Grenzen.
+- Je gespeichertem Szenario: *im Zufallspool*, Gewichtung (1–10), Tageszeit (immer/Tag/Nacht),
+  Sperrzeit nach einem Start, Mindestanzahl Kräfte **im Dienst** je Rolle.
+- „Jetzt auslösen“ startet sofort einen passenden Einsatz aus dem Pool.
+Zufallseinsätze laufen wie Live-Einsätze (Notruf an EmergencyDispatch). Einstellungen liegen in `data/settings.json`.
+Export: `exports.einsatz_creator:TriggerRandomIncident()`.
+
+## 6. Leitstellen-Bridge
 
 Datei: `bridge/dispatch.lua`. **Testeinsätze werden nie übergeben.**
+
+### EmergencyDispatch (aktiv: `Config.Dispatch.adapter = 'emergencydispatch'`)
+Beim Live-Auslösen wird je alarmierter Rolle ein Notruf angelegt – über das dokumentierte Server-Event
+```lua
+TriggerEvent('emergencydispatch:emergencycall:new', job, meldung, coords, true)
+```
+Zuordnung Rolle → Leitstelle und Meldungstext: `Config.EmergencyDispatch` (Standard: fire → `fire`, ems → `ambulance`).
+Stichwort-Auswahl und Alarmierung nach AAO macht der Disponent in EmergencyDispatch.
+EmergencyDispatch bietet **keine** Schnittstelle für Statusänderungen oder das Beenden von Einsätzen;
+diese werden zusätzlich als `einsatzcreator:bridge:*`-Events ausgelöst (siehe unten).
+Die interne Alarmierung ist abgeschaltet (`Config.Dispatch.internalAlarm = false`), `/einsatzinfo` funktioniert weiter.
 
 ### Ausgehend (Creator → Leitstelle)
 Adapter `event` löst lokale Server-Events dieser Resource aus:
@@ -150,7 +181,7 @@ exports.einsatz_creator:StartScenario(scenarioId, mode) -- 'live' | 'test'
 ```
 Client-Exports: `exports.einsatz_creator:OpenCreator()`, `IsCreatorOpen()` (z. B. für ein Adminmenü).
 
-## 6. Sicherheit und Stabilität
+## 7. Sicherheit und Stabilität
 
 - Alle Aktionen laufen über ein zentrales Server-Event mit Rechteprüfung, Rate-Limit und Größenlimit.
 - Szenarien werden serverseitig vollständig normalisiert (Typen, Wertebereiche, Textlängen,
@@ -166,11 +197,12 @@ Client-Exports: `exports.einsatz_creator:OpenCreator()`, `IsCreatorOpen()` (z. B
 - Speicherung: Formatversion + Migration, `.bak` vor jedem Schreiben, Gegenlesen, beschädigte
   Dateien werden als `.corrupt-*` gesichert und nicht überschrieben.
 
-## 7. Tests
+## 8. Tests
 
 **Offline (ohne FiveM):** `lua5.4 tests/server_test.lua` (benötigt `dkjson`).
 Spielt Speichern, Auslösen, Löschen mit z_hose, Patientenablauf, Türöffnung, Ölspur,
-Beenden, Doppelauslösung, Rollback, Neustart-Bereinigung, beschädigte Datei und Rechte durch.
+Beenden, Doppelauslösung, Rollback, Neustart-Bereinigung, beschädigte Datei, z_fire-Backend,
+EmergencyDispatch-Notrufe, Zufallseinsätze und Rechte durch.
 
 **Ingame-Checkliste**
 
@@ -192,7 +224,7 @@ Beenden, Doppelauslösung, Rollback, Neustart-Bereinigung, beschädigte Datei un
 - [ ] `restart einsatz_creator` während Einsatz und mit offenem Creator → nichts bleibt zurück, niemand eingefroren
 - [ ] z_hose gestoppt → Creator läuft weiter, Löschen nur mit Feuerlöscher
 
-## 8. Bekannte technische Grenzen
+## 9. Bekannte technische Grenzen
 
 - GTA-Props lassen sich nicht skalieren; Größe gibt es nur für Feuer, Rauch, Gebiete und Ölspuren.
 - Partikeleffekte und Animationen werden beim Laden geprüft; nicht vorhandene fallen auf

@@ -57,7 +57,7 @@ Config.Permissions = {
     'none'  = nur ACE (komplett eigenstaendig)
     'esx' | 'qb' | 'qbx'
 ]]
-Config.Framework = 'auto'
+Config.Framework = 'qb'
 
 --[[
     Rollen der Einsatzkraefte (fuer Alarmierung und Interaktionen).
@@ -66,8 +66,8 @@ Config.Framework = 'auto'
         add_ace group.feuerwehr einsatzcreator.role.fire allow
 ]]
 Config.Roles = {
-    fire = { label = 'Feuerwehr', ace = 'einsatzcreator.role.fire', jobs = { 'fire', 'firefighter', 'fd' } },
-    ems = { label = 'Rettungsdienst', ace = 'einsatzcreator.role.ems', jobs = { 'ambulance', 'ems', 'medic' } },
+    fire = { label = 'Feuerwehr', ace = 'einsatzcreator.role.fire', jobs = { 'fire' } },
+    ems = { label = 'Rettungsdienst', ace = 'einsatzcreator.role.ems', jobs = { 'ambulance', 'ambulance2' } },
     police = { label = 'Polizei', ace = 'einsatzcreator.role.police', jobs = { 'police', 'sheriff' } },
 }
 
@@ -149,8 +149,30 @@ Config.Alarm = {
     popupSeconds = 25,
 }
 
+--[[
+    Zufallseinsaetze
+    Startwerte - werden ingame im Creator (Tab "Zufall") geaendert und in
+    data/settings.json gespeichert. Ins Zufallssystem kommen gespeicherte
+    Szenarien, bei denen "Im Zufallspool" aktiviert ist.
+]]
+Config.Random = {
+    enabled = false,          -- Generator an/aus
+    intervalMin = 10,         -- Minuten bis zum naechsten Einsatz (zufaellig zwischen min und max)
+    intervalMax = 25,
+    maxActive = 2,            -- hoechstens so viele Zufallseinsaetze gleichzeitig
+    dayStart = 6,             -- "Tag" = 06:00 bis 20:59 Serverzeit
+    dayEnd = 21,
+}
+
 -- Feuer
 Config.Fire = {
+    --[[
+        backend:
+          'z_fire'   Brand und Rauch werden ueber die z_fire-Exports erzeugt (createFire/createSmoke).
+                     Loeschen mit z_hose, Ausbreitung, Glutnester usw. uebernimmt z_fire selbst.
+          'internal' eigenes Feuersystem dieses Scripts (loeschbar mit z_hose ueber IsUsingHose)
+    ]]
+    backend = 'z_fire',
     renderDistance = 150.0,   -- ab dieser Entfernung zeichnet ein Client Feuer/Rauch
     tickSeconds = 2,          -- Simulationstakt auf dem Server
     maxHealth = 100.0,
@@ -171,6 +193,19 @@ Config.Fire = {
     maxHitsPerSecond = 12,    -- Anti-Cheat: maximale Trefferpakete pro Sekunde
 }
 
+-- z_fire (nur bei Config.Fire.backend = 'z_fire')
+Config.ZFire = {
+    resource = 'z_fire',
+    -- Partikeltypen aus cfg.fireTypes / cfg.smokeTypes eurer z_fire-config.lua.
+    -- Standardwerte = Beispiele aus der z_fire-Dokumentation; bitte mit eurer Config abgleichen.
+    fireEffects = { 'normal2', 'grass1', 'grass2', 'veh1', 'interior1' },
+    smokeEffects = { 'linger1', 'normal' },
+    defaultFireEffect = 'normal2',
+    defaultSmokeEffect = 'linger1',
+    -- Brenndauer, wenn im Creator 0 (= bis geloescht) gewaehlt ist
+    endlessBurnout = 99999,
+}
+
 -- z_hose (optional, wird automatisch erkannt)
 Config.ZHose = {
     resource = 'z_hose',
@@ -183,7 +218,10 @@ Config.ZHose = {
 
 -- Interaktionen der Einsatzkraefte (Tasten siehe https://docs.fivem.net/docs/game-references/controls/)
 Config.Interaction = {
-    key = 38,          -- E
+    -- 'ox_target' (wenn gestartet, sonst automatisch Taste) | 'key'
+    mode = 'ox_target',
+    targetResource = 'ox_target',
+    key = 38,          -- E (nur Modus 'key')
     keyLabel = 'E',
     cancelKey = 73,    -- X
     cancelLabel = 'X',
@@ -253,9 +291,34 @@ Config.Storage = {
 --   'event' = eigene Server-Events 'einsatzcreator:bridge:*' werden ausgeloest (zum Abonnieren durch die Leitstelle)
 --   'custom' = Funktionen in Config.DispatchCustom werden aufgerufen
 Config.Dispatch = {
-    adapter = 'event',
-    -- Interne Alarmierung auch dann senden, wenn eine Leitstelle angebunden ist?
-    internalAlarm = true,
+    adapter = 'emergencydispatch',
+    -- Interne Alarmierung (Popup/Blips dieses Scripts) zusaetzlich zur Leitstelle?
+    -- false = Alarmierung ausschliesslich ueber die Leitstelle. Testeinsaetze werden
+    -- immer intern an den Ausloesenden gemeldet (sie gehen nie an die Leitstelle).
+    internalAlarm = false,
+}
+
+--[[
+    EmergencyDispatch (LoveRP) - adapter = 'emergencydispatch'
+    Dokumentierte Schnittstelle (Server):
+        TriggerEvent('emergencydispatch:emergencycall:new', job, meldung, coords, true)
+    Damit wird ein Notruf in der Leitstelle des Jobs angelegt; Stichwort und
+    Alarmierung nach AAO erfolgen dort durch den Disponenten.
+    EmergencyDispatch bietet keine dokumentierte Schnittstelle fuer Statusaenderungen
+    oder das Beenden von Einsaetzen - diese bleiben in der Leitstelle.
+]]
+Config.EmergencyDispatch = {
+    resource = 'emergencydispatch',
+    -- Welche Leitstelle (Job) bekommt den Notruf je alarmierter Rolle?
+    jobsByRole = {
+        fire = 'fire',
+        ems = 'ambulance',
+        police = 'police',
+    },
+    -- Aufbau der Notrufmeldung. Platzhalter: {keyword} {name} {alarmText} {address} {patients} {id}
+    message = '{keyword}: {alarmText} - {address}',
+    -- Meldung bei Nachalarmierung
+    reAlarmMessage = 'NACHALARMIERUNG {keyword}: {alarmText} - {address}',
 }
 
 -- Optionale eigene Uebergabe an eine Leitstelle (adapter = 'custom').

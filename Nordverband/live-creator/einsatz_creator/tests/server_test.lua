@@ -129,10 +129,15 @@ end
 local files_to_load = {
     'config.lua', 'config_catalog.lua', 'shared/constants.lua', 'shared/utils.lua', 'shared/schema.lua',
     'server/storage.lua', 'bridge/framework.lua', 'server/permissions.lua', 'server/validation.lua',
-    'server/spawner.lua', 'server/fire.lua', 'server/rescue.lua', 'bridge/dispatch.lua', 'server/alarm.lua',
-    'server/incidents.lua', 'server/main.lua',
+    'server/spawner.lua', 'server/fire.lua', 'server/zfire.lua', 'server/rescue.lua', 'bridge/dispatch.lua', 'server/alarm.lua',
+    'server/incidents.lua', 'server/random.lua', 'server/main.lua',
 }
 for _, f in ipairs(files_to_load) do dofile(f) end
+-- Grundtests mit eigenem Feuersystem und Event-Bridge; z_fire/EmergencyDispatch werden weiter unten getestet
+Config.Fire.backend = 'internal'
+Config.Dispatch.adapter = 'event'
+Config.Dispatch.internalAlarm = true
+Config.Framework = 'none'
 
 local passed, failed = 0, 0
 local function check(cond, msg)
@@ -385,6 +390,79 @@ check(Storage.scenarios[scenarioId] ~= nil, 'Beschaedigte Datei: Backup geladen'
 local corruptKept = false
 for k in pairs(files) do if k:find('scenarios.json.corrupt', 1, true) then corruptKept = true end end
 check(corruptKept, 'Beschaedigte Datei als .corrupt gesichert')
+
+print('z_fire-Backend und EmergencyDispatch')
+IsPlayerAceAllowed = function() return true end
+local zf = { fires = {}, smokes = {}, created = {} }
+local resources = { z_fire = 'started', emergencydispatch = 'started' }
+GetResourceState = function(r) return resources[r] or 'missing' end
+local zexp = {
+    createFire = function(_, data, src)
+        local id = 'zf' .. tostring(#zf.created + 1)
+        zf.created[#zf.created + 1] = data
+        zf.fires[id] = { ptfxData = data.ptfxData, origin = data.origin }
+        return id
+    end,
+    createSmoke = function(_, data) local id = 'zs' .. tostring(#zf.created + 1) zf.created[#zf.created + 1] = data zf.smokes[id] = data return id end,
+    getAllFires = function() return zf.fires end,
+    getAllSmoke = function() return zf.smokes end,
+    deleteFires = function(_, list) for _, e in ipairs(list) do zf.fires[e.id] = nil end return true end,
+}
+exports = setmetatable({}, { __call = function(_, name, fn) exported[name] = fn end, __index = function(_, k) if k == 'z_fire' then return zexp end end })
+Config.Fire.backend = 'z_fire'
+Config.Dispatch.adapter = 'emergencydispatch'
+Config.Dispatch.internalAlarm = false
+Incidents.list, Fire.nodes, Fire.smokes = {}, {}, {}
+serverEvents = {}
+waitRate()
+ok, res = request('trigger', { scenarioId = scenarioId, mode = 'live' })
+check(ok, 'Live-Einsatz mit z_fire erstellt ' .. tostring(ok and res.id or res))
+local zinc = ok and Incidents.get(res.id)
+local vehFire, grassFire
+for _, d in ipairs(zf.created) do
+    if d.behaviourType == 'vehicle' then vehFire = d elseif d.behaviourType == 'grass' then grassFire = d end
+end
+check(vehFire and vehFire.networkEntity and vehFire.ptfxData.fallbackPos, 'Fahrzeugbrand mit networkEntity und fallbackPos an z_fire')
+check(grassFire and grassFire.canSpread == true and grassFire.spreadSize, 'Flaechenbrand mit Ausbreitung an z_fire')
+local calls = {}
+for _, ev in ipairs(serverEvents) do if ev.name == 'emergencydispatch:emergencycall:new' then calls[#calls + 1] = ev.args end end
+check(#calls == 3, 'Je Rolle ein Notruf an EmergencyDispatch (' .. #calls .. ')')
+check(calls[1] and type(calls[1][2]) == 'string' and calls[1][3].x and calls[1][4] == true, 'Notruf-Parameter: job, meldung, coords, true')
+local foreignId = 'fremd1'
+zf.fires[foreignId] = { origin = { is = true } }
+waitRate()
+ok = request('incidentAction', { id = zinc.id, action = 'end' })
+local ownLeft = 0
+for id in pairs(zf.fires) do if id ~= foreignId then ownLeft = ownLeft + 1 end end
+check(ok and ownLeft == 0, 'Eigene z_fire-Feuer beim Beenden geloescht')
+check(zf.fires[foreignId] ~= nil, 'Fremdes z_fire-Feuer bleibt unberuehrt')
+local smokeDel = false
+for _, ev in ipairs(clientEvents) do if ev.name == 'einsatzcreator:client:zfireDeleteSmoke' then smokeDel = true end end
+check(smokeDel, 'Rauch-Loeschung an Client delegiert')
+resources.z_fire = 'missing'
+waitRate()
+ok, res = request('trigger', { scenarioId = scenarioId, mode = 'test' })
+check(not ok and tostring(res):find('z_fire'), 'Fehlendes z_fire: verstaendliche Fehlermeldung + Rollback')
+resources.z_fire = 'started'
+
+print('Zufallseinsaetze')
+Incidents.list = {}
+waitRate()
+ok, res = request('randomSetPool', { id = scenarioId, pool = { enabled = true, weight = 3, minOnDuty = { ems = 5 } } })
+check(ok and #res.candidates == 1 and not res.candidates[1].eligible, 'Zu wenig Kraefte im Dienst -> nicht startbar')
+waitRate()
+ok, res = request('randomSetPool', { id = scenarioId, pool = { enabled = true, weight = 3 } })
+check(ok and res.candidates[1].eligible, 'Szenario im Pool startbar')
+waitRate()
+ok, res = request('randomRunNow')
+check(ok and Incidents.get(res.id) and Incidents.get(res.id).random, 'Zufallseinsatz gestartet')
+waitRate()
+ok, res = request('randomRunNow')
+check(not ok, 'Laufendes Szenario wird nicht doppelt gestartet')
+waitRate()
+ok, res = request('randomSaveSettings', { settings = { enabled = true, intervalMin = 5, intervalMax = 2 } })
+check(ok and res.settings.intervalMax == 5 and res.nextAt, 'Einstellungen gespeichert und normalisiert')
+check(files['data/settings.json'] ~= nil, 'settings.json geschrieben')
 
 print('Berechtigungen')
 IsPlayerAceAllowed = function() return false end

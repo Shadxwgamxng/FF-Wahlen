@@ -112,6 +112,12 @@ function OpenCreator()
             phases = EC.Phases,
             statusLabels = EC.StatusLabels,
             patientStatus = EC.PatientStatus,
+            fireBackend = Config.Fire.backend,
+            zfire = {
+                fireEffects = Config.ZFire.fireEffects,
+                smokeEffects = Config.ZFire.smokeEffects,
+                running = GetResourceState(Config.ZFire.resource) == 'started',
+            },
         },
         perms = State.perms,
         user = State.user,

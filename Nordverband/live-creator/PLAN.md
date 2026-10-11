@@ -51,4 +51,15 @@ Dieser Plan wird bei jedem Zwischenstand aktualisiert und mitgepusht.
 - ✅ Syntaxprüfung aller Lua- und JS-Dateien
 - ✅ README: Installation, `server.cfg`, Bedienung, Exports/Events, Bridge-Payload, Testcheckliste
 - ✅ Offline-Testlauf der Server-Logik (`tests/server_test.lua`, 54/54 bestanden)
-- 🔄 Rückfragen zur Leitstellen-Integration (siehe Chat)
+- ✅ Rückfragen zur Leitstellen-Integration beantwortet
+
+## Phase 7 – Anbindung an euren Server
+- ✅ QBCore: Jobs `fire`, `ambulance`, `ambulance2`, nur im Dienst
+- ✅ EmergencyDispatch: Notruf je Rolle über `emergencydispatch:emergencycall:new`, interne Alarmierung aus
+- ✅ z_fire als Feuer-Backend (Fahrzeug-/Objekt-/Innenraum-/Flächenbrand, Rauch, Löschen nur eigener IDs)
+- ✅ ox_target für Patienten, Türen, Ölspuren, Fundstellen
+- ✅ Zufallseinsätze (Pool je Szenario, Gewichtung, Tageszeit, Sperrzeit, Mindestbesetzung) – ingame einstellbar
+- ✅ Offline-Tests erweitert (69/69 bestanden)
+- ⬜ Fahrzeuge (RTW/KTW/NEF) eintragen – wartet auf Liste
+- ⬜ Kliniken eintragen – wartet auf Liste
+- ⬜ Übernahme aus altem Medic-System – wartet auf Freigabe (siehe Chat)

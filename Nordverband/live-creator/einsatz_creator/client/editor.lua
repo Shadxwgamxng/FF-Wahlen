@@ -962,6 +962,37 @@ NUI.on('recomputeSpread', function(data)
     return true, { count = #el.props.spreadPoints }
 end)
 
+-- Room-Key fuer z_fire-Innenraumbraende an der Position eines Feuers bestimmen
+NUI.on('roomHashAt', function(data)
+    requireOpen()
+    local el = findEl(data.id)
+    if not el then return false, 'Element nicht gefunden' end
+    local p = U.vec(el.pos)
+    local interior = GetInteriorAtCoords(p.x, p.y, p.z)
+    if interior == 0 then return false, 'An dieser Position ist kein Innenraum (Interior) geladen' end
+    local hash = LoadModel('prop_cs_cardbox_01') or LoadModel('prop_ld_health_pack')
+    if not hash then return false, 'Hilfsobjekt konnte nicht geladen werden' end
+    local obj = CreateObjectNoOffset(hash, p.x, p.y, p.z + 0.2, false, false, false)
+    SetEntityVisible(obj, false, false)
+    SetEntityCollision(obj, false, false)
+    FreezeEntityPosition(obj, true)
+    local room = 0
+    for _ = 1, 30 do
+        Wait(50)
+        room = GetRoomKeyFromEntity(obj)
+        if room ~= 0 then break end
+    end
+    DeleteEntity(obj)
+    SetModelAsNoLongerNeeded(hash)
+    if room == 0 then return false, 'Kein Raum gefunden - alternativ /z_fire:roomkey im Raum nutzen' end
+    local copy = U.deepcopy(el)
+    copy.props.roomHash = room
+    copy.props.zfBehaviour = 'interior'
+    local ok, err = Editor.updateElement(el.id, copy)
+    if not ok then return false, err end
+    return true, { roomHash = room }
+end)
+
 NUI.on('updateInfo', function(data)
     requireOpen()
     local d = State.draft
@@ -1089,6 +1120,12 @@ NUI.on('setWaypoint', function(data)
     SetNewWaypoint(U.num(data.pos.x, 0.0), U.num(data.pos.y, 0.0))
     return true
 end)
+
+-- Zufallseinsaetze (Pruefung und Speicherung auf dem Server)
+NUI.on('randomStatus', function() return Request('randomStatus') end)
+NUI.on('randomSaveSettings', function(data) return Request('randomSaveSettings', { settings = data.settings }) end)
+NUI.on('randomSetPool', function(data) return Request('randomSetPool', { id = data.id, pool = data.pool }) end)
+NUI.on('randomRunNow', function() return Request('randomRunNow', nil, 60000) end)
 
 NUI.on('close', function()
     CloseCreator()

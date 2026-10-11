@@ -8,7 +8,7 @@ description 'Eigenstaendiger Einsatz-Creator: Brand, THL, Tueroeffnung, VU und N
 version '1.0.0'
 
 -- Voraussetzung: OneSync (Fahrzeuge, Objekte und NPCs werden serverseitig erzeugt).
--- Alle Fremdressourcen (z_hose, ESX, QBCore, QBox, Leitstelle) sind optional.
+-- Fremdressourcen (z_fire, z_hose, QBCore, ox_target, emergencydispatch) werden zur Laufzeit erkannt.
 
 shared_scripts {
     'config.lua',
@@ -37,10 +37,12 @@ server_scripts {
     'server/validation.lua',
     'server/spawner.lua',
     'server/fire.lua',
+    'server/zfire.lua',
     'server/rescue.lua',
     'bridge/dispatch.lua',
     'server/alarm.lua',
     'server/incidents.lua',
+    'server/random.lua',
     'server/main.lua',
 }
 

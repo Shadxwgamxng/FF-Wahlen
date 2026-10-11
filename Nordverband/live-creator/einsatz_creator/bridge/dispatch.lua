@@ -14,6 +14,10 @@
                  einsatzcreator:bridge:update    (payload)
                  einsatzcreator:bridge:ended     (payload)
       'custom' ruft Config.DispatchCustom.onCreated/onStatus/onUpdate/onEnded(payload) auf
+      'emergencydispatch' legt je alarmierter Rolle einen Notruf in EmergencyDispatch an
+               (dokumentiertes Server-Event 'emergencydispatch:emergencycall:new').
+               Status/Update/Ende werden zusaetzlich als 'event' ausgeloest, da
+               EmergencyDispatch dafuer keine Schnittstelle bietet.
 
     Payload (alle Adapter):
       {
@@ -94,6 +98,43 @@ end
 
 local customFn = { created = 'onCreated', status = 'onStatus', update = 'onUpdate', ended = 'onEnded' }
 
+-- Notrufmeldung aus Vorlage bauen
+local function formatMessage(template, payload)
+    local values = {
+        keyword = payload.keyword ~= '' and payload.keyword or payload.categoryLabel,
+        name = payload.name,
+        alarmText = payload.alarmText ~= '' and payload.alarmText or payload.name,
+        address = payload.address or '',
+        patients = tostring(payload.persons.total or 0),
+        id = payload.incidentId,
+    }
+    local text = template:gsub('{(%w+)}', function(k) return values[k] or '' end)
+    text = text:gsub('%s+%-%s*$', ''):gsub('^%s+', '')
+    return text
+end
+
+-- Notruf(e) in EmergencyDispatch anlegen. Rueckgabe: Anzahl angelegter Notrufe
+local function emergencyCall(payload, template)
+    local cfg = Config.EmergencyDispatch
+    if GetResourceState(cfg.resource) ~= 'started' then
+        U.log('error', 'EmergencyDispatch (%s) ist nicht gestartet - Einsatz %s wurde NICHT an die Leitstelle uebergeben', cfg.resource, payload.incidentId)
+        return 0
+    end
+    local coords = vector3(payload.coords.x, payload.coords.y, payload.coords.z)
+    local message = formatMessage(template, payload)
+    local sent, seen = 0, {}
+    for _, role in ipairs(payload.roles or {}) do
+        local job = cfg.jobsByRole[role]
+        if job and not seen[job] then
+            seen[job] = true
+            TriggerEvent('emergencydispatch:emergencycall:new', job, message, coords, true)
+            sent = sent + 1
+            U.log('info', 'Einsatz %s: Notruf an Leitstelle "%s" uebergeben', payload.incidentId, job)
+        end
+    end
+    return sent
+end
+
 local function emit(kind, incident, change)
     -- Testeinsaetze gehen nie an die Leitstelle
     if incident.mode ~= 'live' then return end
@@ -102,7 +143,12 @@ local function emit(kind, incident, change)
 
     local payload = Dispatch.payload(incident, change)
     local ok, err = pcall(function()
-        if adapter == 'event' then
+        if adapter == 'emergencydispatch' then
+            if kind == 'created' then
+                incident.dispatchCalls = emergencyCall(payload, Config.EmergencyDispatch.message)
+            end
+            TriggerEvent('einsatzcreator:bridge:' .. kind, payload)
+        elseif adapter == 'event' then
             TriggerEvent('einsatzcreator:bridge:' .. kind, payload)
         elseif adapter == 'custom' then
             local fn = Config.DispatchCustom[customFn[kind]]
@@ -120,3 +166,10 @@ function Dispatch.created(incident) emit('created', incident) end
 function Dispatch.status(incident, change) emit('status', incident, change) end
 function Dispatch.update(incident, change) emit('update', incident, change) end
 function Dispatch.ended(incident, change) emit('ended', incident, change) end
+
+-- Nachalarmierung ueber die Leitstelle. Rueckgabe: Anzahl Notrufe
+function Dispatch.reAlarm(incident)
+    if incident.mode ~= 'live' or Config.Dispatch.adapter ~= 'emergencydispatch' then return 0 end
+    local ok, n = pcall(emergencyCall, Dispatch.payload(incident, { reAlarm = true }), Config.EmergencyDispatch.reAlarmMessage)
+    return ok and n or 0
+end
