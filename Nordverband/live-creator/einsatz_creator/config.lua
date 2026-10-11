@@ -158,8 +158,9 @@ Config.Fire = {
           'z_fire'   Brand und Rauch werden ueber die z_fire-Exports erzeugt (createFire/createSmoke).
                      Loeschen mit z_hose, Ausbreitung, Glutnester usw. uebernimmt z_fire selbst.
           'internal' eigenes Feuersystem dieses Scripts (loeschbar mit z_hose ueber IsUsingHose)
+          'auto'     z_fire, wenn die Resource laeuft, sonst automatisch 'internal' (zum Testen ohne z_fire)
     ]]
-    backend = 'z_fire',
+    backend = 'auto',
     renderDistance = 150.0,   -- ab dieser Entfernung zeichnet ein Client Feuer/Rauch
     tickSeconds = 2,          -- Simulationstakt auf dem Server
     maxHealth = 100.0,
@@ -180,7 +181,7 @@ Config.Fire = {
     maxHitsPerSecond = 12,    -- Anti-Cheat: maximale Trefferpakete pro Sekunde
 }
 
--- z_fire (nur bei Config.Fire.backend = 'z_fire')
+-- z_fire (bei Config.Fire.backend = 'z_fire' oder 'auto' mit laufendem z_fire)
 Config.ZFire = {
     resource = 'z_fire',
     -- Partikeltypen aus cfg.fireTypes / cfg.smokeTypes eurer z_fire-config.lua.

@@ -159,3 +159,13 @@ if not IS_SERVER then
 else
     math.randomseed(os.time())
 end
+
+-- Aktives Feuer-Backend: 'z_fire' oder 'internal'.
+-- Bei Config.Fire.backend = 'auto' wird z_fire genutzt, sobald die Resource laeuft, sonst das eigene Feuersystem.
+function EC.fireBackend()
+    local b = Config.Fire and Config.Fire.backend or 'auto'
+    if b == 'auto' then
+        return GetResourceState(Config.ZFire.resource) == 'started' and 'z_fire' or 'internal'
+    end
+    return b == 'z_fire' and 'z_fire' or 'internal'
+end

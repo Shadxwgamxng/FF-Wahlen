@@ -89,8 +89,17 @@ local function newNode(incident, el, p, size, parent, attachNet)
 end
 
 -- Brandherde und Rauch eines Einsatzes erzeugen
+-- Backend je Einsatz merken, damit Entfernen/Zusammenfassung dasselbe Backend nutzen
+Fire.backendOf = {}
+
+local function backendOf(incidentId)
+    return Fire.backendOf[incidentId] or EC.fireBackend()
+end
+
 function Fire.createForIncident(incident)
-    if Config.Fire.backend == 'z_fire' then return ZFire.createForIncident(incident) end
+    local backend = EC.fireBackend()
+    Fire.backendOf[incident.id] = backend
+    if backend == 'z_fire' then return ZFire.createForIncident(incident) end
     local created = {}
     local smokes = {}
     incident.fire = { spread = {}, extinguished = 0, total = 0 }
@@ -135,7 +144,9 @@ end
 
 -- Alle Brandherde/Rauchquellen eines Einsatzes entfernen (idempotent)
 function Fire.removeIncident(incidentId)
-    if Config.Fire.backend == 'z_fire' then return ZFire.removeIncident(incidentId) end
+    local backend = backendOf(incidentId)
+    Fire.backendOf[incidentId] = nil
+    if backend == 'z_fire' then return ZFire.removeIncident(incidentId) end
     local nodeIds, smokeIds = {}, {}
     for id, n in pairs(Fire.nodes) do
         if n.incident == incidentId then
@@ -154,7 +165,7 @@ function Fire.removeIncident(incidentId)
 end
 
 function Fire.summary(incidentId)
-    if Config.Fire.backend == 'z_fire' then return ZFire.summary(incidentId) end
+    if backendOf(incidentId) == 'z_fire' then return ZFire.summary(incidentId) end
     local burning, smouldering = 0, 0
     for _, n in pairs(Fire.nodes) do
         if n.incident == incidentId then

@@ -409,7 +409,11 @@ local zexp = {
     deleteFires = function(_, list) for _, e in ipairs(list) do zf.fires[e.id] = nil end return true end,
 }
 exports = setmetatable({}, { __call = function(_, name, fn) exported[name] = fn end, __index = function(_, k) if k == 'z_fire' then return zexp end end })
-Config.Fire.backend = 'z_fire'
+Config.Fire.backend = 'auto'
+check(EC.fireBackend() == 'z_fire', 'auto: z_fire laeuft -> z_fire-Backend')
+resources.z_fire = 'stopped'
+check(EC.fireBackend() == 'internal', 'auto: ohne z_fire -> eigenes Feuersystem')
+resources.z_fire = 'started'
 Config.Dispatch.adapter = 'emergencydispatch'
 Incidents.list, Fire.nodes, Fire.smokes = {}, {}, {}
 serverEvents = {}
@@ -441,7 +445,21 @@ check(smokeDel, 'Rauch-Loeschung an Client delegiert')
 resources.z_fire = 'missing'
 waitRate()
 ok, res = request('trigger', { scenarioId = scenarioId, mode = 'test' })
-check(not ok and tostring(res):find('z_fire'), 'Fehlendes z_fire: verstaendliche Fehlermeldung + Rollback')
+local autoInc = ok and Incidents.get(res.id)
+local internalNodes = 0
+for _, n in pairs(Fire.nodes) do if autoInc and n.incident == autoInc.id then internalNodes = internalNodes + 1 end end
+check(ok and internalNodes > 0, 'auto ohne z_fire: Einsatz laeuft mit eigenem Feuersystem')
+if autoInc then
+    waitRate()
+    request('incidentAction', { id = autoInc.id, action = 'end' })
+    local left = 0
+    for _, n in pairs(Fire.nodes) do if n.incident == autoInc.id then left = left + 1 end end
+    check(left == 0, 'auto ohne z_fire: eigene Brandherde beim Beenden entfernt')
+end
+Config.Fire.backend = 'z_fire'
+waitRate()
+ok, res = request('trigger', { scenarioId = scenarioId, mode = 'test' })
+check(not ok and tostring(res):find('z_fire'), 'Fest auf z_fire ohne z_fire: verstaendliche Fehlermeldung + Rollback')
 resources.z_fire = 'started'
 
 print('Zufallseinsaetze')

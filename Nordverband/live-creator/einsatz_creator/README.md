@@ -15,7 +15,7 @@ löschbar. Die Anbindung an eine Leitstelle erfolgt über eine austauschbare Bri
 | Pflicht-Abhängigkeiten | keine |
 | Pflicht | `ox_lib` (Behandlungsmenü) |
 | Eingerichtet für | `qb-core` (Jobs `fire`, `ambulance`, `ambulance2`, Dienststatus), `z_fire` (Feuer/Rauch), `z_hose` (über z_fire), RTW `bftecrtw`/`bftecrtw2`/`bftecrtw3`, NEF und KTW vorerst `ambulance`, `ox_target` (Interaktionen), `emergencydispatch` (Leitstelle) |
-| Fallbacks | ohne z_fire: eigenes Feuersystem (`Config.Fire.backend = 'internal'`), ohne ox_target: Taste E. Alarmiert wird ausschließlich über EmergencyDispatch |
+| Fallbacks | ohne z_fire: eigenes Feuersystem (Standard `Config.Fire.backend = 'auto'` schaltet automatisch um), ohne ox_target: Taste E. Alarmiert wird ausschließlich über EmergencyDispatch |
 
 ## 2. Installation
 
@@ -32,7 +32,7 @@ ensure qb-core
 ensure ox_lib
 ensure ox_target
 ensure z_hose
-ensure z_fire
+ensure z_fire        # optional, ohne z_fire laeuft das eigene Feuersystem
 ensure emergencydispatch
 
 ensure einsatz_creator

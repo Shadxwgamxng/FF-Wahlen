@@ -1,5 +1,5 @@
 --[[
-    z_fire-Backend (Config.Fire.backend = 'z_fire')
+    z_fire-Backend (Config.Fire.backend = 'z_fire' oder 'auto' mit laufendem z_fire)
 
     Verwendet ausschliesslich dokumentierte z_fire-Server-Exports:
       createFire(fire_data, source)   -> uuid | nil
@@ -208,7 +208,7 @@ end
 CreateThread(function()
     while true do
         Wait(10000)
-        if Config.Fire.backend == 'z_fire' and next(ZFire.incidents) and ZFire.available() then
+        if next(ZFire.incidents) and ZFire.available() then
             for incidentId, rec in pairs(ZFire.incidents) do
                 local inc = Incidents.get(incidentId)
                 if inc and inc.status == EC.Status.active then

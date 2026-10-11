@@ -112,7 +112,7 @@ function OpenCreator()
             phases = EC.Phases,
             statusLabels = EC.StatusLabels,
             patientStatus = EC.PatientStatus,
-            fireBackend = Config.Fire.backend,
+            fireBackend = EC.fireBackend(),
             dispatchJobs = Config.EmergencyDispatch and Config.EmergencyDispatch.jobsByRole or {},
             zfire = {
                 fireEffects = Config.ZFire.fireEffects,
