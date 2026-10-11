@@ -332,7 +332,7 @@ Config.EmergencyDispatch = {
     -- Welche Leitstelle (Job) bekommt den Notruf je alarmierter Rolle?
     jobsByRole = {
         fire = 'fire',
-        ems = 'ambulance',
+        ems = 'fire',      -- Rettungsdienst-Notrufe laufen ueber die Leitstelle "fire"
         police = 'police',
     },
     -- Aufbau der Notrufmeldung. Platzhalter: {keyword} {name} {alarmText} {address} {patients} {id}

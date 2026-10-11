@@ -60,6 +60,7 @@ function Cam.destroy()
     end
     ClearFocus()
     Cam.look = false
+    Cam.anchorOverride = nil
 end
 
 -- Mausbewegung waehrend gehaltener rechter Maustaste (Pixel-Delta aus der NUI)
@@ -102,7 +103,7 @@ end
 
 -- Kamera im erlaubten Radius um den Einsatzmittelpunkt halten
 function Cam.clampPos(p)
-    local anchor = State.draft and State.draft.center and U.vec(State.draft.center) or State.anchor
+    local anchor = Cam.anchorOverride or (State.draft and State.draft.center and U.vec(State.draft.center)) or State.anchor
     if anchor then
         local d = p - anchor
         local max = Config.Editor.maxDistance

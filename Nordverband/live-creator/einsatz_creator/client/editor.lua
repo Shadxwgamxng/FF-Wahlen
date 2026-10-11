@@ -63,6 +63,19 @@ function Editor.catalogPayload()
         areaKinds = Catalog.AreaKinds,
         spillKinds = Catalog.SpillKinds,
         damageLevels = Catalog.DamageLevels,
+        medical = {
+            enabled = Config.Medical.enabled,
+            profiles = (function()
+                local out = { { id = 'none', label = 'Kein Meldebild (Werte manuell)', variants = {} } }
+                for _, pr in ipairs(Medical.Profiles) do
+                    local vs = {}
+                    for i, v in ipairs(pr.variants) do vs[i] = v.label end
+                    out[#out + 1] = { id = pr.id, label = pr.label, variants = vs, keyword = pr.keyword }
+                end
+                return out
+            end)(),
+            bodyParts = Medical.BodyParts,
+        },
         kinds = EC.Kinds,
         defaults = {
             vehicle = Schema.Defaults.vehicle(), object = Schema.Defaults.object(), ped = Schema.Defaults.ped(),
@@ -153,6 +166,7 @@ end
 -- Entwurf
 ----------------------------------------------------------------------------
 function Editor.newDraft(silent)
+    Cam.anchorOverride = nil
     Preview.clear()
     Editor.setTool({ name = 'select' })
     State.draft = Schema.newScenario(Catalog.Categories[1].id)
@@ -164,6 +178,7 @@ function Editor.newDraft(silent)
 end
 
 function Editor.loadScenario(sc, meta)
+    Cam.anchorOverride = nil
     Editor.setTool({ name = 'select' })
     State.draft = sc
     State.meta = meta
@@ -485,6 +500,7 @@ local HINTS = {
     door = 'Linksklick auf eine Tuer (echte Kartentuer wird erkannt) | Esc: abbrechen',
     pickTarget = 'Fahrzeug oder Objekt anklicken, an das gekoppelt werden soll | Esc: abbrechen',
     pickVehicle = 'Fahrzeug anklicken, in dem der NPC sitzen soll | Esc: abbrechen',
+    variant = 'Linksklick: Ortsvariante setzen | Mausrad: Ausrichtung drehen | Esc: beenden',
 }
 
 -- Jeden Frame
@@ -539,6 +555,13 @@ function Editor.frame()
             end
             Editor.doorOutline = entity
         end
+    elseif hit and t.name == 'variant' then
+        local h = math.rad(t.heading or 0.0)
+        local dir = vector3(-math.sin(h), math.cos(h), 0.0)
+        local tip = coords + dir * 4.0
+        DrawMarker(1, coords.x, coords.y, coords.z - 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.5, 1.5, 3.0, 120, 200, 255, 120, false, false, 2, false, nil, nil, false)
+        DrawLine(coords.x, coords.y, coords.z + 0.5, tip.x, tip.y, tip.z + 0.5, 120, 200, 255, 255)
+        DrawMarker(28, tip.x, tip.y, tip.z + 0.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.2, 0.2, 0.2, 120, 200, 255, 255, false, false, 2, false, nil, nil, false)
     elseif hit and t.name == 'line' then
         local spacing = t.template.spacing or 1.5
         local p = coords
@@ -687,6 +710,23 @@ function Editor.click(button, mods)
         if Editor.doorOutline and DoesEntityExist(Editor.doorOutline) then SetEntityDrawOutline(Editor.doorOutline, false) end
         local ok, res = Editor.addElement(raw)
         if not ok then NUI.toast('error', res) else State.selected = res.id end
+    elseif t.name == 'variant' then
+        local d = State.draft
+        if not d.center then
+            NUI.toast('error', 'Zuerst den Einsatzort (Original) festlegen')
+            return
+        end
+        d.variants = d.variants or {}
+        if #d.variants >= 20 then
+            NUI.toast('error', 'Maximal 20 Ortsvarianten')
+            return
+        end
+        local v = U.xyz(coords)
+        v.h = U.round((t.heading or 0.0) % 360.0, 1)
+        v.label = addressAt(coords)
+        d.variants[#d.variants + 1] = v
+        Editor.markDirty()
+        NUI.toast('success', ('Ortsvariante %d gesetzt: %s'):format(#d.variants, v.label))
     elseif t.name == 'pickTarget' then
         local targetId = elementFromEntity(entity)
         local target = targetId and findEl(targetId)
@@ -749,6 +789,9 @@ function Editor.wheel(delta, mods)
         else
             t.template.rot.z = (t.template.rot.z + delta * step) % 360.0
         end
+        return
+    elseif t.name == 'variant' then
+        t.heading = ((t.heading or 0.0) + delta * step) % 360.0
         return
     elseif t.name == 'line' then
         t.template.spacing = U.clamp((t.template.spacing or 1.5) + delta * 0.25, 0.5, 10.0)
@@ -842,11 +885,11 @@ function Editor.save()
     return true, res
 end
 
-function Editor.trigger(mode)
+function Editor.trigger(mode, variant)
     local ok, sc = prepareDraft()
     if not ok then return false, sc end
     sc.id = State.draft.id
-    local tok, res = Request('trigger', { scenario = sc, scenarioId = State.draft.id, mode = mode }, 60000)
+    local tok, res = Request('trigger', { scenario = sc, scenarioId = State.draft.id, mode = mode, variant = variant }, 60000)
     if not tok then return false, res end
     -- Vorschau ausblenden, damit sie die echten Elemente nicht verdeckt
     Preview.clear()
@@ -962,6 +1005,38 @@ NUI.on('recomputeSpread', function(data)
     return true, { count = #el.props.spreadPoints }
 end)
 
+-- Ortsvarianten bearbeiten (Liste kommt vollstaendig aus der Oberflaeche)
+NUI.on('updateVariants', function(data)
+    requireOpen()
+    local list = {}
+    for _, v in ipairs(type(data.variants) == 'table' and data.variants or {}) do
+        local x, y, z = tonumber(v.x), tonumber(v.y), tonumber(v.z)
+        if x and y and z and #list < 20 then
+            list[#list + 1] = { x = x, y = y, z = z, h = U.num(v.h, 0.0) % 360.0, label = U.cleanText(v.label, 48) }
+        end
+    end
+    State.draft.variants = list
+    Editor.markDirty()
+    return true
+end)
+
+NUI.on('focusVariant', function(data)
+    requireOpen()
+    local v = State.draft.variants and State.draft.variants[tonumber(data.index) or 0]
+    if not v then return false, 'Variante nicht gefunden' end
+    -- Kamerareichweite voruebergehend um die Variante legen
+    Cam.anchorOverride = vector3(v.x, v.y, v.z)
+    Cam.focusOn(Cam.anchorOverride, 30.0)
+    return true
+end)
+
+NUI.on('cameraToCenterReset', function()
+    requireOpen()
+    Cam.anchorOverride = nil
+    if State.draft.center then Cam.focusOn(State.draft.center, 25.0) end
+    return true
+end)
+
 -- Room-Key fuer z_fire-Innenraumbraende an der Position eines Feuers bestimmen
 NUI.on('roomHashAt', function(data)
     requireOpen()
@@ -1024,6 +1099,7 @@ NUI.on('cameraToCenter', function()
     requireOpen()
     local c = State.draft.center
     if not c then return false, 'Kein Einsatzort festgelegt' end
+    Cam.anchorOverride = nil
     Cam.focusOn(c, 25.0)
     return true
 end)
@@ -1088,7 +1164,8 @@ end)
 NUI.on('trigger', function(data)
     requireOpen()
     local mode = data.mode == 'live' and 'live' or 'test'
-    return Editor.trigger(mode)
+    local variant = data.variant == 'random' and 'random' or math.floor(U.num(data.variant, 0, 0, 20))
+    return Editor.trigger(mode, variant)
 end)
 
 NUI.on('togglePreview', function()

@@ -127,11 +127,26 @@ function World.setupPed(ped, props, isLocal, state)
     if isLocal then damagePack(ped, props) end
 
     local inVehicle = IsPedInAnyVehicle(ped, false)
-    local transport = state and state.st == 'transport'
+    local transport = state and (state.st == 'transport' or state.st == 'stretcher')
+    if state and state.st == 'stretcher' then World.attachStretcher(ped, state) end
     if not inVehicle and not transport then
         World.playPose(ped, (state and state.pose) or props.pose)
         if isLocal then FreezeEntityPosition(ped, true) end
     end
+end
+
+-- Patient auf die Trage legen (Trage = Fahrzeug-Modell, z. B. rda_stretcher)
+function World.attachStretcher(ped, state)
+    if not state.stretcher or not NetworkDoesNetworkIdExist(state.stretcher) then return end
+    local stretcher = NetworkGetEntityFromNetworkId(state.stretcher)
+    if not stretcher or stretcher == 0 or not DoesEntityExist(stretcher) then return end
+    if IsEntityAttachedToEntity(ped, stretcher) then return end
+    FreezeEntityPosition(ped, false)
+    ClearPedTasksImmediately(ped)
+    if LoadAnimDict('savecouch@') then
+        TaskPlayAnim(ped, 'savecouch@', 't_sleep_loop_couch', 8.0, -8.0, -1, 1, 0, false, false, false)
+    end
+    AttachEntityToEntity(ped, stretcher, 0, 0.0, 0.2, 1.1, 0.0, 0.0, 180.0, false, false, false, false, 2, true)
 end
 
 ----------------------------------------------------------------------------
@@ -174,7 +189,12 @@ local function applyLive(entity, state)
     end
 
     -- Pose pruefen (Besitzer): liegende NPCs nach kurzer Zeit fixieren, Animation erneuern
-    if isOwner and state.k == 'ped' and state.st ~= 'transport' and not IsPedInAnyVehicle(entity, false) then
+    if isOwner and state.k == 'ped' and state.st == 'stretcher' then
+        World.attachStretcher(entity, state)
+        if not IsEntityPlayingAnim(entity, 'savecouch@', 't_sleep_loop_couch', 3) and LoadAnimDict('savecouch@') then
+            TaskPlayAnim(entity, 'savecouch@', 't_sleep_loop_couch', 8.0, -8.0, -1, 1, 0, false, false, false)
+        end
+    elseif isOwner and state.k == 'ped' and state.st ~= 'transport' and not IsPedInAnyVehicle(entity, false) then
         local pose = state.pose or state.p.pose
         if not World.isPosePlaying(entity, pose) then World.playPose(entity, pose) end
         if rec.poseSince and GetGameTimer() - rec.poseSince > 1500 and not rec.frozen then
@@ -196,8 +216,11 @@ AddStateBagChangeHandler('ec', nil, function(bagName, _, value)
         if entity ~= 0 then
             local rec = World.applied[entity]
             if rec then rec.ownerDone = false rec.frozen = false end
-            if value.st == 'freed' or value.st == 'transport' then
-                if NetworkGetEntityOwner(entity) == PlayerId() then FreezeEntityPosition(entity, false) end
+            if value.st == 'freed' or value.st == 'transport' or value.st == 'stretcher' then
+                if NetworkGetEntityOwner(entity) == PlayerId() then
+                    FreezeEntityPosition(entity, false)
+                    if value.st == 'transport' and IsEntityAttached(entity) then DetachEntity(entity, true, false) end
+                end
             end
             applyLive(entity, value)
         end

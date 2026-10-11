@@ -377,13 +377,13 @@ exports('GetScenarios', function()
     return scenarioList()
 end)
 
--- Gespeichertes Szenario als Einsatz starten (mode: 'live' | 'test')
-exports('StartScenario', function(scenarioId, mode)
+-- Gespeichertes Szenario als Einsatz starten (mode: 'live' | 'test', variant: 0 | n | 'random')
+exports('StartScenario', function(scenarioId, mode, variant)
     local record = Storage.scenarios[scenarioId]
     if not record then return false, 'Szenario nicht gefunden' end
     local sc, err = Validate.scenario(record.scenario)
     if not sc then return false, err end
-    return Incidents.create(nil, sc, mode == 'test' and 'test' or 'live', scenarioId)
+    return Incidents.create(nil, sc, mode == 'test' and 'test' or 'live', scenarioId, { variant = variant })
 end)
 
 ----------------------------------------------------------------------------

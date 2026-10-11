@@ -13,6 +13,7 @@ löschbar. Die Anbindung an eine Leitstelle erfolgt über eine austauschbare Bri
 |---|---|
 | FXServer | aktueller Build, **OneSync aktiviert** (Fahrzeuge, Objekte und NPCs werden serverseitig erzeugt) |
 | Pflicht-Abhängigkeiten | keine |
+| Pflicht | `ox_lib` (Behandlungsmenü) |
 | Eingerichtet für | `qb-core` (Jobs `fire`, `ambulance`, `ambulance2`, Dienststatus), `z_fire` (Feuer/Rauch), `z_hose` (über z_fire), `ox_target` (Interaktionen), `emergencydispatch` (Leitstelle) |
 | Fallbacks | ohne z_fire: eigenes Feuersystem (`Config.Fire.backend = 'internal'`), ohne ox_target: Taste E, ohne Leitstelle: interne Alarmierung |
 
@@ -28,6 +29,7 @@ set onesync on
 
 # optionale Ressourcen VOR dem Creator starten
 ensure qb-core
+ensure ox_lib
 ensure ox_target
 ensure z_hose
 ensure z_fire
@@ -92,9 +94,24 @@ Feuer/Rauch lassen sich an Fahrzeuge/Objekte koppeln, NPCs in Fahrzeuge setzen (
 | ox_target an Patient/Tür/Ölspur/Fundstelle | passende Maßnahmen je Rolle und Zustand (ohne ox_target: Taste `E`) |
 | `X` | laufende Maßnahme abbrechen |
 
-Patientenablauf: *eingeklemmt* → Befreien (Feuerwehr) → Sichten → Versorgen → in RTW einladen →
-an Klinik übergeben (RTW im Radius einer Klinik aus `Config.Rescue.hospitals`).
-Leicht verletzte, gehfähige Patienten können vor Ort entlassen werden.
+### Medizinische Versorgung (aus nv_medicDispatches übernommen)
+ox_target am Patienten → **Medizinische Versorgung** (ox_lib-Menü, nur Rollen aus `Config.Medical.roles`):
+- **Gespräch:** Ansprechen, Was ist passiert, Schmerzen, Name, Krankenkasse (Antworten je Meldebild; Rausch-, undeutliche, erschöpfte Sprache; bewusstlos = keine Reaktion)
+- **Diagnostik:** RR, HF, SpO2, BZ, Temperatur, Pupillen, GCS, Atemfrequenz
+- **Sauerstoff** 2/4/6/8 l (SpO2 + 0,8 je Liter), **Zugang legen**
+- **Medikamente/Infusionen** (Akrinor, Ebrantil, Haemiton, Atropin, Suprarenin, Atrovent, Salbutamol, G20, Buscopan, Novalgin, Fenistil, Paracetamol, Ketanest, Oxytocin, G5, Jonosteril) –
+  nur mit Zugang, Kreislauf/Atmung/BZ-Medikamente erst nach Messung; Wirkung erst bei erneuter Messung sichtbar
+- **Bodycheck** über 16 Körperregionen → Pflaster, Verband, Schiene, Stifneck (SHT), Beckenschlinge (Becken instabil)
+- **Transport:** besprechen, auf die Trage legen (`rda_stretcher`, `c5m-stretcher`), kein Transport nötig
+- Status **„versorgt / transportbereit“** erst, wenn alle offenen Maßnahmen erledigt sind (`Config.Medical.requireCompleteCare`)
+
+Ablauf: *eingeklemmt* → Befreien (Feuerwehr) → Versorgung → Trage / RTW → Übergabe am **Transportziel**
+(beliebige Klinik, andere Klinik bei Verlegung, oder Zielort-Position im Szenario).
+Alle Werte liegen auf dem Server; der Client sieht nur Gemessenes.
+
+Im Creator je Patient: **Meldebild** (Kreislauf, Alkohol, Drogen, Reanimation, Schwindel, Sturz, Diabetes, Atemnot,
+Bauchschmerzen, Verlegung) mit Variante oder zufällig, Geschlecht, **zufälliger Name** und **zufälliges Modell**
+(Listen aus nv_medicDispatches), Verletzungen je Körperregion (leer = laut Meldebild, Sturz würfelt), Transportziel.
 
 ### Feuer: z_fire (Standard) und z_hose
 Mit `Config.Fire.backend = 'z_fire'` werden Brände und Rauch über die dokumentierten z_fire-Exports
@@ -132,6 +149,16 @@ Tab **Zufall** im Creator (Recht `einsatzcreator.live`):
 Zufallseinsätze laufen wie Live-Einsätze (Notruf an EmergencyDispatch). Einstellungen liegen in `data/settings.json`.
 Export: `exports.einsatz_creator:TriggerRandomIncident()`.
 
+### Ortsvarianten
+Werkzeug **Ortsvariante** (oder Tab *Einsatz* → *Ortsvariante setzen*): alternative Einsatzorte anklicken, Mausrad dreht.
+Beim Auslösen: Originalort, bestimmte Variante oder zufällig. Zufallseinsätze wählen zufällig.
+Die ganze Szene wird verschoben und gedreht (Höhe über den Mittelpunkt) – Varianten auf ähnlichem Untergrund setzen.
+Kartentüren werden an Varianten nicht verriegelt.
+
+### Notruftext
+Im Alarmtext sind Platzhalter möglich: `{anruf}` (zufälliger Notruftext des Meldebilds, Tag/Nacht nach Serverzeit),
+`{patient}`, `{ziel}`. Leerer Alarmtext + Patient mit Meldebild → Notruftext wird automatisch verwendet.
+
 ## 6. Leitstellen-Bridge
 
 Datei: `bridge/dispatch.lua`. **Testeinsätze werden nie übergeben.**
@@ -141,7 +168,7 @@ Beim Live-Auslösen wird je alarmierter Rolle ein Notruf angelegt – über das 
 ```lua
 TriggerEvent('emergencydispatch:emergencycall:new', job, meldung, coords, true)
 ```
-Zuordnung Rolle → Leitstelle und Meldungstext: `Config.EmergencyDispatch` (Standard: fire → `fire`, ems → `ambulance`).
+Zuordnung Rolle → Leitstelle und Meldungstext: `Config.EmergencyDispatch` (fire → `fire`, ems → `fire`; je Leitstelle ein Notruf).
 Stichwort-Auswahl und Alarmierung nach AAO macht der Disponent in EmergencyDispatch.
 EmergencyDispatch bietet **keine** Schnittstelle für Statusänderungen oder das Beenden von Einsätzen;
 diese werden zusätzlich als `einsatzcreator:bridge:*`-Events ausgelöst (siehe unten).

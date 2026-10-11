@@ -25,6 +25,7 @@ local function hasRole(list)
 end
 
 local ACTION_ROLES = {
+    medical = function() return Config.Medical.roles end,
     assess = function() return Config.Rescue.roles.assess end,
     free = function() return Config.Rescue.roles.free end,
     treat = function() return Config.Rescue.roles.treat end,
@@ -37,6 +38,7 @@ local ACTION_ROLES = {
 }
 
 local ACTION_LABELS = {
+    medical = 'Medizinische Versorgung',
     assess = 'Sichten / Erstuntersuchung', free = 'Patient befreien (technische Rettung)',
     treat = 'Patient versorgen', load = 'In Rettungsmittel einladen', handover = 'In Klinik uebergeben',
     release = 'Vor Ort entlassen', open = 'Tuer oeffnen', clean = 'Betriebsstoff abstreuen / aufnehmen',
@@ -125,6 +127,13 @@ local function actionsFor(target)
             return { { id = 'none', label = 'Patient ist hinter einer verschlossenen Tuer', enabled = false } }
         end
         if s == 'eingeklemmt' then add('free') end
+        if d.med then
+            -- detaillierte Versorgung (Menue) statt Sichten/Versorgen/Entlassen
+            add('medical')
+            if s == 'stabil' or s == 'auf_trage' then add('load') end
+            if s == 'im_fahrzeug' or s == 'auf_trage' then add('handover') end
+            return list
+        end
         if s ~= 'im_fahrzeug' then add('assess') end
         -- bei Eingeklemmten prueft der Server, ob bereits gesichtet wurde
         if s == 'gesichtet' or s == 'eingeklemmt' then add('treat') end
@@ -166,6 +175,10 @@ end
 ----------------------------------------------------------------------------
 function Interactions.run(target, action)
     if Interactions.running then return end
+    if action == 'medical' then
+        MedClient.open(target.incident, target.id)
+        return
+    end
     Interactions.running = true
     local ped = PlayerPedId()
 
@@ -313,12 +326,13 @@ end)
 -- (canInteract); der Server prueft jede Massnahme erneut.
 ----------------------------------------------------------------------------
 local ICONS = {
+    medical = 'fa-solid fa-user-doctor',
     assess = 'fa-solid fa-stethoscope', free = 'fa-solid fa-screwdriver-wrench', treat = 'fa-solid fa-kit-medical',
     load = 'fa-solid fa-truck-medical', handover = 'fa-solid fa-hospital', release = 'fa-solid fa-person-walking',
     open = 'fa-solid fa-door-open', clean = 'fa-solid fa-broom', secure = 'fa-solid fa-flag-checkered',
 }
 local KIND_ACTIONS = {
-    patient = { 'free', 'assess', 'treat', 'load', 'handover', 'release' },
+    patient = { 'medical', 'free', 'assess', 'treat', 'load', 'handover', 'release' },
     door = { 'open' }, spill = { 'clean' }, marker = { 'secure' },
 }
 local registered = {}   -- key -> { kind, net | zone }

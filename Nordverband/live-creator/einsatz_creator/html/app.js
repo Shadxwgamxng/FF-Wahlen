@@ -135,10 +135,11 @@ const TOOLS = [
     { id: 'area', label: 'Gebiet', ico: '◯' },
     { id: 'door', label: 'Tuer', ico: '🚪' },
     { id: 'spill', label: 'Betriebsstoff', ico: '💧' },
+    { id: 'variant', label: 'Ortsvariante', ico: '⇄' },
 ];
 const TOOL_NAMES = {
     select: 'Auswahl', place: 'Setzen', move: 'Verschieben', center: 'Einsatzort', line: 'Absperrlinie',
-    door: 'Tuer waehlen', pickTarget: 'Koppeln', pickVehicle: 'Fahrzeug waehlen',
+    door: 'Tuer waehlen', pickTarget: 'Koppeln', pickVehicle: 'Fahrzeug waehlen', variant: 'Ortsvariante',
 };
 const VEH_TYPES = ['automobile', 'bike', 'boat', 'heli', 'plane', 'trailer', 'train', 'submarine'];
 const SEATS = [[-1, 'Fahrer'], [0, 'Beifahrer'], [1, 'Hinten links'], [2, 'Hinten rechts'], [3, 'Sitz 4'], [4, 'Sitz 5']];
@@ -192,6 +193,7 @@ window.addEventListener('message', (e) => {
         case 'actionMenu': showActionMenu(data); break;
         case 'patientCard': showPatientCard(data); break;
         case 'infoPanel': showInfoPanel(data); break;
+        case 'subtitles': showSubtitles(data); break;
     }
 });
 
@@ -358,8 +360,34 @@ async function saveScenario() {
     }
 }
 
+function chooseBox(title, text, options) {
+    return new Promise((resolve) => {
+        modalResolve = null;
+        $('#modal').innerHTML = `<div class="box"><h2>${esc(title)}</h2><p>${esc(text)}</p>
+            <select id="chooseSel" class="mt">${options.map(([v, l]) => `<option value="${esc(v)}">${esc(l)}</option>`).join('')}</select>
+            <div class="buttons"><button data-c="no">Abbrechen</button><button data-c="yes" class="primary">Weiter</button></div></div>`;
+        $('#modal').classList.remove('hidden');
+        $('#modal').onclick = (e) => {
+            const b = e.target.closest('[data-c]');
+            if (!b) return;
+            const val = $('#chooseSel').value;
+            $('#modal').onclick = null;
+            closeModal(false);
+            resolve(b.dataset.c === 'yes' ? val : null);
+        };
+    });
+}
+
 async function triggerIncident(mode) {
     flushEdits();
+    let variant = 0;
+    const vars = arr(S.draft.variants);
+    if (vars.length) {
+        const v = await chooseBox('Einsatzort waehlen', 'Fuer dieses Szenario gibt es Ortsvarianten.',
+            [['0', 'Originalort'], ['random', 'Zufaellig'], ...vars.map((x, i) => [String(i + 1), `Variante ${i + 1}: ${x.label || ''}`])]);
+        if (v === null) return;
+        variant = v === 'random' ? 'random' : parseInt(v, 10);
+    }
     const roles = arr(S.draft.info.alarmRoles).map(r => (S.config.roles[r] || {}).label || r).join(', ');
     if (mode === 'live') {
         const ok = await confirmBox('Einsatz LIVE ausloesen',
@@ -368,7 +396,7 @@ async function triggerIncident(mode) {
         if (!ok) return;
     }
     toast('info', mode === 'live' ? 'Einsatz wird aufgebaut ...' : 'Testeinsatz wird aufgebaut ...');
-    const r = await post('trigger', { mode });
+    const r = await post('trigger', { mode, variant });
     if (r.ok) {
         toast('success', `${mode === 'live' ? 'Live-Einsatz' : 'Testeinsatz'} ${r.data.id} ist aktiv`);
         if (r.data.warnings > 0) toast('warn', `${r.data.warnings} Element(e) konnten nicht erzeugt werden (Details unter "Aktiv")`);
@@ -470,6 +498,8 @@ function renderToolPanel(kind) {
             return `<h3>NPC / Patient</h3>${modelList('ped', C.peds)}
                 ${fSel('Haltung', 'props.pose', p.pose, arr(C.poses).filter(x => !x.vehicle).map(x => [x.id, x.label]))}
                 ${fChk('Ist Patient', 'props.isPatient', p.isPatient)}
+                ${fChk('Zufaelliges Modell (passend zum Geschlecht)', 'props.randomModel', p.randomModel)}
+                ${C.medical && C.medical.enabled ? fSel('Meldebild', 'props.patient.profile', p.patient.profile, arr(C.medical.profiles).map(x => [x.id, x.label])) : ''}
                 ${fSel('Schweregrad', 'props.patient.severity', p.patient.severity, arr(C.severities).map(s => [s.id, s.label]))}
                 <div class="grid2">${fSel('Bewusstsein', 'props.patient.consciousness', p.patient.consciousness, arr(C.consciousness).map(x => [x, x]))}
                 ${fSel('Mobilitaet', 'props.patient.mobility', p.patient.mobility, arr(C.mobility).map(x => [x, x]))}</div>
@@ -586,8 +616,19 @@ function renderIncidentTab() {
             <button class="small" data-act="setCenter">Festlegen</button>
             <button class="small" data-act="camCenter" ${d.center ? '' : 'disabled'}>Kamera</button></div>
         ${fText('Adresse / Ortsbeschreibung', 'info.address', info.address, { max: 120 })}
+        <h3>Ortsvarianten (${arr(d.variants).length})</h3>
+        <p class="dim">Beim Ausloesen kann die ganze Szene an einen dieser Orte verschoben werden (Zufallseinsaetze waehlen zufaellig).</p>
+        ${arr(d.variants).map((v, i) => `<div class="row mt-s" data-variant="${i}">
+            <span class="badge">${i + 1}</span>
+            <input type="text" data-vfield="label" value="${esc(v.label || '')}" maxlength="48" class="grow">
+            <input type="number" data-vfield="h" value="${Math.round(v.h || 0)}" style="width:62px" title="Drehung (Grad)">
+            <button class="small" data-act="varCam" data-i="${i}">◎</button>
+            <button class="small danger" data-act="varDel" data-i="${i}">✕</button></div>`).join('')}
+        <div class="row mt-s"><button class="small" data-act="varAdd">Ortsvariante setzen</button>
+            <button class="small" data-act="varBack">Kamera zum Original</button></div>
         <h3>Alarmierung</h3>
         ${fArea('Alarmtext', 'info.alarmText', info.alarmText, { max: 300, rows: 2, ph: 'Kurzer Text fuer die Alarmierung' })}
+        <p class="dim">Platzhalter: <span class="mono">{anruf}</span> = zufaelliger Notruftext des Meldebilds, <span class="mono">{patient}</span> = Patientenname, <span class="mono">{ziel}</span> = Transportziel</p>
         <label class="field"><span>Alarmierte Rollen</span><div class="chips">
             ${Object.entries(S.config.roles).map(([id, r]) => `<span class="chip ${roles.includes(id) ? 'on' : ''}" data-toggle="info.alarmRoles" data-value="${esc(id)}">${esc(r.label)}</span>`).join('')}
         </div></label>
@@ -792,6 +833,7 @@ $('#leftContent').addEventListener('click', async (e) => {
         const id = toolEl.dataset.tool;
         if (id === 'select') { S.sub = null; post('setTool', { name: 'select' }); }
         else if (id === 'center') { S.sub = null; post('setTool', { name: 'center' }); }
+        else if (id === 'variant') { S.sub = null; post('setTool', { name: 'variant' }); toast('info', 'Alternative Einsatzorte anklicken. Mausrad dreht die Szene. Verwaltung im Tab "Einsatz".'); }
         else { S.sub = S.sub === id ? null : id; }
         renderLeft(true);
         return;
@@ -848,6 +890,14 @@ $('#leftContent').addEventListener('click', async (e) => {
             return;
         }
         if (act === 'setCenter') return post('setTool', { name: 'center' });
+        if (act === 'varAdd') return post('setTool', { name: 'variant' });
+        if (act === 'varBack') return post('cameraToCenterReset');
+        if (act === 'varCam') return post('focusVariant', { index: parseInt(b.dataset.i, 10) + 1 });
+        if (act === 'varDel') {
+            const list = arr(S.draft.variants).slice();
+            list.splice(parseInt(b.dataset.i, 10), 1);
+            return post('updateVariants', { variants: list });
+        }
         if (act === 'camCenter') return post('cameraToCenter');
         if (act === 'focusEl') return post('selectElement', { id, focus: true });
         if (act === 'delEl') return post('deleteElement', { id });
@@ -931,6 +981,16 @@ $('#leftContent').addEventListener('input', (e) => {
 });
 $('#leftContent').addEventListener('change', (e) => {
     const t = e.target;
+    if (t.dataset.vfield) {
+        const row = t.closest('[data-variant]');
+        const list = clone(arr(S.draft.variants));
+        const v = list[parseInt(row.dataset.variant, 10)];
+        if (v) {
+            v[t.dataset.vfield] = t.dataset.vfield === 'h' ? (parseFloat(t.value) || 0) : t.value;
+            post('updateVariants', { variants: list });
+        }
+        return;
+    }
     if (t.dataset.pool) { saveRandomPool(t.closest('[data-scope="pool"]')); return; }
     if (t.dataset.phase) {
         post('incidentAction', { id: t.dataset.phase, action: 'phase', phase: t.value }).then(r => { if (r.ok) toast('success', 'Phase gesetzt'); });
@@ -1079,6 +1139,8 @@ function kindFields(e) {
             }
             h += `<button class="mt-s" style="width:100%" data-act="pickVehicle">In Fahrzeug setzen (Fahrzeug anklicken)</button>`;
             h += fChk('Ist Patient', 'props.isPatient', p.isPatient);
+            h += fChk('Zufaelliges Modell beim Ausloesen', 'props.randomModel', p.randomModel);
+            if (p.isPatient && C.medical && C.medical.enabled) h += medicalFields(e);
             if (p.isPatient) {
                 h += `<h3>Patient</h3>${fText('Name / Kennung', 'props.patient.name', pt.name, { max: 48 })}
                     ${fSel('Schweregrad', 'props.patient.severity', pt.severity, arr(C.severities).map(s => [s.id, s.label]))}
@@ -1123,6 +1185,27 @@ function kindFields(e) {
         case 'spill': return spillFields(p, 'props.');
     }
     return '';
+}
+
+function medicalFields(e) {
+    const C = S.catalog;
+    const pt = e.props.patient;
+    const profiles = arr(C.medical.profiles);
+    const prof = profiles.find(x => x.id === pt.profile) || profiles[0];
+    const variants = [[0, 'Zufaellig'], ...arr(prof.variants).map((v, i) => [i + 1, v])];
+    const markers = S.draft.elements.filter(x => x.kind === 'marker');
+    const body = obj(pt.body);
+    const parts = arr(C.medical.bodyParts);
+    const lvlLabel = ['-', 'kleine Wunde', 'grosse Wunde', 'schwer'];
+    return `<h3>Medizin</h3>
+        ${fSel('Meldebild', 'props.patient.profile', pt.profile, profiles.map(x => [x.id, x.label]))}
+        ${pt.profile !== 'none' ? fSel('Variante', 'props.patient.variant', pt.variant, variants, { type: 'int' }) : '<p class="dim">Ohne Meldebild gelten die Vitalwerte unten.</p>'}
+        <div class="grid2">${fSel('Geschlecht', 'props.patient.gender', pt.gender, [['auto', 'Zufaellig'], ['m', 'maennlich'], ['w', 'weiblich']])}
+        ${fSel('Transportziel', 'props.patient.destination', pt.destination, [['hospital', 'Klinik (beliebig)'], ['other_hospital', 'Andere Klinik (Verlegung)'], ['marker', 'Zielort im Szenario']])}</div>
+        ${pt.destination === 'marker' ? fSel('Zielort', 'props.patient.destMarker', pt.destMarker || '', [['', '- Position waehlen -'], ...markers.map(m => [m.id, elLabel(m)])], { type: 'nullable' }) : ''}
+        <label class="field"><span>Verletzungen (Bodycheck) - leer = laut Meldebild</span></label>
+        <div class="bodygrid">${parts.map(bp => fSel(bp.label, 'props.patient.body.' + bp.id, body[bp.id] || 0,
+            [0, 1, 2, 3].filter(l => l <= bp.maxLevel).map(l => [l, l === 3 ? (bp.severeText || 'schwer') : lvlLabel[l]]), { type: 'int' })).join('')}</div>`;
 }
 
 function attachBlock(target) {
@@ -1188,7 +1271,7 @@ $('#right').addEventListener('change', (e) => {
     handleBound(e.target, 'change');
     // Felder, die andere Felder ein-/ausblenden, sofort neu zeichnen
     const path = e.target.dataset && e.target.dataset.path;
-    if (['props.pose', 'props.isPatient', 'props.canSpread', 'props.attachTo'].includes(path)) {
+    if (['props.pose', 'props.isPatient', 'props.canSpread', 'props.attachTo', 'props.patient.profile', 'props.patient.destination'].includes(path)) {
         pushEdit.flush();
         setTimeout(() => renderRight(true), 0);
     }
@@ -1315,7 +1398,7 @@ function detailsHtml(d) {
             ${custom}
         </div>
         ${d.description ? `<h3>Lage</h3><pre>${esc(d.description)}</pre>` : ''}
-        ${patients.length ? `<h3>Patienten</h3>${patients.map(p => `<div>• ${esc(p.name)} - ${esc(p.severity)} - <b>${esc(p.statusLabel || p.status)}</b></div>`).join('')}` : ''}
+        ${patients.length ? `<h3>Patienten</h3>${patients.map(p => `<div>• ${esc(p.name)} - ${esc(p.severity)} - <b>${esc(p.statusLabel || p.status)}</b>${p.dest ? ` · Ziel: ${esc(p.dest)}` : ''}</div>`).join('')}` : ''}
         ${d.sop ? `<h3>SOP / Ablauf</h3><pre>${esc(d.sop)}</pre>` : ''}
         ${arr(d.log).length ? `<h3>Protokoll</h3>${arr(d.log).map(l => `<div class="dim">${fmtTime(l.at)} · ${esc(l.by)}: ${esc(l.text)}</div>`).join('')}` : ''}`;
 }
@@ -1440,3 +1523,24 @@ $('#infoPanel').addEventListener('click', (e) => {
     if (b.dataset.i === 'close') return closeInfoPanel();
     if (b.dataset.i === 'route') post('infoRoute', { pos: { x: parseFloat(b.dataset.x), y: parseFloat(b.dataset.y) } });
 });
+
+/* ------------------------------------------------------------------ */
+/* Untertitel (Gespraeche und Befunde der Behandlung)                  */
+/* ------------------------------------------------------------------ */
+let subQueue = [], subTimer = null;
+function showSubtitles(d) {
+    const ms = (d && d.ms) || 3500;
+    arr(d && d.lines).forEach(l => subQueue.push({ who: l.who, text: l.text, ms }));
+    if (!subTimer) nextSubtitle();
+}
+function nextSubtitle() {
+    const box = $('#subtitles');
+    const item = subQueue.shift();
+    if (!item) { subTimer = null; setTimeout(() => { if (!subTimer) box.innerHTML = ''; }, 400); return; }
+    const el = document.createElement('div');
+    el.className = `line ${['rd', 'pt', 'info'].includes(item.who) ? item.who : 'info'}`;
+    el.textContent = item.text;
+    box.appendChild(el);
+    while (box.children.length > 3) box.firstChild.remove();
+    subTimer = setTimeout(nextSubtitle, item.ms);
+}

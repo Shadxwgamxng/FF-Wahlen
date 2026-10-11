@@ -309,6 +309,18 @@ function Preview.draw(selectedId)
         if #(camPos - c) < 120.0 then DrawText3D(c + vector3(0.0, 0.0, 3.2), 'Einsatzort', 0.35) end
     end
 
+    -- Ortsvarianten anzeigen
+    for i, v in ipairs(draft.variants or {}) do
+        local vp = vector3(v.x, v.y, v.z)
+        if #(camPos - vp) < 300.0 then
+            local h = math.rad(v.h or 0.0)
+            local tip = vp + vector3(-math.sin(h), math.cos(h), 0.0) * 4.0
+            marker(1, vp - vector3(0.0, 0.0, 1.0), 1.2, 1.2, 4.0, { 120, 200, 255 }, 90)
+            DrawLine(vp.x, vp.y, vp.z + 0.5, tip.x, tip.y, tip.z + 0.5, 120, 200, 255, 255)
+            DrawText3D(vp + vector3(0.0, 0.0, 3.4), ('Variante %d'):format(i), 0.35)
+        end
+    end
+
     for _, el in ipairs(draft.elements) do
         local selected = el.id == selectedId
         local p = elementWorldPos(el)

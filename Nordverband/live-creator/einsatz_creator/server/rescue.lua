@@ -400,6 +400,8 @@ function Rescue.complete(src, incident, targetId, action, extra)
         if not seat then t.busy = nil return false, 'Kein freier Platz im Rettungsmittel' end
         if ped then
             Spawner.updateState(rec, incident.id, { st = 'transport', seat = seat })
+            -- von der Trage loesen lassen (Besitzer-Client), dann einsetzen
+            if t.stretcherNet then Wait(600) end
             SetPedIntoVehicle(ped, veh, seat)
         end
         t.vehicleNet = net

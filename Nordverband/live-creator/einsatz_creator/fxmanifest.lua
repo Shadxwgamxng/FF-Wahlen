@@ -29,6 +29,7 @@ client_scripts {
     'client/editor.lua',
     'client/world.lua',
     'client/fire.lua',
+    'client/medical.lua',
     'client/interactions.lua',
     'client/incidents.lua',
 }

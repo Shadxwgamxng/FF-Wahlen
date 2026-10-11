@@ -105,6 +105,7 @@ function Alarm.details(incident)
         patients[#patients + 1] = {
             id = id, name = p.name, severity = p.severity,
             status = Rescue.patientStatus(p), statusLabel = EC.PatientStatus[Rescue.patientStatus(p)],
+            dest = p.dest and p.dest.label or nil,
         }
     end
     table.sort(patients, function(a, b) return a.name < b.name end)

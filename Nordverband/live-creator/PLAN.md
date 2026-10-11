@@ -62,4 +62,9 @@ Dieser Plan wird bei jedem Zwischenstand aktualisiert und mitgepusht.
 - ✅ Offline-Tests erweitert (69/69 bestanden)
 - ⬜ Fahrzeuge (RTW/KTW/NEF) eintragen – wartet auf Liste
 - ⬜ Kliniken eintragen – wartet auf Liste
-- ⬜ Übernahme aus altem Medic-System – wartet auf Freigabe (siehe Chat)
+- ✅ Behandlung aus nv_medicDispatches übernommen (Gespräch, Diagnostik, O2, Medikamente, Bodycheck, Wundversorgung, Trage) – serverseitig, ox_lib-Menü
+- ✅ Namen und NPC-Modelle übernommen, neue Notruftexte je Meldebild (Tag/Nacht)
+- ✅ Ortsvarianten je Szenario (manuell wählbar, zufällig bei Zufallseinsätzen)
+- ✅ Krankentransport / Verlegung (Transportziel: Klinik, andere Klinik, Zielort)
+- ✅ RD-Notrufe an Leitstelle `fire`
+- ✅ Offline-Tests erweitert (90/90 bestanden)
