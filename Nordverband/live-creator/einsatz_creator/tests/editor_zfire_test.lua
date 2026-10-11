@@ -12,6 +12,9 @@ function RegisterNetEvent() end
 function AddEventHandler() end
 function GetGameTimer() return 0 end
 function LoadModel() return 1 end
+local ground = 'GRASS'
+function GetHashKey(n) local h = 0 for i = 1, #n do h = (h * 31 + n:byte(i)) % 2147483647 end return h end
+function GetShapeTestResultIncludingMaterial() return 2, true, nil, nil, GetHashKey(ground), 0 end
 for _, f in ipairs({ 'config.lua', 'config_catalog.lua', 'config_medical.lua', 'config_names.lua', 'shared/constants.lua', 'shared/utils.lua', 'shared/schema.lua' }) do dofile(f) end
 Config.Fire.backend = 'auto'
 NUI = { on = function() end, toast = function() end, send = function() end }
@@ -36,6 +39,11 @@ f = fire('grass'); interiorAt = 0; ok = Editor.fitZFire(f, nil, true); check(ok,
 f = fire('auto'); interiorAt = 0; ok = Editor.fitZFire(f, 'v1', true); check(ok and Editor.zfBehaviour(f) == 'vehicle', 'Automatisch auf Fahrzeug -> Fahrzeugbrand')
 f = fire('auto'); interiorAt = 7; ok = Editor.fitZFire(f, nil, true); check(ok and Editor.zfBehaviour(f) == 'interior', 'Automatisch im Gebaeude -> Innenraum')
 f = fire('auto'); interiorAt = 0; ok = Editor.fitZFire(f, nil, true); check(ok and Editor.zfBehaviour(f) == 'grass', 'Automatisch im Freien -> Flaeche')
+ground = 'TARMAC'
+f = fire('auto'); interiorAt = 0; ok, err = Editor.fitZFire(f, nil, true); check(not ok and tostring(err):find('Asphalt'), 'Automatisch draussen auf Asphalt abgelehnt (' .. tostring(err) .. ')')
+f = fire('auto'); interiorAt = 0; ok = Editor.fitZFire(f, 'v1', true); check(ok, 'Auf Asphalt, aber auf Fahrzeug geklickt -> ok')
+f = fire('auto'); interiorAt = 7; ok = Editor.fitZFire(f, nil, true); check(ok, 'Im Gebaeude ist der Boden egal')
+ground = 'GRASS'
 GetResourceState = function() return 'missing' end
 f = fire('vehicle'); ok = Editor.fitZFire(f, nil, true); check(ok, 'Ohne z_fire keine z_fire-Pruefung')
 print(passed .. " bestanden, " .. failed .. " fehlgeschlagen")

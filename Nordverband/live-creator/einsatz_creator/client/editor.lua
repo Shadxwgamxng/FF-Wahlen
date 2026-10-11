@@ -162,6 +162,53 @@ function Editor.roomAt(pos)
     return room
 end
 
+-- Untergrund (Material) unter einer Position bestimmen
+local MATERIAL_NAMES = {
+    CONCRETE = 'Beton', CONCRETE_POTHOLE = 'Beton', CONCRETE_DUSTY = 'Beton', TARMAC = 'Asphalt', TARMAC_PAINTED = 'Asphalt',
+    TARMAC_POTHOLE = 'Asphalt', ROCK = 'Fels', ROCK_MOSSY = 'Fels', STONE = 'Stein', COBBLESTONE = 'Pflaster', BRICK = 'Ziegel',
+    MARBLE = 'Marmor', PAVING_SLAB = 'Gehwegplatten', SANDSTONE_SOLID = 'Sandstein', CERAMIC = 'Fliesen', WOOD_SOLID_SMALL = 'Holz',
+    WOOD_SOLID_MEDIUM = 'Holz', WOOD_SOLID_LARGE = 'Holz', METAL_SOLID_SMALL = 'Metall', METAL_SOLID_MEDIUM = 'Metall',
+    METAL_SOLID_LARGE = 'Metall', WATER = 'Wasser', GLASS_SHOOT_THROUGH = 'Glas', ROOF_TILE = 'Dachziegel', LINOLEUM = 'Linoleum',
+    CARPET_SOLID = 'Teppich', GRASS = 'Gras', GRASS_LONG = 'Gras', GRASS_SHORT = 'Gras', DIRT_TRACK = 'Erde', SOIL = 'Erde',
+    SAND_LOOSE = 'Sand', SAND_COMPACT = 'Sand', MUD_HARD = 'Schlamm', MUD_SOFT = 'Schlamm', GRAVEL_SMALL = 'Kies', BUSHES = 'Gebuesch',
+}
+local function hnorm(h) return math.floor(tonumber(h) or 0) % 4294967296 end
+local materialHashName = nil
+local function materialName(hash)
+    if not materialHashName then
+        materialHashName = {}
+        for name in pairs(MATERIAL_NAMES) do materialHashName[hnorm(GetHashKey(name))] = name end
+        for _, m in ipairs(Config.ZFire.grassMaterials or {}) do
+            if type(m) == 'string' then materialHashName[hnorm(GetHashKey(m))] = m end
+        end
+    end
+    local n = materialHashName[hnorm(hash)]
+    return n and (MATERIAL_NAMES[n] or n) or ('unbekannt, ' .. tostring(hash))
+end
+
+function Editor.groundMaterial(pos)
+    local p = U.vec(pos)
+    local ray = StartExpensiveSynchronousShapeTestLosProbe(p.x, p.y, p.z + 1.0, p.x, p.y, p.z - 2.5, 1, 0, 7)
+    local _, hit, _, _, material = GetShapeTestResultIncludingMaterial(ray)
+    if hit ~= 1 and hit ~= true then return nil end
+    return material
+end
+
+local grassSet = nil
+function Editor.isFlammableGround(pos)
+    if Config.ZFire.checkGround == false then return true end
+    if not grassSet then
+        grassSet = {}
+        for _, m in ipairs(Config.ZFire.grassMaterials or {}) do
+            grassSet[hnorm(type(m) == 'number' and m or GetHashKey(m))] = true
+        end
+    end
+    local material = Editor.groundMaterial(pos)
+    if not material then return true end   -- kein Boden getroffen: nicht blockieren
+    if grassSet[hnorm(material)] then return true end
+    return false, materialName(material)
+end
+
 -- Brandverhalten so bestimmen, wie es der Server an z_fire uebergibt
 function Editor.zfBehaviour(el)
     local p = el.props
@@ -211,9 +258,20 @@ function Editor.fitZFire(el, targetId, roomCheck)
             return false, 'Flaechenbrand geht nur im Freien - im Gebaeude bitte "Innenraum" waehlen'
         end
         p.roomHash = 0
+        local okGround, ground = Editor.isFlammableGround(el.pos)
+        if not okGround then
+            return false, ('Flaechenbrand: z_fire brennt hier nicht (Untergrund: %s)'):format(ground)
+        end
     else -- automatisch
         if not attached then
             if roomCheck or not p.roomHash then p.roomHash = Editor.roomAt(el.pos) end
+            if p.roomHash == 0 then
+                local okGround, ground = Editor.isFlammableGround(el.pos)
+                if not okGround then
+                    return false, ('Hier kann z_fire kein Feuer erzeugen (Untergrund: %s). Draussen nur auf Gras, Erde oder Gebuesch setzen - '
+                        .. 'oder direkt auf ein gesetztes Fahrzeug/Objekt klicken (z. B. Muellcontainer)'):format(ground)
+                end
+            end
         end
     end
     return true

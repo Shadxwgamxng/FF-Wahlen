@@ -93,7 +93,9 @@ function ZFire.createForIncident(incident)
             end
             local ok, uuid = pcall(function() return z():createFire(data, src or -1) end)
             if not ok or not uuid then
-                error({ message = ('z_fire konnte Feuer "%s" nicht erzeugen (%s)'):format(el.label ~= '' and el.label or el.id, ok and 'kein Rueckgabewert' or tostring(uuid)) })
+                local why = ok and 'kein Rueckgabewert' or tostring(uuid)
+                if ok and behaviour == 'grass' then why = 'Flaechenbrand auf nicht brennbarem Untergrund? Feuer im Creator neu setzen' end
+                error({ message = ('z_fire konnte Feuer "%s" nicht erzeugen (%s)'):format(el.label ~= '' and el.label or el.id, why) })
             end
             rec.fires[uuid] = el.id
             incident.fire.total = incident.fire.total + 1

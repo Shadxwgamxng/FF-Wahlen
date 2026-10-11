@@ -192,6 +192,18 @@ Config.ZFire = {
     defaultSmokeEffect = 'linger1',
     -- Brenndauer, wenn im Creator 0 (= bis geloescht) gewaehlt ist
     endlessBurnout = 99999,
+    --[[
+        Flaechenbraende (draussen, nicht an Fahrzeug/Objekt, nicht im Gebaeude) erzeugt z_fire nur auf
+        brennbarem Untergrund. Der Creator prueft das schon beim Setzen.
+        Liste bitte mit cfg.behaviourTypes -> grass -> flammableMaterials eurer z_fire-config.lua abgleichen
+        (Materialnamen oder Material-Hashes). checkGround = false schaltet die Pruefung ab.
+    ]]
+    checkGround = true,
+    grassMaterials = {
+        'GRASS', 'GRASS_LONG', 'GRASS_SHORT', 'HAY', 'BUSHES', 'TWIGS', 'LEAVES', 'WOODCHIPS',
+        'DIRT_TRACK', 'MUD_HARD', 'MUD_SOFT', 'SOIL', 'SAND_LOOSE', 'SAND_COMPACT', 'SAND_DRY_DEEP', 'SAND_TRACK',
+        'GRAVEL_SMALL',
+    },
 }
 
 -- z_hose (optional, wird automatisch erkannt)
