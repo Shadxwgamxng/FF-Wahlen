@@ -1,0 +1,197 @@
+{
+  "version": 3,
+  "pages404": true,
+  "caseSensitive": false,
+  "basePath": "",
+  "redirects": [
+    {
+      "source": "/:path+/",
+      "destination": "/:path+",
+      "internal": true,
+      "statusCode": 308,
+      "regex": "^(?:/((?:[^/]+?)(?:/(?:[^/]+?))*))/$"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "same-origin"
+        }
+      ],
+      "regex": "^(?:/(.*))(?:/)?$"
+    }
+  ],
+  "rewrites": {
+    "beforeFiles": [],
+    "afterFiles": [],
+    "fallback": []
+  },
+  "dynamicRoutes": [
+    {
+      "page": "/link/[token]",
+      "regex": "^/link/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPtoken": "nxtPtoken"
+      },
+      "namedRegex": "^/link/(?<nxtPtoken>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/loeschzuege/[id]",
+      "regex": "^/loeschzuege/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/loeschzuege/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/mitglieder/[id]",
+      "regex": "^/mitglieder/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/mitglieder/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/wahlen/[id]",
+      "regex": "^/wahlen/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/wahlen/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/wahlen/[id]/verwalten",
+      "regex": "^/wahlen/([^/]+?)/verwalten(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/wahlen/(?<nxtPid>[^/]+?)/verwalten(?:/)?$"
+    }
+  ],
+  "staticRoutes": [
+    {
+      "page": "/",
+      "regex": "^/(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/(?:/)?$"
+    },
+    {
+      "page": "/_not-found",
+      "regex": "^/_not\\-found(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/_not\\-found(?:/)?$"
+    },
+    {
+      "page": "/admin/audit",
+      "regex": "^/admin/audit(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/admin/audit(?:/)?$"
+    },
+    {
+      "page": "/admin/benutzer",
+      "regex": "^/admin/benutzer(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/admin/benutzer(?:/)?$"
+    },
+    {
+      "page": "/admin/einstellungen",
+      "regex": "^/admin/einstellungen(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/admin/einstellungen(?:/)?$"
+    },
+    {
+      "page": "/aemter",
+      "regex": "^/aemter(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/aemter(?:/)?$"
+    },
+    {
+      "page": "/dashboard",
+      "regex": "^/dashboard(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/dashboard(?:/)?$"
+    },
+    {
+      "page": "/dienstgrade",
+      "regex": "^/dienstgrade(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/dienstgrade(?:/)?$"
+    },
+    {
+      "page": "/historie",
+      "regex": "^/historie(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/historie(?:/)?$"
+    },
+    {
+      "page": "/icon.png",
+      "regex": "^/icon\\.png(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/icon\\.png(?:/)?$"
+    },
+    {
+      "page": "/loeschzuege",
+      "regex": "^/loeschzuege(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/loeschzuege(?:/)?$"
+    },
+    {
+      "page": "/login",
+      "regex": "^/login(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/login(?:/)?$"
+    },
+    {
+      "page": "/mitglieder",
+      "regex": "^/mitglieder(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/mitglieder(?:/)?$"
+    },
+    {
+      "page": "/mitglieder/neu",
+      "regex": "^/mitglieder/neu(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/mitglieder/neu(?:/)?$"
+    },
+    {
+      "page": "/wahlen",
+      "regex": "^/wahlen(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/wahlen(?:/)?$"
+    },
+    {
+      "page": "/wahlen/neu",
+      "regex": "^/wahlen/neu(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/wahlen/neu(?:/)?$"
+    }
+  ],
+  "dataRoutes": [],
+  "rsc": {
+    "header": "rsc",
+    "varyHeader": "rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch",
+    "prefetchHeader": "next-router-prefetch",
+    "didPostponeHeader": "x-nextjs-postponed",
+    "contentTypeHeader": "text/x-component",
+    "suffix": ".rsc",
+    "prefetchSuffix": ".prefetch.rsc",
+    "prefetchSegmentHeader": "next-router-segment-prefetch",
+    "prefetchSegmentSuffix": ".segment.rsc",
+    "prefetchSegmentDirSuffix": ".segments"
+  },
+  "rewriteHeaders": {
+    "pathHeader": "x-nextjs-rewritten-path",
+    "queryHeader": "x-nextjs-rewritten-query"
+  }
+}
