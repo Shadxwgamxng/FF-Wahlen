@@ -217,8 +217,6 @@ Config.Interaction = {
 
 -- Rettungsdienst / Patienten
 Config.Rescue = {
-    -- Verletzungsdarstellung (Blut/Verbrennung) an NPCs. Bei Spielabstuerzen beim Setzen von NPCs auf false stellen.
-    damagePacks = true,
     interactDistance = 2.2,
     vehicleDistance = 7.0,    -- Abstand Patient <-> RTW zum Einladen
     -- Rettungsdienst-Fahrzeuge je Typ (bftecrtw* + Sitz 3 aus nv_medicDispatches Config.Cars;
