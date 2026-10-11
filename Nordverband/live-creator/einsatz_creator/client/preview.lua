@@ -364,7 +364,12 @@ function Preview.draw(selectedId)
 
             -- Auswahl hervorheben
             local item = Preview.items[el.id]
-            if item and item.entity and DoesEntityExist(item.entity) then
+            -- Keine Umrandung an NPCs: SetEntityDrawOutline auf Peds laesst das Spiel im Render-Thread abstuerzen.
+            -- Ausgewaehlte NPCs bekommen stattdessen einen Bodenring.
+            if item and item.entity and k == 'ped' and selected and DoesEntityExist(item.entity) then
+                local c = GetEntityCoords(item.entity)
+                marker(25, vector3(c.x, c.y, c.z - 0.95), 1.2, 1.2, 1.0, { 255, 200, 40 }, 200)
+            elseif item and item.entity and k ~= 'ped' and DoesEntityExist(item.entity) then
                 if selected ~= item.outlined then
                     SetEntityDrawOutline(item.entity, selected)
                     if selected then SetEntityDrawOutlineColor(255, 200, 40, 255) end
