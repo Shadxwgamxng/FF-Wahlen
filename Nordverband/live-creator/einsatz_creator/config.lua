@@ -56,7 +56,7 @@ Config.Permissions = {
     'none'  = nur ACE (komplett eigenstaendig)
     'esx' | 'qb' | 'qbx'
 ]]
-Config.Framework = 'qb'
+Config.Framework = 'auto'
 
 --[[
     Rollen der Einsatzkraefte (fuer Alarmierung und Interaktionen).
