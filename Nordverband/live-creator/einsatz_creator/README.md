@@ -168,7 +168,7 @@ Beim Live-Auslösen wird je alarmierter Rolle ein Notruf angelegt – über das 
 ```lua
 TriggerEvent('emergencydispatch:emergencycall:new', job, meldung, coords, true)
 ```
-Zuordnung Rolle → Leitstelle und Meldungstext: `Config.EmergencyDispatch` (fire → `fire`, ems → `fire`; je Leitstelle ein Notruf).
+Leitstelle und Meldungstext: `Config.EmergencyDispatch`. Aktuell gehen alle Einsätze an den Job `ambulance` (`job = 'ambulance'`, ein Notruf je Einsatz, Koordinate = Einsatzort). Mit `job = nil` greift die Zuordnung je Rolle (`jobsByRole`). Jeder Notruf wird in der Serverkonsole protokolliert.
 Stichwort-Auswahl und Alarmierung nach AAO macht der Disponent in EmergencyDispatch.
 EmergencyDispatch bietet **keine** Schnittstelle für Statusänderungen oder das Beenden von Einsätzen;
 diese werden zusätzlich als `einsatzcreator:bridge:*`-Events ausgelöst (siehe unten).

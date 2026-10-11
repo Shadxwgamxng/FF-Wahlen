@@ -331,7 +331,10 @@ Config.Dispatch = {
 ]]
 Config.EmergencyDispatch = {
     resource = 'emergencydispatch',
-    -- Welche Leitstelle (Job) bekommt den Notruf je alarmierter Rolle?
+    -- Feste Leitstelle (Job) fuer ALLE Einsaetze. Gesetzt = genau ein Notruf je Einsatz an diesen Job,
+    -- unabhaengig von den alarmierten Rollen. nil = Zuordnung ueber jobsByRole.
+    job = 'ambulance',
+    -- Welche Leitstelle (Job) bekommt den Notruf je alarmierter Rolle? (nur wenn job = nil)
     jobsByRole = {
         fire = 'fire',
         ems = 'fire',      -- Rettungsdienst-Notrufe laufen ueber die Leitstelle "fire"

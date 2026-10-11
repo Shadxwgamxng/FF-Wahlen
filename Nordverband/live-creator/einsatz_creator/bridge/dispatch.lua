@@ -122,17 +122,28 @@ local function emergencyCall(payload, template)
     end
     local coords = vector3(payload.coords.x, payload.coords.y, payload.coords.z)
     local message = formatMessage(template, payload)
-    local sent, seen = 0, {}
-    for _, role in ipairs(payload.roles or {}) do
-        local job = cfg.jobsByRole[role]
-        if job and not seen[job] then
-            seen[job] = true
-            TriggerEvent('emergencydispatch:emergencycall:new', job, message, coords, true)
-            sent = sent + 1
-            U.log('info', 'Einsatz %s: Notruf an Leitstelle "%s" uebergeben', payload.incidentId, job)
+    local jobs, seen = {}, {}
+    if type(cfg.job) == 'string' and cfg.job ~= '' then
+        jobs[1] = cfg.job
+    else
+        for _, role in ipairs(payload.roles or {}) do
+            local job = cfg.jobsByRole[role]
+            if job and not seen[job] then
+                seen[job] = true
+                jobs[#jobs + 1] = job
+            end
         end
     end
-    return sent
+    if #jobs == 0 then
+        U.log('warn', 'Einsatz %s: kein Notruf angelegt - keine Leitstelle zugeordnet (Config.EmergencyDispatch.job bzw. jobsByRole / alarmierte Rollen pruefen)', payload.incidentId)
+        return 0
+    end
+    for _, job in ipairs(jobs) do
+        TriggerEvent('emergencydispatch:emergencycall:new', job, message, coords, true)
+        U.log('info', 'Einsatz %s: Notruf an Leitstelle "%s" uebergeben (%.1f, %.1f, %.1f): %s',
+            payload.incidentId, job, coords.x, coords.y, coords.z, message)
+    end
+    return #jobs
 end
 
 local function emit(kind, incident, change)

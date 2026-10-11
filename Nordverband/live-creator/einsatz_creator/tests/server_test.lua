@@ -429,8 +429,18 @@ check(vehFire and vehFire.networkEntity and vehFire.ptfxData.fallbackPos, 'Fahrz
 check(grassFire and grassFire.canSpread == true and grassFire.spreadSize, 'Flaechenbrand mit Ausbreitung an z_fire')
 local calls = {}
 for _, ev in ipairs(serverEvents) do if ev.name == 'emergencydispatch:emergencycall:new' then calls[#calls + 1] = ev.args end end
-check(#calls == 2 and calls[1][1] ~= calls[2][1], 'Ein Notruf je Leitstelle (fire/ems -> fire, police) (' .. #calls .. ')')
+check(#calls == 1 and calls[1][1] == 'ambulance', 'Fester Job: genau ein Notruf an ambulance (' .. #calls .. ')')
 check(calls[1] and type(calls[1][2]) == 'string' and calls[1][3].x and calls[1][4] == true, 'Notruf-Parameter: job, meldung, coords, true')
+do
+    local fixed = Config.EmergencyDispatch.job
+    Config.EmergencyDispatch.job = nil
+    serverEvents = {}
+    Dispatch.created(zinc)
+    local c2 = {}
+    for _, ev in ipairs(serverEvents) do if ev.name == 'emergencydispatch:emergencycall:new' then c2[#c2 + 1] = ev.args end end
+    check(#c2 == 2 and c2[1][1] ~= c2[2][1], 'Ohne festen Job: ein Notruf je Leitstelle (fire/ems -> fire, police) (' .. #c2 .. ')')
+    Config.EmergencyDispatch.job = fixed
+end
 local foreignId = 'fremd1'
 zf.fires[foreignId] = { origin = { is = true } }
 waitRate()
