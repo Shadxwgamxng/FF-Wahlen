@@ -13,23 +13,23 @@ Dieser Plan wird bei jedem Zwischenstand aktualisiert und mitgepusht.
 ## Phase 1 – Grundgerüst
 - ✅ `fxmanifest.lua`
 - ✅ `config.lua` (Rechte, Rollen, Grenzen, Kamera, Feuer, Rettungsdienst, Türen, Speicherung, Bridge)
-- ⬜ `config_catalog.lua` (Fahrzeuge, Props, NPC-Modelle, Posen, Feuer-/Rauchtypen, Einsatzarten mit Feldern)
-- ⬜ `shared/` (Konstanten, Hilfsfunktionen, Datenmodell und Validierung)
+- ✅ `config_catalog.lua` (Fahrzeuge, Props, NPC-Modelle, Posen, Feuer-/Rauchtypen, Einsatzarten mit Feldern)
+- ✅ `shared/` (Konstanten, Hilfsfunktionen, Datenmodell und Validierung)
 
 ## Phase 2 – Server
-- ⬜ Speicherung (JSON, versioniert, Backup, Prüfung beim Laden)
-- ⬜ Berechtigungen (ACE + optional ESX/QBCore/QBox-Jobs)
-- ⬜ Validierung aller Client-Anfragen, Rate-Limits, Schutz vor Doppelauslösung
-- ⬜ Spawner (Fahrzeuge, Objekte, NPCs serverseitig, Besitz-Markierung)
-- ⬜ Feuersimulation (Brandherde, Ausbreitung, Brenndauer, Löschtreffer, Glutnester)
-- ⬜ Rettungsdienst-Logik (Patientenstatus, Befreien, Behandeln, Einladen, Übergabe)
-- ⬜ Türöffnung und Betriebsstoffe
-- ⬜ Einsatzverwaltung (Vorschau/Test/Live, Status, Beenden, Abbrechen, Rollback, Neustart-Bereinigung)
-- ⬜ Interne Alarmierung
-- ⬜ Leitstellen-Bridge (`bridge/dispatch.lua`) + Exports
+- ✅ Speicherung (JSON, versioniert, Backup, Prüfung beim Laden)
+- ✅ Berechtigungen (ACE + optional ESX/QBCore/QBox-Jobs)
+- ✅ Validierung aller Client-Anfragen, Rate-Limits, Schutz vor Doppelauslösung
+- ✅ Spawner (Fahrzeuge, Objekte, NPCs serverseitig, Besitz-Markierung)
+- ✅ Feuersimulation (Brandherde, Ausbreitung, Brenndauer, Löschtreffer, Glutnester)
+- ✅ Rettungsdienst-Logik (Patientenstatus, Befreien, Behandeln, Einladen, Übergabe)
+- ✅ Türöffnung und Betriebsstoffe
+- ✅ Einsatzverwaltung (Vorschau/Test/Live, Status, Beenden, Abbrechen, Rollback, Neustart-Bereinigung)
+- ✅ Interne Alarmierung
+- ✅ Leitstellen-Bridge (`bridge/dispatch.lua`) + Exports
 
 ## Phase 3 – Client / Editor
-- ⬜ Freie Kamera (WASD, Q/E, Shift/Strg, Rechtsklick-Drehen, Reichweite)
+- 🔄 Freie Kamera (WASD, Q/E, Shift/Strg, Rechtsklick-Drehen, Reichweite)
 - ⬜ Raycast und Bodenplatzierung (Bodenhöhe, Modellgröße, Ausrichtung)
 - ⬜ Werkzeuge: Fahrzeug, Objekt, Feuer, Rauch, NPC, Einsatzort, Marker, Gebiet, Tür, Ölspur, Absperrlinie
 - ⬜ Vorschau-Elemente (nur lokal sichtbar), Auswahl, Verschieben, Drehen, Duplizieren, Löschen

@@ -90,6 +90,16 @@ Config.Limits = {
     activeIncidents = 10,     -- gleichzeitig aktive Einsaetze (Test + Live)
 }
 
+-- Modelle: nur Katalogmodelle erlauben? (false = auch freie Spawnnamen, ausser Sperrliste)
+Config.OnlyCatalogModels = false
+-- Gesperrte Modelle (Militaer, bewaffnete Fahrzeuge ...)
+Config.ModelBlacklist = {
+    'rhino', 'khanjali', 'apc', 'halftrack', 'insurgent', 'insurgent2', 'insurgent3', 'menacer', 'barrage',
+    'chernobog', 'thruster', 'oppressor', 'oppressor2', 'deluxo', 'ruiner2', 'scramjet', 'vigilante', 'toreador',
+    'stromberg', 'tampa3', 'lazer', 'hydra', 'hunter', 'akula', 'savage', 'valkyrie', 'valkyrie2', 'buzzard',
+    'annihilator', 'annihilator2', 'strikeforce', 'b11', 'jet', 'cargoplane', 'titan', 'avenger', 'volatol', 'bombushka',
+}
+
 -- Editor / Kamera
 Config.Editor = {
     maxDistance = 800.0,      -- maximale Entfernung der Kamera vom Einsatzmittelpunkt (bzw. Oeffnungsort)
@@ -214,6 +224,13 @@ Config.Doors = {
 Config.Spills = {
     durationSeconds = 12,
     roles = { 'fire' },
+}
+
+-- Fundstellen / Marker mit Interaktion ("Fundstelle sichern")
+Config.Markers = {
+    durationSeconds = 6,
+    roles = { 'fire', 'police' },
+    interactDistance = 2.5,
 }
 
 -- Speicherung (JSON im Resource-Ordner)
