@@ -418,7 +418,8 @@ local function createGhost(kind, model)
     SetModelAsNoLongerNeeded(hash)
     if not ent or ent == 0 then return false end
     SetEntityAsMissionEntity(ent, true, true)
-    SetEntityAlpha(ent, 170, false)
+    -- Transparenz nur fuer Fahrzeuge/Objekte; transparente NPCs fuehren im Render-Thread zu Abstuerzen
+    if kind ~= 'ped' then SetEntityAlpha(ent, 170, false) end
     SetEntityCollision(ent, false, false)
     FreezeEntityPosition(ent, true)
     local min, max = GetModelDimensions(hash)

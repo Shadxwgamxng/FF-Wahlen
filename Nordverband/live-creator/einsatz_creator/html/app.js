@@ -1100,7 +1100,7 @@ vp.addEventListener('contextmenu', e => e.preventDefault());
 vp.addEventListener('mousedown', (e) => {
     if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur();
     if (e.button === 0) down = { x: e.clientX, y: e.clientY };
-    if (e.button === 2) { look.active = true; try { vp.requestPointerLock && vp.requestPointerLock(); } catch (x) { /* */ } }
+    if (e.button === 2) { look.active = true; try { const r = vp.requestPointerLock && vp.requestPointerLock(); if (r && r.catch) r.catch(() => {}); } catch (x) { /* */ } }
 });
 window.addEventListener('mouseup', (e) => {
     if (e.button === 0 && down) {
