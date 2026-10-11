@@ -16,7 +16,6 @@ Config.Debug = false
 Config.Commands = {
     creator = 'einsatzcreator',   -- oeffnet den Creator
     info = 'einsatzinfo',         -- Einsatzinformationen fuer alarmierte Kraefte
-    route = 'einsatzroute',       -- Route zum zuletzt alarmierten Einsatz
 }
 
 --[[
@@ -116,8 +115,7 @@ Config.Editor = {
 
 -- Betriebsmodi
 Config.Modes = {
-    -- Testeinsatz: wer wird alarmiert? Nur der Ausloesende + Spieler mit diesem ACE-Recht
-    testReceiversAce = 'einsatzcreator.testempfang',
+    -- Testeinsaetze werden nie alarmiert und nie an EmergencyDispatch uebergeben.
     -- Darf ein Szenario gleichzeitig mehrfach aktiv sein?
     allowMultipleInstances = false,
     -- Bei Fehler waehrend des Aufbaus alles bereits Erzeugte zuruecknehmen
@@ -137,17 +135,6 @@ Config.EndCleanup = {
     removeEffects = true,
 }
 
--- Alarmierung (interne Alarmierung im Spiel; die Leitstelle haengt an bridge/dispatch.lua)
-Config.Alarm = {
-    enabled = true,
-    sound = true,             -- kurzer Hinweiston (Frontend-Sound)
-    blipSprite = 436,
-    blipColour = 1,
-    blipScale = 1.0,
-    areaBlipAlpha = 80,
-    autoRouteOnAlarm = false, -- automatisch GPS setzen
-    popupSeconds = 25,
-}
 
 --[[
     Zufallseinsaetze
@@ -318,16 +305,18 @@ Config.Storage = {
     historyLimit = 300,       -- Anzahl gespeicherter beendeter Einsaetze
 }
 
--- Leitstellen-Bridge (siehe bridge/dispatch.lua)
---   'none'  = nur interne Einsatzverwaltung, keine Uebergabe
---   'event' = eigene Server-Events 'einsatzcreator:bridge:*' werden ausgeloest (zum Abonnieren durch die Leitstelle)
---   'custom' = Funktionen in Config.DispatchCustom werden aufgerufen
+--[[
+    Leitstellen-Bridge (siehe bridge/dispatch.lua)
+    Dieses Script alarmiert NICHT selbst. Jeder Live-Einsatz (manuell oder
+    zufaellig generiert) wird per Event als Notruf an EmergencyDispatch
+    uebergeben; EmergencyDispatch alarmiert die Fahrzeuge.
+      'emergencydispatch'  Notruf an EmergencyDispatch (Standard)
+      'event'              nur eigene Server-Events 'einsatzcreator:bridge:*'
+      'custom'             Funktionen in Config.DispatchCustom
+      'none'               keine Uebergabe
+]]
 Config.Dispatch = {
     adapter = 'emergencydispatch',
-    -- Interne Alarmierung (Popup/Blips dieses Scripts) zusaetzlich zur Leitstelle?
-    -- false = Alarmierung ausschliesslich ueber die Leitstelle. Testeinsaetze werden
-    -- immer intern an den Ausloesenden gemeldet (sie gehen nie an die Leitstelle).
-    internalAlarm = false,
 }
 
 --[[

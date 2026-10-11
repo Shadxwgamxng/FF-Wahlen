@@ -222,7 +222,6 @@ function Incidents.create(src, sc, mode, scenarioId, opts)
         statusHistory = {},
         log = {},
         errors = {},
-        recipients = {},
         random = opts.random == true,
     }
     -- Ortsvariante anwenden (0/nil = Originalort)
@@ -282,9 +281,8 @@ function Incidents.create(src, sc, mode, scenarioId, opts)
 
     Incidents.persistRuntime()
     Incidents.syncPublic(inc)
-    local count = Alarm.send(inc)
-    if count > 0 then
-        inc.log[#inc.log + 1] = { at = os.time(), by = 'System', text = ('%d Empfaenger intern alarmiert'):format(count) }
+    if mode == 'test' and src and GetPlayerName(src) then
+        TriggerClientEvent(EC.Events.notify, src, 'info', ('Testeinsatz %s aufgebaut - es wird nicht alarmiert'):format(inc.id))
     end
     Dispatch.created(inc)
     if inc.dispatchCalls then
@@ -388,11 +386,12 @@ end
 function Incidents.reAlarm(id, src)
     local inc = Incidents.get(id)
     if not inc or inc.status ~= EC.Status.active then return false, 'Einsatz ist nicht aktiv' end
-    local n = Alarm.send(inc, true)
+    if inc.mode ~= 'live' then return false, 'Testeinsaetze werden nicht alarmiert' end
     local calls = Dispatch.reAlarm(inc)
+    if calls == 0 then return false, 'Notruf konnte nicht an EmergencyDispatch uebergeben werden' end
     inc.log[#inc.log + 1] = { at = os.time(), by = src and Perm.actor(src).name or 'System',
-        text = ('Nachalarmierung: %d intern, %d Notruf(e) an Leitstelle'):format(n, calls) }
-    return true, ('Nachalarmiert: %d intern, %d Notruf(e) an die Leitstelle'):format(n, calls)
+        text = ('Nachalarmierung: %d Notruf(e) an EmergencyDispatch'):format(calls) }
+    return true, ('%d Notruf(e) an EmergencyDispatch uebergeben'):format(calls)
 end
 
 ----------------------------------------------------------------------------

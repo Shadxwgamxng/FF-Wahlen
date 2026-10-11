@@ -136,7 +136,6 @@ for _, f in ipairs(files_to_load) do dofile(f) end
 -- Grundtests mit eigenem Feuersystem und Event-Bridge; z_fire/EmergencyDispatch werden weiter unten getestet
 Config.Fire.backend = 'internal'
 Config.Dispatch.adapter = 'event'
-Config.Dispatch.internalAlarm = true
 Config.Framework = 'none'
 Config.Medical.enabled = false   -- Grundablauf zuerst ohne detaillierte Behandlung
 
@@ -234,8 +233,8 @@ local bridgeCreated = false
 for _, ev in ipairs(serverEvents) do if ev.name == 'einsatzcreator:bridge:created' then bridgeCreated = ev.args[1] end end
 check(bridgeCreated and bridgeCreated.incidentId == incId and bridgeCreated.priority == 1, 'Leitstellen-Bridge "created" mit Payload')
 local alarmed = false
-for _, ev in ipairs(clientEvents) do if ev.name == EC.Events.alarm then alarmed = true end end
-check(alarmed, 'Interne Alarmierung gesendet')
+for _, ev in ipairs(clientEvents) do if ev.name == 'einsatzcreator:client:alarm' then alarmed = true end end
+check(not alarmed, 'Keine eigene Alarmierung an Spieler/Jobs')
 
 waitRate()
 ok, res = request('trigger', { scenarioId = scenarioId, mode = 'live' })
@@ -412,7 +411,6 @@ local zexp = {
 exports = setmetatable({}, { __call = function(_, name, fn) exported[name] = fn end, __index = function(_, k) if k == 'z_fire' then return zexp end end })
 Config.Fire.backend = 'z_fire'
 Config.Dispatch.adapter = 'emergencydispatch'
-Config.Dispatch.internalAlarm = false
 Incidents.list, Fire.nodes, Fire.smokes = {}, {}, {}
 serverEvents = {}
 waitRate()

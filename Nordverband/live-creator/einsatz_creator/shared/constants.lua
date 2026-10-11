@@ -74,7 +74,6 @@ EC.Events = {
     activeList = 'einsatzcreator:client:activeList',
     incidentSync = 'einsatzcreator:client:incidentSync',
     incidentRemoved = 'einsatzcreator:client:incidentRemoved',
-    alarm = 'einsatzcreator:client:alarm',
     notify = 'einsatzcreator:client:notify',
     fireState = 'einsatzcreator:client:fireState',
     fireRemove = 'einsatzcreator:client:fireRemove',
