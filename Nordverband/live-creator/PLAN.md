@@ -29,20 +29,20 @@ Dieser Plan wird bei jedem Zwischenstand aktualisiert und mitgepusht.
 - ✅ Leitstellen-Bridge (`bridge/dispatch.lua`) + Exports
 
 ## Phase 3 – Client / Editor
-- 🔄 Freie Kamera (WASD, Q/E, Shift/Strg, Rechtsklick-Drehen, Reichweite)
-- ⬜ Raycast und Bodenplatzierung (Bodenhöhe, Modellgröße, Ausrichtung)
-- ⬜ Werkzeuge: Fahrzeug, Objekt, Feuer, Rauch, NPC, Einsatzort, Marker, Gebiet, Tür, Ölspur, Absperrlinie
-- ⬜ Vorschau-Elemente (nur lokal sichtbar), Auswahl, Verschieben, Drehen, Duplizieren, Löschen
-- ⬜ Sicheres Öffnen/Schließen (Freeze, Fokus, Kamera, Resource-Stop)
+- ✅ Freie Kamera (WASD, Q/E, Shift/Strg, Rechtsklick-Drehen, Reichweite)
+- ✅ Raycast und Bodenplatzierung (Bodenhöhe, Modellgröße, Ausrichtung)
+- ✅ Werkzeuge: Fahrzeug, Objekt, Feuer, Rauch, NPC, Einsatzort, Marker, Gebiet, Tür, Ölspur, Absperrlinie
+- ✅ Vorschau-Elemente (nur lokal sichtbar), Auswahl, Verschieben, Drehen, Duplizieren, Löschen
+- ✅ Sicheres Öffnen/Schließen (Freeze, Fokus, Kamera, Resource-Stop)
 
 ## Phase 4 – Client / Einsatz in der Welt
-- ⬜ Darstellung Live-Elemente (Unfallschäden, Warnblinker, NPC-Posen, eingeklemmte Personen)
-- ⬜ Feuer/Rauch-Darstellung + Löscherkennung mit z_hose
-- ⬜ Interaktionen (Patienten, Türen, Ölspur) mit Fortschrittsbalken
-- ⬜ Alarmierung, Blips, Route, Einsatzinfo-Fenster
+- ✅ Darstellung Live-Elemente (Unfallschäden, Warnblinker, NPC-Posen, eingeklemmte Personen)
+- ✅ Feuer/Rauch-Darstellung + Löscherkennung mit z_hose
+- ✅ Interaktionen (Patienten, Türen, Ölspur) mit Fortschrittsbalken
+- ✅ Alarmierung, Blips, Route, Einsatzinfo-Fenster
 
 ## Phase 5 – Oberfläche (NUI)
-- ⬜ Layout: obere Leiste, Werkzeugpanel, Eigenschaften, Statusleiste
+- 🔄 Layout: obere Leiste, Werkzeugpanel, Eigenschaften, Statusleiste
 - ⬜ Tabs: Werkzeuge, Einsatz, Elemente, Szenarien, Aktive Einsätze
 - ⬜ Formulare je Einsatzart, Patienten-Editor
 - ⬜ Einsatzkräfte-Ansichten (Alarm, Einsatzinfo, Interaktionsmenü, Fortschritt)

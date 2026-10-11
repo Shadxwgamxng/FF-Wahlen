@@ -228,8 +228,13 @@ Handlers.rescueCancel = { rate = 200, fn = function(src, p)
 end }
 
 -- Vollstaendiger Weltstand fuer neu verbundene Clients
-Handlers.syncWorld = { rate = 2000, fn = function()
-    return true, { incidents = Incidents.publicAll(), fire = Fire.fullState() }
+Handlers.syncWorld = { rate = 2000, fn = function(src)
+    return true, { incidents = Incidents.publicAll(), fire = Fire.fullState(), roles = Perm.rolesOf(src) }
+end }
+
+-- Rollen des Spielers (fuer die Anzeige passender Interaktionen; der Server prueft jede Aktion erneut)
+Handlers.myRoles = { rate = 5000, fn = function(src)
+    return true, Perm.rolesOf(src)
 end }
 
 ----------------------------------------------------------------------------

@@ -1,0 +1,301 @@
+--[[
+    Interaktionen der Einsatzkraefte vor Ort
+    (Patienten, Tueroeffnung, Betriebsstoffe, Fundstellen)
+
+    Eigene, frameworkunabhaengige Interaktion per Taste (Config.Interaction.key).
+    Der Client zeigt nur passende Aktionen an; der Server prueft jede Aktion
+    erneut (Rolle, Abstand, Zustand, Dauer).
+]]
+
+local U = EC.Utils
+
+Interactions = {
+    roles = {},
+    current = nil,     -- naechstes Ziel { incident, kind, id, label, pos }
+    running = false,
+    menuOpen = false,
+}
+
+local function hasRole(list)
+    if not list or #list == 0 then return true end
+    for _, r in ipairs(list) do
+        if U.inList(Interactions.roles, r) then return true end
+    end
+    return false
+end
+
+local ACTION_ROLES = {
+    assess = function() return Config.Rescue.roles.assess end,
+    free = function() return Config.Rescue.roles.free end,
+    treat = function() return Config.Rescue.roles.treat end,
+    load = function() return Config.Rescue.roles.load end,
+    handover = function() return Config.Rescue.roles.handover end,
+    release = function() return Config.Rescue.roles.treat end,
+    open = function() return Config.Doors.roles end,
+    clean = function() return Config.Spills.roles end,
+    secure = function() return Config.Markers.roles end,
+}
+
+local ACTION_LABELS = {
+    assess = 'Sichten / Erstuntersuchung', free = 'Patient befreien (technische Rettung)',
+    treat = 'Patient versorgen', load = 'In Rettungsmittel einladen', handover = 'In Klinik uebergeben',
+    release = 'Vor Ort entlassen', open = 'Tuer oeffnen', clean = 'Betriebsstoff abstreuen / aufnehmen',
+    secure = 'Fundstelle sichern',
+}
+
+local SCENARIOS = {
+    assess = 'CODE_HUMAN_MEDIC_TEND_TO_DEAD', treat = 'CODE_HUMAN_MEDIC_TEND_TO_DEAD',
+    free = 'WORLD_HUMAN_WELDING', open = 'WORLD_HUMAN_HAMMERING', clean = 'WORLD_HUMAN_JANITOR',
+    secure = 'CODE_HUMAN_MEDIC_KNEEL', load = 'CODE_HUMAN_MEDIC_KNEEL',
+}
+
+----------------------------------------------------------------------------
+-- Ziele in der Naehe finden
+----------------------------------------------------------------------------
+local function patientEntity(p)
+    if p.net and NetworkDoesNetworkIdExist(p.net) then
+        local ent = NetworkGetEntityFromNetworkId(p.net)
+        if ent and ent ~= 0 and DoesEntityExist(ent) then return ent end
+    end
+    return nil
+end
+
+local function candidates(me)
+    local best, bestD = nil, 999.0
+    local function consider(c, d, maxD)
+        if d <= maxD and d < bestD then best, bestD = c, d end
+    end
+    for _, inc in pairs(World.incidents) do
+        local r = inc.rescue or {}
+        for id, p in pairs(r.patients or {}) do
+            if p.s ~= 'uebergeben' and p.s ~= 'vor_ort_entlassen' then
+                local ent = patientEntity(p)
+                if ent then
+                    local pos = GetEntityCoords(ent)
+                    consider({ incident = inc.id, kind = 'patient', id = id, data = p, pos = pos,
+                        label = ('Patient: %s (%s)'):format(p.name or '?', EC.PatientStatus[p.s] or p.s) },
+                        #(me - pos), Config.Rescue.interactDistance + (p.s == 'im_fahrzeug' and 2.5 or 0.0))
+                end
+            end
+        end
+        for id, d in pairs(r.doors or {}) do
+            if d.s == 'verschlossen' then
+                local pos = U.vec(d.pos)
+                consider({ incident = inc.id, kind = 'door', id = id, data = d, pos = pos,
+                    label = ('Tuer (%s)'):format(d.urg or 'dringend') }, #(me - pos), Config.Rescue.interactDistance)
+            end
+        end
+        for id, s in pairs(r.spills or {}) do
+            if s.s == 'vorhanden' then
+                local pos = U.vec(s.pos)
+                local kind = EC.SpillKindById[s.kind]
+                consider({ incident = inc.id, kind = 'spill', id = id, data = s, pos = pos,
+                    label = kind and kind.label or 'Betriebsstoff' }, #(me - pos), (s.w or 2.0) + 1.5)
+            end
+        end
+        for id, m in pairs(r.markers or {}) do
+            if m.i and m.s == 'offen' then
+                local pos = U.vec(m.pos)
+                local kind = EC.MarkerKindById[m.kind]
+                consider({ incident = inc.id, kind = 'marker', id = id, data = m, pos = pos,
+                    label = (m.label and m.label ~= '' and m.label) or (kind and kind.label) or 'Fundstelle' },
+                    #(me - pos), Config.Markers.interactDistance)
+            end
+        end
+    end
+    return best
+end
+
+local function actionsFor(target)
+    local list = {}
+    local function add(id, enabled, reason)
+        if hasRole(ACTION_ROLES[id]()) then
+            list[#list + 1] = { id = id, label = ACTION_LABELS[id], enabled = enabled ~= false, reason = reason }
+        end
+    end
+    local d = target.data
+    if target.kind == 'patient' then
+        local s = d.s
+        if d.b then
+            return { { id = 'none', label = 'Patient ist hinter einer verschlossenen Tuer', enabled = false } }
+        end
+        if s == 'eingeklemmt' then add('free') end
+        if s ~= 'im_fahrzeug' then add('assess') end
+        -- bei Eingeklemmten prueft der Server, ob bereits gesichtet wurde
+        if s == 'gesichtet' or s == 'eingeklemmt' then add('treat') end
+        if s == 'unversorgt' then add('treat', false, 'Zuerst sichten') end
+        if s == 'stabil' then add('load') end
+        if s == 'im_fahrzeug' then add('handover') end
+        if d.sev == 'leicht' and d.walk and (s == 'gesichtet' or s == 'stabil') then add('release') end
+    elseif target.kind == 'door' then
+        add('open')
+    elseif target.kind == 'spill' then
+        add('clean')
+    elseif target.kind == 'marker' then
+        add('secure')
+    end
+    return list
+end
+
+----------------------------------------------------------------------------
+-- Rettungsmittel in der Naehe (fuer "Einladen")
+----------------------------------------------------------------------------
+local transportHashes
+local function nearestTransport(pos)
+    if not transportHashes then
+        transportHashes = {}
+        for _, m in ipairs(Config.Rescue.transportVehicles or {}) do transportHashes[GetHashKey(m)] = true end
+    end
+    local best, bestD = nil, Config.Rescue.vehicleDistance
+    for _, veh in ipairs(GetGamePool('CVehicle')) do
+        if next(transportHashes) == nil or transportHashes[GetEntityModel(veh)] then
+            local d = #(GetEntityCoords(veh) - pos)
+            if d < bestD and NetworkGetEntityIsNetworked(veh) then best, bestD = veh, d end
+        end
+    end
+    return best
+end
+
+----------------------------------------------------------------------------
+-- Massnahme ausfuehren
+----------------------------------------------------------------------------
+function Interactions.run(target, action)
+    if Interactions.running then return end
+    Interactions.running = true
+    local ped = PlayerPedId()
+
+    local extra
+    if action == 'load' then
+        local veh = nearestTransport(target.pos)
+        if not veh then
+            Interactions.running = false
+            NUI.toast('error', 'Kein Rettungsmittel in der Naehe (max. ' .. math.floor(Config.Rescue.vehicleDistance) .. ' m)')
+            return
+        end
+        extra = { vehicleNet = NetworkGetNetworkIdFromEntity(veh) }
+    end
+
+    local kindMap = { patient = 'patient', door = 'door', spill = 'spill', marker = 'marker' }
+    local ok, res = Request('rescueStart', { incidentId = target.incident, targetId = target.id, action = action })
+    if not ok then
+        Interactions.running = false
+        NUI.toast('error', res or 'Aktion nicht moeglich')
+        return
+    end
+
+    local duration = (res and res.duration or 0) * 1000
+    local cancelled = false
+    if duration > 0 then
+        local start = GetEntityCoords(ped)
+        if SCENARIOS[action] and not IsPedInAnyVehicle(ped, false) then
+            TaskTurnPedToFaceCoord(ped, target.pos.x, target.pos.y, target.pos.z, 800)
+            Wait(400)
+            TaskStartScenarioInPlace(ped, SCENARIOS[action], 0, true)
+        end
+        NUI.send('progress', { label = res.label or ACTION_LABELS[action], duration = duration, cancelKey = Config.Interaction.cancelLabel })
+        local endAt = GetGameTimer() + duration
+        while GetGameTimer() < endAt do
+            if IsControlJustReleased(0, Config.Interaction.cancelKey) or IsEntityDead(ped)
+                or #(GetEntityCoords(ped) - start) > Config.Interaction.maxMoveDistance then
+                cancelled = true
+                break
+            end
+            Wait(0)
+        end
+        NUI.send('progress', nil)
+        ClearPedTasks(ped)
+    end
+
+    if cancelled then
+        Request('rescueCancel', { incidentId = target.incident, targetId = target.id, kind = kindMap[target.kind] })
+        NUI.toast('info', 'Massnahme abgebrochen')
+        Interactions.running = false
+        return
+    end
+
+    local cok, cres = Request('rescueComplete', { incidentId = target.incident, targetId = target.id, action = action, extra = extra })
+    Interactions.running = false
+    if not cok then
+        NUI.toast('error', cres or 'Massnahme fehlgeschlagen')
+        return
+    end
+    if action == 'assess' and cres and cres.patient then
+        NUI.send('patientCard', { name = cres.name, patient = cres.patient, severities = Catalog.Severities })
+    elseif action == 'handover' and cres and cres.hospital then
+        NUI.toast('success', 'Patient uebergeben: ' .. cres.hospital)
+    else
+        NUI.toast('success', (ACTION_LABELS[action] or 'Massnahme') .. ': erledigt')
+    end
+end
+
+----------------------------------------------------------------------------
+-- Schleifen: Ziel suchen, Hinweis anzeigen, Taste abfragen
+----------------------------------------------------------------------------
+CreateThread(function()
+    local shown = nil
+    while true do
+        local sleep = 800
+        if next(World.incidents) and not State.open and not Interactions.running and not Interactions.menuOpen then
+            sleep = 300
+            local ped = PlayerPedId()
+            local target = nil
+            if not IsEntityDead(ped) then target = candidates(GetEntityCoords(ped)) end
+            Interactions.current = target
+            local text = target and ('[%s] %s'):format(Config.Interaction.keyLabel, target.label) or nil
+            if text ~= shown then
+                shown = text
+                NUI.send('prompt', text and { text = text } or nil)
+            end
+        elseif shown then
+            shown = nil
+            Interactions.current = nil
+            NUI.send('prompt', nil)
+        end
+        Wait(sleep)
+    end
+end)
+
+CreateThread(function()
+    while true do
+        if Interactions.current and not State.open and not Interactions.running and not Interactions.menuOpen then
+            if IsControlJustReleased(0, Config.Interaction.key) then
+                local target = Interactions.current
+                local actions = actionsFor(target)
+                if #actions == 0 then
+                    NUI.toast('error', 'Keine passenden Massnahmen fuer deine Rolle')
+                else
+                    Interactions.menuOpen = true
+                    Interactions.menuTarget = target
+                    NUI.send('prompt', nil)
+                    NUI.send('actionMenu', { title = target.label, actions = actions })
+                    SetNuiFocus(true, true)
+                end
+            end
+            Wait(0)
+        else
+            Wait(250)
+        end
+    end
+end)
+
+NUI.on('actionChoose', function(data)
+    local target = Interactions.menuTarget
+    Interactions.menuOpen = false
+    Interactions.menuTarget = nil
+    if not State.open then SetNuiFocus(false, false) end
+    if target and ACTION_LABELS[data.action] then
+        CreateThread(function() Interactions.run(target, data.action) end)
+    end
+    return true
+end)
+
+NUI.on('actionClose', function()
+    Interactions.menuOpen = false
+    Interactions.menuTarget = nil
+    if not State.open then SetNuiFocus(false, false) end
+    return true
+end)
+
+NUI.on('patientCardClose', function()
+    return true
+end)

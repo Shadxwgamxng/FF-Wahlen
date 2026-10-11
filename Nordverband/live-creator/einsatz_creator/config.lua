@@ -181,6 +181,15 @@ Config.ZHose = {
     allowExtinguisher = true,
 }
 
+-- Interaktionen der Einsatzkraefte (Tasten siehe https://docs.fivem.net/docs/game-references/controls/)
+Config.Interaction = {
+    key = 38,          -- E
+    keyLabel = 'E',
+    cancelKey = 73,    -- X
+    cancelLabel = 'X',
+    maxMoveDistance = 3.0, -- Abbruch, wenn man sich waehrend einer Massnahme entfernt
+}
+
 -- Rettungsdienst / Patienten
 Config.Rescue = {
     interactDistance = 2.2,

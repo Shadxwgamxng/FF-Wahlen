@@ -106,10 +106,12 @@ end
 
 -- Oeffentlicher Weltstand (Interaktionen, Tueren, Betriebsstoffe) an alle Clients
 function Incidents.publicOf(inc)
+    local nets = {}
+    for _, rec in pairs(inc.entities or {}) do nets[#nets + 1] = rec.netId end
     return {
         id = inc.id, mode = inc.mode, status = inc.status, name = inc.scenario.name,
         keyword = inc.scenario.keyword, center = inc.scenario.center,
-        rescue = Rescue.publicState(inc),
+        rescue = Rescue.publicState(inc), nets = nets,
     }
 end
 
