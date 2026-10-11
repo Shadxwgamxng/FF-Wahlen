@@ -53,7 +53,7 @@ function Alarm.payload(incident)
         category = sc.category,
         categoryLabel = cat and cat.label or sc.category,
         priority = sc.priority,
-        alarmText = sc.info.alarmText,
+        alarmText = incident.alarmText or sc.info.alarmText,
         address = incident.address or sc.info.address,
         center = sc.center,
         areas = areas,
@@ -115,7 +115,7 @@ function Alarm.details(incident)
     return {
         id = incident.id, mode = incident.mode, status = incident.status, phase = incident.phase,
         name = sc.name, keyword = sc.keyword, categoryLabel = cat and cat.label or sc.category,
-        priority = sc.priority, alarmText = sc.info.alarmText, description = sc.info.description,
+        priority = sc.priority, alarmText = incident.alarmText or sc.info.alarmText, description = sc.info.description,
         address = incident.address or sc.info.address, hazards = sc.info.hazards, persons = sc.info.persons,
         units = sc.info.units, unitsText = sc.info.unitsText, sop = sc.info.sop, custom = custom,
         center = sc.center, patients = patients, fire = Fire.summary(incident.id),

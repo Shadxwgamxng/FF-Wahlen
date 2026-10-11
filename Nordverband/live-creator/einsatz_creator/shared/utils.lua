@@ -149,6 +149,9 @@ EC.MarkerKindById = U.indexBy(Catalog.MarkerKinds, 'id')
 EC.AreaKindById = U.indexBy(Catalog.AreaKinds, 'id')
 EC.SpillKindById = U.indexBy(Catalog.SpillKinds, 'id')
 EC.SeverityById = U.indexBy(Catalog.Severities, 'id')
+EC.ProfileById = U.indexBy(Medical.Profiles, 'id')
+EC.MedicationById = U.indexBy(Medical.Medications, 'id')
+EC.BodyPartById = U.indexBy(Medical.BodyParts, 'id')
 
 if not IS_SERVER then
     -- Client: Zufall mit Spielzeit initialisieren

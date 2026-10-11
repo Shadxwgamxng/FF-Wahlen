@@ -87,6 +87,7 @@ local function summaryOf(inc)
         rescue = Rescue.summary(inc),
         errors = inc.errors or {},
         random = inc.random,
+        variant = inc.variant,
     }
 end
 
@@ -224,6 +225,16 @@ function Incidents.create(src, sc, mode, scenarioId, opts)
         recipients = {},
         random = opts.random == true,
     }
+    -- Ortsvariante anwenden (0/nil = Originalort)
+    local variant = opts.variant
+    if variant == 'random' then variant = Variants.random(sc) end
+    variant = tonumber(variant)
+    if variant and variant > 0 and sc.variants and sc.variants[variant] then
+        inc.scenario = Variants.apply(inc.scenario, variant)
+        inc.variant = variant
+    end
+    -- Patienten: Geschlecht, Name, Zufallsmodell, Meldebild-Variante festlegen
+    Med.prepareScenario(inc.scenario)
     inc.statusHistory[1] = { status = inc.status, at = inc.createdAt, by = actor.name }
     inc.log[1] = { at = inc.createdAt, by = actor.name, text = ('Einsatz angelegt (%s)'):format(EC.Modes[mode]) }
     Incidents.list[inc.id] = inc
@@ -248,6 +259,7 @@ function Incidents.create(src, sc, mode, scenarioId, opts)
 
         Fire.createForIncident(inc)
         Rescue.init(inc)
+        inc.alarmText = Incidents.resolveAlarmText(inc)
     end)
 
     if not ok then
@@ -284,6 +296,23 @@ function Incidents.create(src, sc, mode, scenarioId, opts)
     Incidents.broadcastList()
     U.log('info', 'Einsatz %s aktiv (%d Entities, %d Fehler)', inc.id, U.tableCount(inc.entities), #inc.errors)
     return true, inc.id, #inc.errors
+end
+
+-- Platzhalter im Alarmtext: {anruf} (Notruftext des Meldebilds), {patient}, {ziel}
+function Incidents.resolveAlarmText(inc)
+    local sc = inc.scenario
+    local text = sc.info.alarmText or ''
+    local call = Med.callText(sc)
+    if text == '' then text = call or sc.name end
+    local first, dest
+    for _, p in pairs(inc.rescue and inc.rescue.patients or {}) do
+        first = first or p
+        if p.dest and not dest then dest = p.dest.label end
+    end
+    text = text:gsub('{anruf}', function() return call or '' end)
+    text = text:gsub('{patient}', function() return first and first.name or '' end)
+    text = text:gsub('{ziel}', function() return dest or '' end)
+    return EC.Utils.cleanText(text, 400)
 end
 
 ----------------------------------------------------------------------------

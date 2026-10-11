@@ -88,6 +88,18 @@ Catalog.Categories = {
     },
 }
 
+table.insert(Catalog.Categories, {
+    id = 'ktw', label = 'Krankentransport / Verlegung', icon = 'cross', roles = { 'ems' },
+    keywords = { 'KTW - Verlegung', 'KTW - Krankentransport', 'RTW - Verlegung', 'KTW - Entlassung' },
+    fields = {
+        { key = 'art', label = 'Transportart', type = 'select', options = { 'Verlegung Klinik -> Klinik', 'Einweisung', 'Entlassung nach Hause', 'Dialyse / Termin' } },
+        { key = 'liegend', label = 'Liegendtransport', type = 'checkbox' },
+        { key = 'infektion', label = 'Infektionstransport', type = 'checkbox' },
+        { key = 'abholort', label = 'Abholort (Station / Zimmer)', type = 'text' },
+        { key = 'termin', label = 'Termin / Uhrzeit', type = 'text' },
+    },
+})
+
 Catalog.Priorities = {
     { value = 1, label = 'P1 - Sonderrechte, Lebensgefahr' },
     { value = 2, label = 'P2 - dringend' },
@@ -239,6 +251,7 @@ Catalog.MarkerKinds = {
     { id = 'einsatzleitung', label = 'Einsatzleitung', sprite = 60, colour = 1 },
     { id = 'gefahr', label = 'Gefahrenstelle', sprite = 436, colour = 1 },
     { id = 'zugang', label = 'Zugang / Zufahrt', sprite = 38, colour = 0 },
+    { id = 'zielort', label = 'Zielort (Transport)', sprite = 61, colour = 2 },
     { id = 'sonstiges', label = 'Sonstiges', sprite = 1, colour = 0 },
 }
 

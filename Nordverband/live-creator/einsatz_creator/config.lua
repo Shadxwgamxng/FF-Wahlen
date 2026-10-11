@@ -233,7 +233,15 @@ Config.Rescue = {
     interactDistance = 2.2,
     vehicleDistance = 7.0,    -- Abstand Patient <-> RTW zum Einladen
     -- Fahrzeugmodelle, in die Patienten eingeladen werden duerfen (leer = jedes Fahrzeug)
-    transportVehicles = { 'ambulance' },
+    -- (bftecrtw* + Sitz 3 uebernommen aus nv_medicDispatches Config.Cars)
+    transportVehicles = { 'ambulance', 'bftecrtw', 'bftecrtw2', 'bftecrtw3' },
+    -- bevorzugter Sitz je Modell (sonst hinten rechts/links/Beifahrer)
+    transportSeats = { bftecrtw = 3, bftecrtw2 = 3, bftecrtw3 = 3 },
+    -- Tragen (Fahrzeug-Modelle) - Patient kann darauf gelegt werden (aus nv_medicDispatches)
+    stretcherModels = { 'rda_stretcher', 'c5m-stretcher' },
+    stretcherDistance = 8.0,
+    -- Abstand zum Zielort (Klinik oder Transportziel) fuer die Uebergabe
+    handoverRadius = 15.0,
     -- Uebergabeorte (Kliniken). Patient wird dort uebergeben, wenn der RTW in Reichweite ist.
     hospitals = {
         { label = 'Pillbox Hill Medical Center', coords = vector3(294.6, -1448.3, 29.9), radius = 35.0 },
@@ -257,6 +265,18 @@ Config.Rescue = {
         handover = { 'ems' },
     },
     invincible = true,        -- Patienten koennen nicht getoetet werden
+}
+
+-- Detaillierte medizinische Behandlung (config_medical.lua)
+Config.Medical = {
+    enabled = true,          -- false = nur einfacher Ablauf (Sichten -> Versorgen)
+    roles = { 'ems' },       -- wer darf behandeln
+    distance = 3.0,          -- max. Abstand zum Patienten
+    actionCooldownMs = 1200, -- Mindestabstand zwischen zwei Massnahmen am selben Patienten
+    -- "versorgt / transportbereit" erst, wenn alle Wunden versorgt, Frakturen geschient,
+    -- Stifneck/Beckenschlinge angelegt und RR, HF und SpO2 gemessen sind
+    requireCompleteCare = true,
+    subtitleMs = 3500,       -- Anzeigedauer je Gespraechszeile
 }
 
 -- Tueroeffnung

@@ -172,7 +172,7 @@ function RandomGen.run(force)
         return false, RandomGen.lastInfo.text
     end
     RandomGen.lastRun[chosen.id] = os.time()
-    local ok, idOrErr = Incidents.create(nil, sc, 'live', chosen.id, { random = true, actorName = 'Zufallsgenerator' })
+    local ok, idOrErr = Incidents.create(nil, sc, 'live', chosen.id, { random = true, actorName = 'Zufallsgenerator', variant = 'random' })
     RandomGen.lastInfo = { at = os.time(), text = ok and ('%s gestartet (%s)'):format(chosen.name, idOrErr) or ('Fehler: %s'):format(idOrErr) }
     U.log(ok and 'info' or 'warn', 'Zufallseinsatz: %s', RandomGen.lastInfo.text)
     return ok, ok and idOrErr or idOrErr

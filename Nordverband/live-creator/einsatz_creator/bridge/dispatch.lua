@@ -66,7 +66,7 @@ function Dispatch.payload(incident, change)
         keyword = sc.keyword,
         name = sc.name,
         priority = sc.priority,
-        alarmText = sc.info.alarmText,
+        alarmText = incident.alarmText or sc.info.alarmText,
         description = sc.info.description,
         address = incident.address or sc.info.address,
         coords = { x = sc.center.x, y = sc.center.y, z = sc.center.z },

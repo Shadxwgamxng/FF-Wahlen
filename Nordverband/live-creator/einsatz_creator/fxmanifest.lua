@@ -11,8 +11,11 @@ version '1.0.0'
 -- Fremdressourcen (z_fire, z_hose, QBCore, ox_target, emergencydispatch) werden zur Laufzeit erkannt.
 
 shared_scripts {
+    '@ox_lib/init.lua',
     'config.lua',
     'config_catalog.lua',
+    'config_medical.lua',
+    'config_names.lua',
     'shared/constants.lua',
     'shared/utils.lua',
     'shared/schema.lua',
@@ -38,12 +41,18 @@ server_scripts {
     'server/spawner.lua',
     'server/fire.lua',
     'server/zfire.lua',
+    'server/medical.lua',
+    'server/variants.lua',
     'server/rescue.lua',
     'bridge/dispatch.lua',
     'server/alarm.lua',
     'server/incidents.lua',
     'server/random.lua',
     'server/main.lua',
+}
+
+dependencies {
+    'ox_lib',
 }
 
 ui_page 'html/index.html'

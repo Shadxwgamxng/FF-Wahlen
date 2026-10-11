@@ -38,6 +38,7 @@ local function patientStatus(p)
     if p.handedOver then return 'uebergeben' end
     if p.released then return 'vor_ort_entlassen' end
     if p.vehicleNet then return 'im_fahrzeug' end
+    if p.stretcherNet then return 'auf_trage' end
     if p.trapped then return 'eingeklemmt' end
     if p.busy and p.busy.action == 'treat' then return 'in_behandlung' end
     if p.treated then return 'stabil' end
@@ -45,6 +46,32 @@ local function patientStatus(p)
     return 'unversorgt'
 end
 Rescue.patientStatus = patientStatus
+
+-- Transportziel bestimmen: { coords, label, radius } oder nil (= jede Klinik)
+local function resolveDestination(incident, el)
+    local pt = el.props.patient
+    if pt.destination == 'marker' and pt.destMarker then
+        for _, m in ipairs(incident.scenario.elements) do
+            if m.id == pt.destMarker then
+                return { coords = U.vec(m.pos), label = m.label ~= '' and m.label or 'Zielort', radius = Config.Rescue.handoverRadius }
+            end
+        end
+    elseif pt.destination == 'other_hospital' and #Config.Rescue.hospitals > 0 then
+        local pickup = U.vec(el.pos)
+        local nearest, nd = nil, math.huge
+        for i, h in ipairs(Config.Rescue.hospitals) do
+            local d = #(h.coords - pickup)
+            if d < nd then nearest, nd = i, d end
+        end
+        local choices = {}
+        for i, h in ipairs(Config.Rescue.hospitals) do
+            if i ~= nearest or #Config.Rescue.hospitals == 1 then choices[#choices + 1] = h end
+        end
+        local h = choices[math.random(#choices)]
+        return { coords = h.coords, label = h.label, radius = h.radius }
+    end
+    return nil
+end
 
 function Rescue.init(incident)
     local r = { patients = {}, doors = {}, spills = {}, markers = {} }
@@ -60,7 +87,10 @@ function Rescue.init(incident)
                 walking = pt.mobility == 'gehfaehig',
                 assessed = false, treated = false, handedOver = false, released = false,
                 vehicleNet = nil, blockedBy = nil, busy = nil,
+                med = Config.Medical.enabled and Med.initPatient(el) or nil,
+                dest = resolveDestination(incident, el),
             }
+            r.patients[el.id].id = el.id
         elseif el.kind == 'door' then
             r.doors[el.id] = {
                 id = el.id, status = 'verschlossen', pos = el.pos, urgency = el.props.urgency,
@@ -96,7 +126,8 @@ function Rescue.publicState(incident)
         out.patients[id] = {
             s = patientStatus(p), name = p.name, sev = p.severity, b = p.blockedBy,
             net = rec and rec.netId or nil, busy = p.busy and true or false,
-            walk = p.walking, tr = p.transport,
+            walk = p.walking, tr = p.transport, med = p.med ~= nil,
+            dest = p.dest and p.dest.label or nil,
         }
     end
     for id, d in pairs(r.doors) do
@@ -211,6 +242,7 @@ local function allowed(action, t)
     if action == 'assess' then return not t.vehicleNet, 'Patient befindet sich im Rettungsmittel' end
     if action == 'free' then return t.trapped, 'Patient ist nicht eingeklemmt' end
     if action == 'treat' then
+        if t.med then return false, 'Bitte die medizinische Versorgung nutzen' end
         if t.vehicleNet then return false, 'Patient befindet sich im Rettungsmittel' end
         if not t.assessed then return false, 'Patient zuerst sichten' end
         return not t.treated, 'Patient ist bereits versorgt'
@@ -218,11 +250,14 @@ local function allowed(action, t)
     if action == 'load' then
         if t.trapped then return false, 'Patient ist noch eingeklemmt' end
         if t.vehicleNet then return false, 'Patient ist bereits eingeladen' end
-        return t.treated, 'Patient zuerst versorgen'
+        return t.treated, 'Patient zuerst versorgen' .. (t.med and (': ' .. table.concat(Med.openMeasures(t.med), ', ')) or '')
     end
-    if action == 'handover' then return t.vehicleNet ~= nil, 'Patient ist nicht im Rettungsmittel' end
+    if action == 'handover' then
+        return t.vehicleNet ~= nil or t.stretcherNet ~= nil, 'Patient ist nicht im Rettungsmittel oder auf der Trage'
+    end
     if action == 'release' then
         if t.trapped or t.vehicleNet then return false, 'Nicht moeglich' end
+        if t.stretcherNet then return false, 'Patient liegt auf der Trage' end
         if not (t.severity == 'leicht' and t.walking and t.assessed) then
             return false, 'Nur bei gesichteten, leicht verletzten, gehfaehigen Patienten'
         end
@@ -272,7 +307,14 @@ function Rescue.cancel(src, incident, targetId, kind)
 end
 
 -- Sitzposition in einem Fahrzeug suchen (hinten zuerst)
+local seatByHash
 local function freeSeat(veh)
+    if not seatByHash then
+        seatByHash = {}
+        for model, seat in pairs(Config.Rescue.transportSeats or {}) do seatByHash[GetHashKey(model)] = seat end
+    end
+    local preferred = seatByHash[GetEntityModel(veh)]
+    if preferred and GetPedInVehicleSeat(veh, preferred) == 0 then return preferred end
     for _, seat in ipairs({ 2, 1, 0 }) do
         if GetPedInVehicleSeat(veh, seat) == 0 then return seat end
     end
@@ -361,14 +403,20 @@ function Rescue.complete(src, incident, targetId, action, extra)
             SetPedIntoVehicle(ped, veh, seat)
         end
         t.vehicleNet = net
+        t.stretcherNet = nil
     elseif action == 'handover' then
-        local veh = t.vehicleNet and NetworkGetEntityFromNetworkId(t.vehicleNet)
-        local vc = (veh and veh ~= 0 and DoesEntityExist(veh)) and GetEntityCoords(veh) or c
-        local hospital = nearHospital(vc)
-        if not hospital then return false, 'Keine Klinik in Reichweite' end
+        local hospital
+        if t.dest then
+            if #(c - t.dest.coords) <= (t.dest.radius or Config.Rescue.handoverRadius) then hospital = t.dest end
+            if not hospital then t.busy = nil return false, ('Falscher Zielort - Ziel: %s'):format(t.dest.label) end
+        else
+            hospital = nearHospital(c)
+            if not hospital then t.busy = nil return false, 'Keine Klinik in Reichweite' end
+        end
         if rec then Spawner.delete(rec, incident.id) incident.entities[targetId] = nil end
         t.handedOver = true
         t.vehicleNet = nil
+        t.stretcherNet = nil
         result.hospital = hospital.label
     elseif action == 'release' then
         if rec then Spawner.delete(rec, incident.id) incident.entities[targetId] = nil end

@@ -53,6 +53,7 @@ EC.PatientStatus = {
     gesichtet = 'Gesichtet',
     in_behandlung = 'In Behandlung',
     stabil = 'Versorgt / transportbereit',
+    auf_trage = 'Auf der Trage',
     im_fahrzeug = 'Im Rettungsmittel',
     uebergeben = 'In Klinik uebergeben',
     vor_ort_entlassen = 'Vor Ort entlassen',

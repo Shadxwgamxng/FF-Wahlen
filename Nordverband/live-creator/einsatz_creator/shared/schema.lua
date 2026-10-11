@@ -74,11 +74,13 @@ Schema.Defaults = {
     object = function() return { frozen = true, collision = true } end,
     ped = function()
         return {
-            pose = 'bewusstlos', vehicleId = nil, seat = -1, isPatient = true,
+            pose = 'bewusstlos', vehicleId = nil, seat = -1, isPatient = true, randomModel = false,
             patient = {
                 name = '', severity = 'mittel', consciousness = 'wach', mobility = 'nicht gehfaehig',
                 injuries = {}, description = '', measures = '', transport = true,
                 vitals = { puls = 90, rr = '120/80', spo2 = 97, af = 16, gcs = 15 },
+                profile = 'none', variant = 0, gender = 'auto', body = {},
+                destination = 'hospital', destMarker = nil,
             },
         }
     end,
@@ -171,12 +173,28 @@ function Props.ped(raw)
             if t ~= '' and #injuries < 8 then injuries[#injuries + 1] = t end
         end
     end
+    local body = {}
+    if type(p.body) == 'table' then
+        for _, part in ipairs(Medical.BodyParts) do
+            local lvl = math.floor(U.num(p.body[part.id], 0, 0, part.maxLevel))
+            if lvl > 0 then body[part.id] = lvl end
+        end
+    end
+    local profile = (p.profile ~= nil and EC.ProfileById[p.profile]) and p.profile or 'none'
+    local maxVariant = profile ~= 'none' and #EC.ProfileById[profile].variants or 0
     return {
         pose = oneOf(raw.pose, EC.PoseById, d.pose),
         vehicleId = idString(raw.vehicleId),
         seat = math.floor(U.num(raw.seat, -1, -1, 6)),
         isPatient = U.bool(raw.isPatient, true),
+        randomModel = U.bool(raw.randomModel, false),
         patient = {
+            profile = profile,
+            variant = math.floor(U.num(p.variant, 0, 0, maxVariant)),
+            gender = inArray(p.gender, { 'auto', 'm', 'w' }, 'auto'),
+            body = body,
+            destination = inArray(p.destination, { 'hospital', 'other_hospital', 'marker' }, 'hospital'),
+            destMarker = idString(p.destMarker),
             name = U.cleanText(p.name, 48),
             severity = oneOf(p.severity, EC.SeverityById, 'mittel'),
             consciousness = inArray(p.consciousness, Catalog.Consciousness, 'wach'),
@@ -393,6 +411,18 @@ function Schema.normalizeScenario(raw)
         elements = {},
     }
 
+    -- Ortsvarianten: alternative Einsatzorte (die Szene wird beim Ausloesen dorthin verschoben)
+    sc.variants = {}
+    if type(raw.variants) == 'table' then
+        for _, v in ipairs(raw.variants) do
+            local p = pos(v)
+            if p and #sc.variants < 20 then
+                local h = U.num(v.h, 0.0) % 360.0
+                sc.variants[#sc.variants + 1] = { x = p.x, y = p.y, z = p.z, h = U.round(h, 1), label = U.cleanText(v.label, 48) }
+            end
+        end
+    end
+
     -- Elemente
     local counts, total, seen = {}, 0, {}
     if type(raw.elements) == 'table' then
@@ -429,6 +459,12 @@ function Schema.normalizeScenario(raw)
             end
             if p.pose == 'fahrzeug' and not p.vehicleId then p.pose = 'bewusstlos' end
             if p.pose ~= 'fahrzeug' then p.vehicleId = nil end
+            local pt = p.patient
+            if pt.destMarker then
+                local m = byId[pt.destMarker]
+                if not m or m.kind ~= 'marker' then pt.destMarker = nil end
+            end
+            if pt.destination == 'marker' and not pt.destMarker then pt.destination = 'hospital' end
         elseif el.kind == 'door' then
             local keep = {}
             for _, id in ipairs(p.linked) do

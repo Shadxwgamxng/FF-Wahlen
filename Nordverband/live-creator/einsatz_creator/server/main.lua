@@ -160,8 +160,16 @@ Handlers.trigger = { perm = 'use', rate = 3000, fn = function(src, p)
     if not raw and scenarioId then raw = Storage.scenarios[scenarioId].scenario end
     local sc, err = Validate.scenario(raw)
     if not sc then return false, err end
-    if mode == 'live' and sc.info.alarmText == '' then return false, 'Fuer Live-Einsaetze ist ein Alarmtext erforderlich' end
-    local ok, idOrErr, warnings = Incidents.create(src, sc, mode, scenarioId)
+    if mode == 'live' and sc.info.alarmText == '' then
+        local hasProfile = false
+        for _, el in ipairs(sc.elements) do
+            if el.kind == 'ped' and el.props.isPatient and el.props.patient.profile ~= 'none' then hasProfile = true end
+        end
+        if not hasProfile then return false, 'Fuer Live-Einsaetze ist ein Alarmtext erforderlich (oder ein Patient mit Meldebild)' end
+    end
+    local variant = p.variant
+    if variant ~= 'random' then variant = math.floor(EC.Utils.num(variant, 0, 0, 20)) end
+    local ok, idOrErr, warnings = Incidents.create(src, sc, mode, scenarioId, { variant = variant })
     if not ok then return false, idOrErr end
     return true, { id = idOrErr, warnings = warnings, incidents = Incidents.listForUi() }
 end }
@@ -225,6 +233,37 @@ Handlers.rescueCancel = { rate = 200, fn = function(src, p)
     if not inc then return true end
     if not Validate.idString(p.targetId, 24) then return false, 'Ungueltiges Ziel' end
     return Rescue.cancel(src, inc, p.targetId, p.kind)
+end }
+
+-- Detaillierte medizinische Versorgung
+local function medPatient(src, p)
+    local inc = Incidents.get(p and p.incidentId)
+    if not inc or inc.status ~= EC.Status.active then return nil, 'Einsatz ist nicht aktiv' end
+    if not Validate.idString(p.patientId, 24) then return nil, 'Ungueltiger Patient' end
+    local pt = inc.rescue and inc.rescue.patients[p.patientId]
+    if not pt or not pt.med then return nil, 'Patient nicht gefunden' end
+    if pt.handedOver or pt.released then return nil, 'Patient ist nicht mehr vor Ort' end
+    if pt.blockedBy then return nil, 'Patient ist noch nicht zugaenglich (Tuer verschlossen)' end
+    if not Perm.hasAnyRole(src, Config.Medical.roles) then return nil, 'Nur der Rettungsdienst kann behandeln' end
+    local rec = inc.entities and inc.entities[p.patientId]
+    local coords = rec and DoesEntityExist(rec.entity) and GetEntityCoords(rec.entity)
+    if not coords or not Validate.near(src, coords, Config.Medical.distance + 2.0) then return nil, 'Zu weit entfernt' end
+    return inc, pt
+end
+
+Handlers.medView = { rate = 300, fn = function(src, p)
+    local inc, pt = medPatient(src, p)
+    if not inc then return false, pt end
+    return true, Med.view(pt)
+end }
+
+Handlers.medAction = { rate = 300, fn = function(src, p)
+    local inc, pt = medPatient(src, p)
+    if not inc then return false, pt end
+    if type(p.action) ~= 'string' or #p.action > 32 then return false, 'Ungueltige Massnahme' end
+    local arg = p.arg
+    if arg ~= nil and type(arg) ~= 'string' and type(arg) ~= 'number' then return false, 'Ungueltiger Wert' end
+    return Med.action(src, inc, pt, p.action, arg)
 end }
 
 -- Vollstaendiger Weltstand fuer neu verbundene Clients

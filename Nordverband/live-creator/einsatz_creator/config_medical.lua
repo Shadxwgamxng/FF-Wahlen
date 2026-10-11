@@ -1,0 +1,346 @@
+--[[
+    Medizinische Behandlung (Rettungsdienst)
+
+    Uebernommen aus nv_medicDispatches und datengetrieben aufbereitet:
+      - Meldebilder mit Vitalwert-Bereichen, Gespraechsantworten und Pupillenbefund
+      - Diagnostik (RR, HF, SpO2, BZ, Temperatur, Pupillen, GCS)
+      - Sauerstoff 2/4/6/8 l (SpO2 + 0,8 je Liter)
+      - Medikamente und Infusionen mit Wirkung auf die Vitalwerte
+        (nur mit Zugang; Kreislauf-/Atem-/BZ-Medikamente erst nach Messung)
+      - Bodycheck mit Koerperregionen; Pflaster, Verband, Schiene, Stifneck, Beckenschlinge
+      - Trage (Patient wird auf die Trage gelegt)
+    Neu: Notruftexte je Meldebild (Tag/Nacht) fuer die Leitstelle.
+
+    Platzhalter in Texten: {anrede} {vorname} {nachname} {pain} {name}
+]]
+
+Medical = {}
+
+-- Koerperregionen fuer den Bodycheck. maxLevel: hoechste moegliche Verletzungsstufe
+--   1 = kleine Wunde (Pflaster), 2 = grosse Wunde (Verband),
+--   3 = schwere Verletzung: Kopf -> SHT (Stifneck), Becken -> instabil (Beckenschlinge),
+--       Extremitaeten -> Fraktur (Schiene)
+Medical.BodyParts = {
+    { id = 'kopf', label = 'Kopf', maxLevel = 3, severe = 'stifneck', severeText = 'wahrscheinlich ein SHT' },
+    { id = 'hals', label = 'Hals', maxLevel = 2 },
+    { id = 'thorax', label = 'Thorax', maxLevel = 2 },
+    { id = 'becken', label = 'Becken', maxLevel = 3, severe = 'beckenschlinge', severeText = 'ist instabil' },
+    { id = 'oberarmli', label = 'li. Oberarm', maxLevel = 3, severe = 'schiene', severeText = 'Verdacht auf Fraktur' },
+    { id = 'oberarmre', label = 're. Oberarm', maxLevel = 3, severe = 'schiene', severeText = 'Verdacht auf Fraktur' },
+    { id = 'unterarmli', label = 'li. Unterarm', maxLevel = 3, severe = 'schiene', severeText = 'Verdacht auf Fraktur' },
+    { id = 'unterarmre', label = 're. Unterarm', maxLevel = 3, severe = 'schiene', severeText = 'Verdacht auf Fraktur' },
+    { id = 'handli', label = 'li. Hand', maxLevel = 3, severe = 'schiene', severeText = 'Verdacht auf Fraktur' },
+    { id = 'handre', label = 're. Hand', maxLevel = 3, severe = 'schiene', severeText = 'Verdacht auf Fraktur' },
+    { id = 'oberschenkelli', label = 'li. Oberschenkel', maxLevel = 3, severe = 'schiene', severeText = 'Verdacht auf Fraktur' },
+    { id = 'oberschenkelre', label = 're. Oberschenkel', maxLevel = 3, severe = 'schiene', severeText = 'Verdacht auf Fraktur' },
+    { id = 'wadeli', label = 'li. Unterschenkel', maxLevel = 3, severe = 'schiene', severeText = 'Verdacht auf Fraktur' },
+    { id = 'wadere', label = 're. Unterschenkel', maxLevel = 3, severe = 'schiene', severeText = 'Verdacht auf Fraktur' },
+    { id = 'fussli', label = 'li. Fuss', maxLevel = 3, severe = 'schiene', severeText = 'Verdacht auf Fraktur' },
+    { id = 'fussre', label = 're. Fuss', maxLevel = 3, severe = 'schiene', severeText = 'Verdacht auf Fraktur' },
+}
+
+Medical.Insurances = { 'AOK', 'Techniker Krankenkasse', 'Barmer', 'DAK-Gesundheit', 'IKK classic', 'KKH', 'hkk', 'privat versichert' }
+
+-- Standardwerte, wenn ein Meldebild nichts anderes vorgibt
+Medical.Defaults = {
+    rr = { 115, 140, 70, 90 },       -- sys min, sys max, dia min, dia max
+    hf = { 65, 95 },
+    spo2 = { 94, 100 },
+    bz = { 4.5, 7.5 },               -- mmol/l
+    temp = { 36.0, 37.4 },
+    af = { 12, 18 },
+    gcs = 15,
+    pain = 0,
+    pupils = 'seitengleich, lichtreagibel und normal',
+}
+
+--[[
+    Sprechweise:
+      wach        normale Antworten
+      rausch      "Patient (Rauschzustand)"
+      undeutlich  Antworten werden unverstaendlich (Buchstaben fehlen)
+      erschoepft  "Patient (erschoepft)"
+      bewusstlos  keine Reaktion
+]]
+Medical.Speech = {
+    wach = {
+        prefix = 'Patient',
+        hello = 'Hallo! Ja, ich hoere Sie klar und deutlich.',
+        name = 'Mein Name ist {vorname} {nachname}.',
+        insurance = 'Ich bin bei der {kasse}.',
+        noPain = 'Nein, ich habe keine Schmerzen.',
+        transportYes = 'Ja, machen Sie das.',
+        noTransport = 'Dann gehe ich wieder nach Hause. Danke!',
+    },
+    rausch = {
+        prefix = 'Patient (Rauschzustand)',
+        hello = 'Was? Wer sind Sie denn? Ach, der Rettungsdienst ... was wollen Sie?',
+        name = 'Du musst mich doch kennen! Ich bin doch {vorname} ... {nachname}, das vergesst ihr immer.',
+        insurance = 'Ich glaub die heisst OKA Land haha ... keine Ahnung.',
+        noPain = 'Ne Doktor, weh tun macht nichts bei mir.',
+        transportYes = 'Krankenhaus? Na gut ... gibt es da was zu trinken?',
+        noTransport = 'Super, dann geh ich weiter feiern!',
+    },
+    undeutlich = {
+        prefix = 'Patient (undeutlich)',
+        garble = true,
+        hello = 'Ja, ich hoere Sie ... mehr oder weniger.',
+        name = 'Mein Name ist {vorname} {nachname}.',
+        insurance = 'Ich bin bei der {kasse}.',
+        noPain = 'Nein, keine Schmerzen.',
+        transportYes = 'Ja ... machen Sie das.',
+        noTransport = 'Ich ... gehe nach Hause.',
+    },
+    erschoepft = {
+        prefix = 'Patient (erschoepft)',
+        hello = 'Ja ... ich hoere Sie ... ich krieg nur schlecht Luft.',
+        name = 'Ich heisse ... {vorname} {nachname}.',
+        insurance = '{kasse} ...',
+        noPain = 'Nein ... keine Schmerzen.',
+        transportYes = 'Ja ... bitte.',
+        noTransport = 'Ich versuche es zu Hause ...',
+    },
+    bewusstlos = {
+        prefix = 'Patient',
+        silent = true,
+        hello = '*keine Reaktion*', name = '*keine Reaktion*', insurance = '*keine Reaktion*',
+        noPain = '*keine Reaktion*', transportYes = '*keine Reaktion*', noTransport = '*keine Reaktion*',
+    },
+}
+
+--[[
+    Meldebilder
+    Jede Variante kann ueberschreiben: speech, rr, hf, spo2, bz, temp, af, gcs, pain, pupils,
+    what (Antwort auf "Was ist passiert?"), painText, randomInjuries, worsenParts
+    callTexts: Notruftexte fuer die Leitstelle (Platzhalter {anrede} {vorname} {nachname})
+]]
+Medical.Profiles = {
+    {
+        id = 'kreislauf', label = 'Kreislauf / Blutdruck', keyword = 'RD - Notfall', severity = 'mittel',
+        variants = {
+            { label = 'Hypertensive Entgleisung', rr = { 140, 175, 90, 115 }, hf = { 90, 130 }, temp = { 33.5, 37.4 },
+                what = 'Oh mein Gott! Ich habe so Kopfschmerzen und mir ist schlecht!',
+                painText = 'Ich habe nur so einen Druck auf der Brust, aber keine Schmerzen.' },
+            { label = 'Sonnenstich / Hitzeerschoepfung', rr = { 100, 140, 60, 90 }, hf = { 60, 80 }, temp = { 37.0, 41.5 }, pain = 3,
+                what = 'Ich war zu lang in der Sonne und jetzt ist mir schlecht!',
+                painText = 'Habe Kopfschmerzen, ja. Die liegen so bei einer {pain}.' },
+        },
+        callTexts = {
+            day = {
+                'Guten Tag, hier ist {anrede} {nachname}. Ich habe seit Stunden starke Kopfschmerzen, mir ist uebel und mein Blutdruckmessgeraet zeigt sehr hohe Werte.',
+                'Hallo, {vorname} {nachname} hier. Ich glaube, ich habe einen Sonnenstich. Mir ist schwindelig und ich habe Kopfweh, koennen Sie jemanden schicken?',
+                'Hier sitzt eine Person auf der Parkbank, total rot im Gesicht und ihr ist schlecht. Bitte kommen Sie.',
+            },
+            night = {
+                'Guten Abend, {anrede} {nachname} mein Name. Mein Blutdruck spielt verrueckt, mir dreht sich alles und ich habe Druck auf der Brust.',
+                'Hallo, mein Mann fuehlt sich seit dem Abendessen gar nicht gut, er hat Kopfschmerzen und sein Blutdruck ist sehr hoch.',
+            },
+        },
+    },
+    {
+        id = 'alkohol', label = 'Alkoholintoxikation', keyword = 'RD - Notfall', severity = 'mittel',
+        variants = {
+            { label = 'Alkoholisiert, ansprechbar', rr = { 145, 155, 95, 120 }, hf = { 85, 105 },
+                what = 'Ich glaube, ich habe meine zwei Bierchen nicht vertragen.' },
+            { label = 'Rauschzustand', speech = 'rausch', rr = { 150, 160, 100, 125 }, hf = { 90, 115 },
+                what = 'Die Party war zu geil, Alter! Hast du Vodka-Infusion im Rucksack?' },
+        },
+        callTexts = {
+            day = {
+                'Hallo, hier liegt jemand auf dem Gehweg und riecht stark nach Alkohol. Er ist kaum ansprechbar.',
+                'Hier ist {anrede} {nachname}, mein Kumpel hat gestern Nacht uebertrieben und uebergibt sich staendig. Koennen Sie nach ihm sehen?',
+            },
+            night = {
+                'Hallo, wir sind gerade aus dem Club raus und unser Freund ist umgekippt. Er reagiert kaum, bitte schnell!',
+                'Guten Abend, hier ist die Leitstelle der Verkehrsbetriebe. Ein Busfahrer meldet eine stark betrunkene Person an der Haltestelle.',
+                'Hier liegt ein Betrunkener vor meiner Haustuer und ich bekomme ihn nicht wach.',
+            },
+        },
+    },
+    {
+        id = 'drogen', label = 'Drogenintoxikation', keyword = 'RD - Notfall', severity = 'mittel',
+        variants = {
+            { label = 'Intoxikation, ansprechbar', rr = { 145, 155, 95, 120 }, hf = { 100, 130 }, pupils = 'seitengleich, lichtreagibel, aber weit',
+                what = 'Mir geht es nicht so gut, ich habe einen Joint geraucht.' },
+            { label = 'Rauschzustand', speech = 'rausch', rr = { 150, 160, 100, 125 }, hf = { 120, 165 }, pupils = 'seitengleich, lichtreagibel, aber weit',
+                what = 'Bei mir ist alles gut. Koennen Sie Ihr Einhorn wegparken?' },
+        },
+        callTexts = {
+            day = {
+                'Hallo, mein Mitbewohner hat irgendwas genommen. Er sieht Dinge, die nicht da sind, und sein Herz rast.',
+                'Hier ist {anrede} {nachname}. Ich sehe alles verschwommen und die Lichter sind so grell ... bitte keine Polizei.',
+            },
+            night = {
+                'Ich habe meinen besten Freund gefunden, er ist kaum ansprechbar und hat ganz grosse Pupillen. Kommen Sie schnell!',
+                'Auf der Party ist jemand zusammengebrochen, wir glauben er hat Pillen genommen.',
+            },
+        },
+    },
+    {
+        id = 'reanimation', label = 'Leblose Person / Reanimation', keyword = 'RD - Reanimation', severity = 'kritisch',
+        variants = {
+            { label = 'Kreislaufstillstand', speech = 'bewusstlos', rr = { 0, 0, 0, 0 }, hf = { 0, 0 }, spo2 = { 35, 80 },
+                bz = { 3.5, 7.5 }, temp = { 34.0, 36.0 }, af = { 0, 0 }, gcs = 3,
+                pupils = 'seitengleich, lichtreagibel, aber weit', what = '*keine Reaktion*' },
+        },
+        callTexts = {
+            day = {
+                'Hier liegt jemand auf dem Boden und atmet nicht mehr! Kommen Sie schnell!',
+                'Mein Vater ist einfach umgefallen und reagiert nicht mehr! Ich glaube, er atmet nicht!',
+            },
+            night = {
+                'Bitte kommen Sie sofort, mein Mann ist im Schlaf ganz blau geworden und atmet nicht!',
+                'Vor der Kneipe liegt ein Mann, der sich nicht mehr bewegt. Wir finden keinen Puls!',
+            },
+        },
+    },
+    {
+        id = 'schwindel', label = 'Schwindel', keyword = 'RD - Notfall', severity = 'leicht',
+        variants = {
+            { label = 'Hypotonie', rr = { 65, 100, 40, 60 }, hf = { 90, 115 },
+                what = 'Ich habe so ein Flimmern vor den Augen und mir ist so schwindelig, das geht gar nicht.' },
+            { label = 'Hypertonie', rr = { 150, 160, 100, 125 }, hf = { 90, 115 },
+                what = 'Mir dreht sich alles und mein Kopf platzt gleich.' },
+        },
+        callTexts = {
+            day = {
+                'Hallo, hier ist {anrede} {nachname}. Mir ist ganz furchtbar schwindelig und mein Hausarzt ist im Urlaub.',
+                'Meiner Kollegin ist im Buero schwarz vor Augen geworden, sie sitzt jetzt auf dem Boden.',
+            },
+            night = {
+                'Guten Abend, {vorname} {nachname} hier. Ich bin aufgestanden und mir ist so schwindelig, dass ich nicht mehr laufen kann.',
+            },
+        },
+    },
+    {
+        id = 'sturz', label = 'Sturz', keyword = 'RD - Sturz', severity = 'mittel',
+        variants = {
+            { label = 'Sturz, ansprechbar', rr = { 100, 140, 60, 90 }, hf = { 70, 100 }, pain = 5, randomInjuries = true,
+                what = 'Ich bin gestuerzt und habe jetzt starke Schmerzen.',
+                painText = 'Die Schmerzen liegen so bei einer {pain}.' },
+            { label = 'Sturz mit Kopfbeteiligung', speech = 'undeutlich', rr = { 150, 190, 95, 135 }, hf = { 80, 110 }, pain = 7,
+                randomInjuries = true, worsenParts = { 'kopf', 'becken' }, pupils = 'ungleich, aber lichtreagibel', gcs = 12,
+                what = 'Ich bin gestuerzt und habe jetzt so starke Schmerzen.',
+                painText = 'Die liegen so bei einer {pain}.' },
+        },
+        callTexts = {
+            day = {
+                'Moin, ich bin eben gestolpert und jetzt tut mir alles weh. Ich heisse {vorname} {nachname}.',
+                'Hallo, {anrede} {nachname} hier. Ich wurde angerempelt, bin gefallen und komme nicht mehr hoch.',
+                'Hier ist ein Radfahrer gestuerzt, er blutet am Kopf und ist ganz durcheinander.',
+            },
+            night = {
+                'Meine Mutter ist im Badezimmer gestuerzt und hat sich den Kopf angeschlagen. Sie redet ganz komisch.',
+                'Hier ist jemand die Treppe runtergefallen und kann das Bein nicht mehr bewegen.',
+            },
+        },
+    },
+    {
+        id = 'diabetes', label = 'Diabetischer Notfall', keyword = 'RD - Notfall', severity = 'mittel',
+        variants = {
+            { label = 'Hyperglykaemie (Insulin vergessen)', bz = { 7.5, 15.5 }, rr = { 65, 100, 40, 60 }, hf = { 90, 130 },
+                what = 'Ich glaube, ich habe was mit dem Zucker. Ich habe mein Insulin vergessen.' },
+            { label = 'Hypoglykaemie (zu viel Insulin)', bz = { 1.8, 3.2 }, rr = { 150, 190, 95, 135 }, hf = { 95, 135 },
+                what = 'Ich glaube, ich habe zu viel Insulin genommen. Ich dachte, da passiert nichts Schlimmes.' },
+        },
+        callTexts = {
+            day = {
+                'Hallo, hier ist {anrede} {nachname}. Ich bin Diabetiker, ich zittere am ganzen Koerper und schwitze stark.',
+                'Mein Sohn ist Diabetiker und plötzlich ganz verwirrt. Er hat heute kaum etwas gegessen.',
+            },
+            night = {
+                'Mein Mann ist Diabetiker und ich bekomme ihn kaum wach. Er ist ganz kaltschweissig.',
+                'Hier ist {vorname} {nachname}, ich habe mein Insulin vergessen und mir ist total uebel, ich habe staendig Durst.',
+            },
+        },
+    },
+    {
+        id = 'atemnot', label = 'Atemnot', keyword = 'RD - Atemnot', severity = 'schwer',
+        variants = {
+            { label = 'Atemnot', speech = 'erschoepft', rr = { 140, 175, 90, 115 }, hf = { 90, 120 }, spo2 = { 80, 91 }, af = { 24, 32 },
+                what = 'Hallo ... ich kriege nicht mehr so gut Luft ...' },
+            { label = 'Asthmaanfall', speech = 'erschoepft', rr = { 150, 190, 95, 135 }, hf = { 95, 135 }, spo2 = { 80, 91 }, af = { 26, 36 },
+                what = 'Ich bin Asthmatiker und habe mein Spray nicht dabei.' },
+        },
+        callTexts = {
+            day = {
+                'Hallo, mein Kind hat einen Asthmaanfall und das Spray hilft nicht!',
+                'Hier ist {anrede} {nachname} ... ich bekomme ... kaum Luft ... bitte kommen Sie.',
+            },
+            night = {
+                'Meine Frau ist nachts aufgewacht und bekommt keine Luft mehr, die Lippen werden blau.',
+                'Hallo, mein Opa ringt nach Luft und kann nicht mehr sprechen.',
+            },
+        },
+    },
+    {
+        id = 'bauch', label = 'Bauchschmerzen', keyword = 'RD - Notfall', severity = 'mittel',
+        variants = {
+            { label = 'Bauchschmerzen', rr = { 130, 155, 90, 105 }, hf = { 70, 105 }, pain = 6,
+                what = 'Mein Bauch tut seit Tagen weh. Heute ist es so schlimm geworden.',
+                painText = 'Die Schmerzen liegen so bei {pain}.' },
+            { label = 'Verdacht Appendizitis', rr = { 150, 190, 95, 135 }, hf = { 95, 135 }, pain = 7, temp = { 37.6, 38.9 },
+                what = 'Ich habe ganz doll Schmerzen im rechten Unterbauch.',
+                painText = 'Rechts unten, so bei einer {pain}. Es wird immer schlimmer.' },
+        },
+        callTexts = {
+            day = {
+                'Hallo, {anrede} {nachname} hier. Ich habe seit heute Morgen kaum auszuhaltende Bauchschmerzen.',
+                'Mein Kollege kruemmt sich vor Schmerzen und haelt sich den rechten Unterbauch.',
+            },
+            night = {
+                'Guten Abend, ich habe so starke Bauchschmerzen, dass ich nicht schlafen kann, und habe mich uebergeben.',
+            },
+        },
+    },
+    {
+        id = 'verlegung', label = 'Verlegung / Krankentransport', keyword = 'KTW - Verlegung', severity = 'leicht', transport = true,
+        variants = {
+            { label = 'Verlegung Klinik -> Klinik',
+                what = 'Die Aerzte haben gesagt, die haben hier keine Kapazitaeten fuer mich, ich soll in ein anderes Krankenhaus.' },
+            { label = 'Einweisung durch Hausarzt',
+                what = 'Mein Hausarzt hat gesagt, das muesste sein. Ich hoffe, das macht keine Umstaende.' },
+            { label = 'Entlassung nach Hause',
+                what = 'Ich lag leider lange im Krankenhaus und darf endlich nach Hause.' },
+        },
+        callTexts = {
+            day = {
+                'Hier ist die Station 3 der Klinik. Wir haben eine Verlegung fuer {anrede} {nachname}, liegend, nicht dringend.',
+                'Praxis Dr. Berger hier, wir benoetigen einen Krankentransport fuer {anrede} {nachname} in die Klinik.',
+            },
+            night = {
+                'Hier ist die Notaufnahme, wir brauchen eine Verlegung fuer {anrede} {nachname} in ein anderes Krankenhaus.',
+            },
+        },
+    },
+}
+
+--[[
+    Medikamente / Infusionen
+      needs:  zuvor gemessene Werte (sonst "Sie muessen doch erst mal Vitalwerte nehmen!")
+      effect: feste Aenderung; effectRange: zufaellige Aenderung { min, max }
+      spo2Bonus: erhoeht die SpO2 (max. 100)
+    Alle Medikamente brauchen einen Zugang (Flexuele).
+]]
+Medical.Medications = {
+    { id = 'akrinor', label = 'Akrinor', group = 'Kreislauf', needs = { 'rr' }, effect = { rrsys = 25, rrdia = 15 } },
+    { id = 'ebrantil', label = 'Ebrantil (Urapidil)', group = 'Kreislauf', needs = { 'rr' }, effect = { rrsys = -25, rrdia = -10 } },
+    { id = 'haemiton', label = 'Haemiton (Clonidin)', group = 'Kreislauf', needs = { 'rr' }, effect = { rrsys = -15, rrdia = -10 } },
+    { id = 'atropin', label = 'Atropin', group = 'Kreislauf', needs = { 'hf' }, effect = { hf = 40 } },
+    { id = 'suprarenin', label = 'Suprarenin (Adrenalin)', group = 'Kreislauf', needs = { 'hf' }, effect = { hf = 50 } },
+    { id = 'atrovent', label = 'Atrovent', group = 'Atmung', needs = { 'spo2' }, effect = { spo2Bonus = 10 } },
+    { id = 'salbutamol', label = 'Salbutamol', group = 'Atmung', needs = { 'spo2' }, effect = { spo2Bonus = 4 } },
+    { id = 'g20', label = 'Glukose 20 %', group = 'Stoffwechsel', needs = { 'bz' }, effect = { bz = 1.8 } },
+    { id = 'buscopan', label = 'Buscopan', group = 'Schmerz', effect = { pain = -2 } },
+    { id = 'novalgin', label = 'Novalgin', group = 'Schmerz', effect = { pain = -2 } },
+    { id = 'fenistil', label = 'Fenistil', group = 'Schmerz', effect = { pain = -3 } },
+    { id = 'paracetamol', label = 'Paracetamol', group = 'Schmerz', effect = { pain = -4, temp = -2.0 } },
+    { id = 'ketanest', label = 'Ketanest', group = 'Schmerz', effect = { pain = -9 } },
+    { id = 'oxytocin', label = 'Oxytocin', group = 'Schmerz', effect = { pain = -10 } },
+    { id = 'g5', label = 'Glukose 5 % (Infusion)', group = 'Infusion', needs = { 'bz' }, effectRange = { bz = { 5.25, 10.5 } } },
+    { id = 'jonosteril', label = 'Jonosteril (Infusion)', group = 'Infusion', needs = { 'rr' },
+        effectRange = { rrsys = { 45, 90 }, rrdia = { 15, 30 }, bz = { -3.0, -1.5 } } },
+}
+
+-- Sauerstoffgabe (Liter pro Minute)
+Medical.Oxygen = { 2, 4, 6, 8 }

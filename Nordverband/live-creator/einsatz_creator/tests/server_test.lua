@@ -127,9 +127,9 @@ end
 -- Resource laden (Reihenfolge wie fxmanifest)
 ----------------------------------------------------------------------------
 local files_to_load = {
-    'config.lua', 'config_catalog.lua', 'shared/constants.lua', 'shared/utils.lua', 'shared/schema.lua',
+    'config.lua', 'config_catalog.lua', 'config_medical.lua', 'config_names.lua', 'shared/constants.lua', 'shared/utils.lua', 'shared/schema.lua',
     'server/storage.lua', 'bridge/framework.lua', 'server/permissions.lua', 'server/validation.lua',
-    'server/spawner.lua', 'server/fire.lua', 'server/zfire.lua', 'server/rescue.lua', 'bridge/dispatch.lua', 'server/alarm.lua',
+    'server/spawner.lua', 'server/fire.lua', 'server/zfire.lua', 'server/medical.lua', 'server/variants.lua', 'server/rescue.lua', 'bridge/dispatch.lua', 'server/alarm.lua',
     'server/incidents.lua', 'server/random.lua', 'server/main.lua',
 }
 for _, f in ipairs(files_to_load) do dofile(f) end
@@ -138,6 +138,7 @@ Config.Fire.backend = 'internal'
 Config.Dispatch.adapter = 'event'
 Config.Dispatch.internalAlarm = true
 Config.Framework = 'none'
+Config.Medical.enabled = false   -- Grundablauf zuerst ohne detaillierte Behandlung
 
 local passed, failed = 0, 0
 local function check(cond, msg)
@@ -463,6 +464,91 @@ waitRate()
 ok, res = request('randomSaveSettings', { settings = { enabled = true, intervalMin = 5, intervalMax = 2 } })
 check(ok and res.settings.intervalMax == 5 and res.nextAt, 'Einstellungen gespeichert und normalisiert')
 check(files['data/settings.json'] ~= nil, 'settings.json geschrieben')
+
+print('Medizinische Behandlung, Ortsvarianten, Notruftext')
+Config.Medical.enabled = true
+Config.Fire.backend = 'internal'
+Config.Dispatch.adapter = 'event'
+Incidents.list = {}
+local medScenario = {
+    name = 'Sturz Treppenhaus', category = 'rd', keyword = 'RD - Sturz', priority = 2,
+    info = { alarmText = '{anruf}' },
+    center = { x = 300.0, y = -500.0, z = 30.0 },
+    variants = { { x = 1000.0, y = 1000.0, z = 50.0, h = 90.0, label = 'Variante Nord' } },
+    elements = {
+        { id = 'p1', kind = 'ped', model = 'a_m_m_business_01', pos = { x = 302, y = -500, z = 30 },
+            props = { pose = 'schmerz', isPatient = true, patient = { profile = 'sturz', variant = 1, gender = 'm',
+                body = { kopf = 3, wadeli = 3, oberarmre = 1, thorax = 2 }, destination = 'other_hospital' } } },
+        { id = 'p2', kind = 'ped', model = 'a_f_y_tourist_01', pos = { x = 298, y = -500, z = 30 }, props = { randomModel = true,
+            pose = 'sitzend', isPatient = true, patient = { profile = 'atemnot', variant = 0 } } },
+    },
+}
+waitRate()
+ok, res = request('trigger', { scenario = medScenario, mode = 'live', variant = 1 })
+check(ok, 'RD-Einsatz mit Ortsvariante erstellt ' .. tostring(ok and res.id or res))
+local minc = ok and Incidents.get(res.id)
+check(minc and minc.scenario.center.x == 1000.0 and minc.variant == 1, 'Einsatzort auf Variante verschoben')
+local p1el
+for _, el in ipairs(minc.scenario.elements) do if el.id == 'p1' then p1el = el end end
+check(p1el and math.abs(p1el.pos.x - 1000.0) < 0.01 and math.abs(p1el.pos.y - 1002.0) < 0.01, 'Element relativ verschoben und um 90 Grad gedreht')
+check(minc.alarmText and #minc.alarmText > 20 and not minc.alarmText:find('{anruf}', 1, true), 'Notruftext aus Meldebild eingesetzt: ' .. tostring(minc.alarmText))
+local pt1 = minc.rescue.patients.p1
+local pt2 = minc.rescue.patients.p2
+check(pt1.med and pt1.med.hf >= 70 and pt1.med.hf <= 100, 'Vitalwerte aus Meldebild (Sturz) gewuerfelt')
+check(pt2.name ~= '' and pt2.name:find(' '), 'Zufallsname vergeben: ' .. tostring(pt2.name))
+check(pt1.dest and pt1.dest.label, 'Transportziel andere Klinik: ' .. tostring(pt1.dest and pt1.dest.label))
+local function med(action, arg)
+    advance(2000)
+    waitRate()
+    return request('medAction', { incidentId = minc.id, patientId = 'p1', action = action, arg = arg })
+end
+player.coords = GetEntityCoords(minc.entities.p1.entity)
+ok, res = med('talk_name')
+check(ok and res.view.name == pt1.name, 'Name erfragt -> bekannt')
+ok, res = med('med', 'ebrantil')
+check(ok and pt1.med.rrsys == pt1.med.rrsys and not pt1.med.canula and res.lines[#res.lines].text:find('Zugang'), 'Medikament ohne Zugang abgelehnt')
+med('canula')
+local sysBefore = pt1.med.rrsys
+ok, res = med('med', 'ebrantil')
+check(pt1.med.rrsys == sysBefore, 'Medikament vor Messung ohne Wirkung')
+med('measure', 'rr')
+ok, res = med('med', 'ebrantil')
+check(pt1.med.rrsys == math.max(0, sysBefore - 25), 'Ebrantil senkt RR systolisch um 25')
+med('measure', 'hf')
+local spoBefore
+ok, res = med('measure', 'spo2'); spoBefore = res.view.vitals.spo2
+med('oxygen', 6)
+ok, res = med('measure', 'spo2')
+check(res.view.vitals.spo2 >= math.min(100, spoBefore + 4), 'Sauerstoff erhoeht SpO2')
+ok, res = med('pflaster')
+check(res.lines[#res.lines].text:find('Bodycheck'), 'Wundversorgung erst nach Bodycheck')
+ok, res = med('bodycheck')
+check(#res.view.findings == 4, 'Bodycheck findet 4 Verletzungen')
+check(not res.view.complete, 'Noch nicht versorgt')
+waitRate()
+local lok, lerr = request('rescueStart', { incidentId = minc.id, targetId = 'p1', action = 'load' })
+check(not lok and tostring(lerr):find('zuerst versorgen'), 'Einladen vor Versorgung abgelehnt: ' .. tostring(lerr))
+for _, a in ipairs({ 'pflaster', 'verband', 'schiene', 'stifneck' }) do med(a) end
+ok, res = med('bodycheck')
+check(res.view.complete and Rescue.patientStatus(pt1) == 'stabil', 'Alle Massnahmen erledigt -> versorgt/transportbereit')
+local stretcher = newEnt('vehicle', GetHashKey('rda_stretcher'), player.coords.x + 1, player.coords.y, player.coords.z)
+ok, res = med('stretcher', NetworkGetNetworkIdFromEntity(stretcher))
+check(ok and Rescue.patientStatus(pt1) == 'auf_trage', 'Patient auf Trage gelegt')
+check(ents[minc.entities.p1.entity].state.ec.st == 'stretcher', 'State-Bag fuer Trage gesetzt')
+-- Uebergabe: falsche Klinik vs. Zielklinik
+local wrong
+for _, h in ipairs(Config.Rescue.hospitals) do if h.label ~= pt1.dest.label then wrong = h end end
+ents[minc.entities.p1.entity].pos = vector3(wrong.coords.x, wrong.coords.y, wrong.coords.z)
+player.coords = ents[minc.entities.p1.entity].pos
+local savedInc = incId
+incId = minc.id
+ok, res = doAction('p1', 'handover')
+check(not ok and tostring(res):find('Falscher Zielort'), 'Uebergabe an falscher Klinik abgelehnt')
+ents[minc.entities.p1.entity].pos = pt1.dest.coords
+player.coords = pt1.dest.coords
+ok, res = doAction('p1', 'handover')
+incId = savedInc
+check(ok and pt1.handedOver, 'Uebergabe an Zielklinik')
 
 print('Berechtigungen')
 IsPlayerAceAllowed = function() return false end
