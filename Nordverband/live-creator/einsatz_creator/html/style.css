@@ -398,3 +398,55 @@ input[type="number"].input { font-family: var(--mono); }
 .summary dt { color: var(--text-3); }
 .summary dd { margin: 0; color: var(--text); white-space: pre-wrap; }
 .crumbs__title { max-width: 22rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); font-weight: 600; font-size: var(--fs-md); }
+
+/* ======================================================================
+   Minispiele und Patientenmonitor
+   ====================================================================== */
+#minigame { position: fixed; inset: 0; z-index: 70; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.45); }
+.game { width: min(560px, calc(100% - 2rem)); box-shadow: var(--shadow-lg); animation: pop .22s var(--ease); }
+.game__body { display: flex; flex-direction: column; gap: 0.9rem; }
+.game p { margin: 0; }
+.tbar { position: relative; height: 34px; border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--bg-2); overflow: hidden; }
+.tbar__zone { position: absolute; top: 0; bottom: 0; background: rgba(63, 185, 80, 0.35); border-left: 2px solid var(--ok); border-right: 2px solid var(--ok); transition: background .15s; }
+.tbar__zone.is-hit { background: rgba(63, 185, 80, 0.7); }
+.tbar__zone.is-miss { background: rgba(229, 83, 75, 0.5); }
+.tbar__cursor { position: absolute; top: -2px; bottom: -2px; width: 3px; margin-left: -1px; background: var(--text); box-shadow: 0 0 8px rgba(255, 255, 255, 0.6); }
+.ekgfig, .thoraxfig { position: relative; height: 300px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--bg-2); }
+.ekgfig__body { position: absolute; inset: 6% 18%; width: 64%; height: 88%; fill: var(--surface-3); stroke: var(--border-strong); stroke-width: 0.4; }
+.ekgfig__side { position: absolute; top: 6px; color: var(--text-3); font-size: var(--fs-xs); }
+.ekgfig__spot, .thoraxfig__pt { position: absolute; width: 22px; height: 22px; margin: -11px 0 0 -11px; border: 2px dashed var(--text-3); border-radius: 50%; cursor: pointer; transition: transform .12s, border-color .12s; display: flex; align-items: center; justify-content: center; font-size: 0.55rem; font-weight: 700; color: var(--bg); }
+.ekgfig__spot:hover, .thoraxfig__pt:hover { transform: scale(1.2); border-color: var(--accent-text); }
+.ekgfig__spot--chest { width: 13px; height: 13px; margin: -6.5px 0 0 -6.5px; font-size: 0.45rem; }
+.ekgfig__spot.is-set, .thoraxfig__pt.is-set { border-style: solid; border-color: var(--text); background: var(--ok); }
+.ekgfig__spot.is-wrong, .thoraxfig__pt.is-wrong { border-color: var(--danger); background: var(--danger-soft); }
+.electrodes { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.electrode { padding: 0.35rem 0.8rem; border: 2px solid var(--c); border-radius: 999px; background: transparent; color: var(--text); font: 600 var(--fs-sm) var(--font); cursor: pointer; }
+.electrode::before { content: ""; display: inline-block; width: 9px; height: 9px; margin-right: 0.4rem; border-radius: 50%; background: var(--c); }
+.electrode.is-on { background: color-mix(in srgb, var(--c) 30%, transparent); }
+.thoraxfig svg { position: absolute; inset: 4% 15%; width: 70%; height: 92%; }
+.thoraxfig__body { fill: var(--surface-3); stroke: var(--border-strong); stroke-width: 0.5; }
+.thoraxfig__rib { fill: none; stroke: var(--border-strong); stroke-width: 0.6; }
+.thoraxfig__sternum { stroke: var(--text-3); stroke-width: 1.2; }
+.thoraxfig__guide { stroke: var(--accent-text); stroke-width: 0.4; stroke-dasharray: 2 2; opacity: 0.6; }
+.drill { position: relative; width: 70px; height: 220px; margin: 0 auto; border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--bg-2); overflow: hidden; }
+.drill__fill { position: absolute; left: 0; right: 0; bottom: 0; background: linear-gradient(0deg, var(--accent), var(--accent-text)); opacity: 0.8; }
+.drill__zone { position: absolute; left: 0; right: 0; background: rgba(63, 185, 80, 0.25); border-top: 2px solid var(--ok); border-bottom: 2px solid var(--ok); z-index: 1; }
+.drill__zone.is-hit { background: rgba(63, 185, 80, 0.6); }
+.cpr { display: flex; align-items: baseline; justify-content: center; gap: 0.3rem; }
+.cpr__rate { font: 700 3rem var(--mono); color: var(--text); }
+.cpr__rate.is-ok { color: var(--ok-text); }
+.cpr__rate.is-bad { color: var(--warn-text); }
+.cpr__unit { color: var(--text-3); }
+.alert--ok { border-color: rgba(63, 185, 80, 0.4); background: var(--ok-soft); color: var(--ok-text); }
+.alert--danger { border-color: rgba(229, 83, 75, 0.4); background: var(--danger-soft); color: var(--danger-text); }
+
+#monitor { position: fixed; top: 1rem; right: 1rem; z-index: 40; width: 340px; padding: 0.7rem; border: 1px solid var(--border-strong); border-radius: var(--radius-lg); background: rgba(8, 8, 8, 0.92); box-shadow: var(--shadow-lg); font-family: var(--font); }
+.monitor__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.4rem; color: var(--text-2); font-size: var(--fs-sm); }
+.monitor__ekg { width: 100%; height: 70px; border-radius: var(--radius); background: #0b0b0b; display: block; }
+.monitor__rhythm { margin: 0.35rem 0 0.5rem; color: var(--ok-text); font-size: var(--fs-xs); }
+.monitor__vals { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.35rem; }
+.mv { padding: 0.35rem 0.4rem; border-radius: var(--radius); background: var(--bg-2); }
+.mv span { display: block; color: var(--text-3); font-size: 0.62rem; font-weight: 600; }
+.mv b { font: 700 1.15rem var(--mono); }
+.mv small { margin-left: 2px; font-size: 0.6rem; color: var(--text-3); font-weight: 400; }
+.mv--hf b { color: #3fb950; } .mv--spo2 b { color: #58a6ff; } .mv--rr b { color: #e3b341; font-size: 0.95rem; } .mv--af b { color: #d2a8ff; }

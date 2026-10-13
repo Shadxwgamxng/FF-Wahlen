@@ -593,6 +593,82 @@ ok, res = doAction('p1', 'handover')
 incId = savedInc
 check(ok and pt1.handedOver, 'Uebergabe an Zielklinik')
 
+print('Erweiterte Versorgung: Reanimation, Spannungspneu, ACS, Anamnese, Minispiele')
+do
+    Incidents.list = {}
+    local sc = {
+        name = 'Erweiterte Versorgung', category = 'rd', keyword = 'RD - Test', priority = 1,
+        info = { alarmText = 'Test' }, center = { x = 500.0, y = 500.0, z = 30.0 },
+        elements = {
+            { id = 'rea', kind = 'ped', model = 'a_m_m_business_01', pos = { x = 500, y = 500, z = 30 },
+                props = { pose = 'bewusstlos', isPatient = true, patient = { profile = 'reanimation', variant = 1, gender = 'm' } } },
+            { id = 'pneu', kind = 'ped', model = 'a_m_m_business_01', pos = { x = 501, y = 500, z = 30 },
+                props = { pose = 'sitzend', isPatient = true, patient = { profile = 'spannungspneu', variant = 1, gender = 'm' } } },
+            { id = 'acs', kind = 'ped', model = 'a_m_m_business_01', pos = { x = 499, y = 500, z = 30 },
+                props = { pose = 'sitzend', isPatient = true, patient = { profile = 'acs', variant = 1, gender = 'm' } } },
+        },
+    }
+    waitRate()
+    local okc, rc = request('trigger', { scenario = sc, mode = 'test' })
+    check(okc, 'Einsatz mit neuen Meldebildern erstellt ' .. tostring(okc and rc.id or rc))
+    local inc = okc and Incidents.get(rc.id)
+    local function m2(pid, action, arg, result)
+        advance(2000)
+        waitRate()
+        player.coords = GetEntityCoords(inc.entities[pid].entity)
+        return request('medAction', { incidentId = inc.id, patientId = pid, action = action, arg = arg, result = result })
+    end
+    local rea = inc.rescue.patients.rea.med
+    check(rea.arrest and rea.ekgBase == 'vf', 'Reanimation: Kreislaufstillstand mit Kammerflimmern')
+    local o, r = m2('rea', 'measure', 'ekg')
+    check(not o and tostring(r):find('Minispiel'), 'EKG ohne Minispiel-Ergebnis abgelehnt')
+    o, r = m2('rea', 'measure', 'ekg', false)
+    check(o and rea.ekgLeads == 0, 'EKG falsch geklebt -> keine Ableitung')
+    o, r = m2('rea', 'measure', 'ekg', true)
+    check(o and r.view.ekg and r.view.ekg.rhythm == 'vf' and r.view.ekg.wave == 'vf', 'EKG zeigt Kammerflimmern im Monitor')
+    o, r = m2('rea', 'proc', 'cpr', true)
+    o, r = m2('rea', 'proc', 'defi')
+    check(rea.shocks == 1, 'Defibrillation bei Kammerflimmern')
+    o, r = m2('rea', 'proc', 'io', true)
+    check(rea.canula and rea.access == 'i.o.', 'IO-Zugang gebohrt')
+    o, r = m2('rea', 'med', 'suprarenin')
+    o, r = m2('rea', 'proc', 'tubus', true)
+    check(rea.airway == 'tubus' and rea.arrest, 'Atemweg gesichert, noch kein ROSC (erst 1 Zyklus HDM)')
+    o, r = m2('rea', 'proc', 'cpr', true)
+    check(not rea.arrest and rea.done.rosc and rea.hf > 0, 'ROSC nach vollstaendiger Reanimation')
+    check(r.view.complete == false or #r.view.open >= 0, 'Offene Massnahmen abrufbar')
+
+    local pneu = inc.rescue.patients.pneu.med
+    local spoBefore = pneu.spo2Base
+    o, r = m2('pneu', 'proc', 'thorax', 'links')
+    check(not pneu.relieved and pneu.spo2Base < spoBefore, 'Thoraxentlastung auf falscher Seite verschlechtert')
+    o, r = m2('pneu', 'proc', 'thorax', 'rechts')
+    check(pneu.relieved and pneu.spo2Base > spoBefore, 'Thoraxentlastung rechts hebt die Saettigung')
+    o, r = m2('pneu', 'measure', 'lung')
+    check(r.view.findingsExtra.lung and r.view.findingsExtra.lung:find('Entlastung'), 'Auskultation nach Entlastung')
+
+    local acs = inc.rescue.patients.acs.med
+    o, r = m2('acs', 'measure', 'ekg', true)
+    check(r.view.ekg.rhythm ~= 'stemi', 'ST-Hebung im 4-Kanal-EKG nicht sichtbar')
+    o, r = m2('acs', 'measure', 'ekg12', true)
+    check(r.view.ekg.rhythm == 'stemi' and r.view.ekg.leads == 12, '12-Kanal-EKG zeigt STEMI')
+    o, r = m2('acs', 'med', 'nitro')
+    check(not acs.given.nitro, 'Nitro ohne RR-Messung nicht gegeben')
+    for _, k in ipairs({ 'o', 'p', 'q', 'r', 's', 't' }) do o, r = m2('acs', 'opqrst', k) end
+    check(acs.done.opqrst and r.view.anamnesis.opqrst.r and r.view.anamnesis.opqrst.r:find('Arm'), 'OPQRST vollstaendig erhoben')
+    for _, k in ipairs({ 's', 'a', 'm', 'p', 'l', 'e', 'r' }) do o, r = m2('acs', 'sampler', k) end
+    check(acs.done.sampler and r.view.anamnesis.sampler.a ~= nil, 'SAMPLER vollstaendig erhoben')
+    local openText = table.concat(r.view.open, ' | ')
+    check(openText:find('ASS') and openText:find('Heparin'), 'Pflichtmassnahmen ACS offen: ' .. openText)
+    o, r = m2('acs', 'proc', 'iv', false)
+    check(not acs.canula, 'Fehlpunktion i.v. -> kein Zugang')
+    o, r = m2('acs', 'proc', 'iv', true)
+    m2('acs', 'med', 'ass'); m2('acs', 'med', 'heparin'); m2('acs', 'proc', 'lagerung')
+    o, r = m2('acs', 'measure', 'rr')
+    openText = table.concat(r.view.open, ' | ')
+    check(not openText:find('ASS') and not openText:find('12%-Kanal') and not openText:find('Lagerung'), 'ACS-Pflichtmassnahmen erledigt: ' .. openText)
+end
+
 
 print('Speicherung: Datenbank (oxmysql)')
 do

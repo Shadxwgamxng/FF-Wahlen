@@ -182,6 +182,8 @@ window.addEventListener('message', (e) => {
         case 'patientCard': showPatientCard(data); break;
         case 'infoPanel': showInfoPanel(data); break;
         case 'subtitles': showSubtitles(data); break;
+        case 'minigame': Game.open(data); break;
+        case 'monitor': Monitor.show(data); break;
     }
 });
 
@@ -1658,3 +1660,339 @@ function nextSubtitle() {
     while (box.children.length > 3) box.firstChild.remove();
     subTimer = setTimeout(nextSubtitle, item.ms);
 }
+
+/* ------------------------------------------------------------------ */
+/* Minispiele der medizinischen Versorgung                             */
+/* ------------------------------------------------------------------ */
+const Game = {
+    def: null, raf: null, keyHandler: null, cleanups: [],
+    listen(target, type, fn) { target.addEventListener(type, fn); this.cleanups.push(() => target.removeEventListener(type, fn)); },
+    open(def) {
+        this.close(true);
+        this.def = def || {};
+        const box = $('#minigame');
+        box.classList.remove('hidden');
+        box.innerHTML = `<div class="game card">
+            <div class="card__header">${icon('kit-medical')}<span class="card__title">${esc(def.title || 'Massnahme')}</span>
+                <span class="grow"></span><button class="btn btn--ghost btn--icon btn--sm" data-g="cancel" title="Abbrechen (Esc)">${icon('xmark')}</button></div>
+            <div class="card__body game__body"></div></div>`;
+        $('[data-g="cancel"]', box).onclick = () => this.finish(null, true);
+        const body = $('.game__body', box);
+        ({ timing: gameTiming, ekg: gameEkg, drill: gameDrill, landmark: gameLandmark, cpr: gameCpr })[def.type]?.(body, def);
+    },
+    onKey(fn) {
+        this.keyHandler = (e) => {
+            if (e.key === 'Escape') { e.preventDefault(); return this.finish(null, true); }
+            fn(e);
+        };
+        window.addEventListener('keydown', this.keyHandler);
+    },
+    close(silent) {
+        if (this.raf) cancelAnimationFrame(this.raf);
+        this.raf = null;
+        if (this.keyHandler) window.removeEventListener('keydown', this.keyHandler);
+        this.keyHandler = null;
+        this.cleanups.forEach(fn => fn());
+        this.cleanups = [];
+        clearInterval(this.timer);
+        $('#minigame').classList.add('hidden');
+        $('#minigame').innerHTML = '';
+        if (!silent) this.def = null;
+    },
+    finish(result, cancel) {
+        if (!this.def) return;
+        this.def = null;
+        this.close(true);
+        post('minigameDone', { result, cancel: !!cancel }, true);
+    },
+    // Ergebnis kurz anzeigen, dann schliessen
+    done(body, ok, text, result) {
+        if (this.raf) cancelAnimationFrame(this.raf);
+        this.raf = null;
+        const res = document.createElement('div');
+        res.className = `alert ${ok ? 'alert--ok' : 'alert--danger'}`;
+        res.innerHTML = `${icon(ok ? 'circle-check' : 'circle-xmark')}<div>${esc(text)}</div>`;
+        body.appendChild(res);
+        setTimeout(() => this.finish(result === undefined ? ok : result), 1100);
+    },
+};
+
+/* Timing: Zeiger im gruenen Bereich stoppen */
+function gameTiming(body, def) {
+    const need = def.hits || 1;
+    let hits = 0, tries = 0;
+    const maxTries = need + 2;
+    body.innerHTML = `<p class="dim">${esc(def.hint || 'Im gruenen Bereich stoppen - Leertaste oder Klick')}</p>
+        <div class="tbar"><div class="tbar__zone"></div><div class="tbar__cursor"></div></div>
+        <div class="row"><span class="grow dim" id="gStat"></span><button class="btn btn--primary" id="gHit">${icon('hand-pointer')} Jetzt</button></div>`;
+    const zone = $('.tbar__zone', body), cur = $('.tbar__cursor', body), stat = $('#gStat', body);
+    let zoneAt = 0, zoneW = 0;
+    const newZone = () => { zoneW = Math.max(8, 16 - tries * 1.5); zoneAt = 10 + Math.random() * (80 - zoneW); zone.style.left = zoneAt + '%'; zone.style.width = zoneW + '%'; };
+    newZone();
+    let x = 0, dir = 1, last = performance.now(), active = true;
+    const speed = 70 * (def.speed || 1);   // Prozent pro Sekunde
+    const loop = (t) => {
+        const dt = (t - last) / 1000; last = t;
+        x += dir * speed * dt;
+        if (x >= 100) { x = 100; dir = -1; } if (x <= 0) { x = 0; dir = 1; }
+        cur.style.left = x + '%';
+        Game.raf = requestAnimationFrame(loop);
+    };
+    Game.raf = requestAnimationFrame(loop);
+    const upd = () => { stat.textContent = `Treffer ${hits}/${need} · Versuch ${Math.min(tries + 1, maxTries)}/${maxTries}`; };
+    upd();
+    const hit = () => {
+        if (!active) return;
+        tries++;
+        const ok = x >= zoneAt && x <= zoneAt + zoneW;
+        if (ok) hits++;
+        zone.classList.toggle('is-hit', ok); zone.classList.toggle('is-miss', !ok);
+        setTimeout(() => zone.classList.remove('is-hit', 'is-miss'), 300);
+        if (hits >= need) { active = false; return Game.done(body, true, 'Erfolgreich!'); }
+        if (tries >= maxTries) { active = false; return Game.done(body, false, 'Fehlversuch.'); }
+        newZone(); upd();
+    };
+    $('#gHit', body).onclick = hit;
+    Game.onKey(e => { if (e.code === 'Space') { e.preventDefault(); hit(); } });
+}
+
+/* EKG: Elektroden waehlen und an die richtige Stelle setzen */
+function gameEkg(body, def) {
+    // Ansicht von vorne: rechte Koerperseite des Patienten ist links im Bild
+    // Koordinaten in der Figur (0-100), umgerechnet auf die Flaeche (Figur sitzt mit 20 % / 6 % Rand)
+    const fx = x => 18 + 0.64 * x, fy = y => 6 + 0.88 * y;
+    const limb = [
+        { id: 'RA', label: 'rot', color: '#e5534b', x: fx(22), y: fy(48), name: 'rechter Arm' },
+        { id: 'LA', label: 'gelb', color: '#e3b341', x: fx(78), y: fy(48), name: 'linker Arm' },
+        { id: 'LL', label: 'gruen', color: '#3fb950', x: fx(59), y: fy(88), name: 'linkes Bein' },
+        { id: 'RL', label: 'schwarz', color: '#9a9a9a', x: fx(41), y: fy(88), name: 'rechtes Bein' },
+    ];
+    const chest = [
+        { id: 'V1', x: fx(45), y: fy(32) }, { id: 'V2', x: fx(55), y: fy(32) }, { id: 'V3', x: fx(58.5), y: fy(38) },
+        { id: 'V4', x: fx(62), y: fy(44) }, { id: 'V5', x: fx(66), y: fy(45) }, { id: 'V6', x: fx(69.5), y: fy(46) },
+    ];
+    let selected = null, errors = 0, placed = {}, chestIdx = 0;
+    body.innerHTML = `<p class="dim" id="gHint">Elektrode unten waehlen und an die richtige Stelle am Patienten klicken.</p>
+        <div class="ekgfig">
+            <svg viewBox="0 0 100 100" preserveAspectRatio="none" class="ekgfig__body">
+                <circle cx="50" cy="12" r="8"/><rect x="30" y="21" width="40" height="40" rx="6"/>
+                <rect x="16" y="22" width="12" height="34" rx="5"/><rect x="72" y="22" width="12" height="34" rx="5"/>
+                <rect x="35" y="60" width="13" height="36" rx="5"/><rect x="52" y="60" width="13" height="36" rx="5"/>
+            </svg>
+            <span class="ekgfig__side" style="left:4%">rechts</span><span class="ekgfig__side" style="right:4%">links</span>
+            ${limb.map(t => `<div class="ekgfig__spot" data-spot="${t.id}" style="left:${t.x}%;top:${t.y}%"></div>`).join('')}
+            ${def.twelve ? chest.map(c => `<div class="ekgfig__spot ekgfig__spot--chest" data-chest="${c.id}" style="left:${c.x}%;top:${c.y}%"></div>`).join('') : ''}
+        </div>
+        <div class="electrodes">${limb.map(t => `<button class="electrode" data-el="${t.id}" style="--c:${t.color}">${esc(t.label)}</button>`).join('')}</div>
+        <div class="dim" id="gStat"></div>`;
+    const hint = $('#gHint', body), stat = $('#gStat', body);
+    const upd = () => { stat.textContent = `Fehler: ${errors} (max. 1 erlaubt)`; };
+    upd();
+    const fail = () => { errors++; upd(); if (errors > 1) Game.done(body, false, 'Zu viele Fehler - Ableitung nicht verwertbar.'); };
+    const limbDone = () => Object.keys(placed).length === limb.length;
+    const next = () => {
+        if (!limbDone()) return;
+        if (!def.twelve || chestIdx >= chest.length) return Game.done(body, true, 'Alle Elektroden sitzen - Ableitung laeuft.');
+        hint.textContent = `Brustwandableitung ${chest[chestIdx].id} kleben - richtige Stelle anklicken.`;
+        $('.electrodes', body).innerHTML = `<span class="chip chip--primary">${chest[chestIdx].id}</span>`;
+    };
+    $$('.electrode', body).forEach(b => b.onclick = () => {
+        $$('.electrode', body).forEach(x => x.classList.remove('is-on'));
+        b.classList.add('is-on'); selected = b.dataset.el;
+    });
+    $$('[data-spot]', body).forEach(sp => sp.onclick = () => {
+        if (!selected || placed[sp.dataset.spot]) return;
+        if (sp.dataset.spot !== selected) { sp.classList.add('is-wrong'); setTimeout(() => sp.classList.remove('is-wrong'), 400); return fail(); }
+        const t = limb.find(x => x.id === selected);
+        placed[selected] = true; sp.style.background = t.color; sp.classList.add('is-set');
+        $(`[data-el="${selected}"]`, body).remove(); selected = null;
+        next();
+    });
+    $$('[data-chest]', body).forEach(sp => sp.onclick = () => {
+        if (!limbDone() || sp.classList.contains('is-set')) return;
+        if (sp.dataset.chest !== chest[chestIdx].id) { sp.classList.add('is-wrong'); setTimeout(() => sp.classList.remove('is-wrong'), 400); return fail(); }
+        sp.classList.add('is-set'); sp.textContent = chest[chestIdx].id; chestIdx++; next();
+    });
+    Game.onKey(() => {});
+}
+
+/* IO: Stelle waehlen, dann bohren und beim Widerstandsverlust loslassen */
+function gameDrill(body) {
+    const sites = [
+        { id: 'tibia', label: 'Proximale Tibia (2 cm unter der Tuberositas, medial)', ok: true },
+        { id: 'humerus', label: 'Proximaler Humerus (Tuberculum majus)', ok: true },
+        { id: 'patella', label: 'Kniescheibe (Patella)', ok: false },
+        { id: 'femur', label: 'Mitte Oberschenkel', ok: false },
+    ];
+    body.innerHTML = `<p class="dim">1. Punktionsstelle waehlen</p><div class="list">${sites.map(x =>
+        `<div class="list__item" data-site="${x.id}"><span class="list__icon">${icon('location-crosshairs')}</span><div class="grow list__title">${esc(x.label)}</div></div>`).join('')}</div>`;
+    $$('[data-site]', body).forEach(el => el.onclick = () => {
+        const site = sites.find(x => x.id === el.dataset.site);
+        if (!site.ok) return Game.done(body, false, 'Ungeeignete Punktionsstelle.');
+        drill();
+    });
+    function drill() {
+        body.innerHTML = `<p class="dim">2. Maustaste oder Leertaste <b>gedrueckt halten</b> zum Bohren. Loslassen, sobald der Widerstand nachlaesst (gruener Bereich).</p>
+            <div class="drill"><div class="drill__zone"></div><div class="drill__fill"></div></div>
+            <div class="row"><span class="grow dim" id="gStat">Bereit</span><button class="btn btn--primary" id="gDrill">${icon('screwdriver')} Bohren (halten)</button></div>`;
+        const fill = $('.drill__fill', body), zone = $('.drill__zone', body), stat = $('#gStat', body);
+        const zoneAt = 45 + Math.random() * 30, zoneW = 9;
+        zone.style.bottom = zoneAt + '%'; zone.style.height = zoneW + '%';
+        let depth = 0, holding = false, last = performance.now(), ended = false;
+        const loop = (t) => {
+            const dt = (t - last) / 1000; last = t;
+            if (holding) depth += dt * (depth > zoneAt ? 55 : 28);
+            fill.style.height = Math.min(100, depth) + '%';
+            if (depth >= zoneAt && depth <= zoneAt + zoneW) { zone.classList.add('is-hit'); stat.textContent = 'Widerstand laesst nach ...'; }
+            else zone.classList.remove('is-hit');
+            if (depth > zoneAt + zoneW + 1 && !ended) { ended = true; return Game.done(body, false, 'Zu tief gebohrt - Gegenkortikalis durchbohrt.'); }
+            Game.raf = requestAnimationFrame(loop);
+        };
+        Game.raf = requestAnimationFrame(loop);
+        const release = () => {
+            if (!holding || ended) return;
+            holding = false;
+            if (depth < zoneAt) { stat.textContent = 'Noch nicht im Markraum - weiterbohren.'; return; }
+            ended = true;
+            Game.done(body, depth <= zoneAt + zoneW, depth <= zoneAt + zoneW ? 'Nadel sitzt im Markraum.' : 'Zu tief.');
+        };
+        const btn = $('#gDrill', body);
+        btn.onmousedown = () => { holding = true; };
+        Game.listen(window, 'mouseup', release);
+        Game.onKey(e => { if (e.code === 'Space') { e.preventDefault(); holding = true; } });
+        Game.listen(window, 'keyup', (e) => { if (e.code === 'Space') release(); });
+    }
+}
+
+/* Thoraxentlastung: richtige Landmarke waehlen (Monaldi 2. ICR MCL / Buelau 4.-5. ICR vordere Axillarlinie) */
+function gameLandmark(body) {
+    // x in % (rechte Patientenseite = links im Bild)
+    // Koordinaten in der Figur (Rippen bei y 22/30/38/..., MCL bei x 38/62), umgerechnet auf die Flaeche (15 % / 4 % Rand)
+    const fx = x => 15 + 0.7 * x, fy = y => 4 + 0.92 * y;
+    const pts = [
+        { id: 'r_monaldi', x: 38, y: 34, side: 'rechts', ok: true }, { id: 'l_monaldi', x: 62, y: 34, side: 'links', ok: true },
+        { id: 'r_buelau', x: 21, y: 58, side: 'rechts', ok: true }, { id: 'l_buelau', x: 79, y: 58, side: 'links', ok: true },
+        { id: 'r_para', x: 45, y: 34, ok: false }, { id: 'l_para', x: 55, y: 34, ok: false },
+        { id: 'r_low', x: 38, y: 74, ok: false }, { id: 'l_low', x: 62, y: 74, ok: false },
+        { id: 'r_clav', x: 36, y: 16, ok: false }, { id: 'l_clav', x: 64, y: 16, ok: false },
+    ].map(p => Object.assign(p, { x: fx(p.x), y: fy(p.y) }));
+    body.innerHTML = `<p class="dim">Punktionsstelle an der betroffenen Seite waehlen. Tipp: vorher die Lunge abhoeren.</p>
+        <div class="thoraxfig">
+            <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+                <path d="M20 12 Q50 2 80 12 L86 88 Q50 98 14 88 Z" class="thoraxfig__body"/>
+                <line x1="50" y1="10" x2="50" y2="60" class="thoraxfig__sternum"/>
+                ${[22, 30, 38, 46, 54, 62, 70, 78].map(y => `<path d="M18 ${y} Q34 ${y - 4} 48 ${y}" class="thoraxfig__rib"/><path d="M52 ${y} Q66 ${y - 4} 82 ${y}" class="thoraxfig__rib"/>`).join('')}
+                <line x1="38" y1="8" x2="38" y2="90" class="thoraxfig__guide"/><line x1="62" y1="8" x2="62" y2="90" class="thoraxfig__guide"/>
+            </svg>
+            <span class="ekgfig__side" style="left:2%">rechts</span><span class="ekgfig__side" style="right:2%">links</span>
+            ${pts.map(p => `<div class="thoraxfig__pt" data-pt="${p.id}" style="left:${p.x}%;top:${p.y}%"></div>`).join('')}
+        </div>
+        <div class="dim">Gestrichelt: Medioklavikularlinie</div>`;
+    $$('[data-pt]', body).forEach(el => el.onclick = () => {
+        const p = pts.find(x => x.id === el.dataset.pt);
+        el.classList.add(p.ok ? 'is-set' : 'is-wrong');
+        if (!p.ok) return Game.done(body, false, 'Falsche Landmarke - keine Entlastung moeglich.', 'fail');
+        Game.done(body, true, `Punktion ${p.side} gesetzt.`, p.side);
+    });
+    Game.onKey(() => {});
+}
+
+/* CPR: im Takt druecken (100-120/min) */
+function gameCpr(body, def) {
+    const total = def.count || 30;
+    const times = [];
+    body.innerHTML = `<p class="dim">Leertaste oder Klick im Takt druecken - Ziel <b>100 bis 120</b> Kompressionen pro Minute.</p>
+        <div class="cpr"><div class="cpr__rate" id="gRate">–</div><div class="cpr__unit">/min</div></div>
+        <div class="tbar tbar--rate"><div class="tbar__zone" style="left:${(100 - 60) / 1.2}%;width:${20 / 1.2}%"></div><div class="tbar__cursor" id="gCur"></div></div>
+        <div class="row"><span class="grow dim" id="gStat">0 / ${total}</span><button class="btn btn--primary" id="gPush">${icon('heart-pulse')} Druecken</button></div>`;
+    const rateEl = $('#gRate', body), cur = $('#gCur', body), stat = $('#gStat', body);
+    let finished = false;
+    const push = () => {
+        if (finished) return;
+        times.push(performance.now());
+        const n = times.length;
+        if (n >= 2) {
+            const recent = times.slice(-5);
+            const rate = 60000 / ((recent[recent.length - 1] - recent[0]) / (recent.length - 1));
+            rateEl.textContent = Math.round(rate);
+            rateEl.className = 'cpr__rate ' + (rate >= 100 && rate <= 120 ? 'is-ok' : 'is-bad');
+            cur.style.left = Math.max(0, Math.min(100, (rate - 60) / 1.2)) + '%';
+        }
+        stat.textContent = `${n} / ${total}`;
+        if (n >= total) {
+            finished = true;
+            let good = 0;
+            for (let i = 1; i < times.length; i++) { const r = 60000 / (times[i] - times[i - 1]); if (r >= 95 && r <= 125) good++; }
+            const ratio = good / (times.length - 1);
+            const avg = 60000 / ((times[times.length - 1] - times[0]) / (times.length - 1));
+            Game.done(body, ratio >= 0.6 && avg >= 95 && avg <= 125, `Durchschnitt ${Math.round(avg)}/min, ${Math.round(ratio * 100)} % im Zielbereich. Jetzt 2x beatmen.`);
+        }
+    };
+    $('#gPush', body).onclick = push;
+    Game.onKey(e => { if (e.code === 'Space') { e.preventDefault(); if (!e.repeat) push(); } });
+}
+
+/* ------------------------------------------------------------------ */
+/* Patientenmonitor mit EKG-Kurve                                      */
+/* ------------------------------------------------------------------ */
+const Monitor = {
+    data: null, raf: null, x: 0, last: 0, phase: 0,
+    show(d) {
+        const box = $('#monitor');
+        if (!d) { box.classList.add('hidden'); this.data = null; if (this.raf) cancelAnimationFrame(this.raf); this.raf = null; return; }
+        const first = !this.data;
+        this.data = d;
+        const m = d.monitor || {};
+        const ekg = d.ekg;
+        const val = (v, unit) => v === undefined || v === null ? '<span class="dim">--</span>' : `${esc(v)}<small>${unit}</small>`;
+        box.innerHTML = `<div class="monitor__head"><span>${icon('desktop')} ${esc(d.name || 'Patient')}</span>
+                ${d.arrest ? '<span class="chip chip--danger">Kreislaufstillstand</span>' : d.rosc ? '<span class="chip chip--ok">ROSC</span>' : ''}</div>
+            <canvas class="monitor__ekg" width="320" height="70"></canvas>
+            <div class="monitor__rhythm">${ekg ? esc(ekg.label) + (ekg.leads === 12 ? ' · 12 Kanal' : '') : 'kein EKG angelegt'}</div>
+            <div class="monitor__vals">
+                <div class="mv mv--hf"><span>HF</span><b>${val(ekg ? m.hf : null, '/min')}</b></div>
+                <div class="mv mv--spo2"><span>SpO₂</span><b>${val(m.spo2, '%')}</b></div>
+                <div class="mv mv--rr"><span>NIBP</span><b>${val(m.rr, '')}</b></div>
+                <div class="mv mv--af"><span>AF</span><b>${val(m.af, '/min')}</b></div>
+            </div>`;
+        box.classList.remove('hidden');
+        this.canvas = $('canvas', box);
+        this.ctx = this.canvas.getContext('2d');
+        this.x = 0;
+        if (first || !this.raf) { this.last = performance.now(); this.raf = requestAnimationFrame(t => this.tick(t)); }
+    },
+    // Kurvenwert fuer Phase 0..1 eines Herzschlags
+    wave(kind, ph) {
+        if (kind === 'flat') return (Math.random() - 0.5) * 0.02;
+        if (kind === 'vf') return Math.sin(ph * 38) * 0.35 + Math.sin(ph * 23 + 1) * 0.25 + (Math.random() - 0.5) * 0.15;
+        const g = (c, w, a) => a * Math.exp(-Math.pow((ph - c) / w, 2));
+        let y = g(0.18, 0.035, 0.12) - g(0.3, 0.012, 0.12) + g(0.33, 0.014, 1.0) - g(0.36, 0.014, 0.25) + g(0.6, 0.06, 0.22);
+        if (kind === 'stemi') y += ph > 0.37 && ph < 0.58 ? 0.25 : 0;
+        if (kind === 'afib') y = y - g(0.18, 0.035, 0.12) + Math.sin(ph * 60) * 0.03;
+        return y;
+    },
+    tick(t) {
+        if (!this.data) return;
+        const dt = (t - this.last) / 1000; this.last = t;
+        const ekg = this.data.ekg;
+        const ctx = this.ctx, W = this.canvas.width, H = this.canvas.height;
+        const hf = ekg ? (this.data.monitor && this.data.monitor.hf) || 0 : 0;
+        const kind = !ekg ? 'flat' : (ekg.wave || 'sinus');
+        const speed = 90; // Pixel pro Sekunde
+        const steps = Math.max(1, Math.round(dt * speed));
+        for (let i = 0; i < steps; i++) {
+            const beat = kind === 'vf' || kind === 'flat' ? 1.2 : 60 / Math.max(20, hf || 60) * (kind === 'afib' ? (0.7 + Math.random() * 0.6) : 1);
+            this.phase += (1 / speed) / beat;
+            if (this.phase >= 1) this.phase -= 1;
+            const y = H * 0.62 - this.wave(kind, this.phase) * H * 0.5;
+            ctx.fillStyle = '#0b0b0b';
+            ctx.fillRect(this.x, 0, 8, H);
+            ctx.strokeStyle = '#3fb950'; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.moveTo(this.x - 1, this.prevY ?? y); ctx.lineTo(this.x, y); ctx.stroke();
+            this.prevY = y;
+            this.x = (this.x + 1) % W;
+            if (this.x === 0) this.prevY = undefined;
+        }
+        this.raf = requestAnimationFrame(tt => this.tick(tt));
+    },
+};

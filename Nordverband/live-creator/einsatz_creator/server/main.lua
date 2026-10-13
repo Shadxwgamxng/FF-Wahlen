@@ -269,7 +269,10 @@ Handlers.medAction = { rate = 300, fn = function(src, p)
     if type(p.action) ~= 'string' or #p.action > 32 then return false, 'Ungueltige Massnahme' end
     local arg = p.arg
     if arg ~= nil and type(arg) ~= 'string' and type(arg) ~= 'number' then return false, 'Ungueltiger Wert' end
-    return Med.action(src, inc, pt, p.action, arg)
+    -- Ergebnis eines Minispiels (true/false oder gewaehlte Seite)
+    local result = p.result
+    if result ~= nil and type(result) ~= 'boolean' and not (type(result) == 'string' and #result <= 16) then result = false end
+    return Med.action(src, inc, pt, p.action, arg, result)
 end }
 
 -- Vollstaendiger Weltstand fuer neu verbundene Clients

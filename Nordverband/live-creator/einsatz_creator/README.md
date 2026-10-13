@@ -103,11 +103,14 @@ Feuer/Rauch lassen sich an Fahrzeuge/Objekte koppeln, NPCs in Fahrzeuge setzen (
 
 ### Medizinische Versorgung (aus nv_medicDispatches übernommen)
 ox_target am Patienten → **Medizinische Versorgung** (ox_lib-Menü, nur Rollen aus `Config.Medical.roles`):
-- **Gespräch:** Ansprechen, Was ist passiert, Schmerzen, Name, Krankenkasse (Antworten je Meldebild; Rausch-, undeutliche, erschöpfte Sprache; bewusstlos = keine Reaktion)
-- **Diagnostik:** RR, HF, SpO2, BZ, Temperatur, Pupillen, GCS, Atemfrequenz
-- **Sauerstoff** 2/4/6/8 l (SpO2 + 0,8 je Liter), **Zugang legen**
-- **Medikamente/Infusionen** (Akrinor, Ebrantil, Haemiton, Atropin, Suprarenin, Atrovent, Salbutamol, G20, Buscopan, Novalgin, Fenistil, Paracetamol, Ketanest, Oxytocin, G5, Jonosteril) –
-  nur mit Zugang, Kreislauf/Atmung/BZ-Medikamente erst nach Messung; Wirkung erst bei erneuter Messung sichtbar
+- **Gespräch und Anamnese:** Ansprechen, Was ist passiert, Schmerzen, Name, Krankenkasse, **SAMPLER** (Symptome, Allergien, Medikamente, Patientengeschichte, letzte Mahlzeit, Ereignis, Risikofaktoren) und **OPQRST** (Beginn, Provokation, Qualität, Ausstrahlung, Stärke, Dauer) – Antworten je Meldebild, sonst zufällig
+- **Diagnostik:** RR, HF, SpO2, Temperatur, Pupillen, GCS, Atemfrequenz, **BZ** (Minispiel: Stechen im richtigen Moment), **EKG 4-Kanal** und **12-Kanal** (Minispiel: Elektroden richtig kleben; ST-Hebungen nur im 12-Kanal sichtbar), **Auskultation**, **Rekapillarisierungszeit**, **Hautbefund**
+- **Monitor:** Vitalwerte und laufende EKG-Kurve (Sinus, Tachy/Brady, Vorhofflimmern, STEMI, Kammerflimmern, Asystolie) am Bildschirmrand
+- **Maßnahmen mit Minispielen:** Venenzugang (Timing), **intraossärer Zugang** (Punktionsstelle wählen, bohren, beim Widerstandsverlust loslassen), Larynxtubus, Beutel-Masken-Beatmung, **Thoraxentlastungspunktion** (richtige Landmarke und Seite wählen), **Herzdruckmassage** (Takt 100–120/min), **Defibrillation** (nur bei schockbarem Rhythmus), Wärmeerhalt, Oberkörperhochlagerung
+- **Sauerstoff** 2/4/6/8 l (SpO2 + 0,8 je Liter)
+- **Medikamente/Infusionen** u. a. Akrinor, Ebrantil, Atropin, Suprarenin, ASS, Heparin, Nitro (Kontraindikation RR < 110), Amiodaron, Furosemid, Morphin, Fentanyl, Ketanest, Midazolam, Naloxon, Glucagon i.m., Salbutamol/Atrovent vernebelt, Prednisolon, G20, G5, Jonosteril – i.v.-Medikamente nur mit Zugang (i.v. oder i.o.), Spray/vernebelt/i.m. ohne Zugang; Wirkung erst bei erneuter Messung sichtbar
+- **Neue Meldebilder:** Akutes Koronarsyndrom (STEMI, instabile AP), Spannungspneumothorax (rechts/links), Reanimation mit Kammerflimmern oder Asystolie (ROSC nach Herzdruckmassage, Defibrillation, Zugang, Adrenalin und Atemwegssicherung)
+- **Pflichtmaßnahmen je Meldebild** (z. B. STEMI: 12-Kanal-EKG, Zugang, ASS, Heparin, OPQRST, Lagerung) – erscheinen unter „Offene Maßnahmen“
 - **Bodycheck** über 16 Körperregionen → Pflaster, Verband, Schiene, Stifneck (SHT), Beckenschlinge (Becken instabil)
 - **Transport:** besprechen, auf die Trage legen (`rda_stretcher`, `c5m-stretcher`), kein Transport nötig
 - Status **„versorgt / transportbereit“** erst, wenn alle offenen Maßnahmen erledigt sind (`Config.Medical.requireCompleteCare`)

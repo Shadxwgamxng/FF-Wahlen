@@ -19,6 +19,32 @@ local MEASURES = {
     { 'pupils', 'Pupillen pruefen', 'eye' },
     { 'gcs', 'Bewusstseinslage (GCS)', 'brain' },
     { 'af', 'Atemfrequenz zaehlen', 'wind' },
+    { 'ekg', 'EKG kleben (4-Kanal)', 'wave-square' },
+    { 'ekg12', '12-Kanal-EKG schreiben', 'heart-circle-check' },
+    { 'lung', 'Lunge abhoeren (Auskultation)', 'stethoscope' },
+    { 'recap', 'Rekapillarisierungszeit', 'hand-pointer' },
+    { 'skin', 'Haut beurteilen', 'hand' },
+}
+
+local SAMPLER = {
+    { 's', 'S - Symptome' }, { 'a', 'A - Allergien' }, { 'm', 'M - Medikamente' }, { 'p', 'P - Patientengeschichte' },
+    { 'l', 'L - Letzte Mahlzeit' }, { 'e', 'E - Ereignis' }, { 'r', 'R - Risikofaktoren' },
+}
+local OPQRST = {
+    { 'o', 'O - Onset (Beginn)' }, { 'p', 'P - Provokation / Linderung' }, { 'q', 'Q - Qualitaet' },
+    { 'r', 'R - Radiation (Ausstrahlung)' }, { 's', 'S - Severity (Staerke)' }, { 't', 'T - Time (Dauer)' },
+}
+
+-- Minispiele je Massnahme (Ergebnis wird an den Server geschickt)
+local GAMES = {
+    ['measure:bz'] = { type = 'timing', title = 'Blutzucker messen', hint = 'Im gruenen Bereich stechen - Leertaste oder Klick', hits = 1, speed = 1.0 },
+    ['measure:ekg'] = { type = 'ekg', title = 'EKG-Elektroden kleben', twelve = false },
+    ['measure:ekg12'] = { type = 'ekg', title = '12-Kanal-EKG anlegen', twelve = true },
+    ['proc:iv'] = { type = 'timing', title = 'Venenzugang legen', hint = 'Zweimal im gruenen Bereich treffen: Vene punktieren, Kanuele vorschieben', hits = 2, speed = 1.25 },
+    ['proc:tubus'] = { type = 'timing', title = 'Larynxtubus einlegen', hint = 'Im richtigen Moment vorschieben', hits = 1, speed = 1.5 },
+    ['proc:io'] = { type = 'drill', title = 'Intraossaeren Zugang bohren' },
+    ['proc:thorax'] = { type = 'landmark', title = 'Thoraxentlastungspunktion' },
+    ['proc:cpr'] = { type = 'cpr', title = 'Herzdruckmassage', count = 30 },
 }
 
 local TALKS = {
@@ -70,6 +96,26 @@ local function patientPos(incidentId, patientId)
 end
 
 ----------------------------------------------------------------------------
+-- Minispiel in der Oberflaeche spielen. Rueckgabe: ergebnis (true/false/Seite) oder nil bei Abbruch
+----------------------------------------------------------------------------
+function MedClient.game(def)
+    local p = promise.new()
+    MedClient.gamePromise = p
+    SetNuiFocus(true, true)
+    NUI.send('minigame', def)
+    local res = Citizen.Await(p)
+    if not State.open then SetNuiFocus(false, false) end
+    return res
+end
+
+NUI.on('minigameDone', function(data)
+    local p = MedClient.gamePromise
+    MedClient.gamePromise = nil
+    if p then p:resolve({ result = data.result, cancel = data.cancel == true }) end
+    return true
+end)
+
+----------------------------------------------------------------------------
 -- Massnahme ausfuehren und danach Menue wieder oeffnen
 ----------------------------------------------------------------------------
 function MedClient.act(action, arg, reopen)
@@ -88,9 +134,21 @@ function MedClient.act(action, arg, reopen)
             end
             arg = NetworkGetNetworkIdFromEntity(s)
         end
-        local kneel = not IsPedInAnyVehicle(ped, false) and not action:find('^talk_')
-        if kneel then TaskStartScenarioInPlace(ped, 'CODE_HUMAN_MEDIC_KNEEL', 0, true) end
-        local ok, res = Request('medAction', { incidentId = cur.incident, patientId = cur.patient, action = action, arg = arg })
+        local talking = action:find('^talk_') or action == 'sampler' or action == 'opqrst'
+        local kneel = not IsPedInAnyVehicle(ped, false) and not talking
+        if kneel then TaskStartScenarioInPlace(ped, action == 'proc' and arg == 'cpr' and 'CODE_HUMAN_MEDIC_TEND_TO_DEAD' or 'CODE_HUMAN_MEDIC_KNEEL', 0, true) end
+        local result
+        local game = GAMES[action .. ':' .. tostring(arg)]
+        if game then
+            local g = MedClient.game(game)
+            if not g or g.cancel then
+                if kneel then ClearPedTasks(ped) end
+                MedClient.busy = false
+                return MedClient.open(cur.incident, cur.patient, reopen)
+            end
+            result = g.result
+        end
+        local ok, res = Request('medAction', { incidentId = cur.incident, patientId = cur.patient, action = action, arg = arg, result = result })
         if not ok then
             NUI.toast('error', res or 'Massnahme nicht moeglich')
             if kneel then ClearPedTasks(ped) end
@@ -123,12 +181,37 @@ local function buildMenus(view)
         talk[#talk + 1] = { title = t[2], description = t[3], icon = 'comment-medical',
             onSelect = function() MedClient.act(t[1], nil, 'ec_med_talk') end }
     end
-    register('ec_med_talk', 'Gespraech', talk, main)
+    local an = view.anamnesis or { sampler = {}, opqrst = {} }
+    local sampler = {}
+    for _, q in ipairs(SAMPLER) do
+        sampler[#sampler + 1] = { title = q[2], description = an.sampler[q[1]] or 'noch nicht erfragt', icon = 'clipboard-question',
+            onSelect = function() MedClient.act('sampler', q[1], 'ec_med_sampler') end }
+    end
+    register('ec_med_sampler', 'SAMPLER-Anamnese', sampler, 'ec_med_talk')
+    local opqrst = {}
+    for _, q in ipairs(OPQRST) do
+        opqrst[#opqrst + 1] = { title = q[2], description = an.opqrst[q[1]] or 'noch nicht erfragt', icon = 'clipboard-question',
+            onSelect = function() MedClient.act('opqrst', q[1], 'ec_med_opqrst') end }
+    end
+    register('ec_med_opqrst', 'OPQRST-Schmerzanamnese', opqrst, 'ec_med_talk')
+    talk[#talk + 1] = { title = 'SAMPLER-Anamnese', icon = 'clipboard-list', menu = 'ec_med_sampler' }
+    talk[#talk + 1] = { title = 'OPQRST (Schmerz)', icon = 'clipboard-list', menu = 'ec_med_opqrst' }
+    register('ec_med_talk', 'Gespraech und Anamnese', talk, main)
 
     -- Diagnostik
     local diag = {}
+    local extra = view.findingsExtra or {}
     for _, m in ipairs(MEASURES) do
-        diag[#diag + 1] = { title = m[2], description = valueText(v, m[1]), icon = m[3],
+        local desc = valueText(v, m[1])
+        if m[1] == 'ekg' or m[1] == 'ekg12' then
+            desc = view.ekg and view.ekg.leads >= (m[1] == 'ekg12' and 12 or 4) and view.ekg.label or 'nicht angelegt (Minispiel)'
+        elseif m[1] == 'lung' or m[1] == 'recap' or m[1] == 'skin' then
+            local x = extra[m[1]]
+            desc = x and (m[1] == 'recap' and ('%.1f s'):format(x) or x) or 'noch nicht erhoben'
+        elseif m[1] == 'bz' and v.bz == nil then
+            desc = 'noch nicht gemessen (Minispiel)'
+        end
+        diag[#diag + 1] = { title = m[2], description = desc, icon = m[3],
             onSelect = function() MedClient.act('measure', m[1], 'ec_med_diag') end }
     end
     register('ec_med_diag', 'Diagnostik', diag, main)
@@ -150,8 +233,12 @@ local function buildMenus(view)
         if not groups[m.group] then groups[m.group] = {} order[#order + 1] = m.group end
         local needs = {}
         for _, n in ipairs(m.needs or {}) do needs[#needs + 1] = n:upper() end
+        local route = ({ inhal = 'vernebelt', sl = 'sublingual', im = 'i.m.', ['in'] = 'nasal' })[m.route or 'iv']
+        local d = {}
+        if route then d[#d + 1] = route .. ', ohne Zugang' end
+        if #needs > 0 then d[#d + 1] = 'erfordert: ' .. table.concat(needs, ', ') end
         groups[m.group][#groups[m.group] + 1] = { title = m.label, icon = 'syringe',
-            description = #needs > 0 and ('erfordert Messung: ' .. table.concat(needs, ', ')) or nil,
+            description = #d > 0 and table.concat(d, ' · ') or nil,
             onSelect = function() MedClient.act('med', m.id, 'ec_med_meds_' .. m.group) end }
     end
     local meds = {}
@@ -160,6 +247,23 @@ local function buildMenus(view)
         meds[#meds + 1] = { title = g, icon = 'pills', menu = 'ec_med_meds_' .. g }
     end
     register('ec_med_meds', view.canula and 'Medikamente' or 'Medikamente (kein Zugang!)', meds, main)
+
+    -- Massnahmen (mit Minispielen)
+    local pgroups, porder = {}, {}
+    for _, pr in ipairs(Medical.Procedures) do
+        if not pgroups[pr.group] then pgroups[pr.group] = {} porder[#porder + 1] = pr.group end
+        local desc = pr.game and 'Minispiel' or nil
+        if pr.id == 'iv' or pr.id == 'io' then desc = view.canula and ('Zugang liegt (' .. tostring(view.access) .. ')') or desc end
+        if (pr.id == 'bvm' or pr.id == 'tubus') and view.airway then desc = 'Atemweg gesichert (' .. view.airway .. ')' end
+        pgroups[pr.group][#pgroups[pr.group] + 1] = { title = pr.label, description = desc, icon = pr.icon or 'kit-medical',
+            onSelect = function() MedClient.act('proc', pr.id, 'ec_med_proc_' .. pr.group) end }
+    end
+    local procs = {}
+    for _, g in ipairs(porder) do
+        register('ec_med_proc_' .. g, g, pgroups[g], 'ec_med_proc')
+        procs[#procs + 1] = { title = g, icon = 'kit-medical', menu = 'ec_med_proc_' .. g }
+    end
+    register('ec_med_proc', 'Massnahmen', procs, main)
 
     -- Wunden und Immobilisation
     local wounds = {
@@ -200,13 +304,19 @@ local function buildMenus(view)
     register('ec_med_open', 'Offene Massnahmen', open, main)
 
     local vitalsLine = ('RR %s · HF %s · SpO2 %s'):format(valueText(v, 'rr'), valueText(v, 'hf'), valueText(v, 'spo2'))
+    if view.arrest then vitalsLine = 'KREISLAUFSTILLSTAND - Reanimation!' end
     register(main, ('%s - %s'):format(view.name, EC.PatientStatus[view.status] or view.status), {
         { title = 'Zustand', description = vitalsLine, icon = view.complete and 'circle-check' or 'stethoscope', disabled = true },
         { title = 'Gespraech', icon = 'comment-medical', menu = 'ec_med_talk' },
         { title = 'Diagnostik', icon = 'stethoscope', menu = 'ec_med_diag' },
+        { title = 'Massnahmen', description = 'Zugang, Atemweg, Reanimation, Thoraxentlastung ...', icon = 'kit-medical', menu = 'ec_med_proc' },
         { title = 'Sauerstoff', description = ('%d l/min'):format(view.o2 or 0), icon = 'lungs', menu = 'ec_med_o2' },
-        { title = view.canula and 'Zugang liegt' or 'Zugang legen', icon = 'syringe', disabled = view.canula,
-            onSelect = function() MedClient.act('canula', nil) end },
+        { title = MedClient.monitorFor and 'Monitor ausblenden' or 'Monitor einblenden', icon = 'desktop',
+            description = 'Vitalwerte und EKG-Kurve am Bildschirmrand',
+            onSelect = function()
+                if MedClient.monitorFor then MedClient.stopMonitor() else MedClient.startMonitor(MedClient.current.incident, MedClient.current.patient) end
+                MedClient.open(MedClient.current.incident, MedClient.current.patient)
+            end },
         { title = 'Medikamente', icon = 'pills', menu = 'ec_med_meds' },
         { title = 'Wunden und Immobilisation', icon = 'bandage', menu = 'ec_med_wounds' },
         { title = 'Transport', icon = 'truck-medical', menu = 'ec_med_transport' },
@@ -227,4 +337,33 @@ function MedClient.open(incidentId, patientId, menuId, view)
     end
     buildMenus(view)
     lib.showContext(menuId or 'ec_med_main')
+end
+
+----------------------------------------------------------------------------
+-- Monitor (Vitalwerte + EKG-Kurve) solange man beim Patienten ist
+----------------------------------------------------------------------------
+function MedClient.stopMonitor()
+    MedClient.monitorFor = nil
+    NUI.send('monitor', nil)
+end
+
+function MedClient.startMonitor(incidentId, patientId)
+    MedClient.monitorFor = { incident = incidentId, patient = patientId }
+    local token = {}
+    MedClient.monitorToken = token
+    CreateThread(function()
+        while MedClient.monitorFor and MedClient.monitorToken == token do
+            local cur = MedClient.monitorFor
+            local pos = patientPos(cur.incident, cur.patient)
+            if not pos or #(GetEntityCoords(PlayerPedId()) - pos) > 12.0 then
+                MedClient.stopMonitor()
+                break
+            end
+            local ok, view = Request('medView', { incidentId = cur.incident, patientId = cur.patient })
+            if ok and MedClient.monitorToken == token then
+                NUI.send('monitor', { name = view.name, monitor = view.monitor or {}, ekg = view.ekg, arrest = view.arrest, rosc = view.rosc })
+            end
+            Wait(2000)
+        end
+    end)
 end

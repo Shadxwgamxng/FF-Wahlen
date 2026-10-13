@@ -152,6 +152,7 @@ EC.SeverityById = U.indexBy(Catalog.Severities, 'id')
 EC.ProfileById = U.indexBy(Medical.Profiles, 'id')
 EC.MedicationById = U.indexBy(Medical.Medications, 'id')
 EC.BodyPartById = U.indexBy(Medical.BodyParts, 'id')
+EC.ProcedureById = U.indexBy(Medical.Procedures or {}, 'id')
 
 if not IS_SERVER then
     -- Client: Zufall mit Spielzeit initialisieren

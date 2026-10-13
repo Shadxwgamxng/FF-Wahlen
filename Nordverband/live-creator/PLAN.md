@@ -74,5 +74,6 @@ Dieser Plan wird bei jedem Zwischenstand aktualisiert und mitgepusht.
 - ✅ Speicherung wie visn_are: jeder Einsatz eine eigene Datei in `data/incidents/` (MySQL optional)
 - ✅ Leitstelle (EmergencyDispatch-Job) je Einsatz wählbar
 - ✅ Übersicht ohne Kamera (Einsätze, laufende Einsätze, Zufall) und Assistent mit Pflichtangaben für neue Einsätze
-- ✅ Offline-Tests erweitert (109/109 bestanden)
+- ✅ Offline-Tests erweitert (131/131 bestanden)
+- ✅ Erweiterte Versorgung: BZ/EKG/12-Kanal/Auskultation/Rekap/Haut, SAMPLER, OPQRST, mehr Medikamente, IO, Thoraxentlastung, Reanimation – mit Minispielen und Monitor
 - ⬜ Offen: Koordinaten St. Fiacre klären (KH-Liste vs. RTW-Liste)
