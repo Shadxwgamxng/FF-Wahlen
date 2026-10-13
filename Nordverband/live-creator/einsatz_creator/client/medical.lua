@@ -37,9 +37,9 @@ local OPQRST = {
 
 -- Minispiele je Massnahme (Ergebnis wird an den Server geschickt)
 local GAMES = {
-    ['measure:bz'] = { type = 'timing', title = 'Blutzucker messen', hint = 'Im gruenen Bereich stechen - Leertaste oder Klick', hits = 1, speed = 1.0 },
-    ['measure:ekg'] = { type = 'ekg', title = 'EKG-Elektroden kleben', twelve = false },
-    ['measure:ekg12'] = { type = 'ekg', title = '12-Kanal-EKG anlegen', twelve = true },
+    ['measure:bz'] = { type = 'bz', title = 'Blutzucker messen', awaitValue = true },
+    ['measure:ekg'] = { type = 'ekg', title = 'EKG-Elektroden kleben (4-Kanal)', twelve = false, awaitValue = true },
+    ['measure:ekg12'] = { type = 'ekg', title = '12-Kanal-EKG anlegen', twelve = true, awaitValue = true },
     ['proc:iv'] = { type = 'timing', title = 'Venenzugang legen', hint = 'Zweimal im gruenen Bereich treffen: Vene punktieren, Kanuele vorschieben', hits = 2, speed = 1.25 },
     ['proc:tubus'] = { type = 'timing', title = 'Larynxtubus einlegen', hint = 'Im richtigen Moment vorschieben', hits = 1, speed = 1.5 },
     ['proc:io'] = { type = 'drill', title = 'Intraossaeren Zugang bohren' },
@@ -149,6 +149,11 @@ function MedClient.act(action, arg, reopen)
             result = g.result
         end
         local ok, res = Request('medAction', { incidentId = cur.incident, patientId = cur.patient, action = action, arg = arg, result = result })
+        if game and game.awaitValue then
+            -- Messwert im Minispiel anzeigen (BZ-Geraet / EKG-Streifen)
+            local view = ok and res and res.view or nil
+            NUI.send('minigameValue', view and result == true and { bz = view.vitals and view.vitals.bz, ekg = view.ekg } or false)
+        end
         if not ok then
             NUI.toast('error', res or 'Massnahme nicht moeglich')
             if kneel then ClearPedTasks(ped) end

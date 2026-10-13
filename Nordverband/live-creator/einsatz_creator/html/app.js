@@ -183,6 +183,7 @@ window.addEventListener('message', (e) => {
         case 'infoPanel': showInfoPanel(data); break;
         case 'subtitles': showSubtitles(data); break;
         case 'minigame': Game.open(data); break;
+        case 'minigameValue': Game.value(data); break;
         case 'monitor': Monitor.show(data); break;
     }
 });
@@ -1669,6 +1670,8 @@ const Game = {
     listen(target, type, fn) { target.addEventListener(type, fn); this.cleanups.push(() => target.removeEventListener(type, fn)); },
     open(def) {
         this.close(true);
+        this.waiting = false;
+        this.onValue = null;
         this.def = def || {};
         const box = $('#minigame');
         box.classList.remove('hidden');
@@ -1678,7 +1681,7 @@ const Game = {
             <div class="card__body game__body"></div></div>`;
         $('[data-g="cancel"]', box).onclick = () => this.finish(null, true);
         const body = $('.game__body', box);
-        ({ timing: gameTiming, ekg: gameEkg, drill: gameDrill, landmark: gameLandmark, cpr: gameCpr })[def.type]?.(body, def);
+        ({ timing: gameTiming, ekg: gameEkg, bz: gameBz, drill: gameDrill, landmark: gameLandmark, cpr: gameCpr })[def.type]?.(body, def);
     },
     onKey(fn) {
         this.keyHandler = (e) => {
@@ -1688,6 +1691,7 @@ const Game = {
         window.addEventListener('keydown', this.keyHandler);
     },
     close(silent) {
+        if (!silent) this.onValue = null;
         if (this.raf) cancelAnimationFrame(this.raf);
         this.raf = null;
         if (this.keyHandler) window.removeEventListener('keydown', this.keyHandler);
@@ -1701,9 +1705,26 @@ const Game = {
     },
     finish(result, cancel) {
         if (!this.def) return;
+        const def = this.def;
         this.def = null;
-        this.close(true);
+        // Messgeraete zeigen den Wert an: Fenster bleibt offen, bis der Server den Wert schickt
+        if (def.awaitValue && result === true && !cancel && this.onValue) {
+            this.waiting = true;
+            clearTimeout(this.waitTimer);
+            this.waitTimer = setTimeout(() => this.value(null), 8000);
+        } else {
+            this.close(true);
+        }
         post('minigameDone', { result, cancel: !!cancel }, true);
+    },
+    // Messwert vom Server (BZ-Geraet, EKG-Streifen) anzeigen und danach schliessen
+    value(d) {
+        if (!this.waiting) return;
+        this.waiting = false;
+        clearTimeout(this.waitTimer);
+        if (d && this.onValue) this.onValue(d);
+        this.onValue = null;
+        setTimeout(() => { if (!this.def) this.close(true); }, d ? 3200 : 0);
     },
     // Ergebnis kurz anzeigen, dann schliessen
     done(body, ok, text, result) {
@@ -1756,63 +1777,260 @@ function gameTiming(body, def) {
     Game.onKey(e => { if (e.code === 'Space') { e.preventDefault(); hit(); } });
 }
 
-/* EKG: Elektroden waehlen und an die richtige Stelle setzen */
+/* Ziehen und Ablegen (Werkzeuge, Elektroden). onMove/onDrop bekommen Koordinaten im SVG der Figur */
+function svgPoint(svg, cx, cy) {
+    const pt = svg.createSVGPoint();
+    pt.x = cx; pt.y = cy;
+    const m = svg.getScreenCTM();
+    return m ? pt.matrixTransform(m.inverse()) : { x: -999, y: -999 };
+}
+function draggable(el, svg, { onDrop, onMove, ghostHtml }) {
+    el.addEventListener('pointerdown', (e) => {
+        if (el.classList.contains('is-used') || el.classList.contains('is-disabled')) return;
+        e.preventDefault();
+        const ghost = document.createElement('div');
+        ghost.className = 'drag-ghost';
+        ghost.innerHTML = ghostHtml ? ghostHtml() : el.innerHTML;
+        document.body.appendChild(ghost);
+        const place = (ev) => { ghost.style.left = ev.clientX + 'px'; ghost.style.top = ev.clientY + 'px'; };
+        place(e);
+        el.classList.add('is-dragging');
+        const move = (ev) => { place(ev); if (onMove) { const p = svgPoint(svg, ev.clientX, ev.clientY); onMove(p.x, p.y); } };
+        const up = (ev) => {
+            window.removeEventListener('pointermove', move);
+            window.removeEventListener('pointerup', up);
+            ghost.remove();
+            el.classList.remove('is-dragging');
+            const r = svg.getBoundingClientRect();
+            const inside = ev.clientX >= r.left && ev.clientX <= r.right && ev.clientY >= r.top && ev.clientY <= r.bottom;
+            const p = svgPoint(svg, ev.clientX, ev.clientY);
+            if (onDrop) onDrop(inside ? p.x : null, inside ? p.y : null);
+        };
+        window.addEventListener('pointermove', move);
+        window.addEventListener('pointerup', up);
+        Game.cleanups.push(() => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); ghost.remove(); });
+    });
+}
+const dist2 = (x1, y1, x2, y2) => Math.hypot(x1 - x2, y1 - y2);
+
+/* Oberkoerper von vorne (rechte Patientenseite = links im Bild), viewBox 0 0 200 260 */
+const BODY_SVG = `
+    <g class="anat">
+        <ellipse cx="100" cy="26" rx="17" ry="21" class="anat__skin"/>
+        <rect x="91" y="44" width="18" height="14" class="anat__skin"/>
+        <path d="M52 64 Q100 50 148 64 L156 120 L150 176 L50 176 L44 120 Z" class="anat__skin"/>
+        <path d="M52 64 Q40 66 36 84 L28 150 Q26 176 34 192 L44 192 Q44 170 48 150 L52 108 Z" class="anat__skin"/>
+        <path d="M148 64 Q160 66 164 84 L172 150 Q174 176 166 192 L156 192 Q156 170 152 150 L148 108 Z" class="anat__skin"/>
+        <path d="M54 176 L98 176 L94 256 L66 256 Z" class="anat__skin"/>
+        <path d="M102 176 L146 176 L134 256 L106 256 Z" class="anat__skin"/>
+        <path d="M66 62 Q82 58 97 61 M103 61 Q118 58 134 62" class="anat__line"/>
+        <rect x="96" y="62" width="8" height="58" rx="3" class="anat__sternum"/>
+        ${[72, 82, 92, 102, 112, 122, 132].map((y, i) => `<path d="M95 ${y} Q74 ${y - 3} ${54 + i * 0.5} ${y + 6}" class="anat__rib"/><path d="M105 ${y} Q126 ${y - 3} ${146 - i * 0.5} ${y + 6}" class="anat__rib"/>`).join('')}
+        <circle cx="76" cy="107" r="2.2" class="anat__nipple"/><circle cx="124" cy="107" r="2.2" class="anat__nipple"/>
+        <path d="M100 150 m-2 0 a2 2 0 1 0 4 0 a2 2 0 1 0 -4 0" class="anat__line"/>
+    </g>`;
+
+/* EKG: Elektroden frei auf den Koerper ziehen (Farben nach IEC) */
 function gameEkg(body, def) {
-    // Ansicht von vorne: rechte Koerperseite des Patienten ist links im Bild
-    // Koordinaten in der Figur (0-100), umgerechnet auf die Flaeche (Figur sitzt mit 20 % / 6 % Rand)
-    const fx = x => 18 + 0.64 * x, fy = y => 6 + 0.88 * y;
-    const limb = [
-        { id: 'RA', label: 'rot', color: '#e5534b', x: fx(22), y: fy(48), name: 'rechter Arm' },
-        { id: 'LA', label: 'gelb', color: '#e3b341', x: fx(78), y: fy(48), name: 'linker Arm' },
-        { id: 'LL', label: 'gruen', color: '#3fb950', x: fx(59), y: fy(88), name: 'linkes Bein' },
-        { id: 'RL', label: 'schwarz', color: '#9a9a9a', x: fx(41), y: fy(88), name: 'rechtes Bein' },
+    // gueltige Positionen (mehrere je Elektrode), Toleranz in viewBox-Einheiten
+    const LIMB = [
+        { id: 'R', name: 'R', color: '#e5534b', where: 'rechter Arm (rechte Schulter oder rechtes Handgelenk des Patienten)', spots: [[58, 72], [40, 182], [44, 130]], tol: 16 },
+        { id: 'L', name: 'L', color: '#e3b341', where: 'linker Arm (linke Schulter oder linkes Handgelenk)', spots: [[142, 72], [160, 182], [156, 130]], tol: 16 },
+        { id: 'F', name: 'F', color: '#3fb950', where: 'linkes Bein (linker Unterbauch/Hueftknochen oder linker Knoechel)', spots: [[128, 168], [120, 248], [125, 210]], tol: 16 },
+        { id: 'N', name: 'N', color: '#1c1c1c', where: 'rechtes Bein (rechter Unterbauch/Hueftknochen oder rechter Knoechel)', spots: [[72, 168], [80, 248], [75, 210]], tol: 16 },
     ];
-    const chest = [
-        { id: 'V1', x: fx(45), y: fy(32) }, { id: 'V2', x: fx(55), y: fy(32) }, { id: 'V3', x: fx(58.5), y: fy(38) },
-        { id: 'V4', x: fx(62), y: fy(44) }, { id: 'V5', x: fx(66), y: fy(45) }, { id: 'V6', x: fx(69.5), y: fy(46) },
+    const CHEST = [
+        { id: 'V1', color: '#e5534b', where: '4. ICR rechts neben dem Brustbein', spots: [[91, 107]], tol: 6 },
+        { id: 'V2', color: '#e3b341', where: '4. ICR links neben dem Brustbein', spots: [[109, 107]], tol: 6 },
+        { id: 'V3', color: '#3fb950', where: 'zwischen V2 und V4', spots: [[116.5, 112]], tol: 6 },
+        { id: 'V4', color: '#8b5a2b', where: '5. ICR links in der Medioklavikularlinie', spots: [[124, 117]], tol: 6 },
+        { id: 'V5', color: '#1c1c1c', where: 'linke vordere Axillarlinie auf Hoehe von V4', spots: [[138, 117]], tol: 6 },
+        { id: 'V6', color: '#a371f7', where: 'linke mittlere Axillarlinie auf Hoehe von V4', spots: [[149, 117]], tol: 6 },
     ];
-    let selected = null, errors = 0, placed = {}, chestIdx = 0;
-    body.innerHTML = `<p class="dim" id="gHint">Elektrode unten waehlen und an die richtige Stelle am Patienten klicken.</p>
-        <div class="ekgfig">
-            <svg viewBox="0 0 100 100" preserveAspectRatio="none" class="ekgfig__body">
-                <circle cx="50" cy="12" r="8"/><rect x="30" y="21" width="40" height="40" rx="6"/>
-                <rect x="16" y="22" width="12" height="34" rx="5"/><rect x="72" y="22" width="12" height="34" rx="5"/>
-                <rect x="35" y="60" width="13" height="36" rx="5"/><rect x="52" y="60" width="13" height="36" rx="5"/>
-            </svg>
-            <span class="ekgfig__side" style="left:4%">rechts</span><span class="ekgfig__side" style="right:4%">links</span>
-            ${limb.map(t => `<div class="ekgfig__spot" data-spot="${t.id}" style="left:${t.x}%;top:${t.y}%"></div>`).join('')}
-            ${def.twelve ? chest.map(c => `<div class="ekgfig__spot ekgfig__spot--chest" data-chest="${c.id}" style="left:${c.x}%;top:${c.y}%"></div>`).join('') : ''}
+    const items = LIMB.concat(def.twelve ? CHEST : []);
+    let errors = 0, placed = 0, finished = false;
+    body.innerHTML = `<p class="dim">Elektroden aus der Schale auf den Patienten ziehen. Es gibt keine Markierungen - richte dich nach Rippen, Brustbein und Achsellinien.
+        ${def.twelve ? '<br>Zuerst die vier Extremitaetenelektroden, dann V1 bis V6.' : ''}</p>
+        <div class="figwrap">
+            <svg viewBox="0 0 200 260" class="fig" id="gFig">${BODY_SVG}
+                <line x1="76" y1="62" x2="76" y2="172" class="anat__guide" id="gMcl1"/><line x1="124" y1="62" x2="124" y2="172" class="anat__guide"/>
+                <line x1="138" y1="80" x2="138" y2="172" class="anat__guide anat__guide--ax"/><line x1="62" y1="80" x2="62" y2="172" class="anat__guide anat__guide--ax"/>
+                <g id="gPlaced"></g></svg>
+            <span class="fig__side" style="left:8px">rechts</span><span class="fig__side" style="right:8px">links</span>
         </div>
-        <div class="electrodes">${limb.map(t => `<button class="electrode" data-el="${t.id}" style="--c:${t.color}">${esc(t.label)}</button>`).join('')}</div>
-        <div class="dim" id="gStat"></div>`;
-    const hint = $('#gHint', body), stat = $('#gStat', body);
-    const upd = () => { stat.textContent = `Fehler: ${errors} (max. 1 erlaubt)`; };
+        <div class="tray" id="gTray">${items.map((t, i) => `<div class="electrode-pad ${i >= LIMB.length ? 'is-disabled' : ''}" data-e="${t.id}" style="--c:${t.color}"><b>${t.id}</b></div>`).join('')}</div>
+        <div class="row"><span class="grow dim" id="gStat"></span><label class="switch"><input type="checkbox" id="gGuides"><span>Hilfslinien</span></label></div>
+        <div class="ekgstrip hidden" id="gStrip"><canvas width="500" height="80"></canvas><div class="ekgstrip__label"></div></div>`;
+    const svg = $('#gFig', body), group = $('#gPlaced', body), stat = $('#gStat', body);
+    const upd = (msg, bad) => { stat.innerHTML = `${msg ? `<span class="${bad ? 'warn' : ''}">${esc(msg)}</span> · ` : ''}Fehler ${errors}/1`; };
     upd();
-    const fail = () => { errors++; upd(); if (errors > 1) Game.done(body, false, 'Zu viele Fehler - Ableitung nicht verwertbar.'); };
-    const limbDone = () => Object.keys(placed).length === limb.length;
-    const next = () => {
-        if (!limbDone()) return;
-        if (!def.twelve || chestIdx >= chest.length) return Game.done(body, true, 'Alle Elektroden sitzen - Ableitung laeuft.');
-        hint.textContent = `Brustwandableitung ${chest[chestIdx].id} kleben - richtige Stelle anklicken.`;
-        $('.electrodes', body).innerHTML = `<span class="chip chip--primary">${chest[chestIdx].id}</span>`;
+    $('#gGuides', body).onchange = (e) => svg.classList.toggle('show-guides', e.target.checked);
+    const unlockChest = () => { if (placed >= LIMB.length) $$('.electrode-pad.is-disabled', body).forEach(x => x.classList.remove('is-disabled')); };
+    items.forEach(t => {
+        const el = $(`[data-e="${t.id}"]`, body);
+        draggable(el, svg, {
+            ghostHtml: () => `<div class="electrode-pad" style="--c:${t.color}"><b>${t.id}</b></div>`,
+            onDrop: (x, y) => {
+                if (finished || x === null) return;
+                const ok = t.spots.some(([sx, sy]) => dist2(x, y, sx, sy) <= t.tol);
+                if (!ok) {
+                    errors++;
+                    upd(`${t.id} falsch: gehoert an ${t.where}`, true);
+                    if (errors > 1) { finished = true; return Game.done(body, false, 'Zu viele falsch geklebte Elektroden - Ableitung nicht verwertbar.'); }
+                    return;
+                }
+                group.insertAdjacentHTML('beforeend', `<g><circle cx="${x}" cy="${y}" r="${t.id.startsWith('V') ? 3.6 : 5}" fill="${t.color}" stroke="#fff" stroke-width="0.8"/>
+                    <text x="${x}" y="${y + 1.3}" class="pad__txt">${t.id.replace('V', '')}</text></g>`);
+                el.classList.add('is-used');
+                placed++;
+                upd(`${t.id} sitzt`);
+                unlockChest();
+                if (placed === items.length) {
+                    finished = true;
+                    $('#gTray', body).innerHTML = `<span class="dim">${icon('wave-square')} Ableitung wird geschrieben ...</span>`;
+                    Game.onValue = (d) => showStrip(body, d);
+                    Game.done(body, true, 'Alle Elektroden kleben korrekt.');
+                }
+            },
+        });
+    });
+    Game.onKey(() => {});
+}
+
+// EKG-Streifen nach der Messung zeichnen
+function showStrip(body, d) {
+    const box = $('#gStrip', body);
+    if (!box || !d || !d.ekg) return;
+    box.classList.remove('hidden');
+    $('.ekgstrip__label', box).textContent = d.ekg.label + (d.ekg.hf ? ` · ${d.ekg.hf}/min` : '');
+    const c = $('canvas', box), ctx = c.getContext('2d');
+    ctx.fillStyle = '#fff6f4'; ctx.fillRect(0, 0, c.width, c.height);
+    ctx.strokeStyle = 'rgba(229, 83, 75, 0.25)'; ctx.lineWidth = 1;
+    for (let x = 0; x < c.width; x += 10) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, c.height); ctx.stroke(); }
+    for (let y = 0; y < c.height; y += 10) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(c.width, y); ctx.stroke(); }
+    ctx.strokeStyle = '#111'; ctx.lineWidth = 1.6; ctx.beginPath();
+    const beat = d.ekg.wave === 'vf' || d.ekg.wave === 'flat' ? 120 : Math.max(40, 6000 / Math.max(30, d.ekg.hf || 60));
+    let ph = 0;
+    for (let x = 0; x < c.width; x++) {
+        ph += 1 / beat * (d.ekg.wave === 'afib' ? (0.7 + Math.random() * 0.6) : 1);
+        if (ph >= 1) ph -= 1;
+        const y = c.height * 0.6 - Monitor.wave(d.ekg.wave, ph) * c.height * 0.55;
+        if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+}
+
+/* Hand von vorne (Handflaeche), viewBox 0 0 200 260 */
+const HAND_SVG = `
+    <g class="anat">
+        <path d="M58 250 L52 150 Q50 128 62 120 L140 120 Q156 126 154 150 L148 250 Z" class="anat__skin"/>
+        <rect x="58" y="44" width="20" height="84" rx="10" class="anat__skin"/>
+        <rect x="82" y="26" width="20" height="100" rx="10" class="anat__skin"/>
+        <rect x="106" y="32" width="20" height="96" rx="10" class="anat__skin"/>
+        <rect x="130" y="56" width="18" height="74" rx="9" class="anat__skin"/>
+        <path d="M54 170 Q30 150 22 118 Q20 106 30 104 Q38 104 44 118 L60 150 Z" class="anat__skin"/>
+        ${[[68, 52], [92, 34], [116, 40], [139, 63]].map(([x, y]) => `<path d="M${x - 6} ${y + 18} Q${x} ${y + 21} ${x + 6} ${y + 18}" class="anat__line"/>`).join('')}
+    </g>`;
+
+/* BZ: Finger waehlen, desinfizieren, trocknen lassen, stechen, ersten Tropfen abwischen, Teststreifen */
+function gameBz(body) {
+    // Fingerkuppen (Mitte und Seiten); Seiten von Mittel-/Ring-/kleinem Finger sind ideal
+    const fingers = [
+        { id: 'zeige', name: 'Zeigefinger', x: 68, y: 56, ok: true },
+        { id: 'mittel', name: 'Mittelfinger', x: 92, y: 38, ok: true },
+        { id: 'ring', name: 'Ringfinger', x: 116, y: 44, ok: true },
+        { id: 'klein', name: 'kleiner Finger', x: 139, y: 66, ok: true },
+        { id: 'daumen', name: 'Daumen', x: 28, y: 112, ok: false },
+    ];
+    let step = 0, errors = 0, site = null, rub = 0, dry = false, wiped = false, finished = false;
+    const STEPS = ['Stichstelle waehlen: seitlich an einer Fingerkuppe klicken', 'Mit dem Alkoholtupfer die Fingerkuppe abreiben',
+        'Desinfektionsmittel trocknen lassen ...', 'Mit der Lanzette seitlich in die Fingerkuppe stechen', 'Den ersten Blutstropfen mit dem trockenen Tupfer abwischen',
+        'Messgeraet mit Teststreifen an den Blutstropfen halten', 'Messung laeuft ...'];
+    body.innerHTML = `<p class="dim" id="gStep"></p>
+        <div class="bzwrap">
+            <div class="figwrap figwrap--hand"><svg viewBox="10 16 156 170" class="fig" id="gFig">${HAND_SVG}
+                <g id="gSites">${fingers.map(f => `<g data-f="${f.id}"><rect x="${f.x - 12}" y="${f.y - 10}" width="7" height="20" class="site site--side"/><rect x="${f.x + 5}" y="${f.y - 10}" width="7" height="20" class="site site--side"/><rect x="${f.x - 5}" y="${f.y - 8}" width="10" height="16" class="site site--pad"/></g>`).join('')}</g>
+                <g id="gMarks"></g></svg></div>
+            <div class="meter"><div class="meter__screen" id="gScreen">---</div><div class="meter__unit">mmol/l</div><div class="meter__strip"></div></div>
+        </div>
+        <div class="tray" id="gTray">
+            <div class="tool-item" data-t="alk">${icon('pump-medical')}<span>Alkoholtupfer</span></div>
+            <div class="tool-item" data-t="lanz">${icon('syringe')}<span>Lanzette</span></div>
+            <div class="tool-item" data-t="tupfer">${icon('square')}<span>Tupfer (trocken)</span></div>
+            <div class="tool-item" data-t="geraet">${icon('mobile-screen')}<span>BZ-Geraet</span></div>
+        </div>
+        <div class="dim" id="gStat"></div>
+        <div class="progress-mini hidden" id="gProg"><div></div></div>`;
+    const svg = $('#gFig', body), marks = $('#gMarks', body), stepEl = $('#gStep', body), stat = $('#gStat', body);
+    const prog = $('#gProg', body), progFill = $('#gProg div', body);
+    const setStep = (n) => { step = n; stepEl.innerHTML = `<b>Schritt ${Math.min(n + 1, 6)}/6:</b> ${esc(STEPS[n])}`; };
+    const err = (msg) => { errors++; stat.innerHTML = `<span class="warn">${esc(msg)}</span> · Fehler ${errors}/1`; if (errors > 1 && !finished) { finished = true; Game.done(body, false, 'Zu viele Fehler - der Wert waere nicht verwertbar.'); } };
+    const info = (msg) => { stat.innerHTML = `${esc(msg)} · Fehler ${errors}/1`; };
+    setStep(0); info('');
+    const near = (x, y, r) => site && dist2(x, y, site.x, site.y) <= (r || 14);
+    // 1. Stelle waehlen
+    $$('#gSites rect', body).forEach(r => r.addEventListener('click', () => {
+        if (step !== 0 || finished) return;
+        const f = fingers.find(x => x.id === r.parentNode.dataset.f);
+        const side = r.classList.contains('site--side');
+        if (!f.ok) return err('Den Daumen nicht verwenden - besser Mittel- oder Ringfinger.');
+        if (!side) return err('Nicht in die Mitte der Fingerbeere stechen (schmerzhaft) - seitlich an der Kuppe.');
+        site = { x: +r.getAttribute('x') + 3.5, y: +r.getAttribute('y') + 10, name: f.name };
+        marks.innerHTML = `<circle cx="${site.x}" cy="${site.y}" r="6" class="mark-site"/>`;
+        $('#gSites', body).classList.add('is-chosen');
+        info(`Stichstelle: ${f.name}, seitlich`);
+        setStep(1);
+    }));
+    const startDry = () => {
+        setStep(2); prog.classList.remove('hidden');
+        let t = 0;
+        Game.timer = setInterval(() => {
+            t += 100; progFill.style.width = Math.min(100, t / 30) + '%';
+            if (t >= 3000) { clearInterval(Game.timer); dry = true; prog.classList.add('hidden'); setStep(3); info('Haut ist trocken'); }
+        }, 100);
     };
-    $$('.electrode', body).forEach(b => b.onclick = () => {
-        $$('.electrode', body).forEach(x => x.classList.remove('is-on'));
-        b.classList.add('is-on'); selected = b.dataset.el;
-    });
-    $$('[data-spot]', body).forEach(sp => sp.onclick = () => {
-        if (!selected || placed[sp.dataset.spot]) return;
-        if (sp.dataset.spot !== selected) { sp.classList.add('is-wrong'); setTimeout(() => sp.classList.remove('is-wrong'), 400); return fail(); }
-        const t = limb.find(x => x.id === selected);
-        placed[selected] = true; sp.style.background = t.color; sp.classList.add('is-set');
-        $(`[data-el="${selected}"]`, body).remove(); selected = null;
-        next();
-    });
-    $$('[data-chest]', body).forEach(sp => sp.onclick = () => {
-        if (!limbDone() || sp.classList.contains('is-set')) return;
-        if (sp.dataset.chest !== chest[chestIdx].id) { sp.classList.add('is-wrong'); setTimeout(() => sp.classList.remove('is-wrong'), 400); return fail(); }
-        sp.classList.add('is-set'); sp.textContent = chest[chestIdx].id; chestIdx++; next();
-    });
+    const tools = {
+        alk: { onMove: (x, y) => {
+            if (step !== 1 || !near(x, y, 16)) return;
+            rub = Math.min(100, rub + 4); prog.classList.remove('hidden'); progFill.style.width = rub + '%';
+            if (rub >= 100) { $('[data-t="alk"]', body).classList.add('is-used'); marks.insertAdjacentHTML('beforeend', `<circle cx="${site.x}" cy="${site.y}" r="11" class="mark-alk"/>`); startDry(); }
+        }, onDrop: () => { if (step === 1 && rub < 100) info('Weiter reiben - den Tupfer ueber der Stelle hin und her bewegen'); } },
+        lanz: { onDrop: (x, y) => {
+            if (x === null || finished) return;
+            if (step < 1) return info('Zuerst eine Stichstelle waehlen');
+            if (!near(x, y)) return err('Daneben - die Lanzette an die gewaehlte Stelle ansetzen.');
+            if (step === 1) err('Nicht desinfiziert!');
+            if (step === 2 && !dry) { clearInterval(Game.timer); prog.classList.add('hidden'); err('Desinfektionsmittel war noch feucht - der Wert wird verfaelscht.'); }
+            $('[data-t="lanz"]', body).classList.add('is-used');
+            marks.insertAdjacentHTML('beforeend', `<circle cx="${site.x}" cy="${site.y - 1}" r="3.2" class="mark-drop" id="gDrop"/>`);
+            setStep(4); info('Gepiekst - Blutstropfen tritt aus');
+        } },
+        tupfer: { onDrop: (x, y) => {
+            if (x === null || finished || step !== 4) return;
+            if (!near(x, y)) return info('Den Tupfer an den Tropfen halten');
+            wiped = true; $('[data-t="tupfer"]', body).classList.add('is-used');
+            const d = $('#gDrop', body); if (d) d.setAttribute('r', '1');
+            info('Erster Tropfen abgewischt - neuer Tropfen bildet sich ...');
+            setTimeout(() => { const d2 = $('#gDrop', body); if (d2) d2.setAttribute('r', '3.6'); setStep(5); }, 1200);
+        } },
+        geraet: { onDrop: (x, y) => {
+            if (x === null || finished) return;
+            if (step < 4) return info('Zuerst einen Blutstropfen gewinnen');
+            if (!near(x, y)) return info('Den Teststreifen genau an den Blutstropfen halten');
+            if (!wiped) err('Den ersten Tropfen nicht verwenden (Gewebefluessigkeit) - Wert ungenau.');
+            if (finished) return;
+            finished = true;
+            $('[data-t="geraet"]', body).classList.add('is-used');
+            const d = $('#gDrop', body); if (d) d.remove();
+            setStep(6);
+            const screen = $('#gScreen', body);
+            let n = 5; screen.textContent = n;
+            Game.timer = setInterval(() => { n--; screen.textContent = n > 0 ? n : '...'; if (n <= 0) clearInterval(Game.timer); }, 500);
+            Game.onValue = (v) => { clearInterval(Game.timer); screen.textContent = v && v.bz != null ? Number(v.bz).toFixed(1) : 'Err'; $('.meter__unit', body).textContent = v && v.bz != null ? `mmol/l · ${Math.round(v.bz * 18.02)} mg/dl` : ''; };
+            setTimeout(() => Game.done(body, true, 'Blut aufgezogen - Messung laeuft.'), 2600);
+        } },
+    };
+    Object.entries(tools).forEach(([id, t]) => draggable($(`[data-t="${id}"]`, body), svg, t));
     Game.onKey(() => {});
 }
 

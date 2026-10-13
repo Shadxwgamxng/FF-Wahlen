@@ -450,3 +450,48 @@ input[type="number"].input { font-family: var(--mono); }
 .mv b { font: 700 1.15rem var(--mono); }
 .mv small { margin-left: 2px; font-size: 0.6rem; color: var(--text-3); font-weight: 400; }
 .mv--hf b { color: #3fb950; } .mv--spo2 b { color: #58a6ff; } .mv--rr b { color: #e3b341; font-size: 0.95rem; } .mv--af b { color: #d2a8ff; }
+
+/* realistische Minispiele (EKG kleben, BZ messen) */
+.game:has(.figwrap) { width: min(720px, calc(100% - 2rem)); }
+.figwrap { position: relative; display: flex; justify-content: center; border: 1px solid var(--border); border-radius: var(--radius-lg); background: radial-gradient(circle at 50% 40%, #1d1d1d, #121212); }
+.fig { width: 100%; max-width: 380px; height: 400px; touch-action: none; user-select: none; }
+.figwrap--hand .fig { height: 360px; max-width: 100%; }
+.fig__side { position: absolute; top: 8px; color: var(--text-3); font-size: var(--fs-xs); }
+.anat__skin { fill: #c8a48a; stroke: #8a6a55; stroke-width: 0.8; }
+.anat__line { fill: none; stroke: #8a6a55; stroke-width: 0.8; }
+.anat__rib { fill: none; stroke: rgba(110, 80, 60, 0.55); stroke-width: 0.9; }
+.anat__sternum { fill: rgba(140, 105, 85, 0.45); }
+.anat__nipple { fill: #9a6a55; }
+.anat__guide { stroke: #2f7cf6; stroke-width: 0.5; stroke-dasharray: 2 2; opacity: 0; transition: opacity .2s; }
+.fig.show-guides .anat__guide { opacity: 0.8; }
+.anat__guide--ax { stroke: #a371f7; }
+.pad__txt { font: 700 3.2px var(--font); fill: #fff; text-anchor: middle; pointer-events: none; }
+.tray { display: flex; flex-wrap: wrap; gap: 0.5rem; padding: 0.6rem; border: 1px dashed var(--border-strong); border-radius: var(--radius-lg); background: var(--bg-2); min-height: 52px; align-items: center; }
+.electrode-pad { width: 38px; height: 38px; border-radius: 50%; background: radial-gradient(circle, var(--c) 0 38%, #e9e6e1 40% 100%); border: 1px solid #bbb; display: flex; align-items: center; justify-content: center; cursor: grab; box-shadow: var(--shadow); }
+.electrode-pad b { font-size: 0.6rem; color: #fff; text-shadow: 0 0 2px #000; }
+.electrode-pad.is-used { display: none; }
+.electrode-pad.is-disabled { opacity: 0.35; cursor: not-allowed; }
+.electrode-pad.is-dragging, .tool-item.is-dragging { opacity: 0.3; }
+.drag-ghost { position: fixed; z-index: 100; pointer-events: none; transform: translate(-50%, -50%) scale(1.05); }
+.drag-ghost b { display: flex; width: 38px; height: 38px; align-items: center; justify-content: center; border-radius: 50%; }
+.tool-item { display: inline-flex; align-items: center; gap: 0.45rem; padding: 0.45rem 0.7rem; border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--surface); color: var(--text); font-size: var(--fs-sm); cursor: grab; }
+.tool-item i { color: var(--accent-text); }
+.tool-item.is-used { opacity: 0.35; cursor: default; pointer-events: none; }
+.drag-ghost.tool, .drag-ghost i { font-size: 1.4rem; color: var(--accent-text); }
+.bzwrap { display: grid; grid-template-columns: 1fr 150px; gap: 0.8rem; align-items: center; }
+.site { fill: transparent; cursor: pointer; }
+.site:hover { fill: rgba(47, 124, 246, 0.35); }
+.site--pad:hover { fill: rgba(229, 83, 75, 0.3); }
+#gSites.is-chosen .site { pointer-events: none; }
+.mark-site { fill: none; stroke: #2f7cf6; stroke-width: 1.2; stroke-dasharray: 2 1.5; }
+.mark-alk { fill: rgba(150, 200, 255, 0.25); }
+.mark-drop { fill: #b3121f; stroke: #600; stroke-width: 0.4; transition: r .4s; }
+.meter { padding: 0.8rem; border-radius: 14px; background: linear-gradient(160deg, #2a2a2a, #161616); border: 1px solid var(--border-strong); text-align: center; }
+.meter__screen { padding: 0.6rem 0.3rem; border-radius: 6px; background: #9fb59a; color: #1d2a1b; font: 700 1.9rem var(--mono); min-height: 2.6rem; }
+.meter__unit { margin-top: 0.3rem; color: var(--text-3); font-size: var(--fs-xs); }
+.meter__strip { width: 14px; height: 34px; margin: 0.4rem auto 0; background: linear-gradient(#e9e6e1 70%, #d29922 70%); border-radius: 2px; }
+.progress-mini { height: 6px; border-radius: 3px; background: var(--bg-2); overflow: hidden; }
+.progress-mini div { height: 100%; width: 0; background: var(--accent); transition: width .1s linear; }
+.ekgstrip { border-radius: var(--radius); overflow: hidden; border: 1px solid var(--border-strong); }
+.ekgstrip canvas { display: block; width: 100%; height: 80px; }
+.ekgstrip__label { padding: 0.35rem 0.6rem; background: var(--bg-2); color: var(--text); font-size: var(--fs-sm); }
