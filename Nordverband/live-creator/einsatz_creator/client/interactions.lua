@@ -464,3 +464,41 @@ AddEventHandler('onResourceStop', function(res)
     if res ~= GetCurrentResourceName() then return end
     for key in pairs(registered) do unregister(key) end
 end)
+
+----------------------------------------------------------------------------
+-- Fehlersuche: /einsatzdebug zeigt in der F8-Konsole, warum keine Optionen erscheinen
+----------------------------------------------------------------------------
+RegisterCommand('einsatzdebug', function()
+    CreateThread(function()
+        local ok, roles = Request('myRoles')
+        if ok then Interactions.roles = roles or {} end
+        local me = GetEntityCoords(PlayerPedId())
+        local out = {}
+        local function line(fmt, ...) out[#out + 1] = fmt:format(...) end
+        line('Rollen: %s | ox_target aktiv: %s | Modus: %s | Creator offen: %s | Massnahme laeuft: %s',
+            table.concat(Interactions.roles, ', ') ~= '' and table.concat(Interactions.roles, ', ') or 'KEINE',
+            tostring(useTarget()), Config.Interaction.mode, tostring(State.open == true), tostring(Interactions.running))
+        local nInc, nPat = 0, 0
+        for incId, inc in pairs(World.incidents) do
+            nInc = nInc + 1
+            for id, p in pairs((inc.rescue or {}).patients or {}) do
+                nPat = nPat + 1
+                local ent = patientEntity(p)
+                local dist = ent and #(GetEntityCoords(ent) - me) or -1
+                if dist < 0 or dist < 30.0 then
+                    local t = currentTarget(incId, 'patient', id)
+                    local acts = {}
+                    for _, a in ipairs(t and actionsFor(t) or {}) do acts[#acts + 1] = a.id .. (a.enabled and '' or '(gesperrt)') end
+                    line('Patient %s/%s "%s": Status=%s Meldebild=%s net=%s Entity=%s Abstand=%.1f m | Ziel registriert: Entity=%s Zone=%s | Aktionen: %s',
+                        incId, id, tostring(p.name), tostring(p.s), tostring(p.med ~= nil and p.med ~= false), tostring(p.net),
+                        ent and tostring(ent) or 'NICHT GEFUNDEN', dist,
+                        tostring(registered[incId .. ':p:' .. id] ~= nil), tostring(registered[incId .. ':pz:' .. id] ~= nil),
+                        #acts > 0 and table.concat(acts, ', ') or 'KEINE')
+                end
+            end
+        end
+        line('Bekannte Einsaetze: %d, Patienten: %d', nInc, nPat)
+        for _, l in ipairs(out) do print('[einsatzdebug] ' .. l) end
+        NUI.toast('info', 'Diagnose in der F8-Konsole ausgegeben (' .. nPat .. ' Patienten bekannt)')
+    end)
+end, false)
