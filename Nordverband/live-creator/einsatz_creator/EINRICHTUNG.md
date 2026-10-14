@@ -46,6 +46,17 @@ Einzelne Person: `add_ace identifier.license:<LIZENZ> einsatzcreator.use allow`
 | z_fire-Effekte | `Config.ZFire.fireEffects` / `smokeEffects` | nur bei z_fire: Namen mit der eigenen z_fire-Config abgleichen |
 | Befehle | `Config.Commands` | Standard `/einsatzcreator` und `/einsatzinfo` |
 
+## 4a. Items für aufgezogene Spritzen (ox_inventory)
+
+Wer ein Medikament aufzieht, bekommt eine **aufgezogene Spritze** als Item (mit Wirkstoff, Menge, ml, Uhrzeit und Namen in den Metadaten). Beim Injizieren wird sie verbraucht und man bekommt eine **benutzte Spritze**.
+
+1. Den Inhalt von `install/ox_inventory/items.lua` in `ox_inventory/data/items.lua` einfügen.
+2. Die Bilder aus `install/ox_inventory/web/images/` nach `ox_inventory/web/images/` kopieren.
+3. `ensure ox_inventory` muss **vor** `ensure einsatz_creator` stehen.
+4. Einstellungen in `config.lua` unter `Config.Items` (Item-Namen, benutzte Spritze an/aus, Höchstalter einer Spritze).
+
+Ohne ox_inventory (oder mit `Config.Items.enabled = false`) wird wie bisher direkt nach dem Aufziehen verabreicht.
+
 ## 5. Nach dem ersten Start prüfen (Serverkonsole)
 - `Speicherung: JSON-Dateien im Ordner data` – Speichern funktioniert.
 - `Einsatz-Creator bereit (Bridge-Adapter: emergencydispatch …)`.

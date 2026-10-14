@@ -296,6 +296,16 @@ Config.Medical = {
     cpr = { durationMs = 18000, dict = 'mini@cpr@char_a@cpr_str', clip = 'cpr_pumpchest' },
 }
 
+-- Aufgezogene Spritzen als Item (ox_inventory). Die Items muessen in ox_inventory/data/items.lua
+-- eingetragen sein (siehe EINRICHTUNG.md). Ohne ox_inventory wird direkt nach dem Aufziehen verabreicht.
+Config.Items = {
+    enabled = true,
+    resource = 'ox_inventory',
+    prepared = 'spritze_aufgezogen',   -- aufgezogene Spritze (Metadaten: Wirkstoff, Menge, ml, Uhrzeit)
+    used = 'spritze_benutzt',          -- nach dem Injizieren (nil = kein Item)
+    maxAgeMinutes = 60,                -- aeltere Spritzen gelten als verworfen (nil = unbegrenzt)
+}
+
 -- Tueroeffnung
 Config.Doors = {
     durationSeconds = 15,

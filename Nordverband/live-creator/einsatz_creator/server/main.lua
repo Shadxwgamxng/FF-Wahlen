@@ -279,6 +279,20 @@ Handlers.medAction = { rate = 300, fn = function(src, p)
     return Med.action(src, inc, pt, p.action, arg, result)
 end }
 
+-- Aufgezogene Spritze ins Inventar (Materialschrank -> Item mit Metadaten)
+Handlers.prepStore = { rate = 1000, fn = function(src, p)
+    if not Perm.hasAnyRole(src, Config.Medical.roles) then return false, 'Nur der Rettungsdienst kann Medikamente aufziehen' end
+    if not Inv.active() then return false, 'Kein Inventar aktiv' end
+    if type(p) ~= 'table' or type(p.prep) ~= 'table' then return false, 'Ungueltige Spritze' end
+    local prep = Med.sanitizePrep(p.prep)
+    if not Material.DrugById[prep.drug or ''] or not Material.SyringeById[prep.syringe or ''] then return false, 'Ungueltige Spritze' end
+    if prep.totalMl <= 0 or prep.drugMl <= 0 then return false, 'Die Spritze ist leer' end
+    if prep.totalMl > Material.SyringeById[prep.syringe].ml + 0.01 then return false, 'Mehr Inhalt als in die Spritze passt' end
+    local ok, slot = Inv.add(src, Config.Items.prepared, Inv.syringeMeta(prep, GetPlayerName(src)))
+    if not ok then return false, slot end
+    return true, { slot = slot }
+end }
+
 -- Vollstaendiger Weltstand fuer neu verbundene Clients
 Handlers.syncWorld = { rate = 2000, fn = function(src)
     return true, { incidents = Incidents.publicAll(), fire = Fire.fullState(), roles = Perm.rolesOf(src) }

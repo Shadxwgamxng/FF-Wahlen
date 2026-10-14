@@ -494,7 +494,7 @@ function Med.givePrepared(med, ordered, r, lines)
         return false
     end
     local given = drug.med and EC.MedicationById[drug.med] or nil
-    local wrong = drug.med ~= ordered.id
+    local wrong = (drug.med or ('drug:' .. drug.id)) ~= ordered.id
     local amountTxt = fmtAmount(amount, drug.unit)
     if wrong then
         say(lines, 'info', ('Achtung: Aufgezogen und gegeben wurde %s statt %s!'):format(drug.label, ordered.label))
@@ -534,6 +534,36 @@ function Med.action(src, incident, p, action, arg, result)
 
     local lines = {}
     local changed = false
+
+    -- Aufgezogene Spritze aus dem Inventar injizieren: Item wird verbraucht, benutzte Spritze ausgegeben
+    if action == 'inject' then
+        local cfg = Config.Items or {}
+        if not Inv.active() then med.nextAt = now return false, 'Kein Inventar aktiv' end
+        local slot = tonumber(arg)
+        local item = slot and Inv.get(src, slot, cfg.prepared)
+        local meta = item and type(item.metadata) == 'table' and item.metadata.ec
+        local drug = type(meta) == 'table' and Material.DrugById[meta.drug]
+        if not drug then med.nextAt = now return false, 'Keine aufgezogene Spritze in diesem Inventarfach' end
+        if cfg.maxAgeMinutes and os.time() - (tonumber(meta.at) or 0) > cfg.maxAgeMinutes * 60 then
+            med.nextAt = now
+            return false, ('Die Spritze ist aelter als %d Minuten - verwerfen und neu aufziehen'):format(cfg.maxAgeMinutes)
+        end
+        -- Vorbedingungen pruefen, bevor die Spritze verbraucht wird
+        local mm = drug.med and EC.MedicationById[drug.med] or { route = drug.route, needs = {} }
+        if (mm.route or 'iv') == 'iv' and not med.canula then med.nextAt = now return false, 'Zuerst einen Zugang legen (i.v. oder i.o.)' end
+        for _, need in ipairs(mm.needs or {}) do
+            if not med.arrest and not med.measured[need] and not (need == 'ekg' and med.ekgLeads > 0) then
+                med.nextAt = now
+                return false, 'Vor der Gabe erst die passenden Werte erheben (' .. need:upper() .. ')'
+            end
+        end
+        if mm.minSys and med.rrsys < mm.minSys then med.nextAt = now return false, ('Kontraindikation: RR systolisch unter %d mmHg'):format(mm.minSys) end
+        if not Inv.remove(src, cfg.prepared, slot) then med.nextAt = now return false, 'Spritze konnte nicht entnommen werden' end
+        if cfg.used then
+            Inv.add(src, cfg.used, { label = 'Benutzte Spritze (' .. drug.label .. ')', description = 'In den Abwurfbehaelter entsorgen' })
+        end
+        action, arg, result = 'med', drug.med or ('drug:' .. drug.id), Med.sanitizePrep(meta)
+    end
 
     if action == 'talk_hello' then
         say(lines, 'rd', 'Rettungsdienst: Der Rettungsdienst, koennen Sie mich hoeren?')
@@ -727,6 +757,11 @@ function Med.action(src, incident, p, action, arg, result)
         end
     elseif action == 'med' then
         local m = EC.MedicationById[arg]
+        if not m and type(arg) == 'string' and arg:sub(1, 5) == 'drug:' then
+            -- Medikament aus dem Materialschrank ohne Eintrag im Behandlungsmenue
+            local d = Material.DrugById[arg:sub(6)]
+            m = d and { id = arg, label = d.label, route = d.route } or nil
+        end
         if not m then return false, 'Unbekanntes Medikament' end
         local prep = Material.DrugByMed[m.id]
         if prep and Config.Medical.requirePreparation ~= false and type(result) ~= 'table' then

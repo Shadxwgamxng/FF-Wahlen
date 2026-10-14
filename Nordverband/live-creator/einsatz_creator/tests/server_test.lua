@@ -138,7 +138,7 @@ end
 local files_to_load = {
     'config.lua', 'config_catalog.lua', 'config_medical.lua', 'config_material.lua', 'config_names.lua', 'shared/constants.lua', 'shared/utils.lua', 'shared/schema.lua',
     'server/storage.lua', 'bridge/framework.lua', 'server/permissions.lua', 'server/validation.lua',
-    'server/spawner.lua', 'server/fire.lua', 'server/zfire.lua', 'server/medical.lua', 'server/variants.lua', 'server/rescue.lua', 'bridge/dispatch.lua', 'server/alarm.lua',
+    'server/spawner.lua', 'server/fire.lua', 'server/zfire.lua', 'server/medical.lua', 'bridge/inventory.lua', 'server/variants.lua', 'server/rescue.lua', 'bridge/dispatch.lua', 'server/alarm.lua',
     'server/incidents.lua', 'server/random.lua', 'server/main.lua',
 }
 for _, f in ipairs(files_to_load) do dofile(f) end
@@ -700,6 +700,40 @@ do
     o, r = m2('acs', 'measure', 'rr')
     openText = table.concat(r.view.open, ' | ')
     check(not openText:find('ASS') and not openText:find('12%-Kanal') and not openText:find('Lagerung'), 'ACS-Pflichtmassnahmen erledigt: ' .. openText)
+
+    -- Aufgezogene Spritze als Item (ox_inventory) und Injektion aus dem Inventar
+    local inv, nextSlot = {}, 1
+    local fakeInv = {
+        AddItem = function(_, src, item, count, meta) local sl = nextSlot nextSlot = nextSlot + 1 inv[sl] = { name = item, count = 1, metadata = meta, slot = sl } return true, { slot = sl } end,
+        GetSlot = function(_, src, slot) return inv[slot] end,
+        RemoveItem = function(_, src, item, count, meta, slot) if inv[slot] and inv[slot].name == item then inv[slot] = nil return true end return false end,
+    }
+    local oldEx, oldRs = exports, GetResourceState
+    exports = setmetatable({}, { __call = oldEx, __index = function(_, k) if k == 'ox_inventory' then return fakeInv end return oldEx[k] end })
+    GetResourceState = function(r) if r == 'ox_inventory' then return 'started' end return oldRs(r) end
+    waitRate()
+    local po, pr = request('prepStore', { prep = syringe('heparin') })
+    local it = po and inv[pr.slot]
+    check(it and it.name == 'spritze_aufgezogen' and it.metadata.label:find('Heparin') and it.metadata.ec.drug == 'heparin', 'Aufgezogene Spritze als Item mit Metadaten: ' .. tostring(it and it.metadata.label or pr))
+    waitRate()
+    local po2, pr2 = request('prepStore', { prep = syringe('heparin', 1, { syringe = 'ins05' }) })
+    check(not po2, 'Mehr Inhalt als in die Spritze passt -> abgelehnt')
+    local pneuMed = inc.rescue.patients.pneu.med
+    o, r = m2('pneu', 'inject', pr.slot)
+    check(not o and inv[pr.slot] ~= nil, 'Ohne Zugang wird die Spritze nicht verbraucht')
+    acs.given.heparin = nil
+    o, r = m2('acs', 'inject', pr.slot)
+    local usedItem
+    for _, v in pairs(inv) do if v.name == 'spritze_benutzt' then usedItem = v end end
+    check(o and inv[pr.slot] == nil and acs.given.heparin and usedItem, 'Injektion verbraucht die Spritze, Heparin gegeben, benutzte Spritze im Inventar')
+    o, r = m2('acs', 'inject', pr.slot)
+    check(not o, 'Leeres Fach -> keine Injektion')
+    waitRate()
+    po, pr = request('prepStore', { prep = { drug = 'noradrenalin', drugMl = 0.01, totalMl = 1, air = 0, syringe = 'll2', needle = 'aufz18', labeled = true, checked = true } })
+    o, r = m2('acs', 'inject', pr.slot)
+    local t = ''; for _, l in ipairs(r.lines or {}) do t = t .. l.text .. ' | ' end
+    check(o and t:find('Noradrenalin'), 'Medikament ohne Menueeintrag (Noradrenalin) injizierbar: ' .. t)
+    exports, GetResourceState = oldEx, oldRs
 end
 
 

@@ -2605,6 +2605,7 @@ function gamePrep(body, def) {
     const M = PREP_MAT;
     const byId = (list, id) => list.find(x => x.id === id);
     const order = def.order || {};
+    const free = !def.order;   // freies Aufziehen ohne Verordnung
     const S = {
         stage: 0, drug: null, amps: 1, syringe: null, needle: null, diluent: null, injNeedle: null,
         expired: false, checks: {}, opened: false, headTaps: 0, dissolved: false, dilOpened: false,
@@ -2627,7 +2628,7 @@ function gamePrep(body, def) {
         stopLoop();
         const stepper = STAGES.map((n, i) => `<div class="prep-step ${i === S.stage ? 'is-active' : i < S.stage ? 'is-done' : ''}" data-st="${i}"><b>${i + 1}</b><span>${n}</span></div>`).join('');
         body.innerHTML = `<div class="prep">
-            <div class="prep-order">${icon('file-prescription')} Verordnung: <b>${esc(order.label || '?')}</b> · ${esc(ROUTE_TXT[order.route] || 'i.v.')} · Patient: ${esc(def.patient || 'Patient')}
+            <div class="prep-order">${icon('file-prescription')} ${free ? '<b>Freies Aufziehen</b> · Spritze kommt ins Inventar' : `Verordnung: <b>${esc(order.label || '?')}</b> · ${esc(ROUTE_TXT[order.route] || 'i.v.')} · Patient: ${esc(def.patient || 'Patient')}`}
                 <span class="grow"></span><span class="dim">freie Dosierung - die Menge bestimmst du</span></div>
             <div class="prep-steps">${stepper}</div>
             <div class="prep-main" id="pMain"></div>
@@ -2702,7 +2703,7 @@ function gamePrep(body, def) {
         const expTxt = `${String(exp.getMonth() + 1).padStart(2, '0')}/${exp.getFullYear()}`;
         S.expTxt = expTxt;
         const items = [
-            ['wirkstoff', `Wirkstoff: <b>${esc(S.drug.label)}</b> - entspricht der Verordnung (${esc(order.label)})`],
+            ['wirkstoff', free ? `Wirkstoff: <b>${esc(S.drug.label)}</b> - richtiges Medikament gegriffen` : `Wirkstoff: <b>${esc(S.drug.label)}</b> - entspricht der Verordnung (${esc(order.label)})`],
             ['konz', `Konzentration/Inhalt: <b>${numDe(S.drug.conc, 3)} ${S.drug.unit}/ml</b>, ${numDe(S.drug.ml, 1)} ml je ${esc(cont ? cont.label : 'Ampulle')} (${S.amps}x)`],
             ['verfall', `Verfallsdatum: <b>${expTxt}</b>`],
             ['optik', 'Unversehrt, Loesung klar, keine Partikel'],
@@ -2720,7 +2721,7 @@ function gamePrep(body, def) {
             $('#pBack', body).onclick = () => go(0);
             $('#pNext', body).onclick = () => {
                 if (S.expired) addErr('Abgelaufene Ampulle verwendet');
-                if (S.drug.id !== (byIdMed(order.id) || {}).id) addErr('Wirkstoff entspricht nicht der Verordnung');
+                if (!free && S.drug.id !== (byIdMed(order.id) || {}).id) addErr('Wirkstoff entspricht nicht der Verordnung');
                 if (S.syringe.kind === 'enteral') addErr('Enteralspritze (ENFit) fuer eine parenterale Gabe');
                 if (S.needle.use !== 'draw') S.notes.push('Zum Aufziehen eine Aufzieh- oder Filterkanuele verwenden');
                 S.drugLeft = S.drug.ml * S.amps; S.dilLeft = S.diluent ? S.diluent.ml : 0;
@@ -2927,15 +2928,15 @@ function gamePrep(body, def) {
 
     /* 7. Vierteilige Abschlusskontrolle nach dem Vier-Augen-Prinzip */
     function stControl() {
-        const ordered = byIdMed(order.id);
-        const route = order.route || 'iv';
+        const ordered = free ? S.drug : byIdMed(order.id);
+        const route = order.route || S.drug.route || 'iv';
         const conc = total() > 0 ? amount() / total() : 0;
         const okDrug = ordered && ordered.id === S.drug.id;
         const doseOk = amount() >= S.drug.dose * 0.5 && amount() <= S.drug.max * 1.05;
-        const routeOk = route === 'im' ? true : !!def.access;
+        const routeOk = route === 'im' || free ? true : !!def.access;
         const rows = [
-            ['patient', 'Richtiger Patient', `${esc(def.patient || 'Patient')}`, true],
-            ['medikament', 'Richtiges Medikament', `Verordnet: <b>${esc(order.label)}</b> · Spritze: <b>${esc(S.drug.label)}</b>`, okDrug],
+            ['patient', 'Richtiger Patient', free ? 'wird bei der Injektion geprueft' : `${esc(def.patient || 'Patient')}`, true],
+            ['medikament', 'Richtiges Medikament', free ? `Spritze: <b>${esc(S.drug.label)}</b>` : `Verordnet: <b>${esc(order.label)}</b> · Spritze: <b>${esc(S.drug.label)}</b>`, okDrug],
             ['dosis', 'Richtige Dosis', `<b>${unitTxt(amount())}</b> in ${numDe(total(), 1)} ml (= ${numDe(conc, 3)} ${S.drug.unit}/ml) · uebliche Einzeldosis ${unitTxt(S.drug.dose)}, Hoechstdosis ${unitTxt(S.drug.max)}${air() > 0.02 ? ` · <span class="warn">Luft ${numDe(air(), 2)} ml</span>` : ''}`, doseOk && air() <= 0.02],
             ['weg', 'Richtiger Applikationsweg', `${esc(ROUTE_TXT[route] || 'i.v.')} · Zugang: ${esc(def.access || (route === 'im' ? 'nicht noetig' : 'kein Zugang!'))}${route === 'im' ? ` · Injektionskanuele: <select class="input input--sm" id="pInj"><option value="">waehlen ...</option>${M.needles.filter(n => n.use === 'inject').map(n => `<option value="${n.id}" ${S.injNeedle === n.id ? 'selected' : ''}>${esc(n.label)}</option>`).join('')}</select>` : ''}`, routeOk],
         ];
@@ -2951,14 +2952,19 @@ function gamePrep(body, def) {
         const inj = $('#pInj', body); if (inj) inj.onchange = () => { S.injNeedle = inj.value; };
         const all = rows.every(([k]) => S.control[k]);
         msg(rows.some(r => !r[3]) ? 'Achtung: Mindestens ein Punkt stimmt nicht - korrigieren oder bewusst so geben' : 'Alle Punkte vorlesen und bestaetigen', rows.some(r => !r[3]));
-        nav(`<button class="btn" id="pRedo">${icon('rotate-left')} Neu aufziehen</button> <button class="btn btn--primary" id="pGive" ${all ? '' : 'disabled'}>${icon('syringe')} Verabreichen</button>`);
+        nav(`<button class="btn" id="pRedo">${icon('rotate-left')} Neu aufziehen</button>
+            ${def.items ? `<button class="btn" id="pStore" ${all ? '' : 'disabled'}>${icon('box-open')} Spritze einstecken</button>` : ''}
+            ${def.items && free ? '' : `<button class="btn btn--primary" id="pGive" ${all ? '' : 'disabled'}>${icon('syringe')} ${def.items ? 'Einstecken und verabreichen' : 'Verabreichen'}</button>`}`);
         $('#pRedo', body).onclick = () => { Object.assign(S, { stage: 3, drugLeft: S.drugLeft + S.drugMl, dilLeft: S.dilLeft + S.dilMl, drugMl: 0, dilMl: 0, bubbles: [], label: null, labeled: false, control: {}, lostMl: 0 }); render(); };
-        $('#pGive', body).onclick = () => {
-            if (route === 'im' && !S.injNeedle) return msg('Fuer die i.m.-Gabe eine Injektionskanuele waehlen', true);
+        const finish = (give) => {
+            if (give && route === 'im' && !S.injNeedle) return msg('Fuer die i.m.-Gabe eine Injektionskanuele waehlen', true);
             const res = { drug: S.drug.id, drugMl: +S.drugMl.toFixed(3), totalMl: +total().toFixed(3), air: +air().toFixed(3), syringe: S.syringe.id,
-                needle: route === 'im' ? S.injNeedle : S.needle.id, labeled: !!S.labeled, checked: true };
-            Game.done(body, true, `${S.drug.label} ${unitTxt(amount())} wird verabreicht.`, res);
+                needle: route === 'im' && S.injNeedle ? S.injNeedle : S.needle.id, labeled: !!S.labeled, checked: true };
+            const txt = give ? `${S.drug.label} ${unitTxt(amount())} wird verabreicht.` : `Spritze ${S.drug.label} ${unitTxt(amount())} eingesteckt.`;
+            Game.done(body, true, txt, def.items ? { prep: res, give } : res);
         };
+        const gb = $('#pGive', body); if (gb) gb.onclick = () => finish(true);
+        const sb = $('#pStore', body); if (sb) sb.onclick = () => finish(false);
     }
 
     render();

@@ -118,12 +118,28 @@ end)
 -- Medikament aufziehen: Materialschrank mit Spritzen, Kanuelen, Gebinden und Medikamenten
 ----------------------------------------------------------------------------
 local materialSent = false
+
+function MedClient.itemsActive()
+    local cfg = Config.Items or {}
+    return cfg.enabled ~= false and GetResourceState(cfg.resource or 'ox_inventory') == 'started'
+end
+
+-- aufgezogene Spritzen im eigenen Inventar
+function MedClient.preparedSyringes()
+    if not MedClient.itemsActive() then return {} end
+    local ok, slots = pcall(function() return exports[Config.Items.resource or 'ox_inventory']:Search('slots', Config.Items.prepared) end)
+    if not ok or type(slots) ~= 'table' then return {} end
+    table.sort(slots, function(a, b) return (a.slot or 0) < (b.slot or 0) end)
+    return slots
+end
+
 function MedClient.prepGame(medId, cur)
-    local m = EC.MedicationById[medId]
-    local view = cur.view or {}
+    local m = medId and EC.MedicationById[medId]
+    local view = cur and cur.view or {}
     local def = {
-        type = 'prep', title = 'Medikament vorbereiten',
-        order = { id = medId, label = m and m.label or medId, route = m and m.route or 'iv' },
+        type = 'prep', title = medId and 'Medikament vorbereiten' or 'Medikament aufziehen',
+        order = medId and { id = medId, label = m and m.label or medId, route = m and m.route or 'iv' } or nil,
+        items = MedClient.itemsActive(),
         patient = view.name or 'Patient',
         access = view.access,
         staff = GetPlayerName(PlayerId()),
@@ -134,6 +150,22 @@ function MedClient.prepGame(medId, cur)
         materialSent = true
     end
     return def
+end
+
+-- Aufziehen ohne Verordnung: Spritze kommt nur ins Inventar
+function MedClient.prepareFree(reopen)
+    local cur = MedClient.current
+    if MedClient.busy then return end
+    MedClient.busy = true
+    CreateThread(function()
+        local g = MedClient.game(MedClient.prepGame(nil, cur))
+        if g and not g.cancel and type(g.result) == 'table' and g.result.prep then
+            local ok, res = Request('prepStore', { prep = g.result.prep })
+            NUI.toast(ok and 'success' or 'error', ok and 'Aufgezogene Spritze eingesteckt' or (res or 'Fehler'))
+        end
+        MedClient.busy = false
+        if cur then MedClient.open(cur.incident, cur.patient, reopen) end
+    end)
 end
 
 ----------------------------------------------------------------------------
@@ -197,6 +229,23 @@ function MedClient.act(action, arg, reopen)
                 return MedClient.open(cur.incident, cur.patient, reopen)
             end
             result = g.result
+            if action == 'med' and type(result) == 'table' and result.prep then
+                local okS, resS = Request('prepStore', { prep = result.prep })
+                if not okS then
+                    NUI.toast('error', resS or 'Spritze konnte nicht eingesteckt werden')
+                    if kneel then ClearPedTasks(ped) end
+                    MedClient.busy = false
+                    return MedClient.open(cur.incident, cur.patient, reopen)
+                end
+                if not result.give then
+                    NUI.toast('success', 'Aufgezogene Spritze eingesteckt')
+                    if kneel then ClearPedTasks(ped) end
+                    MedClient.busy = false
+                    return MedClient.open(cur.incident, cur.patient, 'ec_med_syringes')
+                end
+                action, arg, result = 'inject', resS.slot, nil
+                game = nil
+            end
         end
         local ok, res = Request('medAction', { incidentId = cur.incident, patientId = cur.patient, action = action, arg = arg, result = result })
         if game and game.awaitValue then
@@ -300,6 +349,20 @@ local function buildMenus(view)
     for _, g in ipairs(order) do
         register('ec_med_meds_' .. g, g, groups[g], 'ec_med_meds')
         meds[#meds + 1] = { title = g, icon = 'pills', menu = 'ec_med_meds_' .. g }
+    end
+    if MedClient.itemsActive() then
+        local syr = {}
+        for _, it in ipairs(MedClient.preparedSyringes()) do
+            local md = it.metadata or {}
+            syr[#syr + 1] = { title = md.label or 'Aufgezogene Spritze', description = md.description, icon = 'syringe',
+                onSelect = function() MedClient.act('inject', it.slot, 'ec_med_syringes') end }
+        end
+        if #syr == 0 then syr[1] = { title = 'Keine aufgezogenen Spritzen im Inventar', icon = 'ban', disabled = true } end
+        syr[#syr + 1] = { title = 'Medikament aufziehen (frei)', description = 'Spritze vorbereiten und einstecken', icon = 'prescription-bottle-medical',
+            onSelect = function() MedClient.prepareFree('ec_med_syringes') end }
+        register('ec_med_syringes', 'Aufgezogene Spritzen', syr, 'ec_med_meds')
+        table.insert(meds, 1, { title = ('Aufgezogene Spritzen (%d)'):format(#MedClient.preparedSyringes()), description = 'Injizieren oder neue Spritze aufziehen',
+            icon = 'syringe', menu = 'ec_med_syringes' })
     end
     register('ec_med_meds', view.canula and 'Medikamente' or 'Medikamente (kein Zugang!)', meds, main)
 
