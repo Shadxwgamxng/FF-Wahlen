@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Media Downloader</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-slate-950 text-slate-100 antialiased">
+  <main class="mx-auto max-w-3xl px-4 py-10 space-y-8">
+    <header>
+      <h1 class="text-2xl font-semibold tracking-tight">Media Downloader</h1>
+      <p class="mt-1 text-sm text-slate-400">YouTube · SoundCloud · Spotify, lokal über yt-dlp und spotdl</p>
+    </header>
+
+    <!-- Formular -->
+    <form id="form" class="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
+      <div>
+        <label for="url" class="mb-1 block text-sm font-medium text-slate-300">URL</label>
+        <div class="flex gap-2">
+          <input id="url" type="url" required placeholder="https://www.youtube.com/watch?v=…"
+            class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/30" />
+          <span id="platform" class="hidden shrink-0 self-center rounded-full px-2.5 py-1 text-xs font-medium"></span>
+        </div>
+      </div>
+
+      <div class="grid gap-4 sm:grid-cols-3">
+        <fieldset>
+          <legend class="mb-1 text-sm font-medium text-slate-300">Format</legend>
+          <div class="flex rounded-lg border border-slate-700 p-0.5 text-sm">
+            <label class="flex-1">
+              <input type="radio" name="format" value="mp3" class="peer sr-only" checked />
+              <span class="block cursor-pointer rounded-md px-3 py-1.5 text-center text-slate-400 peer-checked:bg-indigo-600 peer-checked:text-white">MP3</span>
+            </label>
+            <label class="flex-1">
+              <input type="radio" name="format" value="mp4" class="peer sr-only" />
+              <span class="block cursor-pointer rounded-md px-3 py-1.5 text-center text-slate-400 peer-checked:bg-indigo-600 peer-checked:text-white peer-disabled:cursor-not-allowed peer-disabled:opacity-40">MP4</span>
+            </label>
+          </div>
+        </fieldset>
+
+        <div>
+          <label for="quality" class="mb-1 block text-sm font-medium text-slate-300">Videoqualität</label>
+          <select id="quality" disabled
+            class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm disabled:opacity-40">
+            <option value="best">Beste</option>
+            <option value="2160">2160p (4K)</option>
+            <option value="1440">1440p</option>
+            <option value="1080">1080p</option>
+            <option value="720">720p</option>
+            <option value="480">480p</option>
+            <option value="360">360p</option>
+          </select>
+        </div>
+
+        <label class="flex items-end gap-2 pb-2 text-sm text-slate-300">
+          <input id="playlist" type="checkbox" class="h-4 w-4 rounded border-slate-600 bg-slate-950 accent-indigo-600" />
+          Ganze Playlist laden
+        </label>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <button id="submit" type="submit"
+          class="rounded-lg bg-indigo-600 px-5 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50">
+          Download
+        </button>
+        <p id="formError" class="text-sm text-rose-400"></p>
+      </div>
+      <p id="hint" class="text-xs text-slate-500"></p>
+    </form>
+
+    <!-- Jobs -->
+    <section>
+      <div class="mb-3 flex items-center justify-between">
+        <h2 class="text-lg font-semibold">Aufträge</h2>
+        <button id="clearJobs" class="text-xs text-slate-400 hover:text-slate-200">Erledigte entfernen</button>
+      </div>
+      <div id="jobs" class="space-y-3">
+        <p class="text-sm text-slate-500" id="noJobs">Noch keine Aufträge.</p>
+      </div>
+    </section>
+
+    <!-- Dateien -->
+    <section>
+      <div class="mb-3 flex items-center justify-between">
+        <h2 class="text-lg font-semibold">Heruntergeladene Dateien</h2>
+        <button id="refreshFiles" class="text-xs text-slate-400 hover:text-slate-200">Aktualisieren</button>
+      </div>
+      <ul id="files" class="divide-y divide-slate-800 rounded-2xl border border-slate-800 bg-slate-900/60"></ul>
+    </section>
+  </main>
+
+  <template id="jobTpl">
+    <div class="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
+      <div class="flex items-start justify-between gap-3">
+        <div class="min-w-0">
+          <div class="flex items-center gap-2">
+            <span data-badge class="rounded-full px-2 py-0.5 text-xs font-medium"></span>
+            <span data-meta class="text-xs text-slate-400"></span>
+          </div>
+          <p data-url class="mt-1 truncate text-sm text-slate-300"></p>
+        </div>
+        <button data-cancel class="shrink-0 rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800">Abbrechen</button>
+      </div>
+      <div class="mt-3 h-2 overflow-hidden rounded-full bg-slate-800">
+        <div data-bar class="h-full w-0 rounded-full bg-indigo-500 transition-all duration-300"></div>
+      </div>
+      <div class="mt-2 flex items-center justify-between gap-3 text-xs">
+        <span data-label class="truncate text-slate-400"></span>
+        <button data-toggle class="shrink-0 text-slate-400 hover:text-slate-200">Log anzeigen</button>
+      </div>
+      <pre data-log class="mt-2 hidden max-h-64 overflow-auto whitespace-pre-wrap break-all rounded-lg bg-black/60 p-3 font-mono text-[11px] leading-relaxed text-slate-300"></pre>
+    </div>
+  </template>
+
+  <script>
+    const $ = (sel, root = document) => root.querySelector(sel);
+    const form = $('#form');
+    const urlInput = $('#url');
+    const qualitySel = $('#quality');
+    const mp4Radio = $('input[name=format][value=mp4]');
+    const mp3Radio = $('input[name=format][value=mp3]');
+
+    const PLATFORMS = {
+      youtube:    { name: 'YouTube',    cls: 'bg-red-500/15 text-red-300' },
+      soundcloud: { name: 'SoundCloud', cls: 'bg-orange-500/15 text-orange-300' },
+      spotify:    { name: 'Spotify',    cls: 'bg-emerald-500/15 text-emerald-300' },
+    };
+    const STATUS = {
+      queued:    { text: 'Wartet',      bar: 'bg-slate-500' },
+      running:   { text: 'Läuft',       bar: 'bg-indigo-500' },
+      done:      { text: 'Fertig',      bar: 'bg-emerald-500' },
+      error:     { text: 'Fehler',      bar: 'bg-rose-500' },
+      cancelled: { text: 'Abgebrochen', bar: 'bg-slate-500' },
+    };
+
+    function detectPlatform(raw) {
+      let host;
+      try { host = new URL(raw.trim()).hostname.toLowerCase(); } catch { return null; }
+      const m = (d) => host === d || host.endsWith('.' + d);
+      if (m('youtube.com') || m('youtu.be') || m('youtube-nocookie.com')) return 'youtube';
+      if (m('soundcloud.com')) return 'soundcloud';
+      if (m('spotify.com')) return 'spotify';
+      return null;
+    }
+
+    // ---- Formular-Logik --------------------------------------------------
+    function syncForm() {
+      const platform = detectPlatform(urlInput.value);
+      const badge = $('#platform');
+      if (platform) {
+        badge.textContent = PLATFORMS[platform].name;
+        badge.className = 'shrink-0 self-center rounded-full px-2.5 py-1 text-xs font-medium ' + PLATFORMS[platform].cls;
+      } else {
+        badge.className = 'hidden';
+      }
+
+      const videoAllowed = !platform || platform === 'youtube';
+      mp4Radio.disabled = !videoAllowed;
+      if (!videoAllowed) mp3Radio.checked = true;
+      qualitySel.disabled = !(videoAllowed && mp4Radio.checked);
+
+      const playlistBox = $('#playlist');
+      playlistBox.disabled = platform === 'spotify';
+      if (platform === 'spotify') playlistBox.checked = true;
+
+      $('#hint').textContent = {
+        youtube: 'YouTube: MP3 (Audio) oder MP4 (Video mit Qualitätsauswahl).',
+        soundcloud: 'SoundCloud: Download als MP3.',
+        spotify: 'Spotify: spotdl sucht die passenden Audiospuren und speichert sie als MP3 (Tracks, Alben und Playlists).',
+      }[platform] || '';
+    }
+    urlInput.addEventListener('input', syncForm);
+    form.addEventListener('change', syncForm);
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      $('#formError').textContent = '';
+      const btn = $('#submit');
+      btn.disabled = true;
+      try {
+        const res = await fetch('/api/download', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url: urlInput.value,
+            format: form.format.value,
+            quality: qualitySel.value,
+            playlist: $('#playlist').checked,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Unbekannter Fehler');
+        addJob(data);
+        urlInput.value = '';
+        syncForm();
+      } catch (err) {
+        $('#formError').textContent = err.message;
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    // ---- Jobs ------------------------------------------------------------
+    const jobEls = new Map();
+
+    function renderJob(job) {
+      const el = jobEls.get(job.id);
+      if (!el) return;
+      const p = PLATFORMS[job.platform];
+      const s = STATUS[job.status];
+      $('[data-badge]', el).textContent = p.name;
+      $('[data-badge]', el).className = 'rounded-full px-2 py-0.5 text-xs font-medium ' + p.cls;
+      $('[data-meta]', el).textContent =
+        `${job.format.toUpperCase()}${job.quality ? ' · ' + (job.quality === 'best' ? 'Beste' : job.quality + 'p') : ''} · ${s.text}`;
+      $('[data-url]', el).textContent = job.url;
+      $('[data-url]', el).title = job.url;
+      const bar = $('[data-bar]', el);
+      bar.style.width = (job.status === 'error' || job.status === 'cancelled' ? Math.max(job.progress, 100) : job.progress) + '%';
+      bar.className = 'h-full rounded-full transition-all duration-300 ' + s.bar +
+        (job.status === 'running' && !job.progress ? ' animate-pulse !w-full opacity-40' : '');
+      $('[data-label]', el).textContent = job.error || job.label || '';
+      $('[data-label]', el).classList.toggle('text-rose-400', job.status === 'error');
+      $('[data-cancel]', el).classList.toggle('hidden', !['queued', 'running'].includes(job.status));
+    }
+
+    function appendLog(el, line) {
+      const pre = $('[data-log]', el);
+      const atBottom = pre.scrollTop + pre.clientHeight >= pre.scrollHeight - 10;
+      pre.textContent += line + '\n';
+      if (atBottom) pre.scrollTop = pre.scrollHeight;
+    }
+
+    function addJob(job) {
+      if (jobEls.has(job.id)) return;
+      $('#noJobs')?.remove();
+      const el = $('#jobTpl').content.firstElementChild.cloneNode(true);
+      jobEls.set(job.id, el);
+      $('#jobs').prepend(el);
+
+      $('[data-toggle]', el).addEventListener('click', (e) => {
+        const pre = $('[data-log]', el);
+        pre.classList.toggle('hidden');
+        e.target.textContent = pre.classList.contains('hidden') ? 'Log anzeigen' : 'Log ausblenden';
+        pre.scrollTop = pre.scrollHeight;
+      });
+      $('[data-cancel]', el).addEventListener('click', () =>
+        fetch(`/api/jobs/${job.id}/cancel`, { method: 'POST' }));
+
+      renderJob(job);
+
+      // Live-Updates per Server-Sent Events
+      const es = new EventSource(`/api/jobs/${job.id}/events`);
+      es.addEventListener('init', (e) => {
+        const data = JSON.parse(e.data);
+        $('[data-log]', el).textContent = '';
+        data.logs.forEach((l) => appendLog(el, l));
+        renderJob(data);
+      });
+      es.addEventListener('log', (e) => appendLog(el, JSON.parse(e.data).line));
+      es.addEventListener('status', (e) => renderJob(JSON.parse(e.data)));
+      es.addEventListener('end', (e) => {
+        renderJob(JSON.parse(e.data));
+        es.close();
+        loadFiles();
+      });
+    }
+
+    $('#clearJobs').addEventListener('click', async () => {
+      await fetch('/api/jobs', { method: 'DELETE' });
+      const remaining = new Set((await (await fetch('/api/jobs')).json()).map((j) => j.id));
+      for (const [id, el] of jobEls) if (!remaining.has(id)) { el.remove(); jobEls.delete(id); }
+    });
+
+    // ---- Dateien ---------------------------------------------------------
+    function formatSize(bytes) {
+      const units = ['B', 'KB', 'MB', 'GB'];
+      let i = 0;
+      while (bytes >= 1024 && i < units.length - 1) { bytes /= 1024; i++; }
+      return bytes.toFixed(i ? 1 : 0) + ' ' + units[i];
+    }
+
+    async function loadFiles() {
+      const list = $('#files');
+      let files = [];
+      try { files = await (await fetch('/api/files')).json(); } catch {}
+      list.innerHTML = '';
+      if (!files.length) {
+        list.innerHTML = '<li class="px-4 py-3 text-sm text-slate-500">Noch keine Dateien.</li>';
+        return;
+      }
+      for (const f of files) {
+        const li = document.createElement('li');
+        li.className = 'flex items-center gap-3 px-4 py-3';
+        const isVideo = /\.(mp4|mkv|webm)$/i.test(f.name);
+        li.innerHTML = `
+          <span class="shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${isVideo ? 'bg-sky-500/15 text-sky-300' : 'bg-violet-500/15 text-violet-300'}"></span>
+          <div class="min-w-0 flex-1">
+            <p class="truncate text-sm"></p>
+            <p class="text-xs text-slate-500"></p>
+          </div>
+          <a class="shrink-0 rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500">Download</a>
+          <button class="shrink-0 rounded-md border border-slate-700 px-2 py-1.5 text-xs text-slate-400 hover:bg-slate-800 hover:text-rose-300" title="Löschen">✕</button>`;
+        li.children[0].textContent = (f.name.split('.').pop() || '').toUpperCase();
+        li.children[1].children[0].textContent = f.name;
+        li.children[1].children[0].title = f.name;
+        li.children[1].children[1].textContent = `${formatSize(f.size)} · ${new Date(f.modified).toLocaleString('de-DE')}`;
+        li.children[2].href = '/downloads/' + encodeURIComponent(f.name);
+        li.children[2].setAttribute('download', f.name);
+        li.children[3].addEventListener('click', async () => {
+          if (!confirm(`"${f.name}" wirklich löschen?`)) return;
+          await fetch('/api/files/' + encodeURIComponent(f.name), { method: 'DELETE' });
+          loadFiles();
+        });
+        list.appendChild(li);
+      }
+    }
+    $('#refreshFiles').addEventListener('click', loadFiles);
+
+    // ---- Start -----------------------------------------------------------
+    (async () => {
+      syncForm();
+      loadFiles();
+      try {
+        const jobs = await (await fetch('/api/jobs')).json();
+        jobs.reverse().forEach(addJob); // älteste zuerst, damit die neuesten oben landen
+      } catch {}
+    })();
+  </script>
+</body>
+</html>

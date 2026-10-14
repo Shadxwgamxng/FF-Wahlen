@@ -1,0 +1,16 @@
+{
+  "name": "media-downloader",
+  "version": "1.0.0",
+  "description": "Lokale Web-App zum Herunterladen von Audio/Video (YouTube, SoundCloud, Spotify) über yt-dlp und spotdl",
+  "main": "server.js",
+  "private": true,
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}
