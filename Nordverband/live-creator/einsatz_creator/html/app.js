@@ -1929,66 +1929,102 @@ function traceLead(ctx, kind, hf, lead, x0, y0, w, amp, color, seed) {
     }
     ctx.stroke();
 }
-function ekgPaper(ctx, W, H) {
-    ctx.fillStyle = '#fdf1ee'; ctx.fillRect(0, 0, W, H);
-    for (let x = 0; x <= W; x += 5) { ctx.strokeStyle = x % 25 === 0 ? 'rgba(220, 70, 70, 0.45)' : 'rgba(230, 120, 120, 0.18)'; ctx.lineWidth = x % 25 === 0 ? 1 : 0.6; ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
-    for (let y = 0; y <= H; y += 5) { ctx.strokeStyle = y % 25 === 0 ? 'rgba(220, 70, 70, 0.45)' : 'rgba(230, 120, 120, 0.18)'; ctx.lineWidth = y % 25 === 0 ? 1 : 0.6; ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
-}
 
-/* Ergebnis: Rhythmus auf dem Monitor/Defibrillator, beim 12-Kanal zusaetzlich der Ausdruck */
-function showEkgResult(body, d, twelve) {
-    if (!d || !d.ekg) return;
-    const ekg = d.ekg, m = d.monitor || {};
-    const hf = ekg.hf || m.hf || 0;
-    body.innerHTML = `<div class="ekgresult ${twelve ? 'is-12' : ''}">
-        <div class="defimon"><img src="img/defi.webp" alt="Monitor/Defibrillator">
-            <div class="defimon__screen">
-                <div class="lp__top"><span>${esc(d.name || 'Patient')}</span><span>${new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}</span></div>
-                <div class="lp__row"><div class="lp__lead">II</div><canvas width="300" height="78"></canvas>
-                    <div class="lp__val lp__val--hf"><small>HF</small><b>${hf || '---'}</b></div></div>
-                <div class="lp__row lp__row--vals">
-                    <div class="lp__val lp__val--spo2"><small>SpO₂ %</small><b>${m.spo2 ?? '--'}</b></div>
-                    <div class="lp__val lp__val--nibp"><small>NIBP</small><b>${m.rr ?? '---/--'}</b></div>
-                    <div class="lp__val lp__val--af"><small>AF</small><b>${m.af ?? '--'}</b></div></div>
-                <div class="lp__msg">${esc(ekg.label)}</div>
-            </div></div>
-        ${twelve ? `<div class="ekgprint"><canvas width="1000" height="380"></canvas>
-            <div class="ekgprint__foot">25 mm/s · 10 mm/mV · ${esc(ekg.label)}${hf ? ` · HF ${hf}/min` : ''}</div></div>` : ''}
-    </div>`;
-    // Live-Kurve auf dem Monitor
-    const c = $('.defimon canvas', body), ctx = c.getContext('2d');
-    const kind = ekg.wave || 'sinus';
-    let x = 0, ph = 0, prev = null, last = performance.now();
+/* Bildschirm des Monitor/Defibrillators: Canvas liegt exakt auf der Displayflaeche des Fotos.
+   4-Kanal: EKG II + Pleth mit Messwertfeldern. 12-Kanal: alle 12 Ableitungen auf dem Bildschirm + Rhythmus II.
+   Unten die Softkey-Beschriftung ueber den sieben Geraetetasten. */
+function drawDefiScreen(c, d, hf, twelve) {
+    const ctx = c.getContext('2d'), W = c.width, H = c.height;
+    const ekg = d.ekg, m = d.monitor || {}, kind = ekg.wave || 'sinus';
+    const noPulse = kind === 'vf' || kind === 'flat';
+    const font = (w, px) => `${w} ${px}px Consolas, "DejaVu Sans Mono", monospace`;
+    const HEAD = 34, FOOT = 34, MSG = 30;
+    const VALW = twelve ? 150 : 205, CW = W - VALW - 6;   // Kurvenbereich
+    const top = HEAD + 4, bottom = H - FOOT - MSG - 4;
+    const box = (x, y, w, h, label, unit, value, color, size) => {
+        ctx.strokeStyle = 'rgba(255,255,255,0.14)'; ctx.lineWidth = 1; ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+        ctx.fillStyle = color; ctx.font = font(700, 17); ctx.textAlign = 'left'; ctx.fillText(label, x + 7, y + 19);
+        ctx.font = font(400, 13); ctx.textAlign = 'right'; ctx.fillText(unit, x + w - 6, y + 19);
+        ctx.font = font(700, size); ctx.fillText(value, x + w - 7, y + h - 9);
+    };
+    // Kopfzeile, Werte, Meldung, Softkeys
+    ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#22272e'; ctx.fillRect(0, 0, W, HEAD);
+    ctx.font = font(700, 19); ctx.textAlign = 'left'; ctx.fillStyle = '#eee'; ctx.fillText(d.name || 'Patient', 10, 23);
+    ctx.textAlign = 'right'; ctx.fillText(new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }), W - 50, 23);
+    ctx.fillStyle = '#7ee787'; ctx.fillRect(W - 42, 11, 26, 13); ctx.fillRect(W - 16, 14, 3, 7);
+    ctx.textAlign = 'center'; ctx.fillStyle = '#9aa4ad'; ctx.font = font(400, 16); ctx.fillText(twelve ? '12-Kanal-EKG' : 'Monitor', W / 2, 23);
+    const vx = W - VALW, vh = (bottom - top) / 4;
+    box(vx, top, VALW - 4, vh * 1.3, 'HF', '/min', noPulse ? '---' : String(hf || '---'), '#46e06a', twelve ? 52 : 70);
+    box(vx, top + vh * 1.3 + 3, VALW - 4, vh * 0.9 - 3, 'SpO2', '%', m.spo2 != null && !noPulse ? String(m.spo2) : '--', '#4fc3f7', twelve ? 36 : 46);
+    box(vx, top + vh * 2.2 + 3, VALW - 4, vh * 0.9 - 3, 'NIBP', 'mmHg', m.rr != null ? String(m.rr) : '---/--', '#f0f0f0', twelve ? 26 : 34);
+    box(vx, top + vh * 3.1 + 3, VALW - 4, vh * 0.9 - 3, 'AF', '/min', m.af != null ? String(m.af) : '--', '#ffd54f', twelve ? 32 : 40);
+    const my = H - FOOT - MSG;
+    ctx.fillStyle = noPulse ? '#c62828' : '#2a2f36'; ctx.fillRect(0, my, W, MSG);
+    ctx.fillStyle = noPulse ? '#fff' : '#ffd54f'; ctx.font = font(700, 18); ctx.textAlign = 'left';
+    let msg = ekg.label; while (ctx.measureText(msg).width > W - 20 && msg.length > 4) msg = msg.slice(0, -1);
+    ctx.fillText(msg === ekg.label ? msg : msg.slice(0, -1) + '…', 10, my + 21);
+    const keys = ['Menue', 'Ableit.', '12-Kanal', 'NIBP', 'Alarme', 'Ereignis', 'Drucken'], kx = [0.057, 0.199, 0.341, 0.483, 0.638, 0.78, 0.935];
+    ctx.fillStyle = '#22272e'; ctx.fillRect(0, H - FOOT, W, FOOT);
+    ctx.font = font(700, 16); ctx.textAlign = 'center';
+    keys.forEach((k, i) => {
+        ctx.fillStyle = twelve && k === '12-Kanal' ? '#46e06a' : '#d6dade'; ctx.fillText(k, kx[i] * W, H - 11);
+        if (i) { ctx.fillStyle = 'rgba(255,255,255,0.2)'; ctx.fillRect(((kx[i - 1] + kx[i]) / 2) * W, H - FOOT + 5, 1, FOOT - 10); }
+    });
+    // Kurvenspuren (Sweep)
+    const tracks = [];
+    if (twelve) {
+        // 3 x 4 Ableitungen statisch, darunter Rhythmusstreifen II live
+        const grid = [['I', 'aVR', 'V1', 'V4'], ['II', 'aVL', 'V2', 'V5'], ['III', 'aVF', 'V3', 'V6']];
+        const rhH = 70, rowH = (bottom - top - rhH) / 3, colW = CW / 4;
+        ctx.font = font(700, 15); ctx.textAlign = 'left';
+        grid.forEach((row, r) => row.forEach((lead, col) => {
+            const x0 = col * colW, y0 = top + r * rowH + rowH * 0.6;
+            traceLead(ctx, kind, hf, lead, x0 + 4, y0, colW - 8, rowH * 0.42, '#46e06a', 0.15 + col * 0.25);
+            ctx.fillStyle = '#9be7a8'; ctx.fillText(lead, x0 + 5, top + r * rowH + 15);
+        }));
+        ctx.strokeStyle = 'rgba(255,255,255,0.15)'; ctx.beginPath(); ctx.moveTo(0, bottom - rhH); ctx.lineTo(CW, bottom - rhH); ctx.stroke();
+        ctx.fillStyle = '#46e06a'; ctx.fillText('II', 5, bottom - rhH + 16);
+        tracks.push({ y0: bottom - rhH + 4, h: rhH - 4, color: '#46e06a', fn: (ph) => leadWave(kind, ph, 'II'), base: 0.68, amp: 0.5 });
+    } else {
+        const eh = (bottom - top) * 0.6, ph0 = top + eh;
+        ctx.font = font(700, 17); ctx.textAlign = 'left';
+        ctx.fillStyle = '#46e06a'; ctx.fillText('II  x1', 6, top + 17);
+        ctx.fillStyle = '#4fc3f7'; ctx.fillText('Pleth', 6, ph0 + 17);
+        const pleth = (p) => { const q = (p + 0.75) % 1; return Math.exp(-Math.pow((q - 0.18) / 0.09, 2)) + 0.35 * Math.exp(-Math.pow((q - 0.42) / 0.07, 2)); };
+        tracks.push({ y0: top, h: eh, color: '#46e06a', fn: (ph) => leadWave(kind, ph, 'II'), base: 0.66, amp: 0.55 });
+        tracks.push({ y0: ph0, h: bottom - ph0, color: '#4fc3f7', fn: (ph) => noPulse ? (Math.random() - 0.5) * 0.02 : pleth(ph), base: 0.88, amp: 0.6 });
+    }
+    const X0 = twelve ? 24 : 70;
+    let x = X0, ph = 0, prev = tracks.map(() => null), last = performance.now();
+    const SPEED = 150;
     const loop = (t) => {
         const dt = Math.min(0.1, (t - last) / 1000); last = t;
-        const steps = Math.max(1, Math.round(dt * 110));
+        const steps = Math.max(1, Math.round(dt * SPEED));
         for (let i = 0; i < steps; i++) {
-            const beat = kind === 'vf' || kind === 'flat' ? 1.2 : 60 / Math.max(25, hf || 60) * (kind === 'afib' ? (0.7 + Math.random() * 0.6) : 1);
-            ph += (1 / 110) / beat; if (ph >= 1) ph -= 1;
-            const y = c.height * 0.62 - leadWave(kind, ph, 'II') * c.height * 0.5;
-            ctx.fillStyle = '#05080a'; ctx.fillRect(x, 0, 10, c.height);
-            ctx.strokeStyle = '#46e06a'; ctx.lineWidth = 1.6;
-            if (prev !== null) { ctx.beginPath(); ctx.moveTo(x - 1, prev); ctx.lineTo(x, y); ctx.stroke(); }
-            prev = y; x = (x + 1) % c.width; if (x === 0) prev = null;
+            const beat = noPulse ? 1.2 : 60 / Math.max(25, hf || 60) * (kind === 'afib' ? (0.7 + Math.random() * 0.6) : 1);
+            ph += (1 / SPEED) / beat; if (ph >= 1) ph -= 1;
+            tracks.forEach((tr, k) => {
+                const y = tr.y0 + tr.h * tr.base - tr.fn(ph) * tr.h * tr.amp;
+                ctx.fillStyle = '#000'; ctx.fillRect(x, tr.y0 + 20, 12, tr.h - 20);
+                if (prev[k] !== null) { ctx.strokeStyle = tr.color; ctx.lineWidth = 2.2; ctx.beginPath(); ctx.moveTo(x - 1, prev[k]); ctx.lineTo(x, y); ctx.stroke(); }
+                prev[k] = y;
+            });
+            x++;
+            if (x >= CW - 4) { x = X0; prev = tracks.map(() => null); }
         }
         Game.raf = requestAnimationFrame(loop);
     };
     Game.raf = requestAnimationFrame(loop);
-    if (!twelve) return;
-    // 12-Kanal-Ausdruck: 3 Zeilen x 4 Spalten + Rhythmusstreifen II
-    const p = $('.ekgprint canvas', body), px = p.getContext('2d');
-    ekgPaper(px, p.width, p.height);
-    const grid = [['I', 'aVR', 'V1', 'V4'], ['II', 'aVL', 'V2', 'V5'], ['III', 'aVF', 'V3', 'V6']];
-    const colW = p.width / 4, rowH = 92;
-    px.font = '600 13px Inter, sans-serif'; px.fillStyle = '#222';
-    grid.forEach((row, r) => row.forEach((lead, col) => {
-        const x0 = col * colW, y0 = 55 + r * rowH;
-        traceLead(px, kind, hf, lead, x0 + 6, y0, colW - 10, 42, '#1b1b1b', 0.15 + col * 0.25);
-        px.fillText(lead, x0 + 8, y0 - 34);
-        if (col) { px.strokeStyle = '#1b1b1b'; px.lineWidth = 1; px.beginPath(); px.moveTo(x0, y0 - 8); px.lineTo(x0, y0 + 8); px.stroke(); }
-    }));
-    traceLead(px, kind, hf, 'II', 6, 335, p.width - 12, 42, '#1b1b1b', 0.15);
-    px.fillText('II', 8, 305);
+}
+
+/* Ergebnis: Rhythmus auf dem Bildschirm des Monitor/Defibrillators (12-Kanal: alle Ableitungen auf dem Geraet) */
+function showEkgResult(body, d, twelve) {
+    if (!d || !d.ekg) return;
+    const hf = d.ekg.hf || (d.monitor && d.monitor.hf) || 0;
+    body.innerHTML = `<div class="ekgresult"><div class="defimon"><img src="img/defi.webp" alt="Monitor/Defibrillator">
+        <canvas class="defimon__screen" width="640" height="470"></canvas></div></div>`;
+    drawDefiScreen($('.defimon__screen', body), d, hf, twelve);
 }
 
 /* BZ: Stichstelle waehlen, desinfizieren, trocknen lassen, stechen, ersten Tropfen abwischen, Teststreifen */

@@ -431,7 +431,7 @@ input[type="number"].input { font-family: var(--mono); }
 
 /* realistische Minispiele mit Fotos (EKG kleben, BZ messen, Thoraxpunktion) */
 .game.game--wide { width: min(760px, calc(100% - 2rem)); }
-.game.game--xl { width: min(980px, calc(100% - 2rem)); }
+.game.game--xl { width: min(1000px, calc(100% - 2rem)); }
 .figwrap { position: relative; display: flex; justify-content: center; overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-lg); background: #0e0e0e; }
 .figwrap--photo { background: #101010; }
 .figwrap--photo .fig { width: auto; max-width: 100%; }
@@ -489,24 +489,8 @@ input[type="number"].input { font-family: var(--mono); }
 .lm-pt.is-wrong { fill: rgba(229, 83, 75, 0.7); stroke: #fff; stroke-dasharray: none; }
 .progress-mini { height: 6px; border-radius: 3px; background: var(--bg-2); overflow: hidden; }
 .progress-mini div { height: 100%; width: 0; background: var(--accent); transition: width .1s linear; }
-/* EKG-Ergebnis: Monitor/Defibrillator mit Live-Kurve, 12-Kanal-Ausdruck */
-.ekgresult { display: grid; gap: 1rem; justify-items: center; }
-.defimon { position: relative; width: 480px; }
-.ekgresult:not(.is-12) .defimon { width: 640px; }
+/* EKG-Ergebnis: Monitor/Defibrillator, Bildschirm als Canvas exakt auf der Displayflaeche */
+.ekgresult { display: flex; justify-content: center; }
+.defimon { position: relative; width: min(940px, 100%); }
 .defimon img { width: 100%; display: block; filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.5)); }
-.defimon__screen { position: absolute; left: 28.6%; top: 29.6%; width: 34%; height: 36.6%; display: flex; flex-direction: column; gap: 2%; padding: 1.5%; background: #05080a; color: #dfe; font-family: var(--mono); overflow: hidden; font-size: 1.63px; }
-.ekgresult:not(.is-12) .defimon__screen { font-size: 2.18px; }
-.lp__top { display: flex; justify-content: space-between; color: #9aa; font-size: 4.2em; }
-.lp__row { display: flex; align-items: center; gap: 2%; }
-.lp__row canvas { flex: 1; min-width: 0; height: 26em; }
-.lp__lead { color: #46e06a; font-size: 4.5em; }
-.lp__val { display: flex; flex-direction: column; line-height: 1; }
-.lp__val small { font-size: 3.8em; opacity: 0.8; }
-.lp__val b { font-size: 9em; }
-.lp__val--hf { color: #46e06a; } .lp__val--hf b { font-size: 13em; }
-.lp__row--vals { justify-content: space-between; }
-.lp__val--spo2 { color: #4fc3f7; } .lp__val--nibp { color: #f0f0f0; } .lp__val--af { color: #ffd54f; }
-.lp__msg { margin-top: auto; color: #ffd54f; font-size: 3.9em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ekgprint { width: 100%; max-width: 900px; border-radius: 3px; overflow: hidden; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45); transform: rotate(-0.6deg); }
-.ekgprint canvas { display: block; width: 100%; }
-.ekgprint__foot { padding: 0.3rem 0.6rem; background: #fdf1ee; color: #333; font-size: var(--fs-xs); border-top: 1px solid rgba(220, 70, 70, 0.4); }
+.defimon__screen { position: absolute; left: 28.67%; top: 29.11%; width: 33.83%; height: 37.08%; display: block; border-radius: 2px; }
