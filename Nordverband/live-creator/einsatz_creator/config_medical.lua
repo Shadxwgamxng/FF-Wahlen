@@ -104,6 +104,7 @@ Medical.Opqrst = {
 
 --[[
     Massnahmen (Prozeduren). game = Minispiel in der Oberflaeche:
+      iv        Venenzugang mit Fotos: stauen, Vene waehlen, desinfizieren, punktieren, Stauung loesen, fixieren
       timing    Zeiger im gruenen Bereich stoppen (hits = noetige Treffer)
       drill     Bohrstelle waehlen und Bohrer im richtigen Moment loslassen
       landmark  richtige Punktionsstelle am Thorax waehlen
@@ -111,7 +112,7 @@ Medical.Opqrst = {
       ekg       Elektroden an die richtigen Stellen ziehen (twelve = 12-Kanal)
 ]]
 Medical.Procedures = {
-    { id = 'iv', label = 'Venenzugang (i.v.)', group = 'Zugang', game = 'timing', hits = 2, icon = 'syringe' },
+    { id = 'iv', label = 'Venenzugang (i.v.)', group = 'Zugang', game = 'iv', icon = 'syringe' },
     { id = 'io', label = 'Intraossaerer Zugang (EZ-IO)', group = 'Zugang', game = 'drill', icon = 'bore-hole' },
     { id = 'bvm', label = 'Beutel-Masken-Beatmung', group = 'Atemweg', icon = 'mask-ventilator' },
     { id = 'tubus', label = 'Larynxtubus einlegen', group = 'Atemweg', game = 'timing', hits = 1, icon = 'lungs' },

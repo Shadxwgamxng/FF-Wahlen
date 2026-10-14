@@ -40,7 +40,7 @@ local GAMES = {
     ['measure:bz'] = { type = 'bz', title = 'Blutzucker messen', awaitValue = true },
     ['measure:ekg'] = { type = 'ekg', title = 'EKG-Elektroden kleben (4-Kanal)', twelve = false, awaitValue = true },
     ['measure:ekg12'] = { type = 'ekg', title = '12-Kanal-EKG anlegen', twelve = true, awaitValue = true },
-    ['proc:iv'] = { type = 'timing', title = 'Venenzugang legen', hint = 'Zweimal im gruenen Bereich treffen: Vene punktieren, Kanuele vorschieben', hits = 2, speed = 1.25 },
+    ['proc:iv'] = { type = 'iv', title = 'Venenzugang legen' },
     ['proc:tubus'] = { type = 'timing', title = 'Larynxtubus einlegen', hint = 'Im richtigen Moment vorschieben', hits = 1, speed = 1.5 },
     ['proc:io'] = { type = 'drill', title = 'Intraossaeren Zugang bohren' },
     ['proc:thorax'] = { type = 'landmark', title = 'Thoraxentlastungspunktion' },

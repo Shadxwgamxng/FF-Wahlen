@@ -1676,14 +1676,14 @@ const Game = {
         this.def = def || {};
         const box = $('#minigame');
         box.classList.remove('hidden');
-        const size = { ekg: 'game--xl', bz: 'game--wide', landmark: 'game--wide' }[def.type] || '';
+        const size = { ekg: 'game--xl', iv: 'game--xl', bz: 'game--wide', landmark: 'game--wide' }[def.type] || '';
         box.innerHTML = `<div class="game card ${size}">
             <div class="card__header">${icon('kit-medical')}<span class="card__title">${esc(def.title || 'Massnahme')}</span>
                 <span class="grow"></span><button class="btn btn--ghost btn--icon btn--sm" data-g="cancel" title="Abbrechen (Esc)">${icon('xmark')}</button></div>
             <div class="card__body game__body"></div></div>`;
         $('[data-g="cancel"]', box).onclick = () => this.finish(null, true);
         const body = $('.game__body', box);
-        ({ timing: gameTiming, ekg: gameEkg, bz: gameBz, drill: gameDrill, landmark: gameLandmark })[def.type]?.(body, def);
+        ({ timing: gameTiming, ekg: gameEkg, bz: gameBz, iv: gameIv, drill: gameDrill, landmark: gameLandmark })[def.type]?.(body, def);
     },
     onKey(fn) {
         this.keyHandler = (e) => {
@@ -2144,6 +2144,193 @@ function gameBz(body) {
             };
             Game.showMs = 4500;
             setTimeout(() => Game.done(body, true, 'Blut aufgesogen - Messung laeuft.'), 3000);
+        } },
+    };
+    Object.entries(tools).forEach(([id, t]) => draggable($(`[data-t="${id}"]`, body), svg, Object.assign({ ghostHtml: () => $(`[data-t="${id}"]`, body).innerHTML }, t)));
+    Game.onKey(() => {});
+}
+
+/* Venenzugang: stauen, Vene waehlen, desinfizieren, Kanuele ansetzen und vorschieben bis Blutrueckfluss,
+   Stauung loesen, Mandrin entfernen, fixieren. Koordinaten in Bildpixeln von arm.webp (1100 x 680) */
+function gameIv(body) {
+    const ARM = { w: 1100, h: 680 };
+    // gut sichtbare Venen als Linien (Unterarm und Handruecken)
+    const VEINS = [
+        { name: 'Unterarm (V. cephalica)', pts: [[582, 359], [647, 333], [712, 307], [776, 285], [841, 259], [906, 230]] },
+        { name: 'Unterarm, radial', pts: [[421, 446], [505, 430], [589, 408]] },
+        { name: 'Handruecken', pts: [[298, 440], [324, 453], [336, 472], [349, 488]] },
+    ];
+    const segDist = (px, py, ax, ay, bx, by) => {
+        const dx = bx - ax, dy = by - ay, l = dx * dx + dy * dy;
+        const t = l ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / l)) : 0;
+        const x = ax + t * dx, y = ay + t * dy;
+        return { d: Math.hypot(px - x, py - y), x, y, ang: Math.atan2(dy, dx) };
+    };
+    const nearestVein = (x, y) => {
+        let best = null;
+        VEINS.forEach(v => { for (let i = 1; i < v.pts.length; i++) {
+            const r = segDist(x, y, ...v.pts[i - 1], ...v.pts[i]);
+            if (!best || r.d < best.d) best = Object.assign(r, { vein: v });
+        } });
+        return best;
+    };
+    let step = 0, errors = 0, site = null, rub = 0, dry = false, finished = false, stau = false;
+    const STEPS = ['Stauschlauch oberhalb der Punktionsstelle anlegen (proximaler Unterarm)', 'Gut gefuellte Vene auswaehlen und anklicken',
+        'Punktionsstelle mit dem Tupfer desinfizieren', 'Einwirkzeit abwarten ...', 'Venenverweilkanuele an der Punktionsstelle ansetzen',
+        'Flach (15-30 Grad) vorschieben - beim Blutrueckfluss loslassen', 'Stauung loesen, dann Mandrin entfernen und verschliessen', 'Kanuele mit dem Pflaster fixieren'];
+    body.innerHTML = `<p class="dim" id="gStep"></p>
+        <div class="figwrap figwrap--photo figwrap--arm">${photoSvg({ src: 'img/arm.webp', w: ARM.w, h: ARM.h }, `
+            <image href="img/arm_stau.webp" x="0" y="0" width="${ARM.w}" height="${ARM.h}" id="gStauImg" class="iv-stauimg"/>
+            <g id="gMarks"></g><g id="gTools"></g>`)}</div>
+        <div class="ivrow">
+            <div class="tray tray--tools" id="gTray">
+                <div class="tool-item" data-t="stau"><img src="img/stauschlauch.webp" alt="" class="wide"><span>Stauschlauch</span></div>
+                <div class="tool-item" data-t="alk"><img src="img/alcpad.webp" alt=""><span>Desinfektion</span></div>
+                <div class="tool-item" data-t="kan"><img src="img/kanuele.webp" alt="" class="wide"><span>Venenverweilkanuele</span></div>
+                <div class="tool-item" data-t="pfl"><img src="img/pflaster.webp" alt=""><span>Fixierpflaster</span></div>
+            </div>
+            <div class="ivside hidden" id="gPush">
+                <div class="drill drill--iv"><div class="drill__zone"></div><div class="drill__fill"></div></div>
+                <div class="ivside__txt"><b>Kanuele vorschieben</b><span class="dim">Maus auf "Vorschieben" oder Leertaste <b>halten</b>. Loslassen, sobald Blut in der Kammer erscheint.</span>
+                    <button class="btn btn--primary" id="gPushBtn">${icon('syringe')} Vorschieben (halten)</button></div>
+            </div>
+            <div class="ivside hidden" id="gFinish">
+                <button class="btn" id="gLoesen">${icon('link-slash')} Stauung loesen</button>
+                <button class="btn" id="gMandrin">${icon('syringe')} Mandrin entfernen und verschliessen</button>
+            </div>
+        </div>
+        <div class="dim" id="gStat"></div>
+        <div class="progress-mini hidden" id="gProg"><div></div></div>`;
+    const svg = $('#gFig', body), marks = $('#gMarks', body), toolsG = $('#gTools', body), stepEl = $('#gStep', body), stat = $('#gStat', body);
+    const prog = $('#gProg', body), progFill = $('#gProg div', body);
+    const setStep = (n) => { step = n; stepEl.innerHTML = `<b>Schritt ${n + 1}/${STEPS.length}:</b> ${esc(STEPS[n])}`; };
+    const fail = () => { if (errors > 1 && !finished) { finished = true; Game.done(body, false, 'Zu viele Fehler - Punktion abgebrochen, neuer Versuch noetig.'); } };
+    const err = (msg) => { errors++; stat.innerHTML = `<span class="warn">${esc(msg)}</span> · Fehler ${errors}/1`; fail(); };
+    const info = (msg) => { stat.innerHTML = `${esc(msg)} · Fehler ${errors}/1`; };
+    const deg = (a) => a * 180 / Math.PI;
+    setStep(0); info('');
+    const used = (t) => $(`[data-t="${t}"]`, body).classList.add('is-used');
+
+    // 2. Vene waehlen (Klick auf das Foto)
+    Game.listen(svg, 'click', (e) => {
+        if (finished || step !== 1) return;
+        const p = svgPoint(svg, e.clientX, e.clientY);
+        const v = nearestVein(p.x, p.y);
+        if (!v || v.d > 16) return err('Dort ist keine geeignete Vene tastbar - eine gut gefuellte, gerade Vene waehlen.');
+        site = { x: v.x, y: v.y, ang: v.ang, name: v.vein.name };
+        marks.innerHTML = `<circle cx="${site.x}" cy="${site.y}" r="16" class="mark-site"/>`;
+        info(`Vene: ${site.name}`);
+        setStep(2);
+    });
+    const near = (x, y, r) => site && dist2(x, y, site.x, site.y) <= (r || 34);
+
+    // 5./6. Vorschieben bis zum Blutrueckfluss
+    const startPush = () => {
+        setStep(5);
+        $('#gTray', body).classList.add('hidden');
+        $('#gPush', body).classList.remove('hidden');
+        const fill = $('#gPush .drill__fill', body), zone = $('#gPush .drill__zone', body);
+        const zoneAt = 40 + Math.random() * 25, zoneW = 14;
+        zone.style.bottom = zoneAt + '%'; zone.style.height = zoneW + '%';
+        let depth = 0, holding = false, last = performance.now(), done = false;
+        const flash = $('#gFlash', body);
+        const loop = (t) => {
+            const dt = (t - last) / 1000; last = t;
+            if (holding && !done) depth += dt * 22;
+            fill.style.height = Math.min(100, depth) + '%';
+            const inVein = depth >= zoneAt;
+            if (flash) flash.setAttribute('opacity', inVein ? '1' : '0');
+            zone.classList.toggle('is-hit', inVein && depth <= zoneAt + zoneW);
+            if (depth > zoneAt + zoneW && !done) {
+                done = true; holding = false;
+                err('Vene durchstochen - Haematom. Kanuele zurueckziehen und neu punktieren.');
+                if (!finished) setTimeout(() => { depth = 0; done = false; info('Neuer Versuch an derselben Vene'); }, 900);
+            }
+            Game.raf = requestAnimationFrame(loop);
+        };
+        Game.raf = requestAnimationFrame(loop);
+        const release = () => {
+            if (!holding || done || finished) return;
+            holding = false;
+            if (depth < zoneAt) return info('Noch kein Blutrueckfluss - weiter vorschieben');
+            done = true;
+            cancelAnimationFrame(Game.raf); Game.raf = null;
+            info('Blutrueckfluss in der Kammer - Kanuele liegt in der Vene');
+            $('#gPush', body).classList.add('hidden');
+            $('#gFinish', body).classList.remove('hidden');
+            setStep(6);
+        };
+        $('#gPushBtn', body).addEventListener('pointerdown', () => { holding = true; });
+        Game.listen(window, 'pointerup', release);
+        Game.listen(window, 'keydown', (e) => { if (e.code === 'Space') { e.preventDefault(); holding = true; } });
+        Game.listen(window, 'keyup', (e) => { if (e.code === 'Space') release(); });
+    };
+
+    // 7. Stauung loesen, Mandrin entfernen
+    $('#gLoesen', body).onclick = () => {
+        if (finished || !stau) return;
+        stau = false;
+        $('#gStau', body)?.remove();
+        $('#gStauImg', body).classList.remove('is-on');
+        $('#gLoesen', body).disabled = true;
+        info('Stauung geloest');
+    };
+    $('#gMandrin', body).onclick = () => {
+        if (finished) return;
+        if (stau) { err('Blut laeuft zurueck - zuerst die Stauung loesen, dann den Mandrin entfernen.'); if (finished) return; $('#gLoesen', body).click(); }
+        $('#gFinish', body).classList.add('hidden');
+        $('#gTray', body).classList.remove('hidden');
+        info('Mandrin entfernt, Kanuele verschlossen');
+        setStep(7);
+    };
+
+    const tools = {
+        stau: { onDrop: (x, y) => {
+            if (x === null || finished || step !== 0) return;
+            if (x < 700) return err('Zu weit distal - oberhalb der geplanten Punktionsstelle (proximaler Unterarm) stauen.');
+            if (x < 900 || y > 330) return info('Den Stauschlauch um den proximalen Unterarm legen');
+            stau = true; used('stau');
+            toolsG.insertAdjacentHTML('beforeend', `<image id="gStau" href="img/stauschlauch.webp" x="${975 - 210}" y="${185 - 36}" width="420" height="72" transform="rotate(62 975 185)"/>`);
+            $('#gStauImg', body).classList.add('is-on');
+            info('Gestaut - Patient macht eine Faust, die Venen fuellen sich');
+            setStep(1);
+        } },
+        alk: { onMove: (x, y) => {
+            if (step !== 2 || !near(x, y, 44)) return;
+            rub = Math.min(100, rub + 4); prog.classList.remove('hidden'); progFill.style.width = rub + '%';
+            if (rub >= 100) {
+                used('alk'); setStep(3);
+                marks.insertAdjacentHTML('afterbegin', `<ellipse cx="${site.x}" cy="${site.y}" rx="46" ry="34" fill="rgba(255,255,255,0.28)" id="gWet"/>`);
+                let t = 0;
+                Game.timer = setInterval(() => {
+                    t += 100; progFill.style.width = Math.max(0, 100 - t / 30) + '%';
+                    $('#gWet', body)?.setAttribute('opacity', String(Math.max(0, 1 - t / 3000)));
+                    if (t >= 3000) { clearInterval(Game.timer); dry = true; prog.classList.add('hidden'); setStep(4); info('Einwirkzeit abgelaufen'); }
+                }, 100);
+            }
+        }, onDrop: () => { if (step === 2 && rub < 100) info('Weiter wischen - den Tupfer ueber der Punktionsstelle bewegen'); } },
+        kan: { onDrop: (x, y) => {
+            if (x === null || finished) return;
+            if (step < 2) return info(step === 0 ? 'Zuerst stauen' : 'Zuerst eine Vene auswaehlen');
+            if (!near(x, y)) return err('Daneben - die Kanuele genau an der gewaehlten Vene ansetzen.');
+            if (step === 2) err('Nicht desinfiziert!');
+            if (step === 3 && !dry) { clearInterval(Game.timer); prog.classList.add('hidden'); err('Einwirkzeit nicht abgewartet.'); }
+            if (finished) return;
+            used('kan'); $('.mark-site', body)?.remove(); $('#gWet', body)?.remove();
+            // Spitze an der Punktionsstelle, Richtung herzwaerts (Bild: Spitze links)
+            const a = deg(site.ang) + 180, L = 300, Hh = 84;
+            toolsG.insertAdjacentHTML('beforeend', `<g transform="rotate(${a} ${site.x} ${site.y})">
+                <image id="gNeedle" href="img/kanuele.webp" x="${site.x}" y="${site.y - Hh / 2}" width="${L}" height="${Hh}"/>
+                <circle id="gFlash" cx="${site.x + L * 0.62}" cy="${site.y - Hh * 0.08}" r="7" fill="#9b0f1a" opacity="0"/></g>`);
+            startPush();
+        } },
+        pfl: { onDrop: (x, y) => {
+            if (x === null || finished || step !== 7) return;
+            if (!near(x, y, 90)) return info('Das Pflaster ueber den Kanuelenansatz kleben');
+            used('pfl'); finished = true;
+            const a = deg(site.ang) + 180;
+            toolsG.insertAdjacentHTML('beforeend', `<image href="img/pflaster.webp" x="${site.x + 70}" y="${site.y - 62}" width="170" height="124" transform="rotate(${a} ${site.x} ${site.y})" opacity="0.8"/>`);
+            Game.done(body, true, 'Zugang liegt sicher und ist fixiert.');
         } },
     };
     Object.entries(tools).forEach(([id, t]) => draggable($(`[data-t="${id}"]`, body), svg, Object.assign({ ghostHtml: () => $(`[data-t="${id}"]`, body).innerHTML }, t)));
