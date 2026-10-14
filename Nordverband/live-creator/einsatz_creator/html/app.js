@@ -1935,14 +1935,14 @@ function ekgPaper(ctx, W, H) {
     for (let y = 0; y <= H; y += 5) { ctx.strokeStyle = y % 25 === 0 ? 'rgba(220, 70, 70, 0.45)' : 'rgba(230, 120, 120, 0.18)'; ctx.lineWidth = y % 25 === 0 ? 1 : 0.6; ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
 }
 
-/* Ergebnis: Rhythmus auf dem corpuls3-Bildschirm, beim 12-Kanal zusaetzlich der Ausdruck */
+/* Ergebnis: Rhythmus auf dem Monitor/Defibrillator, beim 12-Kanal zusaetzlich der Ausdruck */
 function showEkgResult(body, d, twelve) {
     if (!d || !d.ekg) return;
     const ekg = d.ekg, m = d.monitor || {};
     const hf = ekg.hf || m.hf || 0;
     body.innerHTML = `<div class="ekgresult ${twelve ? 'is-12' : ''}">
-        <div class="lifepak"><img src="img/corpuls.webp" alt="corpuls3">
-            <div class="lifepak__screen">
+        <div class="defimon"><img src="img/defi.webp" alt="Monitor/Defibrillator">
+            <div class="defimon__screen">
                 <div class="lp__top"><span>${esc(d.name || 'Patient')}</span><span>${new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}</span></div>
                 <div class="lp__row"><div class="lp__lead">II</div><canvas width="300" height="78"></canvas>
                     <div class="lp__val lp__val--hf"><small>HF</small><b>${hf || '---'}</b></div></div>
@@ -1955,8 +1955,8 @@ function showEkgResult(body, d, twelve) {
         ${twelve ? `<div class="ekgprint"><canvas width="1000" height="380"></canvas>
             <div class="ekgprint__foot">25 mm/s · 10 mm/mV · ${esc(ekg.label)}${hf ? ` · HF ${hf}/min` : ''}</div></div>` : ''}
     </div>`;
-    // Live-Kurve auf dem corpuls3
-    const c = $('.lifepak canvas', body), ctx = c.getContext('2d');
+    // Live-Kurve auf dem Monitor
+    const c = $('.defimon canvas', body), ctx = c.getContext('2d');
     const kind = ekg.wave || 'sinus';
     let x = 0, ph = 0, prev = null, last = performance.now();
     const loop = (t) => {
@@ -2011,7 +2011,7 @@ function gameBz(body) {
     body.innerHTML = `<p class="dim" id="gStep"></p>
         <div class="bzwrap">
             <div class="figwrap figwrap--photo figwrap--hand">${photoSvg(PHOTO.hand, `${defs}<g id="gMarks"></g>`, '40 0 600 640')}</div>
-            <div class="bzmeter"><img src="img/bzmeter.webp" alt="Accu-Chek Aviva">
+            <div class="bzmeter"><img src="img/bzmeter.webp" alt="Blutzuckermessgeraet">
                 <div class="bzmeter__lcd"><div class="bzmeter__val" id="gScreen"></div><div class="bzmeter__unit" id="gUnit"></div>
                     <div class="bzmeter__time"><span>${new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}</span><span>${new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }).replace(/\.$/, '')}</span></div></div></div>
         </div>

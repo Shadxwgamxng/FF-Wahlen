@@ -489,13 +489,13 @@ input[type="number"].input { font-family: var(--mono); }
 .lm-pt.is-wrong { fill: rgba(229, 83, 75, 0.7); stroke: #fff; stroke-dasharray: none; }
 .progress-mini { height: 6px; border-radius: 3px; background: var(--bg-2); overflow: hidden; }
 .progress-mini div { height: 100%; width: 0; background: var(--accent); transition: width .1s linear; }
-/* EKG-Ergebnis: corpuls3 mit Live-Kurve, 12-Kanal-Ausdruck */
+/* EKG-Ergebnis: Monitor/Defibrillator mit Live-Kurve, 12-Kanal-Ausdruck */
 .ekgresult { display: grid; gap: 1rem; justify-items: center; }
-.lifepak { position: relative; width: 480px; }
-.ekgresult:not(.is-12) .lifepak { width: 640px; }
-.lifepak img { width: 100%; display: block; filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.5)); }
-.lifepak__screen { position: absolute; left: 28.6%; top: 29.6%; width: 34%; height: 36.6%; display: flex; flex-direction: column; gap: 2%; padding: 1.5%; background: #05080a; color: #dfe; font-family: var(--mono); overflow: hidden; font-size: 1.63px; }
-.ekgresult:not(.is-12) .lifepak__screen { font-size: 2.18px; }
+.defimon { position: relative; width: 480px; }
+.ekgresult:not(.is-12) .defimon { width: 640px; }
+.defimon img { width: 100%; display: block; filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.5)); }
+.defimon__screen { position: absolute; left: 28.6%; top: 29.6%; width: 34%; height: 36.6%; display: flex; flex-direction: column; gap: 2%; padding: 1.5%; background: #05080a; color: #dfe; font-family: var(--mono); overflow: hidden; font-size: 1.63px; }
+.ekgresult:not(.is-12) .defimon__screen { font-size: 2.18px; }
 .lp__top { display: flex; justify-content: space-between; color: #9aa; font-size: 4.2em; }
 .lp__row { display: flex; align-items: center; gap: 2%; }
 .lp__row canvas { flex: 1; min-width: 0; height: 26em; }

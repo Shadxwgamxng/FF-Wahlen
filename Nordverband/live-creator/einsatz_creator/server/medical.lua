@@ -257,7 +257,7 @@ function Med.openMeasures(med)
                 elseif part.severe == 'schiene' then open[#open + 1] = 'Schiene: ' .. part.label end
             end
         end
-        if med.body.kopf == 3 and not med.stifneck then open[#open + 1] = 'Stifneck (SHT)' end
+        if med.body.kopf == 3 and not med.stifneck then open[#open + 1] = 'Zervikalstuetze (SHT)' end
         if med.body.becken == 3 and not med.beckenschlinge then open[#open + 1] = 'Beckenschlinge' end
     end
     return open
@@ -533,7 +533,7 @@ function Med.action(src, incident, p, action, arg, result)
             else
                 med.canula, med.access = true, arg == 'iv' and 'i.v.' or 'i.o.'
                 med.done.zugang = true
-                say(lines, 'info', arg == 'iv' and 'Venenzugang liegt sicher, Infusion laeuft.' or 'EZ-IO an der proximalen Tibia liegt, Aspiration von Knochenmark moeglich.')
+                say(lines, 'info', arg == 'iv' and 'Venenzugang liegt sicher, Infusion laeuft.' or 'Intraossaere Nadel an der proximalen Tibia liegt, Aspiration von Knochenmark moeglich.')
                 changed = true
             end
         elseif arg == 'bvm' or arg == 'tubus' then
@@ -710,13 +710,13 @@ function Med.action(src, incident, p, action, arg, result)
             end
         end
     elseif action == 'stifneck' or action == 'beckenschlinge' then
-        say(lines, 'rd', action == 'stifneck' and 'Rettungsdienst: Ich lege Ihnen eine Halskrause (Stifneck) um.'
+        say(lines, 'rd', action == 'stifneck' and 'Rettungsdienst: Ich lege Ihnen eine Halskrause (Zervikalstuetze) um.'
             or 'Rettungsdienst: Ich lege Ihnen eine Beckenschlinge an.')
         if med[action] then
             patientSays(med, lines, 'Ich habe doch schon eine um!')
         else
             med[action] = true
-            say(lines, 'info', (action == 'stifneck' and 'Stifneck' or 'Beckenschlinge') .. ' wurde angelegt.')
+            say(lines, 'info', (action == 'stifneck' and 'Zervikalstuetze' or 'Beckenschlinge') .. ' wurde angelegt.')
             changed = true
         end
     elseif action == 'transport_ask' then
