@@ -115,6 +115,28 @@ NUI.on('minigameDone', function(data)
 end)
 
 ----------------------------------------------------------------------------
+-- Medikament aufziehen: Materialschrank mit Spritzen, Kanuelen, Gebinden und Medikamenten
+----------------------------------------------------------------------------
+local materialSent = false
+function MedClient.prepGame(medId, cur)
+    local m = EC.MedicationById[medId]
+    local view = cur.view or {}
+    local def = {
+        type = 'prep', title = 'Medikament vorbereiten',
+        order = { id = medId, label = m and m.label or medId, route = m and m.route or 'iv' },
+        patient = view.name or 'Patient',
+        access = view.access,
+        staff = GetPlayerName(PlayerId()),
+    }
+    if not materialSent then
+        def.material = { syringes = Material.Syringes, needles = Material.Needles, containers = Material.Containers,
+            drugs = Material.Drugs, colors = Material.LabelColors }
+        materialSent = true
+    end
+    return def
+end
+
+----------------------------------------------------------------------------
 -- Herzdruckmassage: Einsatzkraft kniet neben dem Patienten und drueckt (Animation mit Fortschrittsbalken)
 ----------------------------------------------------------------------------
 function MedClient.cpr(cur)
@@ -166,6 +188,7 @@ function MedClient.act(action, arg, reopen)
         if kneel then TaskStartScenarioInPlace(ped, 'CODE_HUMAN_MEDIC_KNEEL', 0, true) end
         local result
         local game = GAMES[action .. ':' .. tostring(arg)]
+        if action == 'med' and Material.DrugByMed[arg] then game = MedClient.prepGame(arg, cur) end
         if game then
             local g = MedClient.game(game)
             if not g or g.cancel then
@@ -367,6 +390,7 @@ function MedClient.open(incidentId, patientId, menuId, view)
         if not ok then return NUI.toast('error', res or 'Patient nicht erreichbar') end
         view = res
     end
+    MedClient.current.view = view
     buildMenus(view)
     lib.showContext(menuId or 'ec_med_main')
 end

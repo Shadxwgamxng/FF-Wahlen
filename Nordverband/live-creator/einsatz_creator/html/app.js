@@ -1676,14 +1676,14 @@ const Game = {
         this.def = def || {};
         const box = $('#minigame');
         box.classList.remove('hidden');
-        const size = { ekg: 'game--xl', iv: 'game--wide', io: 'game--wide', bz: 'game--wide', landmark: 'game--wide' }[def.type] || '';
+        const size = { ekg: 'game--xl', prep: 'game--xl', iv: 'game--wide', io: 'game--wide', bz: 'game--wide', landmark: 'game--wide' }[def.type] || '';
         box.innerHTML = `<div class="game card ${size}">
             <div class="card__header">${icon('kit-medical')}<span class="card__title">${esc(def.title || 'Massnahme')}</span>
                 <span class="grow"></span><button class="btn btn--ghost btn--icon btn--sm" data-g="cancel" title="Abbrechen (Esc)">${icon('xmark')}</button></div>
             <div class="card__body game__body"></div></div>`;
         $('[data-g="cancel"]', box).onclick = () => this.finish(null, true);
         const body = $('.game__body', box);
-        ({ timing: gameTiming, ekg: gameEkg, bz: gameBz, iv: gameIv, io: gameIo, landmark: gameLandmark })[def.type]?.(body, def);
+        ({ timing: gameTiming, ekg: gameEkg, bz: gameBz, iv: gameIv, io: gameIo, prep: gamePrep, landmark: gameLandmark })[def.type]?.(body, def);
     },
     onKey(fn) {
         this.keyHandler = (e) => {
@@ -2499,6 +2499,459 @@ function gameLandmark(body) {
         if (!p.ok) return Game.done(body, false, 'Falsche Landmarke - keine Entlastung moeglich.', 'fail');
         Game.done(body, true, `Punktion ${p.side} gesetzt.`, p.side);
     }));
+    Game.onKey(() => {});
+}
+
+/* ------------------------------------------------------------------ */
+/* Medikament vorbereiten: Materialschrank, Pruefung, Oeffnen,          */
+/* Aufziehen, Entlueften, Etikett, Vier-Augen-Kontrolle                */
+/* ------------------------------------------------------------------ */
+let PREP_MAT = null;
+const ROUTE_TXT = { iv: 'i.v.', im: 'i.m.', in: 'nasal', sl: 'sublingual', inhal: 'vernebelt' };
+const numDe = (v, d = 2) => (Math.round(v * 10 ** d) / 10 ** d).toLocaleString('de-DE', { maximumFractionDigits: d });
+
+// Spritze als SVG (waagerecht, Spitze rechts). fill/air in ml
+function syringeSvg(syr, s) {
+    const W = 560, x0 = 70, len = 380, y = 70, h = 46;
+    const ml = syr.ml, frac = (v) => Math.max(0, Math.min(1, v / ml));
+    const fillW = len * frac(s.total), drugW = s.total > 0 ? fillW * (s.drugMl / s.total) : 0;
+    const ticks = [];
+    const major = ml <= 1 ? 0.1 : ml <= 3 ? 0.5 : ml <= 10 ? 1 : ml <= 30 ? 5 : 10;
+    const minor = major / (ml <= 1 ? 2 : 5);
+    for (let v = 0; v <= ml + 1e-9; v += minor) {
+        const xx = x0 + len - len * (v / ml), isMajor = Math.abs(v / major - Math.round(v / major)) < 1e-6;
+        ticks.push(`<line x1="${xx}" y1="${y}" x2="${xx}" y2="${y + (isMajor ? 14 : 8)}" class="syr-tick"/>`);
+        if (isMajor) ticks.push(`<text x="${xx}" y="${y - 4}" class="syr-num">${numDe(v, 1)}</text>`);
+    }
+    // Fluessigkeit von der Spitze (rechts) aus
+    const fx = x0 + len - fillW;
+    const bubbles = (s.bubbles || []).map(b => {
+        const bx = b.atTip ? x0 + len - 10 - b.r : fx + 12 + b.pos * Math.max(10, fillW - 24);
+        return `<circle cx="${bx}" cy="${y + 10 + b.y * (h - 20)}" r="${b.r}" class="syr-bubble"/>`;
+    }).join('');
+    const col = s.drugColor || '#dfe9f3';
+    const needle = s.needle ? `<rect x="${x0 + len + 40}" y="${y + h / 2 - 6}" width="22" height="12" rx="2" fill="${s.needle.color}" stroke="#555"/>
+        <line x1="${x0 + len + 62}" y1="${y + h / 2}" x2="${x0 + len + 120}" y2="${y + h / 2}" stroke="#bfc4c9" stroke-width="2.4"/>` : '';
+    const label = s.label ? `<g><rect x="${x0 + 40}" y="${y + 4}" width="${Math.min(240, len - 80)}" height="${h - 8}" rx="3" fill="${s.label.bg}" stroke="rgba(0,0,0,.35)" opacity="0.95"/>
+        ${s.label.stripe ? `<rect x="${x0 + 40}" y="${y + 4}" width="12" height="${h - 8}" fill="#d63a3a"/>` : ''}
+        <text x="${x0 + 58}" y="${y + 20}" class="syr-lbl">${esc(s.label.name)}</text>
+        <text x="${x0 + 58}" y="${y + 34}" class="syr-lbl syr-lbl--s">${esc(s.label.line)}</text></g>` : '';
+    const plungerX = x0 + len - fillW - 6;
+    return `<svg viewBox="0 0 ${W} 190" class="syr-svg" id="gSyr">
+        <rect x="${x0}" y="${y}" width="${len}" height="${h}" rx="6" class="syr-barrel"/>
+        <rect x="${fx}" y="${y + 3}" width="${fillW}" height="${h - 6}" fill="rgba(170,205,235,.55)"/>
+        <rect x="${x0 + len - drugW}" y="${y + 3}" width="${drugW}" height="${h - 6}" fill="${col}" opacity="0.55"/>
+        ${bubbles}
+        <rect x="${plungerX}" y="${y + 2}" width="8" height="${h - 4}" rx="2" fill="#2b2b2b"/>
+        <rect x="${plungerX - 200}" y="${y + h / 2 - 5}" width="200" height="10" fill="#e9ecef" stroke="#adb5bd"/>
+        <rect x="${plungerX - 214}" y="${y + 6}" width="14" height="${h - 12}" rx="3" fill="#e9ecef" stroke="#adb5bd"/>
+        <rect x="${x0 - 14}" y="${y - 10}" width="12" height="${h + 20}" rx="3" class="syr-flange"/>
+        ${ticks.join('')}
+        <path d="M${x0 + len} ${y + 12} L${x0 + len + 40} ${y + h / 2 - 5} L${x0 + len + 40} ${y + h / 2 + 5} L${x0 + len} ${y + h - 12} Z" class="syr-barrel"/>
+        ${needle}${label}
+        <text x="${x0}" y="${y + h + 34}" class="syr-cap">${esc(syr.label)}</text>
+    </svg>`;
+}
+
+// Ampulle / Flasche als SVG mit Etikett
+function containerSvg(drug, cont, opts = {}) {
+    const kind = cont ? cont.kind : 'amp';
+    const fill = Math.max(0, Math.min(1, opts.fill ?? 1));
+    const lbl = (PREP_MAT.colors[drug && drug.color] || {}).bg || '#fff';
+    const name = drug ? drug.label : (cont.solution || cont.label);
+    const conc = drug ? `${numDe(drug.conc, 3)} ${drug.unit}/ml` : '';
+    const vol = `${numDe(drug ? drug.ml : cont.ml, 1)} ml`;
+    let body;
+    if (kind === 'vial' || kind === 'dry') {
+        body = `<rect x="30" y="20" width="40" height="14" rx="3" fill="${opts.opened ? '#c9ced3' : '#d64545'}"/><rect x="34" y="32" width="32" height="8" fill="#b9bec4"/>
+            <rect x="18" y="40" width="64" height="120" rx="10" class="amp-glass"/>
+            ${kind === 'dry' && !opts.dissolved ? `<rect x="22" y="132" width="56" height="24" rx="6" fill="#f3f3ee"/>` : `<rect x="22" y="${44 + 112 * (1 - fill)}" width="56" height="${112 * fill}" rx="6" class="amp-liquid"/>`}`;
+    } else if (kind === 'plamp') {
+        body = `<rect x="38" y="${opts.opened ? 30 : 6}" width="24" height="26" rx="4" fill="#eef2f5" stroke="#b9c2ca" ${opts.opened ? 'opacity=".25"' : ''}/>
+            <path d="M24 56 Q24 46 50 46 Q76 46 76 56 L76 160 Q76 168 68 168 L32 168 Q24 168 24 160 Z" class="amp-plastic"/>
+            <rect x="28" y="${60 + 104 * (1 - fill)}" width="44" height="${104 * fill}" rx="4" class="amp-liquid"/>`;
+    } else if (kind === 'bag') {
+        body = `<path d="M22 20 L78 20 L78 150 Q78 166 62 166 L38 166 Q22 166 22 150 Z" class="amp-plastic"/>
+            <rect x="26" y="${26 + 136 * (1 - fill)}" width="48" height="${136 * fill}" rx="4" class="amp-liquid"/>`;
+    } else {
+        // Glasampulle mit Kopf, Hals (Bruchring mit Punkt) und Bauch
+        const head = opts.headFull ? `<ellipse cx="50" cy="22" rx="11" ry="12" class="amp-liquid"/>` : '';
+        body = `${opts.opened ? '' : `<path d="M39 34 Q36 10 50 8 Q64 10 61 34 Z" class="amp-glass"/>${head}`}
+            <path d="M42 34 L58 34 L60 46 Q78 54 78 72 L78 156 Q78 168 66 168 L34 168 Q22 168 22 156 L22 72 Q22 54 40 46 Z" class="amp-glass"/>
+            <rect x="26" y="${74 + 90 * (1 - fill)}" width="48" height="${90 * fill}" rx="6" class="amp-liquid"/>
+            ${opts.opened ? `<path d="M42 34 L45 30 L48 35 L52 30 L55 35 L58 34" fill="none" stroke="#8aa" stroke-width="1.2"/>` : `<circle cx="50" cy="38" r="2.4" fill="#2f6fd1"/><line x1="40" y1="40" x2="60" y2="40" stroke="#2f6fd1" stroke-width="1"/>`}`;
+    }
+    const lab = `<rect x="20" y="96" width="60" height="50" fill="${lbl}" stroke="rgba(0,0,0,.25)"/>
+        ${drug && (PREP_MAT.colors[drug.color] || {}).stripe ? '<rect x="20" y="96" width="6" height="50" fill="#d63a3a"/>' : ''}
+        <text x="50" y="110" class="amp-t">${esc(name.length > 13 ? name.slice(0, 12) + '.' : name)}</text>
+        <text x="50" y="123" class="amp-t amp-t--s">${esc(conc)}</text>
+        <text x="50" y="135" class="amp-t amp-t--s">${esc(vol)}</text>`;
+    return `<svg viewBox="0 0 100 175" class="amp-svg">${body}${kind === 'bag' ? '' : lab}</svg>`;
+}
+
+function gamePrep(body, def) {
+    if (def.material) PREP_MAT = def.material;
+    if (!PREP_MAT) { body.innerHTML = '<p>Materialdaten fehlen.</p>'; return; }
+    const M = PREP_MAT;
+    const byId = (list, id) => list.find(x => x.id === id);
+    const order = def.order || {};
+    const S = {
+        stage: 0, drug: null, amps: 1, syringe: null, needle: null, diluent: null, injNeedle: null,
+        expired: false, checks: {}, opened: false, headTaps: 0, dissolved: false, dilOpened: false,
+        drugLeft: 0, dilLeft: 0, drugMl: 0, dilMl: 0, bubbles: [], label: null, control: {}, errors: [], notes: [], tab: 'drugs', search: '',
+    };
+    // genau eine Animationsschleife und ein pointerup-Handler fuer die aktuelle Stufe
+    let upHandler = null;
+    Game.listen(window, 'pointerup', (e) => { if (upHandler) upHandler(e); });
+    const onUp = (fn) => { upHandler = fn; };
+    const startLoop = (fn) => { if (Game.raf) cancelAnimationFrame(Game.raf); Game.raf = requestAnimationFrame(fn); };
+    const stopLoop = () => { if (Game.raf) cancelAnimationFrame(Game.raf); Game.raf = null; upHandler = null; };
+    const STAGES = ['Material', 'Pruefen', 'Oeffnen', 'Aufziehen', 'Entlueften', 'Etikett', 'Kontrolle'];
+    const total = () => S.drugMl + S.dilMl;
+    const air = () => S.bubbles.reduce((a, b) => a + b.vol, 0);
+    const amount = () => S.drug ? S.drugMl * S.drug.conc : 0;
+    const addErr = (t) => { if (!S.errors.includes(t)) S.errors.push(t); };
+    const unitTxt = (v) => `${numDe(v, v < 1 ? 3 : 2)} ${S.drug ? S.drug.unit : ''}`;
+
+    function render() {
+        stopLoop();
+        const stepper = STAGES.map((n, i) => `<div class="prep-step ${i === S.stage ? 'is-active' : i < S.stage ? 'is-done' : ''}" data-st="${i}"><b>${i + 1}</b><span>${n}</span></div>`).join('');
+        body.innerHTML = `<div class="prep">
+            <div class="prep-order">${icon('file-prescription')} Verordnung: <b>${esc(order.label || '?')}</b> · ${esc(ROUTE_TXT[order.route] || 'i.v.')} · Patient: ${esc(def.patient || 'Patient')}
+                <span class="grow"></span><span class="dim">freie Dosierung - die Menge bestimmst du</span></div>
+            <div class="prep-steps">${stepper}</div>
+            <div class="prep-main" id="pMain"></div>
+            <div class="prep-foot"><span class="dim" id="pMsg"></span><span class="grow"></span><span id="pNav"></span></div>
+        </div>`;
+        ({ 0: stMaterial, 1: stCheck, 2: stOpen, 3: stDraw, 4: stAir, 5: stLabel, 6: stControl })[S.stage]();
+        // Aufziehen und Entlueften duerfen jederzeit gewechselt werden, sobald Volumen in der Spritze ist
+        $$('.prep-step', body).forEach(el => el.onclick = () => {
+            const n = +el.dataset.st;
+            if ((n === 3 && S.stage === 4) || (n === 4 && S.stage === 3 && total() > 0)) { S.stage = n; render(); }
+        });
+    }
+    const msg = (t, bad) => { const m = $('#pMsg', body); if (m) m.innerHTML = `<span class="${bad ? 'warn' : ''}">${esc(t)}</span>`; };
+    const nav = (html) => { $('#pNav', body).innerHTML = html; };
+    const go = (n) => { S.stage = n; render(); };
+
+    /* 1. Materialschrank */
+    function stMaterial() {
+        const tabs = [['drugs', 'Medikamente', M.drugs.length], ['syringes', 'Spritzen', M.syringes.length], ['needles', 'Kanuelen/Zugaenge', M.needles.length], ['containers', 'Loesungen', M.containers.filter(c => c.solution).length]];
+        const q = S.search.toLowerCase();
+        const pool = S.tab === 'containers' ? M.containers.filter(c => c.solution) : (M[S.tab] || []);
+        const list = pool.filter(x => !q || x.label.toLowerCase().includes(q));
+        const sel = (x) => (S.tab === 'drugs' && S.drug === x) || (S.tab === 'syringes' && S.syringe === x) || (S.tab === 'needles' && S.needle === x) || (S.tab === 'containers' && S.diluent === x);
+        const card = (x) => {
+            let pic = '', sub = '';
+            if (S.tab === 'drugs') { pic = containerSvg(x, byId(M.containers, x.container)); sub = `${numDe(x.conc, 3)} ${x.unit}/ml · ${numDe(x.ml, 1)} ml`; }
+            else if (S.tab === 'containers') { pic = containerSvg(null, x); sub = x.kind === 'bag' ? 'Infusion' : 'zum Verduennen'; }
+            else if (S.tab === 'syringes') { pic = `<div class="mini-syr"><i style="width:${Math.min(100, 18 + Math.log10(x.ml * 10) * 30)}%"></i></div>`; sub = x.kind === 'enteral' ? 'ENFit - nicht i.v.' : `${numDe(x.ml, 1)} ml`; }
+            else { pic = `<div class="mini-needle" style="--c:${x.color}"></div>`; sub = { draw: 'zum Aufziehen', inject: 'Injektion', access: 'Zugang' }[x.use]; }
+            return `<div class="cab-item ${sel(x) ? 'is-sel' : ''}" data-id="${x.id}">${pic}<b>${esc(x.label)}</b><span>${esc(sub)}</span></div>`;
+        };
+        $('#pMain', body).innerHTML = `<div class="cab">
+            <div class="cab-left">
+                <div class="cab-tabs">${tabs.map(([k, n, c]) => `<button class="btn btn--sm ${S.tab === k ? 'btn--primary' : ''}" data-tab="${k}">${n} <small>${c}</small></button>`).join('')}</div>
+                <input class="input" id="pSearch" placeholder="Suchen ..." value="${esc(S.search)}">
+                <div class="cab-grid">${list.map(card).join('')}</div>
+            </div>
+            <div class="cab-tray"><div class="cab-tray__h">${icon('box-open')} Arbeitsflaeche</div>
+                ${trayRow('Medikament', S.drug ? `${S.drug.label} ${numDe(S.drug.conc, 3)} ${S.drug.unit}/ml` : null, 'drugs')}
+                ${S.drug ? `<div class="row prep-amps">Ampullen <button class="btn btn--sm" id="pAmpMinus">-</button><b>${S.amps}</b><button class="btn btn--sm" id="pAmpPlus">+</button></div>` : ''}
+                ${trayRow('Spritze', S.syringe && S.syringe.label, 'syringes')}
+                ${trayRow('Aufziehkanuele', S.needle && S.needle.label, 'needles')}
+                ${trayRow('Loesung (optional)', S.diluent && S.diluent.label, 'containers')}
+            </div></div>`;
+        $$('[data-tab]', body).forEach(b => b.onclick = () => { S.tab = b.dataset.tab; S.search = ''; render(); });
+        const si = $('#pSearch', body); si.oninput = () => { S.search = si.value; const pos = si.selectionStart; render(); const n = $('#pSearch', body); n.focus(); n.setSelectionRange(pos, pos); };
+        $$('.cab-item', body).forEach(el => el.onclick = () => {
+            const x = byId(M[S.tab], el.dataset.id);
+            if (S.tab === 'drugs') { S.drug = S.drug === x ? null : x; S.amps = 1; }
+            if (S.tab === 'syringes') S.syringe = S.syringe === x ? null : x;
+            if (S.tab === 'needles') S.needle = S.needle === x ? null : x;
+            if (S.tab === 'containers') S.diluent = S.diluent === x ? null : x;
+            render();
+        });
+        $$('[data-tray]', body).forEach(el => el.onclick = () => { S.tab = el.dataset.tray; render(); });
+        if (S.drug) {
+            $('#pAmpMinus', body).onclick = () => { S.amps = Math.max(1, S.amps - 1); render(); };
+            $('#pAmpPlus', body).onclick = () => { S.amps = Math.min(6, S.amps + 1); render(); };
+        }
+        const ready = S.drug && S.syringe && S.needle;
+        msg(ready ? 'Material bereit - weiter zur Pruefung' : 'Medikament, Spritze und Aufziehkanuele aus dem Schrank nehmen');
+        nav(`<button class="btn btn--primary" id="pNext" ${ready ? '' : 'disabled'}>Material pruefen ${icon('arrow-right')}</button>`);
+        $('#pNext', body).onclick = () => { S.expired = Math.random() < 0.15; S.checks = {}; go(1); };
+    }
+    const trayRow = (label, val, tab) => `<div class="tray-row ${val ? 'is-set' : ''}" data-tray="${tab}"><span>${label}</span><b>${val ? esc(val) : '- leer -'}</b></div>`;
+
+    /* 2. Materialpruefung */
+    function stCheck() {
+        const cont = byId(M.containers, S.drug.container);
+        const now = new Date();
+        const exp = new Date(now.getFullYear() + (S.expired ? -1 : 1), (now.getMonth() + 5) % 12, 1);
+        const expTxt = `${String(exp.getMonth() + 1).padStart(2, '0')}/${exp.getFullYear()}`;
+        S.expTxt = expTxt;
+        const items = [
+            ['wirkstoff', `Wirkstoff: <b>${esc(S.drug.label)}</b> - entspricht der Verordnung (${esc(order.label)})`],
+            ['konz', `Konzentration/Inhalt: <b>${numDe(S.drug.conc, 3)} ${S.drug.unit}/ml</b>, ${numDe(S.drug.ml, 1)} ml je ${esc(cont ? cont.label : 'Ampulle')} (${S.amps}x)`],
+            ['verfall', `Verfallsdatum: <b>${expTxt}</b>`],
+            ['optik', 'Unversehrt, Loesung klar, keine Partikel'],
+            ['spritze', `Spritze: <b>${esc(S.syringe.label)}</b> und Kanuele: <b>${esc(S.needle.label)}</b> - passend, Verpackung unversehrt`],
+        ];
+        $('#pMain', body).innerHTML = `<div class="prep-check">
+            <div class="prep-amp-big">${containerSvg(S.drug, cont)}<div class="amp-meta">Ch.-B. ${String(Math.floor(Math.random() * 90000) + 10000)}<br>verw. bis ${expTxt}</div></div>
+            <div class="prep-checklist">${items.map(([k, t]) => `<label class="chk"><input type="checkbox" data-c="${k}" ${S.checks[k] ? 'checked' : ''}><span>${t}</span></label>`).join('')}
+                <button class="btn btn--sm" id="pDiscard">${icon('trash')} Ampulle verwerfen und neue nehmen</button></div></div>`;
+        $$('[data-c]', body).forEach(c => c.onchange = () => { S.checks[c.dataset.c] = c.checked; updNav(); });
+        $('#pDiscard', body).onclick = () => { S.expired = false; S.checks.verfall = false; msg('Neue Ampulle aus dem Schrank genommen'); stCheck(); updNav(); };
+        const updNav = () => {
+            const all = items.every(([k]) => S.checks[k]);
+            nav(`<button class="btn" id="pBack">${icon('arrow-left')} Schrank</button> <button class="btn btn--primary" id="pNext" ${all ? '' : 'disabled'}>Geprueft ${icon('arrow-right')}</button>`);
+            $('#pBack', body).onclick = () => go(0);
+            $('#pNext', body).onclick = () => {
+                if (S.expired) addErr('Abgelaufene Ampulle verwendet');
+                if (S.drug.id !== (byIdMed(order.id) || {}).id) addErr('Wirkstoff entspricht nicht der Verordnung');
+                if (S.syringe.kind === 'enteral') addErr('Enteralspritze (ENFit) fuer eine parenterale Gabe');
+                if (S.needle.use !== 'draw') S.notes.push('Zum Aufziehen eine Aufzieh- oder Filterkanuele verwenden');
+                S.drugLeft = S.drug.ml * S.amps; S.dilLeft = S.diluent ? S.diluent.ml : 0;
+                go(2);
+            };
+        };
+        updNav();
+        msg('Jeden Punkt pruefen und abhaken (Verfallsdatum!)');
+    }
+    const byIdMed = (medId) => M.drugs.find(d => d.med === medId);
+
+    /* 3. Oeffnen */
+    function stOpen() {
+        stopLoop();
+        const cont = byId(M.containers, S.drug.container) || { kind: 'amp' };
+        const kind = cont.kind;
+        const fill = 1;
+        let html = '', hint = '';
+        if (kind === 'amp' && !S.opened) {
+            const headFull = S.headTaps < 3;
+            hint = headFull ? 'Im Ampullenkopf ist noch Fluessigkeit - Kopf antippen' : 'Ampulle am Punkt (Bruchring) abbrechen - im richtigen Moment klicken';
+            html = `<div class="prep-open">${containerSvg(S.drug, cont, { headFull, fill })}
+                <div class="open-ctl">${headFull ? `<button class="btn" id="pTap">${icon('hand-pointer')} Kopf antippen (${3 - S.headTaps})</button>`
+                    : `<div class="tbar" id="pBar"><div class="tbar__zone" style="left:44%;width:12%"></div><div class="tbar__cursor" id="pCur"></div></div>
+                       <button class="btn btn--primary" id="pBreak">${icon('bolt')} Abbrechen</button>`}</div></div>`;
+        } else if (kind === 'dry' && !S.dissolved) {
+            hint = 'Trockensubstanz: Loesungsmittel einspritzen und schwenken, bis alles geloest ist';
+            html = `<div class="prep-open">${containerSvg(S.drug, cont, { opened: S.opened, dissolved: false })}
+                <div class="open-ctl"><button class="btn" id="pSolv" ${S.opened ? 'disabled' : ''}>${icon('syringe')} ${numDe(S.drug.solvent || 5, 1)} ml Loesungsmittel einspritzen</button>
+                <button class="btn btn--primary" id="pSwirl" ${S.opened ? '' : 'disabled'}>${icon('rotate')} Schwenken (halten)</button>
+                <div class="progress-mini" id="pSwP"><div></div></div></div></div>`;
+        } else if (!S.opened) {
+            hint = kind === 'vial' ? 'Schutzkappe entfernen und Gummistopfen desinfizieren' : 'Kunststoffampulle abdrehen';
+            html = `<div class="prep-open">${containerSvg(S.drug, cont)}<div class="open-ctl"><button class="btn btn--primary" id="pOpen">${icon('unlock')} ${kind === 'vial' ? 'Kappe ab, Stopfen desinfizieren' : 'Abdrehen'}</button></div></div>`;
+        } else if (S.diluent && !S.dilOpened) {
+            hint = 'Loesungsmittel oeffnen';
+            html = `<div class="prep-open">${containerSvg(null, S.diluent)}<div class="open-ctl"><button class="btn btn--primary" id="pDil">${icon('unlock')} ${S.diluent.kind === 'bag' ? 'Zuspritzport desinfizieren' : 'Abdrehen'}</button></div></div>`;
+        } else return go(3);
+        $('#pMain', body).innerHTML = html;
+        msg(hint);
+        nav(`<button class="btn" id="pBack">${icon('arrow-left')} Pruefung</button>`);
+        $('#pBack', body).onclick = () => go(1);
+        const tap = $('#pTap', body); if (tap) tap.onclick = () => { S.headTaps++; stOpen(); };
+        const brk = $('#pBreak', body);
+        if (brk) {
+            const cur = $('#pCur', body); let x = 0, dir = 1, last = performance.now();
+            const loop = (t) => { const dt = (t - last) / 1000; last = t; x += dir * 90 * dt; if (x > 100) { x = 100; dir = -1; } if (x < 0) { x = 0; dir = 1; } cur.style.left = x + '%'; Game.raf = requestAnimationFrame(loop); };
+            startLoop(loop);
+            brk.onclick = () => {
+                cancelAnimationFrame(Game.raf); Game.raf = null;
+                if (x < 44 || x > 56) { addErr('Ampulle beim Oeffnen gesplittert'); S.notes.push('Splitter: Filterkanuele verwenden'); }
+                S.opened = true; stOpen();
+            };
+        }
+        const op = $('#pOpen', body); if (op) op.onclick = () => { S.opened = true; stOpen(); };
+        const dl = $('#pDil', body); if (dl) dl.onclick = () => { S.dilOpened = true; stOpen(); };
+        const sv = $('#pSolv', body); if (sv) sv.onclick = () => { S.opened = true; stOpen(); };
+        const sw = $('#pSwirl', body);
+        if (sw) {
+            let t0 = 0, held = false;
+            const fillEl = $('#pSwP div', body);
+            const loop = () => { if (held) { t0 = Math.min(2000, t0 + 16); fillEl.style.width = (t0 / 20) + '%'; if (t0 >= 2000) { S.dissolved = true; stopLoop(); return stOpen(); } } Game.raf = requestAnimationFrame(loop); };
+            startLoop(loop);
+            sw.addEventListener('pointerdown', () => { held = true; });
+            onUp(() => { held = false; });
+        }
+    }
+
+    /* 4. Aufziehen per gedruecktem Kolben */
+    function stDraw() {
+        stopLoop();
+        const syr = S.syringe, src = S.src || 'drug';
+        S.src = src;
+        const cont = byId(M.containers, S.drug.container);
+        const drugFill = S.drugLeft / (S.drug.ml * S.amps);
+        $('#pMain', body).innerHTML = `<div class="prep-draw">
+            <div class="draw-sources">
+                <div class="src ${src === 'drug' ? 'is-sel' : ''}" data-src="drug">${containerSvg(S.drug, cont, { opened: true, fill: drugFill, dissolved: true })}<span>${esc(S.drug.label)}<br><b>${numDe(S.drugLeft, 2)} ml</b> uebrig</span></div>
+                ${S.diluent ? `<div class="src ${src === 'dil' ? 'is-sel' : ''}" data-src="dil">${containerSvg(null, S.diluent, { opened: true, fill: S.dilLeft / S.diluent.ml })}<span>${esc(S.diluent.solution || S.diluent.label)}<br><b>${numDe(S.dilLeft, 1)} ml</b> uebrig</span></div>` : ''}
+            </div>
+            <div class="draw-syr">${syringeSvg(syr, { total: total(), drugMl: S.drugMl, bubbles: S.bubbles, needle: S.needle, drugColor: (M.colors[S.drug.color] || {}).bg })}
+                <div class="draw-ctl">
+                    <button class="btn" id="pMinus" title="Feinkorrektur">-</button>
+                    <button class="btn btn--primary" id="pPull">${icon('arrows-left-right')} Kolben ziehen (halten)</button>
+                    <button class="btn" id="pPlus" title="Feinkorrektur">+</button>
+                    <span class="grow"></span>
+                    <div class="draw-read"><b>${numDe(total(), 2)} ml</b> in der Spritze<br>
+                        <span class="dim">${esc(S.drug.label)}: ${numDe(S.drugMl, 2)} ml = ${unitTxt(amount())}${S.dilMl ? ` · ${esc(S.diluent.solution || 'Loesung')}: ${numDe(S.dilMl, 2)} ml` : ''}</span></div>
+                </div>
+            </div></div>`;
+        $$('[data-src]', body).forEach(el => el.onclick = () => { S.src = el.dataset.src; stDraw(); });
+        const step = syr.step || 0.1;
+        const cap = () => syr.ml - total();
+        const pull = (dv) => {
+            if (dv > 0) {
+                const left = S.src === 'drug' ? S.drugLeft : S.dilLeft;
+                dv = Math.min(dv, left, cap());
+                if (dv <= 0) return false;
+            } else {
+                dv = Math.max(dv, -(S.src === 'drug' ? S.drugMl : S.dilMl));
+            }
+            if (S.src === 'drug') { S.drugMl += dv; S.drugLeft -= dv; } else { S.dilMl += dv; S.dilLeft -= dv; }
+            S.drugMl = Math.max(0, +S.drugMl.toFixed(4)); S.dilMl = Math.max(0, +S.dilMl.toFixed(4));
+            return true;
+        };
+        $('#pPlus', body).onclick = () => { pull(step); stDraw(); };
+        $('#pMinus', body).onclick = () => { pull(-step); stDraw(); };
+        let held = false, last = 0, drawn = 0;
+        const loop = (t) => {
+            if (held) {
+                const dt = Math.min(0.05, (t - last) / 1000); last = t;
+                const ok = pull(syr.ml * 0.14 * dt); drawn += syr.ml * 0.14 * dt;
+                // beim zuegigen Aufziehen entstehen Luftblasen
+                if (ok && Math.random() < dt * 2.2 && S.bubbles.length < 6) S.bubbles.push({ pos: Math.random(), y: Math.random(), r: 3 + Math.random() * 3.5, vol: +(0.01 + Math.random() * Math.min(0.06, syr.ml * 0.01)).toFixed(3), atTip: false });
+                const box = $('.draw-syr svg', body);
+                if (box) box.outerHTML = syringeSvg(syr, { total: total(), drugMl: S.drugMl, bubbles: S.bubbles, needle: S.needle, drugColor: (M.colors[S.drug.color] || {}).bg });
+                const rd = $('.draw-read', body);
+                if (rd) rd.innerHTML = `<b>${numDe(total(), 2)} ml</b> in der Spritze<br><span class="dim">${esc(S.drug.label)}: ${numDe(S.drugMl, 2)} ml = ${unitTxt(amount())}${S.dilMl ? ` · Loesung: ${numDe(S.dilMl, 2)} ml` : ''}</span>`;
+                if (!ok) { held = false; msg(cap() <= 0 ? 'Spritze ist voll' : 'Gebinde ist leer', true); }
+            }
+            Game.raf = requestAnimationFrame(loop);
+        };
+        startLoop(loop);
+        $('#pPull', body).addEventListener('pointerdown', (e) => { e.preventDefault(); held = true; last = performance.now(); });
+        onUp(() => { if (held) { held = false; stDraw(); } });
+        msg(S.diluent ? 'Wirkstoff aufziehen, dann zur Loesung wechseln und verduennen. +/- fuer die Feinkorrektur.' : 'Kolben gedrueckt halten zum Aufziehen, +/- fuer die Feinkorrektur.');
+        nav(`<button class="btn" id="pBack">${icon('arrow-left')} Pruefung</button> <button class="btn btn--primary" id="pNext" ${total() > 0 ? '' : 'disabled'}>Entlueften ${icon('arrow-right')}</button>`);
+        $('#pBack', body).onclick = () => go(1);
+        $('#pNext', body).onclick = () => go(4);
+    }
+
+    /* 5. Entlueften: anklopfen, dann Luft herausdruecken */
+    function stAir() {
+        const syr = S.syringe;
+        const draw = () => {
+            stopLoop();
+            $('#pMain', body).innerHTML = `<div class="prep-air">
+                <div class="air-syr" id="pAirSyr" title="Anklopfen">${syringeSvg(syr, { total: total(), drugMl: S.drugMl, bubbles: S.bubbles, needle: S.needle, drugColor: (M.colors[S.drug.color] || {}).bg })}</div>
+                <div class="draw-ctl">
+                    <button class="btn" id="pKnock">${icon('hand-back-fist')} Anklopfen</button>
+                    <button class="btn btn--primary" id="pPush">${icon('arrow-right')} Luft herausdruecken (halten)</button>
+                    <span class="grow"></span>
+                    <div class="draw-read"><b>${numDe(total(), 2)} ml</b> Fluessigkeit · Luft: <b class="${air() > 0.01 ? 'warn' : ''}">${numDe(air(), 2)} ml</b><br>
+                        <span class="dim">${S.bubbles.length ? 'Blasen zur Spitze klopfen und herausdruecken' : 'luftfrei'}</span></div>
+                </div></div>`;
+            const knock = () => {
+                S.bubbles.forEach(b => { if (!b.atTip) { b.pos = Math.min(1, b.pos + 0.35 + Math.random() * 0.25); if (b.pos >= 1) b.atTip = true; } });
+                // Blasen an der Spitze verschmelzen zu einer grossen
+                const tip = S.bubbles.filter(b => b.atTip);
+                if (tip.length > 1) { const v = tip.reduce((a, b) => a + b.vol, 0); S.bubbles = S.bubbles.filter(b => !b.atTip).concat([{ atTip: true, pos: 1, y: 0.2, r: Math.min(10, 3 + v * 20), vol: v }]); }
+                draw();
+            };
+            $('#pKnock', body).onclick = knock;
+            $('#pAirSyr', body).onclick = knock;
+            let held = false, last = 0;
+            const loop = (t) => {
+                if (held) {
+                    const dt = Math.min(0.05, (t - last) / 1000); last = t;
+                    const tip = S.bubbles.find(b => b.atTip);
+                    if (tip) { tip.vol -= dt * 0.6; tip.r = Math.max(2, tip.r - dt * 10); if (tip.vol <= 0) S.bubbles = S.bubbles.filter(b => b !== tip); }
+                    else if (!S.bubbles.length) {
+                        // keine Luft mehr: es wird Fluessigkeit verworfen
+                        const loss = Math.min(total(), dt * Math.max(0.1, syr.ml * 0.05));
+                        const share = total() > 0 ? S.drugMl / total() : 0;
+                        S.drugMl = Math.max(0, S.drugMl - loss * share); S.dilMl = Math.max(0, S.dilMl - loss * (1 - share));
+                        S.lostMl = (S.lostMl || 0) + loss;
+                    }
+                    const box = $('#pAirSyr', body); if (box) box.innerHTML = syringeSvg(syr, { total: total(), drugMl: S.drugMl, bubbles: S.bubbles, needle: S.needle, drugColor: (M.colors[S.drug.color] || {}).bg });
+                }
+                Game.raf = requestAnimationFrame(loop);
+            };
+            startLoop(loop);
+            $('#pPush', body).addEventListener('pointerdown', (e) => { e.preventDefault(); held = true; last = performance.now(); });
+            onUp(() => { if (held) { held = false; draw(); if (S.lostMl > 0.05) msg(`${numDe(S.lostMl, 2)} ml verworfen - Menge pruefen!`, true); } });
+            nav(`<button class="btn" id="pBack">${icon('arrow-left')} Aufziehen</button> <button class="btn btn--primary" id="pNext">Etikett ${icon('arrow-right')}</button>`);
+            $('#pBack', body).onclick = () => go(3);
+            $('#pNext', body).onclick = () => { if (air() > 0.02) S.notes.push('Mit Luftblasen weitergemacht'); go(5); };
+        };
+        draw();
+        msg('Spritze mit der Spitze nach oben halten, anklopfen und die Luft herausdruecken');
+    }
+
+    /* 6. Automatisch erzeugtes Etikett */
+    function stLabel() {
+        const c = M.colors[S.drug.color] || { bg: '#fff' };
+        const now = new Date();
+        const t = now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+        const conc = total() > 0 ? amount() / total() : 0;
+        const ini = (def.staff || 'RD').split(/\s+/).map(w => w[0]).join('').slice(0, 3).toUpperCase();
+        S.label = { name: S.drug.label, line: `${unitTxt(amount())} / ${numDe(total(), 1)} ml`, bg: c.bg, stripe: c.stripe };
+        $('#pMain', body).innerHTML = `<div class="prep-label">
+            <div class="syr-label" style="--lbl:${c.bg}">${c.stripe ? '<i class="syr-label__stripe"></i>' : ''}
+                <div class="syr-label__name">${esc(S.drug.label)}</div>
+                <div class="syr-label__dose">${unitTxt(amount())} in ${numDe(total(), 1)} ml</div>
+                <div class="syr-label__conc">= ${numDe(conc, 3)} ${S.drug.unit}/ml</div>
+                <div class="syr-label__meta"><span>${t} Uhr</span><span>${now.toLocaleDateString('de-DE')}</span><span>${esc(ini)}</span><span>${esc(c.label || '')}</span></div>
+            </div>
+            <div class="dim">Etikett nach Wirkstoffgruppe eingefaerbt, Inhalt aus dem aufgezogenen Volumen berechnet.</div></div>`;
+        msg('Etikett pruefen und auf die Spritze kleben');
+        nav(`<button class="btn" id="pBack">${icon('arrow-left')} Entlueften</button> <button class="btn btn--primary" id="pNext">${icon('tag')} Aufkleben</button>`);
+        $('#pBack', body).onclick = () => go(4);
+        $('#pNext', body).onclick = () => { S.labeled = true; go(6); };
+    }
+
+    /* 7. Vierteilige Abschlusskontrolle nach dem Vier-Augen-Prinzip */
+    function stControl() {
+        const ordered = byIdMed(order.id);
+        const route = order.route || 'iv';
+        const conc = total() > 0 ? amount() / total() : 0;
+        const okDrug = ordered && ordered.id === S.drug.id;
+        const doseOk = amount() >= S.drug.dose * 0.5 && amount() <= S.drug.max * 1.05;
+        const routeOk = route === 'im' ? true : !!def.access;
+        const rows = [
+            ['patient', 'Richtiger Patient', `${esc(def.patient || 'Patient')}`, true],
+            ['medikament', 'Richtiges Medikament', `Verordnet: <b>${esc(order.label)}</b> · Spritze: <b>${esc(S.drug.label)}</b>`, okDrug],
+            ['dosis', 'Richtige Dosis', `<b>${unitTxt(amount())}</b> in ${numDe(total(), 1)} ml (= ${numDe(conc, 3)} ${S.drug.unit}/ml) · uebliche Einzeldosis ${unitTxt(S.drug.dose)}, Hoechstdosis ${unitTxt(S.drug.max)}${air() > 0.02 ? ` · <span class="warn">Luft ${numDe(air(), 2)} ml</span>` : ''}`, doseOk && air() <= 0.02],
+            ['weg', 'Richtiger Applikationsweg', `${esc(ROUTE_TXT[route] || 'i.v.')} · Zugang: ${esc(def.access || (route === 'im' ? 'nicht noetig' : 'kein Zugang!'))}${route === 'im' ? ` · Injektionskanuele: <select class="input input--sm" id="pInj"><option value="">waehlen ...</option>${M.needles.filter(n => n.use === 'inject').map(n => `<option value="${n.id}" ${S.injNeedle === n.id ? 'selected' : ''}>${esc(n.label)}</option>`).join('')}</select>` : ''}`, routeOk],
+        ];
+        $('#pMain', body).innerHTML = `<div class="prep-control">
+            <div class="ctl-syr">${syringeSvg(S.syringe, { total: total(), drugMl: S.drugMl, bubbles: S.bubbles, needle: S.needle, label: S.label, drugColor: (M.colors[S.drug.color] || {}).bg })}</div>
+            <div class="ctl-head">${icon('user-group')} Vier-Augen-Prinzip: Kollege liest vor, du bestaetigst jeden Punkt</div>
+            ${rows.map(([k, title, txt, ok]) => `<div class="ctl-row ${S.control[k] ? 'is-ok' : ''} ${!ok ? 'is-warn' : ''}">
+                <div class="ctl-row__t"><b>${title}</b><div>${txt}</div></div>
+                <button class="btn btn--sm ${S.control[k] ? 'btn--primary' : ''}" data-ctl="${k}">${S.control[k] ? icon('check') + ' bestaetigt' : 'bestaetigen'}</button></div>`).join('')}
+            ${S.errors.length || S.notes.length ? `<div class="ctl-notes">${S.errors.concat(S.notes).map(t => `<div>${icon('triangle-exclamation')} ${esc(t)}</div>`).join('')}</div>` : ''}
+        </div>`;
+        $$('[data-ctl]', body).forEach(b => b.onclick = () => { S.control[b.dataset.ctl] = !S.control[b.dataset.ctl]; stControl(); });
+        const inj = $('#pInj', body); if (inj) inj.onchange = () => { S.injNeedle = inj.value; };
+        const all = rows.every(([k]) => S.control[k]);
+        msg(rows.some(r => !r[3]) ? 'Achtung: Mindestens ein Punkt stimmt nicht - korrigieren oder bewusst so geben' : 'Alle Punkte vorlesen und bestaetigen', rows.some(r => !r[3]));
+        nav(`<button class="btn" id="pRedo">${icon('rotate-left')} Neu aufziehen</button> <button class="btn btn--primary" id="pGive" ${all ? '' : 'disabled'}>${icon('syringe')} Verabreichen</button>`);
+        $('#pRedo', body).onclick = () => { Object.assign(S, { stage: 3, drugLeft: S.drugLeft + S.drugMl, dilLeft: S.dilLeft + S.dilMl, drugMl: 0, dilMl: 0, bubbles: [], label: null, labeled: false, control: {}, lostMl: 0 }); render(); };
+        $('#pGive', body).onclick = () => {
+            if (route === 'im' && !S.injNeedle) return msg('Fuer die i.m.-Gabe eine Injektionskanuele waehlen', true);
+            const res = { drug: S.drug.id, drugMl: +S.drugMl.toFixed(3), totalMl: +total().toFixed(3), air: +air().toFixed(3), syringe: S.syringe.id,
+                needle: route === 'im' ? S.injNeedle : S.needle.id, labeled: !!S.labeled, checked: true };
+            Game.done(body, true, `${S.drug.label} ${unitTxt(amount())} wird verabreicht.`, res);
+        };
+    }
+
+    render();
     Game.onKey(() => {});
 }
 

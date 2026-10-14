@@ -136,7 +136,7 @@ end
 -- Resource laden (Reihenfolge wie fxmanifest)
 ----------------------------------------------------------------------------
 local files_to_load = {
-    'config.lua', 'config_catalog.lua', 'config_medical.lua', 'config_names.lua', 'shared/constants.lua', 'shared/utils.lua', 'shared/schema.lua',
+    'config.lua', 'config_catalog.lua', 'config_medical.lua', 'config_material.lua', 'config_names.lua', 'shared/constants.lua', 'shared/utils.lua', 'shared/schema.lua',
     'server/storage.lua', 'bridge/framework.lua', 'server/permissions.lua', 'server/validation.lua',
     'server/spawner.lua', 'server/fire.lua', 'server/zfire.lua', 'server/medical.lua', 'server/variants.lua', 'server/rescue.lua', 'bridge/dispatch.lua', 'server/alarm.lua',
     'server/incidents.lua', 'server/random.lua', 'server/main.lua',
@@ -540,10 +540,19 @@ local pt2 = minc.rescue.patients.p2
 check(pt1.med and pt1.med.hf >= 70 and pt1.med.hf <= 100, 'Vitalwerte aus Meldebild (Sturz) gewuerfelt')
 check(pt2.name ~= '' and pt2.name:find(' '), 'Zufallsname vergeben: ' .. tostring(pt2.name))
 check(pt1.dest and pt1.dest.label, 'Transportziel andere Klinik: ' .. tostring(pt1.dest and pt1.dest.label))
-local function med(action, arg)
+-- Spritze wie aus dem Materialschrank: Medikament zur Medikation passend, Dosis als Vielfaches der ueblichen Dosis
+local function syringe(medId, factor, extra)
+    local d = Material.DrugByMed[medId]
+    local ml = d.dose * (factor or 1) / d.conc
+    local r = { drug = d.id, drugMl = ml, totalMl = math.max(ml, d.dilute or 0), air = 0, syringe = 'll10', needle = 'aufz18', labeled = true, checked = true }
+    for k, v in pairs(extra or {}) do r[k] = v end
+    return r
+end
+local function med(action, arg, result)
     advance(2000)
     waitRate()
-    return request('medAction', { incidentId = minc.id, patientId = 'p1', action = action, arg = arg })
+    if action == 'med' and result == nil and Material.DrugByMed[arg] then result = syringe(arg) end
+    return request('medAction', { incidentId = minc.id, patientId = 'p1', action = action, arg = arg, result = result })
 end
 player.coords = GetEntityCoords(minc.entities.p1.entity)
 ok, res = med('talk_name')
@@ -557,6 +566,29 @@ check(pt1.med.rrsys == sysBefore, 'Medikament vor Messung ohne Wirkung')
 med('measure', 'rr')
 ok, res = med('med', 'ebrantil')
 check(pt1.med.rrsys == math.max(0, sysBefore - 25), 'Ebrantil senkt RR systolisch um 25')
+do
+    advance(2000); waitRate()
+    local o, r = request('medAction', { incidentId = minc.id, patientId = 'p1', action = 'med', arg = 'ebrantil' })
+    check(not o and tostring(r):find('aufgezogen'), 'Medikament ohne Aufziehen abgelehnt')
+    advance(2000); waitRate()
+    local sys0 = pt1.med.rrsys
+    o, r = med('med', 'ebrantil', syringe('ebrantil', 0.25))
+    local txtU = ''; for _, l in ipairs(r.lines) do txtU = txtU .. l.text .. ' | ' end
+    check(o and pt1.med.rrsys == sys0 and txtU:find('unterdosiert'), 'Unterdosierung: kaum Wirkung: ' .. txtU)
+    sys0 = pt1.med.rrsys
+    o, r = med('med', 'ebrantil', syringe('ebrantil', 6))
+    local txt = ''; for _, l in ipairs(r.lines) do txt = txt .. l.text .. ' | ' end
+    check(o and txt:find('UEBERDOSIERUNG') and pt1.med.rrsys < sys0 - 40, 'Ueberdosierung senkt RR stark: ' .. txt)
+    local hf0 = pt1.med.hf
+    o, r = med('med', 'ebrantil', syringe('atropin'))
+    txt = ''; for _, l in ipairs(r.lines) do txt = txt .. l.text .. ' | ' end
+    check(o and txt:find('statt') and pt1.med.hf > hf0, 'Falsches Medikament: Atropin statt Urapidil wirkt als Atropin')
+    local spo0 = pt1.med.spo2Base
+    o, r = med('med', 'ebrantil', syringe('ebrantil', 1, { air = 1.0 }))
+    check(pt1.med.spo2Base < spo0, 'Luft in der Spritze verschlechtert die Saettigung')
+    o, r = med('med', 'ebrantil', syringe('ebrantil', 1, { syringe = 'ent10' }))
+    check(o and r.lines[#r.lines].text:find('Enteralspritze'), 'Enteralspritze nicht an den i.v.-Zugang')
+end
 med('measure', 'hf')
 local spoBefore
 ok, res = med('measure', 'spo2'); spoBefore = res.view.vitals.spo2
@@ -616,6 +648,7 @@ do
         advance(2000)
         waitRate()
         player.coords = GetEntityCoords(inc.entities[pid].entity)
+        if action == 'med' and result == nil and Material.DrugByMed[arg] then result = syringe(arg) end
         return request('medAction', { incidentId = inc.id, patientId = pid, action = action, arg = arg, result = result })
     end
     local rea = inc.rescue.patients.rea.med

@@ -332,6 +332,7 @@ end
 
 ----------------------------------------------------------------------------
 -- Massnahmen
+
 ----------------------------------------------------------------------------
 local function say(lines, who, text) lines[#lines + 1] = { who = who, text = text } end
 
@@ -439,6 +440,91 @@ local SEVERE_ITEM = { schiene = 'schiene', stifneck = 'stifneck', beckenschlinge
             bodycheck | pflaster | verband | schiene | stifneck | beckenschlinge
             transport_ask | no_transport | stretcher (arg = Netz-ID der Trage)
 ]]
+----------------------------------------------------------------------------
+-- Aufgezogene Spritze (Ergebnis aus dem Materialschrank)
+----------------------------------------------------------------------------
+local function fmtAmount(v, unit)
+    local txt = (v >= 10 or v == math.floor(v)) and ('%g'):format(U.round(v, 1)) or ('%g'):format(U.round(v, 2))
+    return txt:gsub('%.', ',') .. ' ' .. unit
+end
+Med.fmtAmount = fmtAmount
+
+-- Werte vom Client bereinigen; die Wirkstoffmenge rechnet der Server aus dem aufgezogenen Volumen nach
+function Med.sanitizePrep(r)
+    local out = {
+        drug = type(r.drug) == 'string' and #r.drug <= 32 and r.drug or nil,
+        drugMl = U.num(r.drugMl, 0, 0, 120),
+        totalMl = U.num(r.totalMl, 0, 0, 120),
+        air = U.num(r.air, 0, 0, 20),
+        syringe = type(r.syringe) == 'string' and #r.syringe <= 32 and r.syringe or nil,
+        needle = type(r.needle) == 'string' and #r.needle <= 32 and r.needle or nil,
+        labeled = r.labeled == true,
+        checked = r.checked == true,
+    }
+    return out
+end
+
+local ADVERSE_SPO2 = 'spo2Bonus'
+local function applyEffect(med, effect, factor)
+    for k, v in pairs(effect or {}) do
+        local val = v * factor
+        if k == ADVERSE_SPO2 and val < 0 then
+            med.spo2Base = math.max(40, med.spo2Base + val)
+        else
+            med[k] = (med[k] or 0) + (math.abs(val) >= 1 and U.round(val) or val)
+        end
+    end
+end
+
+-- gibt true zurueck, wenn sich der Patient veraendert hat
+function Med.givePrepared(med, ordered, r, lines)
+    local drug = Material.DrugById[r.drug or '']
+    if not drug then
+        say(lines, 'info', 'Die Spritze ist nicht beschriftet und der Inhalt unklar - Gabe abgebrochen.')
+        return false
+    end
+    local syr = Material.SyringeById[r.syringe or '']
+    if syr and syr.kind == 'enteral' and (ordered.route or 'iv') ~= 'im' then
+        say(lines, 'info', 'Die Enteralspritze passt nicht auf den Zugang (ENFit) - Gabe nicht moeglich. Neu aufziehen!')
+        return false
+    end
+    local amount = r.drugMl * drug.conc
+    if amount <= 0 then
+        say(lines, 'info', 'Die Spritze ist leer.')
+        return false
+    end
+    local given = drug.med and EC.MedicationById[drug.med] or nil
+    local wrong = drug.med ~= ordered.id
+    local amountTxt = fmtAmount(amount, drug.unit)
+    if wrong then
+        say(lines, 'info', ('Achtung: Aufgezogen und gegeben wurde %s statt %s!'):format(drug.label, ordered.label))
+    end
+    say(lines, 'info', ('%s %s gegeben (%s ml in der Spritze).'):format(drug.label, amountTxt, ('%g'):format(U.round(r.totalMl, 1)):gsub('%.', ',')))
+    local factor = amount / drug.dose
+    local mult = factor < 0.5 and 0 or U.clamp(factor, 0, 1.5)
+    if factor < 0.5 then
+        say(lines, 'info', ('Deutlich unterdosiert (uebliche Dosis %s) - kaum Wirkung.'):format(fmtAmount(drug.dose, drug.unit)))
+    end
+    if not med.arrest and given then
+        applyEffect(med, given.effect, mult)
+        for k, range in pairs(given.effectRange or {}) do med[k] = (med[k] or 0) + rnd(range) * mult end
+    end
+    if amount > drug.max * 1.05 then
+        say(lines, 'info', ('UEBERDOSIERUNG: %s liegt ueber der Hoechstdosis von %s!'):format(amountTxt, fmtAmount(drug.max, drug.unit)))
+        applyEffect(med, drug.over or { spo2Bonus = -4 }, U.clamp(amount / drug.max - 1, 0.5, 3))
+    elseif wrong and drug.over then
+        applyEffect(med, drug.over, 0.5)
+    end
+    if r.air >= 0.3 and (ordered.route or 'iv') == 'iv' then
+        say(lines, 'info', 'Luft in der Spritze injiziert - Gefahr einer Luftembolie!')
+        med.spo2Base = math.max(40, med.spo2Base - 6)
+    end
+    if not r.checked then say(lines, 'info', 'Ohne Vier-Augen-Kontrolle verabreicht.') end
+    if not wrong and factor >= 0.5 then med.given[ordered.id] = true end
+    med.log[#med.log + 1] = { at = os.time(), text = ('%s %s%s'):format(drug.label, amountTxt, wrong and ' (falsches Medikament)' or '') }
+    return true
+end
+
 function Med.action(src, incident, p, action, arg, result)
     local med = p.med
     if not med then return false, 'Dieser Patient hat keine detaillierte Behandlung' end
@@ -642,6 +728,10 @@ function Med.action(src, incident, p, action, arg, result)
     elseif action == 'med' then
         local m = EC.MedicationById[arg]
         if not m then return false, 'Unbekanntes Medikament' end
+        local prep = Material.DrugByMed[m.id]
+        if prep and Config.Medical.requirePreparation ~= false and type(result) ~= 'table' then
+            return false, 'Das Medikament muss zuerst aufgezogen werden'
+        end
         say(lines, 'rd', ('Rettungsdienst: Sie bekommen von uns jetzt %s.'):format(m.label))
         local route = m.route or 'iv'   -- inhal / sl / im / in brauchen keinen Zugang
         if route == 'iv' and not med.canula then
@@ -659,15 +749,20 @@ function Med.action(src, incident, p, action, arg, result)
                 say(lines, 'info', ('Kontraindikation: Der systolische Blutdruck liegt unter %d mmHg - keine Gabe.'):format(m.minSys))
                 return true, { lines = lines, view = Med.view(p) }
             end
-            if not med.arrest then
-                for k, v in pairs(m.effect or {}) do med[k] = (med[k] or 0) + v end
-                for k, range in pairs(m.effectRange or {}) do med[k] = (med[k] or 0) + rnd(range) end
+            if type(result) == 'table' then
+                -- aufgezogene Spritze: tatsaechlich gegebenes Medikament und Dosis bestimmen die Wirkung
+                if Med.givePrepared(med, m, result, lines) then changed = true end
+            else
+                if not med.arrest then
+                    for k, v in pairs(m.effect or {}) do med[k] = (med[k] or 0) + v end
+                    for k, range in pairs(m.effectRange or {}) do med[k] = (med[k] or 0) + rnd(range) end
+                end
+                med.given[m.id] = true
+                say(lines, 'info', ('%s wurde verabreicht.'):format(m.label))
+                med.log[#med.log + 1] = { at = os.time(), text = m.label }
+                changed = true
             end
-            med.given[m.id] = true
             clampVitals(med)
-            say(lines, 'info', ('%s wurde verabreicht.'):format(m.label))
-            med.log[#med.log + 1] = { at = os.time(), text = m.label }
-            changed = true
             checkRosc(med, lines)
         end
     elseif action == 'bodycheck' then

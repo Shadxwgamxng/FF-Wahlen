@@ -271,7 +271,11 @@ Handlers.medAction = { rate = 300, fn = function(src, p)
     if arg ~= nil and type(arg) ~= 'string' and type(arg) ~= 'number' then return false, 'Ungueltiger Wert' end
     -- Ergebnis eines Minispiels (true/false oder gewaehlte Seite)
     local result = p.result
-    if result ~= nil and type(result) ~= 'boolean' and not (type(result) == 'string' and #result <= 16) then result = false end
+    if p.action == 'med' and type(result) == 'table' then
+        result = Med.sanitizePrep(result)   -- aufgezogene Spritze
+    elseif result ~= nil and type(result) ~= 'boolean' and not (type(result) == 'string' and #result <= 16) then
+        result = false
+    end
     return Med.action(src, inc, pt, p.action, arg, result)
 end }
 
