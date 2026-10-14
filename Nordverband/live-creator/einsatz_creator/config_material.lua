@@ -16,6 +16,8 @@
       color     Farbe des Spritzenetiketts (nach Wirkstoffgruppe, angelehnt an ISO 26825)
       over      Wirkung bei Ueberdosierung (wird zusaetzlich angewendet)
       glass     'braun' = Braunglasampulle (lichtempfindlich), sonst klares Glas
+      form      nil = wird aufgezogen; 'inhal' | 'spray' | 'infusion' = wird direkt gegeben
+      med       Verknuepfung zu Medical.Medications. Das Behandlungsmenue zeigt genau die Medikamente aus diesem Schrank.
 ]]
 Material = Material or {}
 
@@ -117,48 +119,56 @@ Material.Containers = {
     { id = 'g5_500', label = 'Glukose 5 % 500 ml', kind = 'bag', ml = 500, diluent = true, solution = 'Glukose 5 %' },
 }
 
--- 40 Rettungsdienst-Medikamente
+-- Rettungsdienst-Medikamente (einzige Quelle fuer das Behandlungsmenue)
 Material.Drugs = {
     { id = 'adrenalin', med = 'suprarenin', label = 'Adrenalin', unit = 'mg', conc = 1, ml = 1, container = 'glas1', dose = 1, max = 1, dilute = 10, color = 'katecholamin', glass = 'braun' },
-    { id = 'noradrenalin', label = 'Noradrenalin', unit = 'µg', conc = 1000, ml = 1, container = 'glas1', dose = 10, max = 50, dilute = 50, color = 'katecholamin', over = { rrsys = 50, hf = 20 }, glass = 'braun' },
+    { id = 'noradrenalin', med = 'noradrenalin', label = 'Noradrenalin', unit = 'µg', conc = 1000, ml = 1, container = 'glas1', dose = 10, max = 50, dilute = 50, color = 'katecholamin', over = { rrsys = 50, hf = 20 }, glass = 'braun' },
     { id = 'akrinor', med = 'akrinor', label = 'Cafedrin/Theodrenalin', unit = 'mg', conc = 100, ml = 2, container = 'glas2', dose = 40, max = 200, dilute = 10, color = 'katecholamin', over = { rrsys = 40, hf = 25 } },
     { id = 'atropin', med = 'atropin', label = 'Atropin', unit = 'mg', conc = 0.5, ml = 1, container = 'glas1', dose = 0.5, max = 3, color = 'anticholinergikum', over = { hf = 40 } },
     { id = 'amiodaron', med = 'amiodaron', label = 'Amiodaron', unit = 'mg', conc = 50, ml = 3, container = 'glas3', dose = 300, max = 300, color = 'sonstige' },
-    { id = 'adenosin', label = 'Adenosin', unit = 'mg', conc = 3, ml = 2, container = 'vial5', dose = 6, max = 12, color = 'sonstige', over = { hf = -40 } },
-    { id = 'metoprolol', label = 'Metoprolol', unit = 'mg', conc = 1, ml = 5, container = 'glas5', dose = 5, max = 15, color = 'sonstige', over = { hf = -35, rrsys = -30 } },
+    { id = 'adenosin', med = 'adenosin', label = 'Adenosin', unit = 'mg', conc = 3, ml = 2, container = 'vial5', dose = 6, max = 12, color = 'sonstige', over = { hf = -40 } },
+    { id = 'metoprolol', med = 'metoprolol', label = 'Metoprolol', unit = 'mg', conc = 1, ml = 5, container = 'glas5', dose = 5, max = 15, color = 'sonstige', over = { hf = -35, rrsys = -30 } },
     { id = 'urapidil', med = 'ebrantil', label = 'Urapidil', unit = 'mg', conc = 5, ml = 10, container = 'glas10', dose = 10, max = 50, color = 'sonstige', over = { rrsys = -45 } },
     { id = 'clonidin', med = 'haemiton', label = 'Clonidin', unit = 'µg', conc = 150, ml = 1, container = 'glas1', dose = 75, max = 150, dilute = 10, color = 'sonstige', over = { rrsys = -30, hf = -20 } },
-    { id = 'nitro_iv', label = 'Glyceroltrinitrat i.v.', unit = 'mg', conc = 1, ml = 5, container = 'glas5', dose = 0.4, max = 1, color = 'sonstige', over = { rrsys = -40 }, glass = 'braun' },
+    { id = 'nitro_iv', med = 'nitro_iv', label = 'Glyceroltrinitrat i.v.', unit = 'mg', conc = 1, ml = 5, container = 'glas5', dose = 0.4, max = 1, color = 'sonstige', over = { rrsys = -40 }, glass = 'braun' },
     { id = 'furosemid', med = 'furosemid', label = 'Furosemid', unit = 'mg', conc = 10, ml = 4, container = 'glas4', dose = 40, max = 80, color = 'sonstige', glass = 'braun' },
     { id = 'ass', med = 'ass', label = 'Acetylsalicylsaeure', unit = 'mg', conc = 100, ml = 5, container = 'dry', solvent = 5, dose = 250, max = 500, color = 'gerinnung' },
     { id = 'heparin', med = 'heparin', label = 'Heparin', unit = 'IE', conc = 5000, ml = 1, container = 'vial5', dose = 5000, max = 10000, color = 'gerinnung' },
-    { id = 'tranexam', label = 'Tranexamsaeure', unit = 'mg', conc = 100, ml = 10, container = 'glas10', dose = 1000, max = 2000, color = 'gerinnung' },
+    { id = 'tranexam', med = 'tranexam', label = 'Tranexamsaeure', unit = 'mg', conc = 100, ml = 10, container = 'glas10', dose = 1000, max = 2000, color = 'gerinnung' },
     { id = 'morphin', med = 'morphin', label = 'Morphin', unit = 'mg', conc = 10, ml = 1, container = 'glas1', dose = 5, max = 10, dilute = 10, color = 'opioid', over = { af = -8, spo2Bonus = -10, gcs = -4 } },
     { id = 'fentanyl', med = 'fentanyl', label = 'Fentanyl', unit = 'µg', conc = 50, ml = 2, container = 'glas2', dose = 100, max = 200, color = 'opioid', over = { af = -10, spo2Bonus = -12, gcs = -5 } },
-    { id = 'piritramid', label = 'Piritramid', unit = 'mg', conc = 7.5, ml = 2, container = 'glas2', dose = 7.5, max = 15, dilute = 10, color = 'opioid', over = { af = -6, gcs = -3 } },
-    { id = 'tramadol', label = 'Tramadol', unit = 'mg', conc = 50, ml = 2, container = 'glas2', dose = 100, max = 100, color = 'opioid' },
+    { id = 'piritramid', med = 'piritramid', label = 'Piritramid', unit = 'mg', conc = 7.5, ml = 2, container = 'glas2', dose = 7.5, max = 15, dilute = 10, color = 'opioid', over = { af = -6, gcs = -3 } },
+    { id = 'tramadol', med = 'tramadol', label = 'Tramadol', unit = 'mg', conc = 50, ml = 2, container = 'glas2', dose = 100, max = 100, color = 'opioid' },
     { id = 'esketamin', med = 'ketanest', label = 'Esketamin', unit = 'mg', conc = 25, ml = 2, container = 'glas2', dose = 12.5, max = 50, color = 'sedativum', over = { gcs = -6, rrsys = 20 } },
     { id = 'midazolam', med = 'midazolam', label = 'Midazolam', unit = 'mg', conc = 5, ml = 1, container = 'glas1', dose = 2.5, max = 7.5, color = 'sedativum', over = { af = -6, gcs = -6, spo2Bonus = -8 } },
-    { id = 'diazepam', label = 'Diazepam', unit = 'mg', conc = 5, ml = 2, container = 'glas2', dose = 10, max = 20, color = 'sedativum', over = { af = -5, gcs = -5 } },
-    { id = 'lorazepam', label = 'Lorazepam', unit = 'mg', conc = 2, ml = 1, container = 'glas1', dose = 2, max = 4, color = 'sedativum', over = { gcs = -5 } },
-    { id = 'propofol', label = 'Propofol 1 %', unit = 'mg', conc = 10, ml = 20, container = 'glas20', dose = 100, max = 200, color = 'sedativum', over = { gcs = -10, af = -10, rrsys = -40 } },
-    { id = 'etomidat', label = 'Etomidat', unit = 'mg', conc = 2, ml = 10, container = 'glas10', dose = 20, max = 30, color = 'sedativum', over = { gcs = -10, af = -8 } },
+    { id = 'diazepam', med = 'diazepam', label = 'Diazepam', unit = 'mg', conc = 5, ml = 2, container = 'glas2', dose = 10, max = 20, color = 'sedativum', over = { af = -5, gcs = -5 } },
+    { id = 'lorazepam', med = 'lorazepam', label = 'Lorazepam', unit = 'mg', conc = 2, ml = 1, container = 'glas1', dose = 2, max = 4, color = 'sedativum', over = { gcs = -5 } },
+    { id = 'propofol', med = 'propofol', label = 'Propofol 1 %', unit = 'mg', conc = 10, ml = 20, container = 'glas20', dose = 100, max = 200, color = 'sedativum', over = { gcs = -10, af = -10, rrsys = -40 } },
+    { id = 'etomidat', med = 'etomidat', label = 'Etomidat', unit = 'mg', conc = 2, ml = 10, container = 'glas10', dose = 20, max = 30, color = 'sedativum', over = { gcs = -10, af = -8 } },
     { id = 'naloxon', med = 'naloxon', label = 'Naloxon', unit = 'mg', conc = 0.4, ml = 1, container = 'glas1', dose = 0.4, max = 2, dilute = 10, color = 'antagonist' },
     { id = 'butylscopolamin', med = 'buscopan', label = 'Butylscopolamin', unit = 'mg', conc = 20, ml = 1, container = 'glas1', dose = 20, max = 40, color = 'anticholinergikum' },
     { id = 'metamizol', med = 'novalgin', label = 'Metamizol', unit = 'mg', conc = 500, ml = 2, container = 'glas2', dose = 1000, max = 2500, color = 'sonstige', over = { rrsys = -25 } },
     { id = 'dimetinden', med = 'fenistil', label = 'Dimetinden', unit = 'mg', conc = 1, ml = 4, container = 'glas4', dose = 4, max = 8, color = 'sonstige' },
-    { id = 'clemastin', label = 'Clemastin', unit = 'mg', conc = 1, ml = 2, container = 'glas2', dose = 2, max = 4, color = 'sonstige' },
+    { id = 'clemastin', med = 'clemastin', label = 'Clemastin', unit = 'mg', conc = 1, ml = 2, container = 'glas2', dose = 2, max = 4, color = 'sonstige' },
     { id = 'prednisolon', med = 'prednisolon', label = 'Prednisolon', unit = 'mg', conc = 50, ml = 5, container = 'dry', solvent = 5, dose = 250, max = 1000, color = 'sonstige' },
-    { id = 'reproterol', label = 'Reproterol', unit = 'mg', conc = 0.09, ml = 1, container = 'glas1', dose = 0.09, max = 0.18, dilute = 10, color = 'sonstige', over = { hf = 35 } },
-    { id = 'magnesium', label = 'Magnesiumsulfat 10 %', unit = 'mg', conc = 100, ml = 10, container = 'glas10', dose = 2000, max = 4000, color = 'sonstige', over = { rrsys = -30, af = -6 } },
-    { id = 'calcium', label = 'Calciumgluconat 10 %', unit = 'mg', conc = 100, ml = 10, container = 'glas10', dose = 1000, max = 3000, color = 'sonstige' },
+    { id = 'reproterol', med = 'reproterol', label = 'Reproterol', unit = 'mg', conc = 0.09, ml = 1, container = 'glas1', dose = 0.09, max = 0.18, dilute = 10, color = 'sonstige', over = { hf = 35 } },
+    { id = 'magnesium', med = 'magnesium', label = 'Magnesiumsulfat 10 %', unit = 'mg', conc = 100, ml = 10, container = 'glas10', dose = 2000, max = 4000, color = 'sonstige', over = { rrsys = -30, af = -6 } },
+    { id = 'calcium', med = 'calcium', label = 'Calciumgluconat 10 %', unit = 'mg', conc = 100, ml = 10, container = 'glas10', dose = 1000, max = 3000, color = 'sonstige' },
     { id = 'g20', med = 'g20', label = 'Glukose 20 %', unit = 'g', conc = 0.2, ml = 10, container = 'plamp10', dose = 2, max = 10, color = 'sonstige' },
-    { id = 'g40', label = 'Glukose 40 %', unit = 'g', conc = 0.4, ml = 10, container = 'glas10', dose = 8, max = 16, color = 'sonstige' },
+    { id = 'g40', med = 'g40', label = 'Glukose 40 %', unit = 'g', conc = 0.4, ml = 10, container = 'glas10', dose = 8, max = 16, color = 'sonstige' },
     { id = 'glucagon', med = 'glucagon', label = 'Glucagon', unit = 'mg', conc = 1, ml = 1, container = 'dry', solvent = 1, dose = 1, max = 1, color = 'sonstige', route = 'im' },
-    { id = 'thiamin', label = 'Thiamin (Vitamin B1)', unit = 'mg', conc = 50, ml = 2, container = 'glas2', dose = 100, max = 100, color = 'sonstige' },
+    { id = 'thiamin', med = 'thiamin', label = 'Thiamin (Vitamin B1)', unit = 'mg', conc = 50, ml = 2, container = 'glas2', dose = 100, max = 100, color = 'sonstige' },
     { id = 'ondansetron', med = 'ondansetron', label = 'Ondansetron', unit = 'mg', conc = 2, ml = 2, container = 'glas2', dose = 4, max = 8, color = 'antiemetikum' },
     { id = 'dimenhydrinat', med = 'dimenhydrinat', label = 'Dimenhydrinat', unit = 'mg', conc = 6.2, ml = 10, container = 'glas10', dose = 62, max = 124, color = 'antiemetikum' },
-    { id = 'lidocain', label = 'Lidocain 2 %', unit = 'mg', conc = 20, ml = 5, container = 'glas5', dose = 40, max = 100, color = 'lokal', over = { hf = -30, gcs = -4 } },
+    { id = 'lidocain', med = 'lidocain', label = 'Lidocain 2 %', unit = 'mg', conc = 20, ml = 5, container = 'glas5', dose = 40, max = 100, color = 'lokal', over = { hf = -30, gcs = -4 } },
+    -- nicht aufziehbar (form): werden im Behandlungsmenue direkt gegeben, stehen aber im Schrank
+    { id = 'atrovent', med = 'atrovent', label = 'Ipratropiumbromid (Atrovent)', form = 'inhal', unit = 'mg', conc = 0.125, ml = 2, container = 'plamp5', dose = 0.5, max = 0.5, color = 'anticholinergikum' },
+    { id = 'salbutamol', med = 'salbutamol', label = 'Salbutamol', form = 'inhal', unit = 'mg', conc = 1.25, ml = 2, container = 'plamp5', dose = 2.5, max = 5, color = 'sonstige' },
+    { id = 'nitro', med = 'nitro', label = 'Nitro-Spray', form = 'spray', unit = 'mg', conc = 0.4, ml = 1, container = 'vial10', dose = 0.4, max = 0.8, color = 'sonstige' },
+    { id = 'paracetamol', med = 'paracetamol', label = 'Paracetamol 1 g', form = 'infusion', unit = 'mg', conc = 10, ml = 100, container = 'nacl100', dose = 1000, max = 1000, color = 'sonstige' },
+    { id = 'oxytocin', med = 'oxytocin', label = 'Oxytocin', unit = 'IE', conc = 3, ml = 1, container = 'glas1', dose = 3, max = 6, color = 'sonstige' },
+    { id = 'g5', med = 'g5', label = 'Glukose 5 % (Infusion)', form = 'infusion', unit = 'g', conc = 0.05, ml = 500, container = 'g5_500', dose = 25, max = 25, color = 'sonstige' },
+    { id = 'jonosteril', med = 'jonosteril', label = 'Vollelektrolyt (Jonosteril)', form = 'infusion', unit = 'ml', conc = 1, ml = 500, container = 'vel500', dose = 500, max = 1000, color = 'sonstige' },
 }
 
 -- Aufgezogen werden muessen alle Medikamente aus dem Behandlungsmenue, die hier ueber "med" verknuepft sind.
@@ -174,3 +184,6 @@ Material.NeedleById = {}
 for _, n in ipairs(Material.Needles) do Material.NeedleById[n.id] = n end
 Material.ContainerById = {}
 for _, c in ipairs(Material.Containers) do Material.ContainerById[c.id] = c end
+
+-- aufziehbar = Spritze vorbereiten (Ampulle, Durchstechflasche, Trockensubstanz)
+function Material.isDrawable(d) return d ~= nil and d.form == nil end

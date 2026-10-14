@@ -2658,11 +2658,11 @@ function gamePrep(body, def) {
         const sel = (x) => (S.tab === 'drugs' && S.drug === x) || (S.tab === 'syringes' && S.syringe === x) || (S.tab === 'needles' && S.needle === x) || (S.tab === 'containers' && S.diluent === x);
         const card = (x) => {
             let pic = '', sub = '';
-            if (S.tab === 'drugs') { pic = containerSvg(x, byId(M.containers, x.container)); sub = `${numDe(x.conc, 3)} ${x.unit}/ml · ${numDe(x.ml, 1)} ml`; }
+            if (S.tab === 'drugs') { pic = containerSvg(x, byId(M.containers, x.container)); sub = x.form ? `${{ inhal: 'Fertiginhalat', spray: 'Spray', infusion: 'Infusion' }[x.form]} - direkt geben` : `${numDe(x.conc, 3)} ${x.unit}/ml · ${numDe(x.ml, 1)} ml`; }
             else if (S.tab === 'containers') { pic = containerSvg(null, x); sub = x.kind === 'bag' ? 'Infusion' : 'zum Verduennen'; }
             else if (S.tab === 'syringes') { pic = `<div class="mini-syr"><i style="width:${Math.min(100, 18 + Math.log10(x.ml * 10) * 30)}%"></i></div>`; sub = x.kind === 'enteral' ? 'ENFit - nicht i.v.' : `${numDe(x.ml, 1)} ml`; }
             else { pic = `<div class="mini-needle" style="--c:${x.color}"></div>`; sub = { draw: 'zum Aufziehen', inject: 'Injektion', access: 'Zugang' }[x.use]; }
-            return `<div class="cab-item ${sel(x) ? 'is-sel' : ''}" data-id="${x.id}">${pic}<b>${esc(x.label)}</b><span>${esc(sub)}</span></div>`;
+            return `<div class="cab-item ${sel(x) ? 'is-sel' : ''} ${S.tab === 'drugs' && x.form ? 'is-direct' : ''}" data-id="${x.id}" ${S.tab === 'drugs' && x.form ? 'title="Wird nicht aufgezogen, sondern im Behandlungsmenue direkt gegeben"' : ''}>${pic}<b>${esc(x.label)}</b><span>${esc(sub)}</span></div>`;
         };
         $('#pMain', body).innerHTML = `<div class="cab">
             <div class="cab-left">
@@ -2681,6 +2681,7 @@ function gamePrep(body, def) {
         const si = $('#pSearch', body); si.oninput = () => { S.search = si.value; const pos = si.selectionStart; render(); const n = $('#pSearch', body); n.focus(); n.setSelectionRange(pos, pos); };
         $$('.cab-item', body).forEach(el => el.onclick = () => {
             const x = byId(M[S.tab], el.dataset.id);
+            if (S.tab === 'drugs' && x.form) return msg(`${x.label} wird nicht aufgezogen - im Behandlungsmenue direkt geben`, true);
             if (S.tab === 'drugs') { S.drug = S.drug === x ? null : x; S.amps = 1; }
             if (S.tab === 'syringes') S.syringe = S.syringe === x ? null : x;
             if (S.tab === 'needles') S.needle = S.needle === x ? null : x;

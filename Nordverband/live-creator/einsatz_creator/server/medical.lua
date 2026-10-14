@@ -764,7 +764,8 @@ function Med.action(src, incident, p, action, arg, result)
         end
         if not m then return false, 'Unbekanntes Medikament' end
         local prep = Material.DrugByMed[m.id]
-        if prep and Config.Medical.requirePreparation ~= false and type(result) ~= 'table' then
+        if not Material.isDrawable(prep) then result = nil end   -- Spray, Vernebler, Infusion: direkt
+        if Material.isDrawable(prep) and Config.Medical.requirePreparation ~= false and type(result) ~= 'table' then
             return false, 'Das Medikament muss zuerst aufgezogen werden'
         end
         say(lines, 'rd', ('Rettungsdienst: Sie bekommen von uns jetzt %s.'):format(m.label))
@@ -900,4 +901,20 @@ function Med.action(src, incident, p, action, arg, result)
         Incidents.syncPublic(incident)
     end
     return true, { lines = lines, view = Med.view(p) }
+end
+
+-- Abgleich Behandlungsmenue <-> Materialschrank beim Start (Menue zeigt nur Medikamente aus dem Schrank)
+do
+    local inCabinet = {}
+    for _, d in ipairs(Material.Drugs) do
+        if d.med then inCabinet[d.med] = true end
+        if d.med and not EC.MedicationById[d.med] then
+            U.log('warn', 'Materialschrank: %s verweist auf unbekanntes Medikament "%s" (config_medical.lua)', d.id, d.med)
+        end
+    end
+    for _, m in ipairs(Medical.Medications) do
+        if not inCabinet[m.id] then
+            U.log('warn', 'Medikament "%s" fehlt im Materialschrank (config_material.lua) und wird im Menue nicht angezeigt', m.id)
+        end
+    end
 end

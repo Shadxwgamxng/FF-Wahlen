@@ -614,3 +614,4 @@ input[type="number"].input { font-family: var(--mono); }
 .fig.show-guides .anat__spot { opacity: 1; }
 .anat__spot circle { fill: rgba(255, 255, 255, 0.18); stroke-width: 3; stroke-dasharray: 6 4; }
 .anat__spot text { font: 800 12px var(--font); fill: #fff; text-anchor: middle; paint-order: stroke; stroke: rgba(0, 0, 0, 0.8); stroke-width: 3px; }
+.cab-item.is-direct { opacity: 0.45; cursor: not-allowed; }

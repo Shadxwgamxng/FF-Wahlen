@@ -737,6 +737,18 @@ do
 end
 
 
+print('Medikamente: Behandlungsmenue und Materialschrank synchron')
+do
+    local inCab, missing, orphan = {}, {}, {}
+    for _, d in ipairs(Material.Drugs) do
+        if d.med then inCab[d.med] = true end
+        if not d.med or not EC.MedicationById[d.med] then orphan[#orphan + 1] = d.id end
+    end
+    for _, m in ipairs(Medical.Medications) do if not inCab[m.id] then missing[#missing + 1] = m.id end end
+    check(#missing == 0, 'Jedes Menue-Medikament steht im Schrank: ' .. table.concat(missing, ', '))
+    check(#orphan == 0, 'Jedes Schrank-Medikament steht im Menue: ' .. table.concat(orphan, ', '))
+end
+
 print('Automatisches Beenden')
 do
     local inc

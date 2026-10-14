@@ -220,7 +220,7 @@ function MedClient.act(action, arg, reopen)
         if kneel then TaskStartScenarioInPlace(ped, 'CODE_HUMAN_MEDIC_KNEEL', 0, true) end
         local result
         local game = GAMES[action .. ':' .. tostring(arg)]
-        if action == 'med' and Material.DrugByMed[arg] then game = MedClient.prepGame(arg, cur) end
+        if action == 'med' and Material.isDrawable(Material.DrugByMed[arg]) then game = MedClient.prepGame(arg, cur) end
         if game then
             local g = MedClient.game(game)
             if not g or g.cancel then
@@ -332,18 +332,23 @@ local function buildMenus(view)
     register('ec_med_o2', ('Sauerstoff (aktuell %d l/min)'):format(view.o2 or 0), o2, main)
 
     -- Medikamente (nach Gruppen)
+    -- genau die Medikamente aus dem Materialschrank (config_material.lua), in Schrankreihenfolge
     local groups, order = {}, {}
-    for _, m in ipairs(Medical.Medications) do
-        if not groups[m.group] then groups[m.group] = {} order[#order + 1] = m.group end
-        local needs = {}
-        for _, n in ipairs(m.needs or {}) do needs[#needs + 1] = n:upper() end
-        local route = ({ inhal = 'vernebelt', sl = 'sublingual', im = 'i.m.', ['in'] = 'nasal' })[m.route or 'iv']
-        local d = {}
-        if route then d[#d + 1] = route .. ', ohne Zugang' end
-        if #needs > 0 then d[#d + 1] = 'erfordert: ' .. table.concat(needs, ', ') end
-        groups[m.group][#groups[m.group] + 1] = { title = m.label, icon = 'syringe',
-            description = #d > 0 and table.concat(d, ' · ') or nil,
-            onSelect = function() MedClient.act('med', m.id, 'ec_med_meds_' .. m.group) end }
+    for _, d in ipairs(Material.Drugs) do
+        local m = d.med and EC.MedicationById[d.med]
+        if m then
+            if not groups[m.group] then groups[m.group] = {} order[#order + 1] = m.group end
+            local needs = {}
+            for _, n in ipairs(m.needs or {}) do needs[#needs + 1] = n:upper() end
+            local route = ({ inhal = 'vernebelt', sl = 'sublingual', im = 'i.m.', ['in'] = 'nasal' })[m.route or 'iv']
+            local desc = {}
+            desc[#desc + 1] = Material.isDrawable(d) and ('aufziehen: %s %s/ml'):format(d.conc, d.unit) or ({ inhal = 'Fertiginhalat', spray = 'Spray', infusion = 'Infusion' })[d.form]
+            if route then desc[#desc + 1] = route .. ', ohne Zugang' end
+            if #needs > 0 then desc[#desc + 1] = 'erfordert: ' .. table.concat(needs, ', ') end
+            groups[m.group][#groups[m.group] + 1] = { title = d.label, icon = Material.isDrawable(d) and 'syringe' or 'pump-medical',
+                description = table.concat(desc, ' · '),
+                onSelect = function() MedClient.act('med', m.id, 'ec_med_meds_' .. m.group) end }
+        end
     end
     local meds = {}
     for _, g in ipairs(order) do

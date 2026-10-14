@@ -499,6 +499,25 @@ Medical.Medications = {
     { id = 'g5', label = 'Glukose 5 % (Infusion)', group = 'Infusion', needs = { 'bz' }, effectRange = { bz = { 5.25, 10.5 } } },
     { id = 'jonosteril', label = 'Jonosteril (Infusion)', group = 'Infusion', needs = { 'rr' },
         effectRange = { rrsys = { 45, 90 }, rrdia = { 15, 30 }, bz = { -3.0, -1.5 } } },
+    -- weitere Medikamente aus dem Materialschrank (config_material.lua)
+    { id = 'noradrenalin', label = 'Noradrenalin', group = 'Kreislauf', needs = { 'rr' }, effect = { rrsys = 30, rrdia = 15 } },
+    { id = 'adenosin', label = 'Adenosin', group = 'Herz', needs = { 'ekg' }, effect = { hf = -30 } },
+    { id = 'metoprolol', label = 'Metoprolol', group = 'Herz', needs = { 'hf' }, effect = { hf = -20, rrsys = -10 } },
+    { id = 'nitro_iv', label = 'Glyceroltrinitrat i.v.', group = 'Herz', needs = { 'rr' }, minSys = 110, effect = { rrsys = -20, rrdia = -10, pain = -2 } },
+    { id = 'tranexam', label = 'Tranexamsaeure', group = 'Sonstiges' },
+    { id = 'piritramid', label = 'Piritramid', group = 'Schmerz', effect = { pain = -5, af = -2 } },
+    { id = 'tramadol', label = 'Tramadol', group = 'Schmerz', effect = { pain = -4 } },
+    { id = 'diazepam', label = 'Diazepam', group = 'Sonstiges' },
+    { id = 'lorazepam', label = 'Lorazepam', group = 'Sonstiges' },
+    { id = 'propofol', label = 'Propofol 1 %', group = 'Sonstiges', effect = { rrsys = -15 } },
+    { id = 'etomidat', label = 'Etomidat', group = 'Sonstiges' },
+    { id = 'clemastin', label = 'Clemastin', group = 'Sonstiges' },
+    { id = 'reproterol', label = 'Reproterol', group = 'Atmung', needs = { 'spo2' }, effect = { spo2Bonus = 6, hf = 15 } },
+    { id = 'magnesium', label = 'Magnesiumsulfat 10 %', group = 'Atmung', effect = { spo2Bonus = 3 } },
+    { id = 'calcium', label = 'Calciumgluconat 10 %', group = 'Sonstiges' },
+    { id = 'g40', label = 'Glukose 40 %', group = 'Stoffwechsel', needs = { 'bz' }, effect = { bz = 4.0 } },
+    { id = 'thiamin', label = 'Thiamin (Vitamin B1)', group = 'Stoffwechsel' },
+    { id = 'lidocain', label = 'Lidocain 2 %', group = 'Sonstiges' },
 }
 
 -- Sauerstoffgabe (Liter pro Minute)
