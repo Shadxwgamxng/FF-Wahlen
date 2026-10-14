@@ -280,3 +280,8 @@ EmergencyDispatch-Notrufe, Zufallseinsätze und Rechte durch.
 ## Bildquellen
 
 Die Fotos der Minispiele liegen in `html/img/` und zeigen keine Markenlogos (Logos und Aufdrucke auf den Fotos wurden entfernt). Herkunft und Lizenzen: `html/img/QUELLEN.md`.
+
+
+## Automatisches Beenden
+
+Aktive Einsätze werden automatisch beendet, sobald alle Aufgaben erledigt sind (Feuer gelöscht, alle Patienten übergeben oder vor Ort entlassen, Türen geöffnet, Betriebsstoffe beseitigt, Fundstellen gesichert) – nach einer kurzen Wartezeit (`Config.Modes.autoEndDelaySeconds`, Standard 60 s). Andernfalls endet ein Einsatz spätestens nach `Config.Modes.autoCancelMinutes` (Standard 60 Minuten). Testeinsätze: `autoCancelTestMinutes`.

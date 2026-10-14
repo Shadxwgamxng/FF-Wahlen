@@ -422,6 +422,47 @@ function Incidents.onRescueChanged(inc, change)
 end
 
 ----------------------------------------------------------------------------
+-- Sind alle Aufgaben erledigt? Rueckgabe: erledigt (bool), Anzahl Aufgaben insgesamt
+----------------------------------------------------------------------------
+function Incidents.tasksDone(inc)
+    local total, open = 0, 0
+    local f = Fire.summary(inc.id)
+    if (inc.fire and inc.fire.total or 0) > 0 then
+        total = total + 1
+        if (f.burning or 0) + (f.smouldering or 0) > 0 then open = open + 1 end
+    end
+    local r = inc.rescue or {}
+    for _, p in pairs(r.patients or {}) do total = total + 1 if not (p.handedOver or p.released) then open = open + 1 end end
+    for _, d in pairs(r.doors or {}) do total = total + 1 if d.status ~= 'geoeffnet' then open = open + 1 end end
+    for _, sp in pairs(r.spills or {}) do total = total + 1 if sp.status ~= 'beseitigt' then open = open + 1 end end
+    for _, m in pairs(r.markers or {}) do
+        if m.interactive then total = total + 1 if m.status ~= 'gesichert' then open = open + 1 end end
+    end
+    return total > 0 and open == 0, total
+end
+
+-- Pruefung je Wartungsdurchlauf: automatisch beenden bei erledigten Aufgaben oder Zeitablauf
+function Incidents.checkAutoEnd(inc, t)
+    if inc.status ~= EC.Status.active then return end
+    if inc.expiresAt and t >= inc.expiresAt then
+        return Incidents.finish(inc.id, nil, 'end', ('Automatisch beendet nach %d Minuten'):format(
+            inc.mode == 'test' and Config.Modes.autoCancelTestMinutes or Config.Modes.autoCancelMinutes))
+    end
+    if Config.Modes.autoEndWhenDone == false then return end
+    if Incidents.tasksDone(inc) then
+        if not inc.doneAt then
+            inc.doneAt = t
+            inc.log[#inc.log + 1] = { at = t, by = 'System', text = 'Alle Aufgaben erledigt - Einsatz wird automatisch beendet' }
+            Incidents.broadcastList()
+        elseif t - inc.doneAt >= (Config.Modes.autoEndDelaySeconds or 60) then
+            return Incidents.finish(inc.id, nil, 'end', 'Alle Aufgaben erledigt')
+        end
+    else
+        inc.doneAt = nil
+    end
+end
+
+----------------------------------------------------------------------------
 -- Wartung: Zeitablauf, verzoegerte Feuer-Updates
 ----------------------------------------------------------------------------
 CreateThread(function()
@@ -430,11 +471,9 @@ CreateThread(function()
         local t = os.time()
         for id, inc in pairs(Incidents.list) do
             if inc.status == EC.Status.active then
-                if inc.expiresAt and t >= inc.expiresAt then
-                    Incidents.finish(id, nil, 'cancel', 'Zeitueberschreitung')
-                elseif inc.fireUpdatePending then
-                    Incidents.onFireChanged(inc)
-                end
+                if inc.fireUpdatePending then Incidents.onFireChanged(inc) end
+                local ok, err = pcall(Incidents.checkAutoEnd, inc, t)
+                if not ok then U.log('error', 'Automatisches Beenden %s: %s', id, tostring(err)) end
             end
         end
     end

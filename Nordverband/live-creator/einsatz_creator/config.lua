@@ -120,8 +120,12 @@ Config.Modes = {
     allowMultipleInstances = false,
     -- Bei Fehler waehrend des Aufbaus alles bereits Erzeugte zuruecknehmen
     rollbackOnError = true,
-    -- Automatisches Abbrechen aktiver Einsaetze nach x Minuten (0 = aus)
-    autoCancelMinutes = 180,
+    -- Aktive Einsaetze spaetestens nach x Minuten automatisch beenden (0 = aus)
+    autoCancelMinutes = 60,
+    -- Einsatz automatisch beenden, sobald alle Aufgaben erledigt sind
+    -- (Feuer aus, alle Patienten uebergeben/entlassen, Tueren offen, Oelspuren beseitigt, Fundstellen gesichert)
+    autoEndWhenDone = true,
+    autoEndDelaySeconds = 60,   -- Wartezeit nach der letzten erledigten Aufgabe
     -- Testeinsaetze automatisch nach x Minuten abbrechen (0 = aus)
     autoCancelTestMinutes = 45,
 }

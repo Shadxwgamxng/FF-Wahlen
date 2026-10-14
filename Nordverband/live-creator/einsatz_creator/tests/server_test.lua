@@ -737,6 +737,36 @@ do
 end
 
 
+print('Automatisches Beenden')
+do
+    local inc
+    for _, i in pairs(Incidents.list) do if i.status == EC.Status.active and i.rescue and next(i.rescue.patients) then inc = i break end end
+    check(inc ~= nil, 'Aktiven Einsatz mit Patienten gefunden')
+    if inc then
+        inc.fire = { total = 0 }
+        for _, p in pairs(inc.rescue.patients) do p.handedOver = false end
+        local t0 = os.time()
+        Incidents.checkAutoEnd(inc, t0)
+        check(inc.status == EC.Status.active and not inc.doneAt, 'Offene Patienten: Einsatz bleibt aktiv')
+        for _, p in pairs(inc.rescue.patients) do p.handedOver = true end
+        for _, d in pairs(inc.rescue.doors) do d.status = 'geoeffnet' end
+        for _, sp in pairs(inc.rescue.spills) do sp.status = 'beseitigt' end
+        for _, m in pairs(inc.rescue.markers) do m.status = 'gesichert' end
+        Incidents.checkAutoEnd(inc, t0)
+        check(inc.status == EC.Status.active and inc.doneAt == t0, 'Alle Aufgaben erledigt: Wartezeit laeuft')
+        Incidents.checkAutoEnd(inc, t0 + Config.Modes.autoEndDelaySeconds)
+        check(inc.status == EC.Status.ended, 'Nach der Wartezeit automatisch beendet')
+    end
+    local inc2
+    for _, i in pairs(Incidents.list) do if i.status == EC.Status.active then inc2 = i break end end
+    if inc2 then
+        inc2.doneAt = nil
+        Incidents.checkAutoEnd(inc2, (inc2.expiresAt or os.time()) + 1)
+        check(inc2.status == EC.Status.ended, 'Zeitablauf beendet den Einsatz')
+    end
+    check(Config.Modes.autoCancelMinutes == 60, 'Standard: spaetestens nach 60 Minuten')
+end
+
 print('Speicherung: Datenbank (oxmysql)')
 do
     local db = { scen = {}, store = {}, hist = {}, created = 0 }
