@@ -1855,7 +1855,10 @@ function gameEkg(body, def) {
         <line x1="605" y1="300" x2="605" y2="620" class="anat__guide anat__guide--ax"/><line x1="642" y1="300" x2="642" y2="620" class="anat__guide anat__guide--ax2"/>
         <line x1="380" y1="420" x2="500" y2="420" class="anat__guide anat__guide--icr"/><line x1="520" y1="470" x2="680" y2="470" class="anat__guide anat__guide--icr"/>
         <text x="350" y="165" class="anat__gtxt">MCL</text><text x="610" y="315" class="anat__gtxt">vAL</text><text x="648" y="300" class="anat__gtxt">mAL</text>
-        <text x="372" y="414" class="anat__gtxt">4. ICR</text><text x="660" y="465" class="anat__gtxt">5. ICR</text></g>`;
+        <text x="372" y="414" class="anat__gtxt">4. ICR</text><text x="660" y="465" class="anat__gtxt">5. ICR</text>
+        ${items.map(t => t.spots.map(([x, y]) => `<g class="anat__spot" data-spot="${t.id}">
+            <circle cx="${x}" cy="${y}" r="${Math.max(16, t.tol * 0.8)}" style="stroke:${t.color === '#1c1c1c' ? '#ffffff' : t.color}"/>
+            <text x="${x}" y="${y + 4}">${t.id}</text></g>`).join('')).join('')}</g>`;
     body.innerHTML = `<div class="ekgwrap">
         <div class="figwrap figwrap--photo">${photoSvg(PHOTO.torso, `${guides}<g id="gPlaced"></g>`)}
             <span class="fig__side" style="left:10px">rechts</span><span class="fig__side" style="right:10px">links</span></div>
@@ -1865,7 +1868,7 @@ function gameEkg(body, def) {
             <div class="tray tray--electrodes" id="gTray">${items.map((t, i) => `<div class="electrode-pad ${i >= LIMB.length ? 'is-disabled' : ''}" data-e="${t.id}" style="--c:${t.color}" title="${t.id}">
                 <img src="img/electrode.webp" alt=""><i class="electrode-pad__clip"></i><b>${t.id}</b></div>`).join('')}</div>
             <div class="dim" id="gStat"></div>
-            <label class="switch"><input type="checkbox" id="gGuides"><span>Hilfslinien einblenden</span></label>
+            <label class="switch"><input type="checkbox" id="gGuides"><span>Hilfslinien und Klebestellen einblenden</span></label>
         </div></div>`;
     const svg = $('#gFig', body), group = $('#gPlaced', body), stat = $('#gStat', body);
     const upd = (msg, bad) => { stat.innerHTML = `${msg ? `<span class="${bad ? 'warn' : ''}">${esc(msg)}</span><br>` : ''}Fehler ${errors}/1`; };
@@ -1887,6 +1890,7 @@ function gameEkg(body, def) {
                 }
                 group.insertAdjacentHTML('beforeend', electrodeSvg(x, y, t.id.startsWith('V') ? 17 : 24, t.color, t.id));
                 el.classList.add('is-used');
+                $$(`[data-spot="${t.id}"]`, body).forEach(g => g.remove());   // Zielmarkierung ausblenden
                 placed++;
                 upd(`${t.id} klebt`);
                 unlockChest();

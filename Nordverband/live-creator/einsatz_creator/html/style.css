@@ -610,3 +610,7 @@ input[type="number"].input { font-family: var(--mono); }
 .amp-t--p { font-size: 6.6px; font-weight: 800; }
 .amp-t--ps { font-size: 5.6px; font-weight: 600; }
 .amp-t--px { font-size: 4.6px; font-weight: 500; fill: #555; }
+.anat__spot { opacity: 0; transition: opacity .2s; pointer-events: none; }
+.fig.show-guides .anat__spot { opacity: 1; }
+.anat__spot circle { fill: rgba(255, 255, 255, 0.18); stroke-width: 3; stroke-dasharray: 6 4; }
+.anat__spot text { font: 800 12px var(--font); fill: #fff; text-anchor: middle; paint-order: stroke; stroke: rgba(0, 0, 0, 0.8); stroke-width: 3px; }
