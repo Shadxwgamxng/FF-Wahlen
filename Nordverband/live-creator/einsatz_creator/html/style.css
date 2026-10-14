@@ -476,27 +476,26 @@ input[type="number"].input { font-family: var(--mono); }
 .bzwrap { display: grid; grid-template-columns: minmax(0, 1fr) 210px; gap: 1rem; align-items: center; }
 .mark-site { fill: none; stroke: #2f7cf6; stroke-width: 2.5; stroke-dasharray: 5 4; }
 .mark-drop { stroke: rgba(80, 0, 0, 0.5); stroke-width: 0.8; transition: r .6s var(--ease); }
-.bzmeter { position: relative; width: 210px; justify-self: center; }
-.bzmeter img { width: 100%; display: block; border-radius: 14px; box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5); }
-.bzmeter__lcd { position: absolute; left: 29.5%; top: 26%; width: 53%; height: 47.5%; border-radius: 4px; background: linear-gradient(170deg, #5d5957, #4b4846); box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.5); display: flex; flex-direction: column; align-items: center; justify-content: center; color: #b9c2ff; text-shadow: 0 0 6px rgba(150, 165, 255, 0.55); font-family: var(--mono); }
-.bzmeter__val { font: 700 2.3rem/1 'DSEG7 Classic', var(--mono); letter-spacing: 1px; min-height: 2.3rem; }
-.bzmeter__unit { margin-top: 0.3rem; font-size: 0.68rem; text-align: center; line-height: 1.3; }
-.bzmeter__unit small { font-size: 0.6rem; opacity: 0.8; }
-.bzmeter__time { position: absolute; bottom: 6px; font-size: 0.62rem; opacity: 0.8; }
+.bzmeter { position: relative; width: 220px; justify-self: center; }
+.bzmeter img { width: 100%; display: block; filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.55)); }
+.bzmeter__lcd { position: absolute; left: 27.6%; top: 16.6%; width: 46.8%; height: 44.4%; border-radius: 3px; background: linear-gradient(170deg, #d3d8d0, #b9bfb6); box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.35); display: flex; flex-direction: column; align-items: center; justify-content: center; color: #151515; font-family: var(--mono); }
+.bzmeter__val { font: 700 2.6rem/1 var(--mono); letter-spacing: -1px; min-height: 2.6rem; }
+.bzmeter__unit { align-self: flex-end; margin: 0.15rem 0.4rem 0 0; font-size: 0.66rem; font-weight: 700; text-align: right; line-height: 1.25; }
+.bzmeter__unit small { font-weight: 400; font-size: 0.58rem; }
+.bzmeter__time { position: absolute; top: 6px; left: 8px; right: 8px; display: flex; justify-content: space-between; font-size: 0.66rem; font-weight: 700; }
 .lm-pt { fill: rgba(255, 255, 255, 0.08); stroke: rgba(255, 255, 255, 0.9); stroke-width: 2.5; stroke-dasharray: 5 4; cursor: pointer; transition: fill .12s; }
 .lm-pt:hover { fill: rgba(47, 124, 246, 0.45); stroke: #2f7cf6; }
 .lm-pt.is-set { fill: rgba(63, 185, 80, 0.7); stroke: #fff; stroke-dasharray: none; }
 .lm-pt.is-wrong { fill: rgba(229, 83, 75, 0.7); stroke: #fff; stroke-dasharray: none; }
 .progress-mini { height: 6px; border-radius: 3px; background: var(--bg-2); overflow: hidden; }
 .progress-mini div { height: 100%; width: 0; background: var(--accent); transition: width .1s linear; }
-/* EKG-Ergebnis: LIFEPAK 15 mit Live-Kurve, 12-Kanal-Ausdruck */
+/* EKG-Ergebnis: corpuls3 mit Live-Kurve, 12-Kanal-Ausdruck */
 .ekgresult { display: grid; gap: 1rem; justify-items: center; }
-.ekgresult.is-12 { grid-template-columns: 380px minmax(0, 1fr); align-items: center; }
-.lifepak { position: relative; width: 380px; }
-.ekgresult:not(.is-12) .lifepak { width: 520px; }
-.lifepak img { width: 100%; display: block; border-radius: var(--radius); }
-.lifepak__screen { position: absolute; left: 16.2%; top: 31.2%; width: 46.4%; height: 38.3%; display: flex; flex-direction: column; gap: 2%; padding: 1.5%; background: #05080a; color: #dfe; font-family: var(--mono); overflow: hidden; font-size: 1.76px; }
-.ekgresult:not(.is-12) .lifepak__screen { font-size: 2.41px; }
+.lifepak { position: relative; width: 480px; }
+.ekgresult:not(.is-12) .lifepak { width: 640px; }
+.lifepak img { width: 100%; display: block; filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.5)); }
+.lifepak__screen { position: absolute; left: 28.6%; top: 29.6%; width: 34%; height: 36.6%; display: flex; flex-direction: column; gap: 2%; padding: 1.5%; background: #05080a; color: #dfe; font-family: var(--mono); overflow: hidden; font-size: 1.63px; }
+.ekgresult:not(.is-12) .lifepak__screen { font-size: 2.18px; }
 .lp__top { display: flex; justify-content: space-between; color: #9aa; font-size: 4.2em; }
 .lp__row { display: flex; align-items: center; gap: 2%; }
 .lp__row canvas { flex: 1; min-width: 0; height: 26em; }
@@ -508,6 +507,6 @@ input[type="number"].input { font-family: var(--mono); }
 .lp__row--vals { justify-content: space-between; }
 .lp__val--spo2 { color: #4fc3f7; } .lp__val--nibp { color: #f0f0f0; } .lp__val--af { color: #ffd54f; }
 .lp__msg { margin-top: auto; color: #ffd54f; font-size: 3.9em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ekgprint { width: 100%; border-radius: 3px; overflow: hidden; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45); transform: rotate(-0.6deg); }
+.ekgprint { width: 100%; max-width: 900px; border-radius: 3px; overflow: hidden; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45); transform: rotate(-0.6deg); }
 .ekgprint canvas { display: block; width: 100%; }
 .ekgprint__foot { padding: 0.3rem 0.6rem; background: #fdf1ee; color: #333; font-size: var(--fs-xs); border-top: 1px solid rgba(220, 70, 70, 0.4); }

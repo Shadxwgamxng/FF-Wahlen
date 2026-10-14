@@ -1935,13 +1935,13 @@ function ekgPaper(ctx, W, H) {
     for (let y = 0; y <= H; y += 5) { ctx.strokeStyle = y % 25 === 0 ? 'rgba(220, 70, 70, 0.45)' : 'rgba(230, 120, 120, 0.18)'; ctx.lineWidth = y % 25 === 0 ? 1 : 0.6; ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
 }
 
-/* Ergebnis: Rhythmus auf dem LIFEPAK-Bildschirm, beim 12-Kanal zusaetzlich der Ausdruck */
+/* Ergebnis: Rhythmus auf dem corpuls3-Bildschirm, beim 12-Kanal zusaetzlich der Ausdruck */
 function showEkgResult(body, d, twelve) {
     if (!d || !d.ekg) return;
     const ekg = d.ekg, m = d.monitor || {};
     const hf = ekg.hf || m.hf || 0;
     body.innerHTML = `<div class="ekgresult ${twelve ? 'is-12' : ''}">
-        <div class="lifepak"><img src="img/lifepak.webp" alt="LIFEPAK 15">
+        <div class="lifepak"><img src="img/corpuls.webp" alt="corpuls3">
             <div class="lifepak__screen">
                 <div class="lp__top"><span>${esc(d.name || 'Patient')}</span><span>${new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}</span></div>
                 <div class="lp__row"><div class="lp__lead">II</div><canvas width="300" height="78"></canvas>
@@ -1952,10 +1952,10 @@ function showEkgResult(body, d, twelve) {
                     <div class="lp__val lp__val--af"><small>AF</small><b>${m.af ?? '--'}</b></div></div>
                 <div class="lp__msg">${esc(ekg.label)}</div>
             </div></div>
-        ${twelve ? `<div class="ekgprint"><canvas width="1000" height="420"></canvas>
+        ${twelve ? `<div class="ekgprint"><canvas width="1000" height="380"></canvas>
             <div class="ekgprint__foot">25 mm/s · 10 mm/mV · ${esc(ekg.label)}${hf ? ` · HF ${hf}/min` : ''}</div></div>` : ''}
     </div>`;
-    // Live-Kurve auf dem Geraet
+    // Live-Kurve auf dem corpuls3
     const c = $('.lifepak canvas', body), ctx = c.getContext('2d');
     const kind = ekg.wave || 'sinus';
     let x = 0, ph = 0, prev = null, last = performance.now();
@@ -1979,16 +1979,16 @@ function showEkgResult(body, d, twelve) {
     const p = $('.ekgprint canvas', body), px = p.getContext('2d');
     ekgPaper(px, p.width, p.height);
     const grid = [['I', 'aVR', 'V1', 'V4'], ['II', 'aVL', 'V2', 'V5'], ['III', 'aVF', 'V3', 'V6']];
-    const colW = p.width / 4, rowH = 100;
+    const colW = p.width / 4, rowH = 92;
     px.font = '600 13px Inter, sans-serif'; px.fillStyle = '#222';
     grid.forEach((row, r) => row.forEach((lead, col) => {
-        const x0 = col * colW, y0 = 60 + r * rowH;
+        const x0 = col * colW, y0 = 55 + r * rowH;
         traceLead(px, kind, hf, lead, x0 + 6, y0, colW - 10, 42, '#1b1b1b', 0.15 + col * 0.25);
         px.fillText(lead, x0 + 8, y0 - 34);
         if (col) { px.strokeStyle = '#1b1b1b'; px.lineWidth = 1; px.beginPath(); px.moveTo(x0, y0 - 8); px.lineTo(x0, y0 + 8); px.stroke(); }
     }));
-    traceLead(px, kind, hf, 'II', 6, 375, p.width - 12, 42, '#1b1b1b', 0.15);
-    px.fillText('II', 8, 345);
+    traceLead(px, kind, hf, 'II', 6, 335, p.width - 12, 42, '#1b1b1b', 0.15);
+    px.fillText('II', 8, 305);
 }
 
 /* BZ: Stichstelle waehlen, desinfizieren, trocknen lassen, stechen, ersten Tropfen abwischen, Teststreifen */
@@ -2011,9 +2011,9 @@ function gameBz(body) {
     body.innerHTML = `<p class="dim" id="gStep"></p>
         <div class="bzwrap">
             <div class="figwrap figwrap--photo figwrap--hand">${photoSvg(PHOTO.hand, `${defs}<g id="gMarks"></g>`, '40 0 600 640')}</div>
-            <div class="bzmeter"><img src="img/bzmeter.webp" alt="Blutzuckermessgeraet">
+            <div class="bzmeter"><img src="img/bzmeter.webp" alt="Accu-Chek Aviva">
                 <div class="bzmeter__lcd"><div class="bzmeter__val" id="gScreen"></div><div class="bzmeter__unit" id="gUnit"></div>
-                    <div class="bzmeter__time">${new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}</div></div></div>
+                    <div class="bzmeter__time"><span>${new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}</span><span>${new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }).replace(/\.$/, '')}</span></div></div></div>
         </div>
         <div class="tray tray--tools" id="gTray">
             <div class="tool-item" data-t="alk"><img src="img/alcpad.webp" alt=""><span>Alkoholtupfer</span></div>
@@ -2103,8 +2103,8 @@ function gameBz(body) {
             Game.onValue = (v) => {
                 clearInterval(Game.timer);
                 const ok = v && v.bz != null;
-                screen.textContent = ok ? Number(v.bz).toFixed(1).replace('.', ',') : 'E-3';
-                $('#gUnit', body).innerHTML = ok ? `mmol/L<br><small>${Math.round(v.bz * 18.02)} mg/dL</small>` : '';
+                screen.textContent = ok ? Math.round(v.bz * 18.02) : 'E-3';
+                $('#gUnit', body).innerHTML = ok ? `mg/dL<br><small>${Number(v.bz).toFixed(1).replace('.', ',')} mmol/L</small>` : '';
             };
             Game.showMs = 4500;
             setTimeout(() => Game.done(body, true, 'Blut aufgesogen - Messung laeuft.'), 3000);
