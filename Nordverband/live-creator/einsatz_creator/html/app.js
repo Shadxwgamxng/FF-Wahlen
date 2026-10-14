@@ -1672,16 +1672,18 @@ const Game = {
         this.close(true);
         this.waiting = false;
         this.onValue = null;
+        this.showMs = 3200;
         this.def = def || {};
         const box = $('#minigame');
         box.classList.remove('hidden');
-        box.innerHTML = `<div class="game card">
+        const size = { ekg: 'game--xl', bz: 'game--wide', landmark: 'game--wide' }[def.type] || '';
+        box.innerHTML = `<div class="game card ${size}">
             <div class="card__header">${icon('kit-medical')}<span class="card__title">${esc(def.title || 'Massnahme')}</span>
                 <span class="grow"></span><button class="btn btn--ghost btn--icon btn--sm" data-g="cancel" title="Abbrechen (Esc)">${icon('xmark')}</button></div>
             <div class="card__body game__body"></div></div>`;
         $('[data-g="cancel"]', box).onclick = () => this.finish(null, true);
         const body = $('.game__body', box);
-        ({ timing: gameTiming, ekg: gameEkg, bz: gameBz, drill: gameDrill, landmark: gameLandmark, cpr: gameCpr })[def.type]?.(body, def);
+        ({ timing: gameTiming, ekg: gameEkg, bz: gameBz, drill: gameDrill, landmark: gameLandmark })[def.type]?.(body, def);
     },
     onKey(fn) {
         this.keyHandler = (e) => {
@@ -1724,7 +1726,7 @@ const Game = {
         clearTimeout(this.waitTimer);
         if (d && this.onValue) this.onValue(d);
         this.onValue = null;
-        setTimeout(() => { if (!this.def) this.close(true); }, d ? 3200 : 0);
+        setTimeout(() => { if (!this.def) this.close(true); }, d ? this.showMs : 0);
     },
     // Ergebnis kurz anzeigen, dann schliessen
     done(body, ok, text, result) {
@@ -1813,83 +1815,87 @@ function draggable(el, svg, { onDrop, onMove, ghostHtml }) {
 }
 const dist2 = (x1, y1, x2, y2) => Math.hypot(x1 - x2, y1 - y2);
 
-/* Oberkoerper von vorne (rechte Patientenseite = links im Bild), viewBox 0 0 200 260 */
-const BODY_SVG = `
-    <g class="anat">
-        <ellipse cx="100" cy="26" rx="17" ry="21" class="anat__skin"/>
-        <rect x="91" y="44" width="18" height="14" class="anat__skin"/>
-        <path d="M52 64 Q100 50 148 64 L156 120 L150 176 L50 176 L44 120 Z" class="anat__skin"/>
-        <path d="M52 64 Q40 66 36 84 L28 150 Q26 176 34 192 L44 192 Q44 170 48 150 L52 108 Z" class="anat__skin"/>
-        <path d="M148 64 Q160 66 164 84 L172 150 Q174 176 166 192 L156 192 Q156 170 152 150 L148 108 Z" class="anat__skin"/>
-        <path d="M54 176 L98 176 L94 256 L66 256 Z" class="anat__skin"/>
-        <path d="M102 176 L146 176 L134 256 L106 256 Z" class="anat__skin"/>
-        <path d="M66 62 Q82 58 97 61 M103 61 Q118 58 134 62" class="anat__line"/>
-        <rect x="96" y="62" width="8" height="58" rx="3" class="anat__sternum"/>
-        ${[72, 82, 92, 102, 112, 122, 132].map((y, i) => `<path d="M95 ${y} Q74 ${y - 3} ${54 + i * 0.5} ${y + 6}" class="anat__rib"/><path d="M105 ${y} Q126 ${y - 3} ${146 - i * 0.5} ${y + 6}" class="anat__rib"/>`).join('')}
-        <circle cx="76" cy="107" r="2.2" class="anat__nipple"/><circle cx="124" cy="107" r="2.2" class="anat__nipple"/>
-        <path d="M100 150 m-2 0 a2 2 0 1 0 4 0 a2 2 0 1 0 -4 0" class="anat__line"/>
-    </g>`;
+/* Fotos der Minispiele (Quellen und Lizenzen: html/img/QUELLEN.md). Koordinaten in Bildpixeln */
+const PHOTO = {
+    torso: { src: 'img/torso.webp', w: 840, h: 1066 },
+    hand: { src: 'img/hand.webp', w: 640, h: 750 },
+};
+// Foto als Hintergrund eines SVG, damit Klick-/Ablagepunkte in Bildkoordinaten gerechnet werden
+const photoSvg = (p, inner, viewBox) => `<svg viewBox="${viewBox || `0 0 ${p.w} ${p.h}`}" class="fig fig--photo" id="gFig" preserveAspectRatio="xMidYMid meet">
+    <image href="${p.src}" x="0" y="0" width="${p.w}" height="${p.h}"/>${inner}</svg>`;
 
-/* EKG: Elektroden frei auf den Koerper ziehen (Farben nach IEC) */
+// Klebeelektrode mit farbigem Clip (Farbe nach IEC)
+const electrodeSvg = (x, y, r, color, label) => `<g class="pad-placed">
+    <image href="img/electrode.webp" x="${x - r}" y="${y - r}" width="${r * 2}" height="${r * 2}"/>
+    <circle cx="${x}" cy="${y}" r="${r * 0.3}" fill="${color}" stroke="rgba(0,0,0,.55)" stroke-width="1.5"/>
+    <text x="${x}" y="${y - r - 4}" class="pad__txt">${label}</text></g>`;
+
+/* EKG: echte Klebeelektroden auf den Oberkoerper ziehen (Farben nach IEC) */
 function gameEkg(body, def) {
-    // gueltige Positionen (mehrere je Elektrode), Toleranz in viewBox-Einheiten
+    // gueltige Positionen in Bildpixeln (torso.webp); Extremitaetenableitungen am Rumpf oder an den Extremitaeten
     const LIMB = [
-        { id: 'R', name: 'R', color: '#e5534b', where: 'rechter Arm (rechte Schulter oder rechtes Handgelenk des Patienten)', spots: [[58, 72], [40, 182], [44, 130]], tol: 16 },
-        { id: 'L', name: 'L', color: '#e3b341', where: 'linker Arm (linke Schulter oder linkes Handgelenk)', spots: [[142, 72], [160, 182], [156, 130]], tol: 16 },
-        { id: 'F', name: 'F', color: '#3fb950', where: 'linkes Bein (linker Unterbauch/Hueftknochen oder linker Knoechel)', spots: [[128, 168], [120, 248], [125, 210]], tol: 16 },
-        { id: 'N', name: 'N', color: '#1c1c1c', where: 'rechtes Bein (rechter Unterbauch/Hueftknochen oder rechter Knoechel)', spots: [[72, 168], [80, 248], [75, 210]], tol: 16 },
+        { id: 'R', color: '#e5534b', where: 'rechts: unter dem Schluesselbein, Oberarm oder Handgelenk', spots: [[250, 198], [122, 457], [61, 977]], tol: 55 },
+        { id: 'L', color: '#e3b341', where: 'links: unter dem Schluesselbein, Oberarm oder Handgelenk', spots: [[636, 198], [764, 457], [780, 977]], tol: 55 },
+        { id: 'F', color: '#3fb950', where: 'linker Unterbauch (Rippenbogen/Huefte) oder linkes Bein', spots: [[592, 668]], tol: 60 },
+        { id: 'N', color: '#1c1c1c', where: 'rechter Unterbauch (Rippenbogen/Huefte) oder rechtes Bein', spots: [[294, 668]], tol: 60 },
     ];
     const CHEST = [
-        { id: 'V1', color: '#e5534b', where: '4. ICR rechts neben dem Brustbein', spots: [[91, 107]], tol: 6 },
-        { id: 'V2', color: '#e3b341', where: '4. ICR links neben dem Brustbein', spots: [[109, 107]], tol: 6 },
-        { id: 'V3', color: '#3fb950', where: 'zwischen V2 und V4', spots: [[116.5, 112]], tol: 6 },
-        { id: 'V4', color: '#8b5a2b', where: '5. ICR links in der Medioklavikularlinie', spots: [[124, 117]], tol: 6 },
-        { id: 'V5', color: '#1c1c1c', where: 'linke vordere Axillarlinie auf Hoehe von V4', spots: [[138, 117]], tol: 6 },
-        { id: 'V6', color: '#a371f7', where: 'linke mittlere Axillarlinie auf Hoehe von V4', spots: [[149, 117]], tol: 6 },
+        { id: 'V1', color: '#e5534b', where: '4. ICR rechts direkt neben dem Brustbein', spots: [[420, 420]], tol: 17 },
+        { id: 'V2', color: '#e3b341', where: '4. ICR links direkt neben dem Brustbein', spots: [[466, 420]], tol: 17 },
+        { id: 'V3', color: '#3fb950', where: 'zwischen V2 und V4', spots: [[510, 445]], tol: 17 },
+        { id: 'V4', color: '#8b5a2b', where: '5. ICR links in der Medioklavikularlinie', spots: [[557, 470]], tol: 17 },
+        { id: 'V5', color: '#1c1c1c', where: 'linke vordere Axillarlinie auf Hoehe von V4', spots: [[605, 470]], tol: 17 },
+        { id: 'V6', color: '#a371f7', where: 'linke mittlere Axillarlinie auf Hoehe von V4', spots: [[642, 470]], tol: 17 },
     ];
     const items = LIMB.concat(def.twelve ? CHEST : []);
     let errors = 0, placed = 0, finished = false;
-    body.innerHTML = `<p class="dim">Elektroden aus der Schale auf den Patienten ziehen. Es gibt keine Markierungen - richte dich nach Rippen, Brustbein und Achsellinien.
-        ${def.twelve ? '<br>Zuerst die vier Extremitaetenelektroden, dann V1 bis V6.' : ''}</p>
-        <div class="figwrap">
-            <svg viewBox="0 0 200 260" class="fig" id="gFig">${BODY_SVG}
-                <line x1="76" y1="62" x2="76" y2="172" class="anat__guide" id="gMcl1"/><line x1="124" y1="62" x2="124" y2="172" class="anat__guide"/>
-                <line x1="138" y1="80" x2="138" y2="172" class="anat__guide anat__guide--ax"/><line x1="62" y1="80" x2="62" y2="172" class="anat__guide anat__guide--ax"/>
-                <g id="gPlaced"></g></svg>
-            <span class="fig__side" style="left:8px">rechts</span><span class="fig__side" style="right:8px">links</span>
-        </div>
-        <div class="tray" id="gTray">${items.map((t, i) => `<div class="electrode-pad ${i >= LIMB.length ? 'is-disabled' : ''}" data-e="${t.id}" style="--c:${t.color}"><b>${t.id}</b></div>`).join('')}</div>
-        <div class="row"><span class="grow dim" id="gStat"></span><label class="switch"><input type="checkbox" id="gGuides"><span>Hilfslinien</span></label></div>
-        <div class="ekgstrip hidden" id="gStrip"><canvas width="500" height="80"></canvas><div class="ekgstrip__label"></div></div>`;
+    const guides = `<g class="anat__guides">
+        <line x1="443" y1="150" x2="443" y2="560" class="anat__guide anat__guide--st"/>
+        <line x1="340" y1="150" x2="340" y2="620" class="anat__guide"/><line x1="546" y1="150" x2="546" y2="620" class="anat__guide"/>
+        <line x1="605" y1="300" x2="605" y2="620" class="anat__guide anat__guide--ax"/><line x1="642" y1="300" x2="642" y2="620" class="anat__guide anat__guide--ax2"/>
+        <line x1="380" y1="420" x2="500" y2="420" class="anat__guide anat__guide--icr"/><line x1="520" y1="470" x2="680" y2="470" class="anat__guide anat__guide--icr"/>
+        <text x="350" y="165" class="anat__gtxt">MCL</text><text x="610" y="315" class="anat__gtxt">vAL</text><text x="648" y="300" class="anat__gtxt">mAL</text>
+        <text x="372" y="414" class="anat__gtxt">4. ICR</text><text x="660" y="465" class="anat__gtxt">5. ICR</text></g>`;
+    body.innerHTML = `<div class="ekgwrap">
+        <div class="figwrap figwrap--photo">${photoSvg(PHOTO.torso, `${guides}<g id="gPlaced"></g>`)}
+            <span class="fig__side" style="left:10px">rechts</span><span class="fig__side" style="right:10px">links</span></div>
+        <div class="ekgside">
+            <p class="dim">Elektroden vom Traeger abziehen und auf die Haut kleben. Es gibt keine Markierungen - orientiere dich an Schluesselbein, Brustbein, Rippen und Achsellinien.
+            ${def.twelve ? '<br><br>Zuerst die vier Extremitaetenelektroden, dann V1 bis V6.' : ''}</p>
+            <div class="tray tray--electrodes" id="gTray">${items.map((t, i) => `<div class="electrode-pad ${i >= LIMB.length ? 'is-disabled' : ''}" data-e="${t.id}" style="--c:${t.color}" title="${t.id}">
+                <img src="img/electrode.webp" alt=""><i class="electrode-pad__clip"></i><b>${t.id}</b></div>`).join('')}</div>
+            <div class="dim" id="gStat"></div>
+            <label class="switch"><input type="checkbox" id="gGuides"><span>Hilfslinien einblenden</span></label>
+        </div></div>`;
     const svg = $('#gFig', body), group = $('#gPlaced', body), stat = $('#gStat', body);
-    const upd = (msg, bad) => { stat.innerHTML = `${msg ? `<span class="${bad ? 'warn' : ''}">${esc(msg)}</span> · ` : ''}Fehler ${errors}/1`; };
+    const upd = (msg, bad) => { stat.innerHTML = `${msg ? `<span class="${bad ? 'warn' : ''}">${esc(msg)}</span><br>` : ''}Fehler ${errors}/1`; };
     upd();
     $('#gGuides', body).onchange = (e) => svg.classList.toggle('show-guides', e.target.checked);
     const unlockChest = () => { if (placed >= LIMB.length) $$('.electrode-pad.is-disabled', body).forEach(x => x.classList.remove('is-disabled')); };
     items.forEach(t => {
         const el = $(`[data-e="${t.id}"]`, body);
         draggable(el, svg, {
-            ghostHtml: () => `<div class="electrode-pad" style="--c:${t.color}"><b>${t.id}</b></div>`,
+            ghostHtml: () => el.outerHTML,
             onDrop: (x, y) => {
                 if (finished || x === null) return;
                 const ok = t.spots.some(([sx, sy]) => dist2(x, y, sx, sy) <= t.tol);
                 if (!ok) {
                     errors++;
-                    upd(`${t.id} falsch: gehoert an ${t.where}`, true);
+                    upd(`${t.id} sitzt falsch - gehoert ${t.where}`, true);
                     if (errors > 1) { finished = true; return Game.done(body, false, 'Zu viele falsch geklebte Elektroden - Ableitung nicht verwertbar.'); }
                     return;
                 }
-                group.insertAdjacentHTML('beforeend', `<g><circle cx="${x}" cy="${y}" r="${t.id.startsWith('V') ? 3.6 : 5}" fill="${t.color}" stroke="#fff" stroke-width="0.8"/>
-                    <text x="${x}" y="${y + 1.3}" class="pad__txt">${t.id.replace('V', '')}</text></g>`);
+                group.insertAdjacentHTML('beforeend', electrodeSvg(x, y, t.id.startsWith('V') ? 17 : 24, t.color, t.id));
                 el.classList.add('is-used');
                 placed++;
-                upd(`${t.id} sitzt`);
+                upd(`${t.id} klebt`);
                 unlockChest();
                 if (placed === items.length) {
                     finished = true;
-                    $('#gTray', body).innerHTML = `<span class="dim">${icon('wave-square')} Ableitung wird geschrieben ...</span>`;
-                    Game.onValue = (d) => showStrip(body, d);
-                    Game.done(body, true, 'Alle Elektroden kleben korrekt.');
+                    $('#gTray', body).classList.add('is-empty');
+                    Game.onValue = (d) => showEkgResult(body, d, def.twelve);
+                    Game.showMs = def.twelve ? 9000 : 6500;
+                    Game.done(body, true, 'Alle Elektroden kleben korrekt - Monitor schreibt ...');
                 }
             },
         });
@@ -1897,121 +1903,190 @@ function gameEkg(body, def) {
     Game.onKey(() => {});
 }
 
-// EKG-Streifen nach der Messung zeichnen
-function showStrip(body, d) {
-    const box = $('#gStrip', body);
-    if (!box || !d || !d.ekg) return;
-    box.classList.remove('hidden');
-    $('.ekgstrip__label', box).textContent = d.ekg.label + (d.ekg.hf ? ` · ${d.ekg.hf}/min` : '');
-    const c = $('canvas', box), ctx = c.getContext('2d');
-    ctx.fillStyle = '#fff6f4'; ctx.fillRect(0, 0, c.width, c.height);
-    ctx.strokeStyle = 'rgba(229, 83, 75, 0.25)'; ctx.lineWidth = 1;
-    for (let x = 0; x < c.width; x += 10) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, c.height); ctx.stroke(); }
-    for (let y = 0; y < c.height; y += 10) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(c.width, y); ctx.stroke(); }
-    ctx.strokeStyle = '#111'; ctx.lineWidth = 1.6; ctx.beginPath();
-    const beat = d.ekg.wave === 'vf' || d.ekg.wave === 'flat' ? 120 : Math.max(40, 6000 / Math.max(30, d.ekg.hf || 60));
-    let ph = 0;
-    for (let x = 0; x < c.width; x++) {
-        ph += 1 / beat * (d.ekg.wave === 'afib' ? (0.7 + Math.random() * 0.6) : 1);
+/* Ableitungen fuer den Ausdruck: Amplitudenfaktor und ST-Strecke (STEMI Vorderwand: Hebung V1-V4, I, aVL; Senkung II, III, aVF) */
+const LEADS = {
+    I: { a: 0.6, st: 0.12 }, II: { a: 1.0, st: -0.1 }, III: { a: 0.45, st: -0.12 }, aVR: { a: -0.75, st: 0 },
+    aVL: { a: 0.35, st: 0.1 }, aVF: { a: 0.7, st: -0.12 }, V1: { a: -0.55, st: 0.22 }, V2: { a: -0.35, st: 0.32 },
+    V3: { a: 0.45, st: 0.3 }, V4: { a: 0.9, st: 0.22 }, V5: { a: 1.0, st: 0.04 }, V6: { a: 0.8, st: 0 },
+};
+function leadWave(kind, ph, lead) {
+    const L = LEADS[lead] || LEADS.II;
+    const base = kind === 'stemi' ? 'sinus' : kind;
+    let y = Monitor.wave(base, ph) * (base === 'vf' || base === 'flat' ? Math.sign(L.a) || 1 : L.a);
+    if (kind === 'stemi' && ph > 0.355 && ph < 0.66) y += L.st * 1.6 * Math.pow(Math.sin((ph - 0.355) / 0.305 * Math.PI), 0.45);
+    return y;
+}
+// Kurve eines Herzschlags-Ablaufs in ein Canvas zeichnen
+function traceLead(ctx, kind, hf, lead, x0, y0, w, amp, color, seed) {
+    const beatPx = kind === 'vf' || kind === 'flat' ? 120 : Math.max(45, 60 / Math.max(30, hf || 60) * 125);
+    let ph = seed || 0;
+    ctx.strokeStyle = color; ctx.lineWidth = 1.4; ctx.beginPath();
+    for (let x = 0; x <= w; x++) {
+        ph += 1 / beatPx * (kind === 'afib' ? (0.7 + Math.random() * 0.6) : 1);
         if (ph >= 1) ph -= 1;
-        const y = c.height * 0.6 - Monitor.wave(d.ekg.wave, ph) * c.height * 0.55;
-        if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        const y = y0 - leadWave(kind, ph, lead) * amp;
+        if (x === 0) ctx.moveTo(x0 + x, y); else ctx.lineTo(x0 + x, y);
     }
     ctx.stroke();
 }
+function ekgPaper(ctx, W, H) {
+    ctx.fillStyle = '#fdf1ee'; ctx.fillRect(0, 0, W, H);
+    for (let x = 0; x <= W; x += 5) { ctx.strokeStyle = x % 25 === 0 ? 'rgba(220, 70, 70, 0.45)' : 'rgba(230, 120, 120, 0.18)'; ctx.lineWidth = x % 25 === 0 ? 1 : 0.6; ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+    for (let y = 0; y <= H; y += 5) { ctx.strokeStyle = y % 25 === 0 ? 'rgba(220, 70, 70, 0.45)' : 'rgba(230, 120, 120, 0.18)'; ctx.lineWidth = y % 25 === 0 ? 1 : 0.6; ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+}
 
-/* Hand von vorne (Handflaeche), viewBox 0 0 200 260 */
-const HAND_SVG = `
-    <g class="anat">
-        <path d="M58 250 L52 150 Q50 128 62 120 L140 120 Q156 126 154 150 L148 250 Z" class="anat__skin"/>
-        <rect x="58" y="44" width="20" height="84" rx="10" class="anat__skin"/>
-        <rect x="82" y="26" width="20" height="100" rx="10" class="anat__skin"/>
-        <rect x="106" y="32" width="20" height="96" rx="10" class="anat__skin"/>
-        <rect x="130" y="56" width="18" height="74" rx="9" class="anat__skin"/>
-        <path d="M54 170 Q30 150 22 118 Q20 106 30 104 Q38 104 44 118 L60 150 Z" class="anat__skin"/>
-        ${[[68, 52], [92, 34], [116, 40], [139, 63]].map(([x, y]) => `<path d="M${x - 6} ${y + 18} Q${x} ${y + 21} ${x + 6} ${y + 18}" class="anat__line"/>`).join('')}
-    </g>`;
+/* Ergebnis: Rhythmus auf dem LIFEPAK-Bildschirm, beim 12-Kanal zusaetzlich der Ausdruck */
+function showEkgResult(body, d, twelve) {
+    if (!d || !d.ekg) return;
+    const ekg = d.ekg, m = d.monitor || {};
+    const hf = ekg.hf || m.hf || 0;
+    body.innerHTML = `<div class="ekgresult ${twelve ? 'is-12' : ''}">
+        <div class="lifepak"><img src="img/lifepak.webp" alt="LIFEPAK 15">
+            <div class="lifepak__screen">
+                <div class="lp__top"><span>${esc(d.name || 'Patient')}</span><span>${new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}</span></div>
+                <div class="lp__row"><div class="lp__lead">II</div><canvas width="300" height="78"></canvas>
+                    <div class="lp__val lp__val--hf"><small>HF</small><b>${hf || '---'}</b></div></div>
+                <div class="lp__row lp__row--vals">
+                    <div class="lp__val lp__val--spo2"><small>SpO₂ %</small><b>${m.spo2 ?? '--'}</b></div>
+                    <div class="lp__val lp__val--nibp"><small>NIBP</small><b>${m.rr ?? '---/--'}</b></div>
+                    <div class="lp__val lp__val--af"><small>AF</small><b>${m.af ?? '--'}</b></div></div>
+                <div class="lp__msg">${esc(ekg.label)}</div>
+            </div></div>
+        ${twelve ? `<div class="ekgprint"><canvas width="1000" height="420"></canvas>
+            <div class="ekgprint__foot">25 mm/s · 10 mm/mV · ${esc(ekg.label)}${hf ? ` · HF ${hf}/min` : ''}</div></div>` : ''}
+    </div>`;
+    // Live-Kurve auf dem Geraet
+    const c = $('.lifepak canvas', body), ctx = c.getContext('2d');
+    const kind = ekg.wave || 'sinus';
+    let x = 0, ph = 0, prev = null, last = performance.now();
+    const loop = (t) => {
+        const dt = Math.min(0.1, (t - last) / 1000); last = t;
+        const steps = Math.max(1, Math.round(dt * 110));
+        for (let i = 0; i < steps; i++) {
+            const beat = kind === 'vf' || kind === 'flat' ? 1.2 : 60 / Math.max(25, hf || 60) * (kind === 'afib' ? (0.7 + Math.random() * 0.6) : 1);
+            ph += (1 / 110) / beat; if (ph >= 1) ph -= 1;
+            const y = c.height * 0.62 - leadWave(kind, ph, 'II') * c.height * 0.5;
+            ctx.fillStyle = '#05080a'; ctx.fillRect(x, 0, 10, c.height);
+            ctx.strokeStyle = '#46e06a'; ctx.lineWidth = 1.6;
+            if (prev !== null) { ctx.beginPath(); ctx.moveTo(x - 1, prev); ctx.lineTo(x, y); ctx.stroke(); }
+            prev = y; x = (x + 1) % c.width; if (x === 0) prev = null;
+        }
+        Game.raf = requestAnimationFrame(loop);
+    };
+    Game.raf = requestAnimationFrame(loop);
+    if (!twelve) return;
+    // 12-Kanal-Ausdruck: 3 Zeilen x 4 Spalten + Rhythmusstreifen II
+    const p = $('.ekgprint canvas', body), px = p.getContext('2d');
+    ekgPaper(px, p.width, p.height);
+    const grid = [['I', 'aVR', 'V1', 'V4'], ['II', 'aVL', 'V2', 'V5'], ['III', 'aVF', 'V3', 'V6']];
+    const colW = p.width / 4, rowH = 100;
+    px.font = '600 13px Inter, sans-serif'; px.fillStyle = '#222';
+    grid.forEach((row, r) => row.forEach((lead, col) => {
+        const x0 = col * colW, y0 = 60 + r * rowH;
+        traceLead(px, kind, hf, lead, x0 + 6, y0, colW - 10, 42, '#1b1b1b', 0.15 + col * 0.25);
+        px.fillText(lead, x0 + 8, y0 - 34);
+        if (col) { px.strokeStyle = '#1b1b1b'; px.lineWidth = 1; px.beginPath(); px.moveTo(x0, y0 - 8); px.lineTo(x0, y0 + 8); px.stroke(); }
+    }));
+    traceLead(px, kind, hf, 'II', 6, 375, p.width - 12, 42, '#1b1b1b', 0.15);
+    px.fillText('II', 8, 345);
+}
 
-/* BZ: Finger waehlen, desinfizieren, trocknen lassen, stechen, ersten Tropfen abwischen, Teststreifen */
+/* BZ: Stichstelle waehlen, desinfizieren, trocknen lassen, stechen, ersten Tropfen abwischen, Teststreifen */
 function gameBz(body) {
-    // Fingerkuppen (Mitte und Seiten); Seiten von Mittel-/Ring-/kleinem Finger sind ideal
+    // Fingerkuppen auf hand.webp (rechte Hand, Handflaeche): Mitte der Fingerbeere, seitliche Kuppe = +/- 10..32 px
     const fingers = [
-        { id: 'zeige', name: 'Zeigefinger', x: 68, y: 56, ok: true },
-        { id: 'mittel', name: 'Mittelfinger', x: 92, y: 38, ok: true },
-        { id: 'ring', name: 'Ringfinger', x: 116, y: 44, ok: true },
-        { id: 'klein', name: 'kleiner Finger', x: 139, y: 66, ok: true },
-        { id: 'daumen', name: 'Daumen', x: 28, y: 112, ok: false },
+        { id: 'zeige', name: 'Zeigefinger', x: 402, y: 168 },
+        { id: 'mittel', name: 'Mittelfinger', x: 306, y: 94 },
+        { id: 'ring', name: 'Ringfinger', x: 223, y: 144 },
+        { id: 'klein', name: 'kleiner Finger', x: 138, y: 289 },
+        { id: 'daumen', name: 'Daumen', x: 548, y: 483, thumb: true },
     ];
     let step = 0, errors = 0, site = null, rub = 0, dry = false, wiped = false, finished = false;
-    const STEPS = ['Stichstelle waehlen: seitlich an einer Fingerkuppe klicken', 'Mit dem Alkoholtupfer die Fingerkuppe abreiben',
-        'Desinfektionsmittel trocknen lassen ...', 'Mit der Lanzette seitlich in die Fingerkuppe stechen', 'Den ersten Blutstropfen mit dem trockenen Tupfer abwischen',
-        'Messgeraet mit Teststreifen an den Blutstropfen halten', 'Messung laeuft ...'];
+    const STEPS = ['Stichstelle waehlen: seitlich an eine Fingerkuppe klicken', 'Mit dem Alkoholtupfer die Fingerkuppe abreiben',
+        'Desinfektionsmittel trocknen lassen ...', 'Stechhilfe seitlich an die Fingerkuppe setzen und ausloesen', 'Den ersten Blutstropfen mit dem trockenen Tupfer abwischen',
+        'Teststreifen des Messgeraets an den Blutstropfen halten', 'Messung laeuft ...'];
+    const defs = `<defs>
+        <radialGradient id="gDropGrad" cx="40%" cy="35%" r="65%"><stop offset="0" stop-color="#ff6b6b"/><stop offset="0.35" stop-color="#b3121f"/><stop offset="1" stop-color="#5c0008"/></radialGradient>
+        <radialGradient id="gWetGrad"><stop offset="0" stop-color="rgba(255,255,255,0.55)"/><stop offset="1" stop-color="rgba(255,255,255,0)"/></radialGradient></defs>`;
     body.innerHTML = `<p class="dim" id="gStep"></p>
         <div class="bzwrap">
-            <div class="figwrap figwrap--hand"><svg viewBox="10 16 156 170" class="fig" id="gFig">${HAND_SVG}
-                <g id="gSites">${fingers.map(f => `<g data-f="${f.id}"><rect x="${f.x - 12}" y="${f.y - 10}" width="7" height="20" class="site site--side"/><rect x="${f.x + 5}" y="${f.y - 10}" width="7" height="20" class="site site--side"/><rect x="${f.x - 5}" y="${f.y - 8}" width="10" height="16" class="site site--pad"/></g>`).join('')}</g>
-                <g id="gMarks"></g></svg></div>
-            <div class="meter"><div class="meter__screen" id="gScreen">---</div><div class="meter__unit">mmol/l</div><div class="meter__strip"></div></div>
+            <div class="figwrap figwrap--photo figwrap--hand">${photoSvg(PHOTO.hand, `${defs}<g id="gMarks"></g>`, '40 0 600 640')}</div>
+            <div class="bzmeter"><img src="img/bzmeter.webp" alt="Blutzuckermessgeraet">
+                <div class="bzmeter__lcd"><div class="bzmeter__val" id="gScreen"></div><div class="bzmeter__unit" id="gUnit"></div>
+                    <div class="bzmeter__time">${new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}</div></div></div>
         </div>
-        <div class="tray" id="gTray">
-            <div class="tool-item" data-t="alk">${icon('pump-medical')}<span>Alkoholtupfer</span></div>
-            <div class="tool-item" data-t="lanz">${icon('syringe')}<span>Lanzette</span></div>
-            <div class="tool-item" data-t="tupfer">${icon('square')}<span>Tupfer (trocken)</span></div>
-            <div class="tool-item" data-t="geraet">${icon('mobile-screen')}<span>BZ-Geraet</span></div>
+        <div class="tray tray--tools" id="gTray">
+            <div class="tool-item" data-t="alk"><img src="img/alcpad.webp" alt=""><span>Alkoholtupfer</span></div>
+            <div class="tool-item" data-t="lanz"><img src="img/lancet.webp" alt="" class="wide"><span>Stechhilfe</span></div>
+            <div class="tool-item" data-t="tupfer"><i class="gauze"></i><span>Tupfer (trocken)</span></div>
+            <div class="tool-item" data-t="geraet"><img src="img/bzmeter.webp" alt="" class="tall"><span>Messgeraet</span></div>
         </div>
         <div class="dim" id="gStat"></div>
         <div class="progress-mini hidden" id="gProg"><div></div></div>`;
     const svg = $('#gFig', body), marks = $('#gMarks', body), stepEl = $('#gStep', body), stat = $('#gStat', body);
-    const prog = $('#gProg', body), progFill = $('#gProg div', body);
+    const prog = $('#gProg', body), progFill = $('#gProg div', body), screen = $('#gScreen', body);
     const setStep = (n) => { step = n; stepEl.innerHTML = `<b>Schritt ${Math.min(n + 1, 6)}/6:</b> ${esc(STEPS[n])}`; };
     const err = (msg) => { errors++; stat.innerHTML = `<span class="warn">${esc(msg)}</span> · Fehler ${errors}/1`; if (errors > 1 && !finished) { finished = true; Game.done(body, false, 'Zu viele Fehler - der Wert waere nicht verwertbar.'); } };
     const info = (msg) => { stat.innerHTML = `${esc(msg)} · Fehler ${errors}/1`; };
     setStep(0); info('');
-    const near = (x, y, r) => site && dist2(x, y, site.x, site.y) <= (r || 14);
-    // 1. Stelle waehlen
-    $$('#gSites rect', body).forEach(r => r.addEventListener('click', () => {
+    const near = (x, y, r) => site && dist2(x, y, site.x, site.y) <= (r || 30);
+    // 1. Stelle waehlen: Klick auf die Hand
+    Game.listen(svg, 'click', (e) => {
         if (step !== 0 || finished) return;
-        const f = fingers.find(x => x.id === r.parentNode.dataset.f);
-        const side = r.classList.contains('site--side');
-        if (!f.ok) return err('Den Daumen nicht verwenden - besser Mittel- oder Ringfinger.');
-        if (!side) return err('Nicht in die Mitte der Fingerbeere stechen (schmerzhaft) - seitlich an der Kuppe.');
-        site = { x: +r.getAttribute('x') + 3.5, y: +r.getAttribute('y') + 10, name: f.name };
-        marks.innerHTML = `<circle cx="${site.x}" cy="${site.y}" r="6" class="mark-site"/>`;
-        $('#gSites', body).classList.add('is-chosen');
+        const p = svgPoint(svg, e.clientX, e.clientY);
+        const f = fingers.map(x => Object.assign({ d: dist2(p.x, p.y, x.x, x.y) }, x)).sort((a, b) => a.d - b.d)[0];
+        if (!f || f.d > 48 || Math.abs(p.y - f.y) > 40) return info('Auf eine Fingerkuppe klicken');
+        const dx = p.x - f.x;
+        if (f.thumb) return err('Den Daumen nicht verwenden - besser Mittel- oder Ringfinger.');
+        if (Math.abs(dx) < 10) return err('Nicht in die Mitte der Fingerbeere stechen (schmerzhaft) - seitlich an der Kuppe.');
+        site = { x: f.x + Math.sign(dx) * 22, y: f.y, name: f.name };
+        marks.innerHTML = `<circle cx="${site.x}" cy="${site.y}" r="13" class="mark-site"/>`;
         info(`Stichstelle: ${f.name}, seitlich`);
         setStep(1);
-    }));
+    });
     const startDry = () => {
         setStep(2); prog.classList.remove('hidden');
         let t = 0;
         Game.timer = setInterval(() => {
             t += 100; progFill.style.width = Math.min(100, t / 30) + '%';
+            const wet = $('#gWet', body); if (wet) wet.setAttribute('opacity', String(Math.max(0, 1 - t / 3000)));
             if (t >= 3000) { clearInterval(Game.timer); dry = true; prog.classList.add('hidden'); setStep(3); info('Haut ist trocken'); }
         }, 100);
     };
+    const drop = (r) => {
+        let d = $('#gDrop', body);
+        if (!d) { marks.insertAdjacentHTML('beforeend', `<circle cx="${site.x}" cy="${site.y - 4}" r="0" fill="url(#gDropGrad)" class="mark-drop" id="gDrop"/>`); d = $('#gDrop', body); }
+        requestAnimationFrame(() => d.setAttribute('r', String(r)));
+    };
     const tools = {
         alk: { onMove: (x, y) => {
-            if (step !== 1 || !near(x, y, 16)) return;
+            if (step !== 1 || !near(x, y, 34)) return;
             rub = Math.min(100, rub + 4); prog.classList.remove('hidden'); progFill.style.width = rub + '%';
-            if (rub >= 100) { $('[data-t="alk"]', body).classList.add('is-used'); marks.insertAdjacentHTML('beforeend', `<circle cx="${site.x}" cy="${site.y}" r="11" class="mark-alk"/>`); startDry(); }
+            if (rub >= 100) {
+                $('[data-t="alk"]', body).classList.add('is-used');
+                marks.insertAdjacentHTML('afterbegin', `<ellipse cx="${site.x}" cy="${site.y}" rx="30" ry="40" fill="url(#gWetGrad)" id="gWet"/>`);
+                startDry();
+            }
         }, onDrop: () => { if (step === 1 && rub < 100) info('Weiter reiben - den Tupfer ueber der Stelle hin und her bewegen'); } },
         lanz: { onDrop: (x, y) => {
             if (x === null || finished) return;
             if (step < 1) return info('Zuerst eine Stichstelle waehlen');
-            if (!near(x, y)) return err('Daneben - die Lanzette an die gewaehlte Stelle ansetzen.');
+            if (!near(x, y)) return err('Daneben - die Stechhilfe an die gewaehlte Stelle setzen.');
             if (step === 1) err('Nicht desinfiziert!');
             if (step === 2 && !dry) { clearInterval(Game.timer); prog.classList.add('hidden'); err('Desinfektionsmittel war noch feucht - der Wert wird verfaelscht.'); }
             $('[data-t="lanz"]', body).classList.add('is-used');
-            marks.insertAdjacentHTML('beforeend', `<circle cx="${site.x}" cy="${site.y - 1}" r="3.2" class="mark-drop" id="gDrop"/>`);
-            setStep(4); info('Gepiekst - Blutstropfen tritt aus');
+            $('.mark-site', body)?.remove();
+            drop(10);
+            setStep(4); info('Klick - gestochen, ein Blutstropfen tritt aus');
         } },
         tupfer: { onDrop: (x, y) => {
             if (x === null || finished || step !== 4) return;
             if (!near(x, y)) return info('Den Tupfer an den Tropfen halten');
             wiped = true; $('[data-t="tupfer"]', body).classList.add('is-used');
-            const d = $('#gDrop', body); if (d) d.setAttribute('r', '1');
+            drop(2);
+            marks.insertAdjacentHTML('afterbegin', `<ellipse cx="${site.x + 6}" cy="${site.y + 6}" rx="9" ry="5" fill="rgba(150,20,30,.25)"/>`);
             info('Erster Tropfen abgewischt - neuer Tropfen bildet sich ...');
-            setTimeout(() => { const d2 = $('#gDrop', body); if (d2) d2.setAttribute('r', '3.6'); setStep(5); }, 1200);
+            setTimeout(() => { if (!finished) { drop(12); setStep(5); } }, 1300);
         } },
         geraet: { onDrop: (x, y) => {
             if (x === null || finished) return;
@@ -2021,16 +2096,21 @@ function gameBz(body) {
             if (finished) return;
             finished = true;
             $('[data-t="geraet"]', body).classList.add('is-used');
-            const d = $('#gDrop', body); if (d) d.remove();
+            drop(2.5);
             setStep(6);
-            const screen = $('#gScreen', body);
-            let n = 5; screen.textContent = n;
-            Game.timer = setInterval(() => { n--; screen.textContent = n > 0 ? n : '...'; if (n <= 0) clearInterval(Game.timer); }, 500);
-            Game.onValue = (v) => { clearInterval(Game.timer); screen.textContent = v && v.bz != null ? Number(v.bz).toFixed(1) : 'Err'; $('.meter__unit', body).textContent = v && v.bz != null ? `mmol/l · ${Math.round(v.bz * 18.02)} mg/dl` : ''; };
-            setTimeout(() => Game.done(body, true, 'Blut aufgezogen - Messung laeuft.'), 2600);
+            let n = 5; screen.textContent = n; $('#gUnit', body).textContent = '';
+            Game.timer = setInterval(() => { n--; screen.textContent = n > 0 ? n : '- - -'; if (n <= 0) clearInterval(Game.timer); }, 600);
+            Game.onValue = (v) => {
+                clearInterval(Game.timer);
+                const ok = v && v.bz != null;
+                screen.textContent = ok ? Number(v.bz).toFixed(1).replace('.', ',') : 'E-3';
+                $('#gUnit', body).innerHTML = ok ? `mmol/L<br><small>${Math.round(v.bz * 18.02)} mg/dL</small>` : '';
+            };
+            Game.showMs = 4500;
+            setTimeout(() => Game.done(body, true, 'Blut aufgesogen - Messung laeuft.'), 3000);
         } },
     };
-    Object.entries(tools).forEach(([id, t]) => draggable($(`[data-t="${id}"]`, body), svg, t));
+    Object.entries(tools).forEach(([id, t]) => draggable($(`[data-t="${id}"]`, body), svg, Object.assign({ ghostHtml: () => $(`[data-t="${id}"]`, body).innerHTML }, t)));
     Game.onKey(() => {});
 }
 
@@ -2082,72 +2162,31 @@ function gameDrill(body) {
     }
 }
 
-/* Thoraxentlastung: richtige Landmarke waehlen (Monaldi 2. ICR MCL / Buelau 4.-5. ICR vordere Axillarlinie) */
+/* Thoraxentlastung: richtige Landmarke am echten Oberkoerper waehlen (Monaldi 2. ICR MCL / Buelau 4.-5. ICR vordere Axillarlinie) */
 function gameLandmark(body) {
-    // x in % (rechte Patientenseite = links im Bild)
-    // Koordinaten in der Figur (Rippen bei y 22/30/38/..., MCL bei x 38/62), umgerechnet auf die Flaeche (15 % / 4 % Rand)
-    const fx = x => 15 + 0.7 * x, fy = y => 4 + 0.92 * y;
+    // Bildpixel auf torso.webp (rechte Patientenseite = links im Bild)
     const pts = [
-        { id: 'r_monaldi', x: 38, y: 34, side: 'rechts', ok: true }, { id: 'l_monaldi', x: 62, y: 34, side: 'links', ok: true },
-        { id: 'r_buelau', x: 21, y: 58, side: 'rechts', ok: true }, { id: 'l_buelau', x: 79, y: 58, side: 'links', ok: true },
-        { id: 'r_para', x: 45, y: 34, ok: false }, { id: 'l_para', x: 55, y: 34, ok: false },
-        { id: 'r_low', x: 38, y: 74, ok: false }, { id: 'l_low', x: 62, y: 74, ok: false },
-        { id: 'r_clav', x: 36, y: 16, ok: false }, { id: 'l_clav', x: 64, y: 16, ok: false },
-    ].map(p => Object.assign(p, { x: fx(p.x), y: fy(p.y) }));
+        { id: 'r_monaldi', x: 340, y: 240, side: 'rechts', ok: true }, { id: 'l_monaldi', x: 546, y: 240, side: 'links', ok: true },
+        { id: 'r_buelau', x: 282, y: 445, side: 'rechts', ok: true }, { id: 'l_buelau', x: 604, y: 445, side: 'links', ok: true },
+        { id: 'r_para', x: 412, y: 240, ok: false }, { id: 'l_para', x: 474, y: 240, ok: false },
+        { id: 'r_low', x: 340, y: 590, ok: false }, { id: 'l_low', x: 546, y: 590, ok: false },
+        { id: 'r_clav', x: 340, y: 172, ok: false }, { id: 'l_clav', x: 546, y: 172, ok: false },
+        { id: 'herz', x: 520, y: 470, ok: false },
+    ];
+    const guides = `<line x1="340" y1="140" x2="340" y2="640" class="anat__guide"/><line x1="546" y1="140" x2="546" y2="640" class="anat__guide"/>
+        <line x1="282" y1="300" x2="282" y2="640" class="anat__guide anat__guide--ax"/><line x1="604" y1="300" x2="604" y2="640" class="anat__guide anat__guide--ax"/>`;
     body.innerHTML = `<p class="dim">Punktionsstelle an der betroffenen Seite waehlen. Tipp: vorher die Lunge abhoeren.</p>
-        <div class="thoraxfig">
-            <svg viewBox="0 0 100 100" preserveAspectRatio="none">
-                <path d="M20 12 Q50 2 80 12 L86 88 Q50 98 14 88 Z" class="thoraxfig__body"/>
-                <line x1="50" y1="10" x2="50" y2="60" class="thoraxfig__sternum"/>
-                ${[22, 30, 38, 46, 54, 62, 70, 78].map(y => `<path d="M18 ${y} Q34 ${y - 4} 48 ${y}" class="thoraxfig__rib"/><path d="M52 ${y} Q66 ${y - 4} 82 ${y}" class="thoraxfig__rib"/>`).join('')}
-                <line x1="38" y1="8" x2="38" y2="90" class="thoraxfig__guide"/><line x1="62" y1="8" x2="62" y2="90" class="thoraxfig__guide"/>
-            </svg>
-            <span class="ekgfig__side" style="left:2%">rechts</span><span class="ekgfig__side" style="right:2%">links</span>
-            ${pts.map(p => `<div class="thoraxfig__pt" data-pt="${p.id}" style="left:${p.x}%;top:${p.y}%"></div>`).join('')}
-        </div>
-        <div class="dim">Gestrichelt: Medioklavikularlinie</div>`;
-    $$('[data-pt]', body).forEach(el => el.onclick = () => {
+        <div class="figwrap figwrap--photo figwrap--thorax">${photoSvg(PHOTO.torso, `<g class="show-guides">${guides}</g>
+            ${pts.map(p => `<circle cx="${p.x}" cy="${p.y}" r="15" class="lm-pt" data-pt="${p.id}"/>`).join('')}`, '120 100 640 600')}
+            <span class="fig__side" style="left:10px">rechts</span><span class="fig__side" style="right:10px">links</span></div>
+        <div class="dim">Blau gestrichelt: Medioklavikularlinie · Lila: vordere Axillarlinie</div>`;
+    $$('[data-pt]', body).forEach(el => el.addEventListener('click', () => {
         const p = pts.find(x => x.id === el.dataset.pt);
         el.classList.add(p.ok ? 'is-set' : 'is-wrong');
         if (!p.ok) return Game.done(body, false, 'Falsche Landmarke - keine Entlastung moeglich.', 'fail');
         Game.done(body, true, `Punktion ${p.side} gesetzt.`, p.side);
-    });
+    }));
     Game.onKey(() => {});
-}
-
-/* CPR: im Takt druecken (100-120/min) */
-function gameCpr(body, def) {
-    const total = def.count || 30;
-    const times = [];
-    body.innerHTML = `<p class="dim">Leertaste oder Klick im Takt druecken - Ziel <b>100 bis 120</b> Kompressionen pro Minute.</p>
-        <div class="cpr"><div class="cpr__rate" id="gRate">–</div><div class="cpr__unit">/min</div></div>
-        <div class="tbar tbar--rate"><div class="tbar__zone" style="left:${(100 - 60) / 1.2}%;width:${20 / 1.2}%"></div><div class="tbar__cursor" id="gCur"></div></div>
-        <div class="row"><span class="grow dim" id="gStat">0 / ${total}</span><button class="btn btn--primary" id="gPush">${icon('heart-pulse')} Druecken</button></div>`;
-    const rateEl = $('#gRate', body), cur = $('#gCur', body), stat = $('#gStat', body);
-    let finished = false;
-    const push = () => {
-        if (finished) return;
-        times.push(performance.now());
-        const n = times.length;
-        if (n >= 2) {
-            const recent = times.slice(-5);
-            const rate = 60000 / ((recent[recent.length - 1] - recent[0]) / (recent.length - 1));
-            rateEl.textContent = Math.round(rate);
-            rateEl.className = 'cpr__rate ' + (rate >= 100 && rate <= 120 ? 'is-ok' : 'is-bad');
-            cur.style.left = Math.max(0, Math.min(100, (rate - 60) / 1.2)) + '%';
-        }
-        stat.textContent = `${n} / ${total}`;
-        if (n >= total) {
-            finished = true;
-            let good = 0;
-            for (let i = 1; i < times.length; i++) { const r = 60000 / (times[i] - times[i - 1]); if (r >= 95 && r <= 125) good++; }
-            const ratio = good / (times.length - 1);
-            const avg = 60000 / ((times[times.length - 1] - times[0]) / (times.length - 1));
-            Game.done(body, ratio >= 0.6 && avg >= 95 && avg <= 125, `Durchschnitt ${Math.round(avg)}/min, ${Math.round(ratio * 100)} % im Zielbereich. Jetzt 2x beatmen.`);
-        }
-    };
-    $('#gPush', body).onclick = push;
-    Game.onKey(e => { if (e.code === 'Space') { e.preventDefault(); if (!e.repeat) push(); } });
 }
 
 /* ------------------------------------------------------------------ */

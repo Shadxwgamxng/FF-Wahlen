@@ -107,7 +107,7 @@ Medical.Opqrst = {
       timing    Zeiger im gruenen Bereich stoppen (hits = noetige Treffer)
       drill     Bohrstelle waehlen und Bohrer im richtigen Moment loslassen
       landmark  richtige Punktionsstelle am Thorax waehlen
-      cpr       Herzdruckmassage im Takt (100-120/min)
+    Herzdruckmassage hat kein Minispiel: die Einsatzkraft fuehrt die CPR-Animation aus (Config.Medical.cpr).
       ekg       Elektroden an die richtigen Stellen ziehen (twelve = 12-Kanal)
 ]]
 Medical.Procedures = {
@@ -116,7 +116,7 @@ Medical.Procedures = {
     { id = 'bvm', label = 'Beutel-Masken-Beatmung', group = 'Atemweg', icon = 'mask-ventilator' },
     { id = 'tubus', label = 'Larynxtubus einlegen', group = 'Atemweg', game = 'timing', hits = 1, icon = 'lungs' },
     { id = 'thorax', label = 'Thoraxentlastungspunktion', group = 'Atemweg', game = 'landmark', icon = 'lungs' },
-    { id = 'cpr', label = 'Herzdruckmassage (30:2)', group = 'Reanimation', game = 'cpr', icon = 'heart-pulse' },
+    { id = 'cpr', label = 'Herzdruckmassage (30:2)', group = 'Reanimation', icon = 'heart-pulse' },
     { id = 'defi', label = 'Defibrillation (200 J)', group = 'Reanimation', icon = 'bolt' },
     { id = 'waerme', label = 'Waermeerhalt (Rettungsdecke)', group = 'Sonstiges', icon = 'temperature-arrow-up' },
     { id = 'lagerung', label = 'Oberkoerperhochlagerung', group = 'Sonstiges', icon = 'bed' },

@@ -292,6 +292,8 @@ Config.Medical = {
     -- Stifneck/Beckenschlinge angelegt und RR, HF und SpO2 gemessen sind
     requireCompleteCare = true,
     subtitleMs = 3500,       -- Anzeigedauer je Gespraechszeile
+    -- Herzdruckmassage: nur Animation (kein Minispiel). Dauer eines Zyklus 30:2 in ms
+    cpr = { durationMs = 18000, dict = 'mini@cpr@char_a@cpr_str', clip = 'cpr_pumpchest' },
 }
 
 -- Tueroeffnung

@@ -104,9 +104,9 @@ Feuer/Rauch lassen sich an Fahrzeuge/Objekte koppeln, NPCs in Fahrzeuge setzen (
 ### Medizinische Versorgung (aus nv_medicDispatches übernommen)
 ox_target am Patienten → **Medizinische Versorgung** (ox_lib-Menü, nur Rollen aus `Config.Medical.roles`):
 - **Gespräch und Anamnese:** Ansprechen, Was ist passiert, Schmerzen, Name, Krankenkasse, **SAMPLER** (Symptome, Allergien, Medikamente, Patientengeschichte, letzte Mahlzeit, Ereignis, Risikofaktoren) und **OPQRST** (Beginn, Provokation, Qualität, Ausstrahlung, Stärke, Dauer) – Antworten je Meldebild, sonst zufällig
-- **Diagnostik:** RR, HF, SpO2, Temperatur, Pupillen, GCS, Atemfrequenz, **BZ** (Minispiel: Stichstelle seitlich an der Fingerkuppe wählen, mit Alkoholtupfer reiben, trocknen lassen, mit der Lanzette stechen, ersten Tropfen abwischen, Teststreifen an den Tropfen – das Gerät zeigt den Wert), **EKG 4-Kanal** und **12-Kanal** (Minispiel: Elektroden nach IEC-Farben frei auf den Körper ziehen, ohne Markierungen – nach Rippen, Brustbein und Achsellinien; danach wird der EKG-Streifen geschrieben; ST-Hebungen nur im 12-Kanal sichtbar), **Auskultation**, **Rekapillarisierungszeit**, **Hautbefund**
+- **Diagnostik:** RR, HF, SpO2, Temperatur, Pupillen, GCS, Atemfrequenz, **BZ** (Minispiel mit echten Fotos von Hand, Alkoholtupfer, Stechhilfe und Messgerät: Stichstelle seitlich an der Fingerkuppe wählen, Tupfer reiben, trocknen lassen, stechen, ersten Tropfen abwischen, Teststreifen an den Tropfen – das Messgerät zeigt den Wert), **EKG 4-Kanal** und **12-Kanal** (Minispiel: echte Klebeelektroden mit IEC-Farbclips frei auf ein Oberkörperfoto kleben, ohne Markierungen; danach zeigt ein LIFEPAK 15 den Rhythmus live, beim 12-Kanal kommt der Ausdruck mit allen 12 Ableitungen dazu; ST-Hebungen nur im 12-Kanal sichtbar), **Auskultation**, **Rekapillarisierungszeit**, **Hautbefund**
 - **Monitor:** Vitalwerte und laufende EKG-Kurve (Sinus, Tachy/Brady, Vorhofflimmern, STEMI, Kammerflimmern, Asystolie) am Bildschirmrand
-- **Maßnahmen mit Minispielen:** Venenzugang (Timing), **intraossärer Zugang** (Punktionsstelle wählen, bohren, beim Widerstandsverlust loslassen), Larynxtubus, Beutel-Masken-Beatmung, **Thoraxentlastungspunktion** (richtige Landmarke und Seite wählen), **Herzdruckmassage** (Takt 100–120/min), **Defibrillation** (nur bei schockbarem Rhythmus), Wärmeerhalt, Oberkörperhochlagerung
+- **Maßnahmen mit Minispielen:** Venenzugang (Timing), **intraossärer Zugang** (Punktionsstelle wählen, bohren, beim Widerstandsverlust loslassen), Larynxtubus, Beutel-Masken-Beatmung, **Thoraxentlastungspunktion** (richtige Landmarke und Seite am Oberkörperfoto wählen), **Herzdruckmassage** (kein Minispiel – die Einsatzkraft führt die CPR-Animation mit Fortschrittsbalken aus, Dauer in `Config.Medical.cpr`), **Defibrillation** (nur bei schockbarem Rhythmus), Wärmeerhalt, Oberkörperhochlagerung
 - **Sauerstoff** 2/4/6/8 l (SpO2 + 0,8 je Liter)
 - **Medikamente/Infusionen** u. a. Akrinor, Ebrantil, Atropin, Suprarenin, ASS, Heparin, Nitro (Kontraindikation RR < 110), Amiodaron, Furosemid, Morphin, Fentanyl, Ketanest, Midazolam, Naloxon, Glucagon i.m., Salbutamol/Atrovent vernebelt, Prednisolon, G20, G5, Jonosteril – i.v.-Medikamente nur mit Zugang (i.v. oder i.o.), Spray/vernebelt/i.m. ohne Zugang; Wirkung erst bei erneuter Messung sichtbar
 - **Neue Meldebilder:** Akutes Koronarsyndrom (STEMI, instabile AP), Spannungspneumothorax (rechts/links), Reanimation mit Kammerflimmern oder Asystolie (ROSC nach Herzdruckmassage, Defibrillation, Zugang, Adrenalin und Atemwegssicherung)
@@ -273,3 +273,8 @@ EmergencyDispatch-Notrufe, Zufallseinsätze und Rechte durch.
 ## Lizenzen der mitgelieferten Oberflächen-Dateien
 - Font Awesome Free 6.7.2 (Icons: CC BY 4.0, Schrift: SIL OFL 1.1) – `html/vendor/fontawesome/LICENSE.txt`
 - Geist / Geist Mono (Vercel, SIL OFL 1.1) – `html/vendor/geist/OFL.txt`
+
+
+## Bildquellen
+
+Die Fotos der Minispiele liegen in `html/img/` und stehen unter freien Lizenzen (CC BY / CC BY-SA, Wikimedia Commons). Urheber und Lizenzen: `html/img/QUELLEN.md`.

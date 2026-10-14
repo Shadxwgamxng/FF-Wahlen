@@ -44,7 +44,6 @@ local GAMES = {
     ['proc:tubus'] = { type = 'timing', title = 'Larynxtubus einlegen', hint = 'Im richtigen Moment vorschieben', hits = 1, speed = 1.5 },
     ['proc:io'] = { type = 'drill', title = 'Intraossaeren Zugang bohren' },
     ['proc:thorax'] = { type = 'landmark', title = 'Thoraxentlastungspunktion' },
-    ['proc:cpr'] = { type = 'cpr', title = 'Herzdruckmassage', count = 30 },
 }
 
 local TALKS = {
@@ -116,6 +115,26 @@ NUI.on('minigameDone', function(data)
 end)
 
 ----------------------------------------------------------------------------
+-- Herzdruckmassage: Einsatzkraft kniet neben dem Patienten und drueckt (Animation mit Fortschrittsbalken)
+----------------------------------------------------------------------------
+function MedClient.cpr(cur)
+    local ped = PlayerPedId()
+    local cfg = Config.Medical.cpr or {}
+    local pos = patientPos(cur.incident, cur.patient)
+    if pos then
+        TaskTurnPedToFaceCoord(ped, pos.x, pos.y, pos.z, 800)
+        Wait(800)
+    end
+    return lib.progressBar({
+        duration = cfg.durationMs or 18000,
+        label = 'Herzdruckmassage 30:2',
+        canCancel = true,
+        disable = { move = true, car = true, combat = true },
+        anim = { dict = cfg.dict or 'mini@cpr@char_a@cpr_str', clip = cfg.clip or 'cpr_pumpchest', flag = 1 },
+    })
+end
+
+----------------------------------------------------------------------------
 -- Massnahme ausfuehren und danach Menue wieder oeffnen
 ----------------------------------------------------------------------------
 function MedClient.act(action, arg, reopen)
@@ -135,8 +154,16 @@ function MedClient.act(action, arg, reopen)
             arg = NetworkGetNetworkIdFromEntity(s)
         end
         local talking = action:find('^talk_') or action == 'sampler' or action == 'opqrst'
+        if action == 'proc' and arg == 'cpr' then
+            -- Herzdruckmassage: nur die CPR-Animation, kein Minispiel
+            if not MedClient.cpr(cur) then
+                MedClient.busy = false
+                return MedClient.open(cur.incident, cur.patient, reopen)
+            end
+            talking = true
+        end
         local kneel = not IsPedInAnyVehicle(ped, false) and not talking
-        if kneel then TaskStartScenarioInPlace(ped, action == 'proc' and arg == 'cpr' and 'CODE_HUMAN_MEDIC_TEND_TO_DEAD' or 'CODE_HUMAN_MEDIC_KNEEL', 0, true) end
+        if kneel then TaskStartScenarioInPlace(ped, 'CODE_HUMAN_MEDIC_KNEEL', 0, true) end
         local result
         local game = GAMES[action .. ':' .. tostring(arg)]
         if game then
@@ -152,7 +179,7 @@ function MedClient.act(action, arg, reopen)
         if game and game.awaitValue then
             -- Messwert im Minispiel anzeigen (BZ-Geraet / EKG-Streifen)
             local view = ok and res and res.view or nil
-            NUI.send('minigameValue', view and result == true and { bz = view.vitals and view.vitals.bz, ekg = view.ekg } or false)
+            NUI.send('minigameValue', view and result == true and { bz = view.vitals and view.vitals.bz, ekg = view.ekg, monitor = view.monitor, name = view.name } or false)
         end
         if not ok then
             NUI.toast('error', res or 'Massnahme nicht moeglich')

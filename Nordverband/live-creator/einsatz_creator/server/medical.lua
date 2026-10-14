@@ -578,8 +578,6 @@ function Med.action(src, incident, p, action, arg, result)
             say(lines, 'rd', 'Rettungsdienst: Herzdruckmassage! 30 Kompressionen, 2 Beatmungen.')
             if not med.arrest then
                 say(lines, 'info', 'Der Patient hat einen Puls - keine Herzdruckmassage noetig!')
-            elseif not ok then
-                say(lines, 'info', 'Kompressionen zu langsam oder zu schnell (Ziel 100-120/min). Zyklus wiederholen.')
             else
                 med.cprCount = med.cprCount + 1
                 med.done.cpr = true
