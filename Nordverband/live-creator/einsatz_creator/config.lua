@@ -289,7 +289,7 @@ Config.Medical = {
     distance = 3.0,          -- max. Abstand zum Patienten
     actionCooldownMs = 1200, -- Mindestabstand zwischen zwei Massnahmen am selben Patienten
     -- "versorgt / transportbereit" erst, wenn alle Wunden versorgt, Frakturen geschient,
-    -- Zervikalstuetze/Beckenschlinge angelegt und RR, HF und SpO2 gemessen sind
+    -- Stifneck/Beckenschlinge angelegt und RR, HF und SpO2 gemessen sind
     requireCompleteCare = true,
     subtitleMs = 3500,       -- Anzeigedauer je Gespraechszeile
     -- Herzdruckmassage: nur Animation (kein Minispiel). Dauer eines Zyklus 30:2 in ms

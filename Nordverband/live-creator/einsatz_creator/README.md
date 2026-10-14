@@ -108,10 +108,10 @@ ox_target am Patienten → **Medizinische Versorgung** (ox_lib-Menü, nur Rollen
 - **Monitor:** Vitalwerte und laufende EKG-Kurve (Sinus, Tachy/Brady, Vorhofflimmern, STEMI, Kammerflimmern, Asystolie) am Bildschirmrand
 - **Maßnahmen mit Minispielen:** Venenzugang (Timing), **intraossärer Zugang** (Punktionsstelle wählen, bohren, beim Widerstandsverlust loslassen), Larynxtubus, Beutel-Masken-Beatmung, **Thoraxentlastungspunktion** (richtige Landmarke und Seite am Oberkörperfoto wählen), **Herzdruckmassage** (kein Minispiel – die Einsatzkraft führt die CPR-Animation mit Fortschrittsbalken aus, Dauer in `Config.Medical.cpr`), **Defibrillation** (nur bei schockbarem Rhythmus), Wärmeerhalt, Oberkörperhochlagerung
 - **Sauerstoff** 2/4/6/8 l (SpO2 + 0,8 je Liter)
-- **Medikamente/Infusionen** u. a. Cafedrin/Theodrenalin, Urapidil, Atropin, Adrenalin, ASS, Heparin, Nitro (Kontraindikation RR < 110), Amiodaron, Furosemid, Morphin, Fentanyl, Esketamin, Midazolam, Naloxon, Glucagon i.m., Salbutamol/Ipratropiumbromid vernebelt, Prednisolon, G20, G5, Vollelektrolytlösung (nur Wirkstoff- bzw. Gattungsnamen, keine Markennamen) – i.v.-Medikamente nur mit Zugang (i.v. oder i.o.), Spray/vernebelt/i.m. ohne Zugang; Wirkung erst bei erneuter Messung sichtbar
+- **Medikamente/Infusionen** u. a. Akrinor, Ebrantil, Atropin, Suprarenin, ASS, Heparin, Nitro (Kontraindikation RR < 110), Amiodaron, Furosemid, Morphin, Fentanyl, Ketanest, Midazolam, Naloxon, Glucagon i.m., Salbutamol/Atrovent vernebelt, Prednisolon, G20, G5, Jonosteril – i.v.-Medikamente nur mit Zugang (i.v. oder i.o.), Spray/vernebelt/i.m. ohne Zugang; Wirkung erst bei erneuter Messung sichtbar
 - **Neue Meldebilder:** Akutes Koronarsyndrom (STEMI, instabile AP), Spannungspneumothorax (rechts/links), Reanimation mit Kammerflimmern oder Asystolie (ROSC nach Herzdruckmassage, Defibrillation, Zugang, Adrenalin und Atemwegssicherung)
 - **Pflichtmaßnahmen je Meldebild** (z. B. STEMI: 12-Kanal-EKG, Zugang, ASS, Heparin, OPQRST, Lagerung) – erscheinen unter „Offene Maßnahmen“
-- **Bodycheck** über 16 Körperregionen → Pflaster, Verband, Schiene, Zervikalstütze (SHT), Beckenschlinge (Becken instabil)
+- **Bodycheck** über 16 Körperregionen → Pflaster, Verband, Schiene, Stifneck (SHT), Beckenschlinge (Becken instabil)
 - **Transport:** besprechen, auf die Trage legen (`rda_stretcher`, `c5m-stretcher`), kein Transport nötig
 - Status **„versorgt / transportbereit“** erst, wenn alle offenen Maßnahmen erledigt sind (`Config.Medical.requireCompleteCare`)
 
@@ -277,4 +277,4 @@ EmergencyDispatch-Notrufe, Zufallseinsätze und Rechte durch.
 
 ## Bildquellen
 
-Die Fotos der Minispiele liegen in `html/img/` und zeigen keine Markenlogos oder Markennamen (Logos und Aufdrucke wurden entfernt). Herkunft und Lizenzen: `html/img/QUELLEN.md`.
+Die Fotos der Minispiele liegen in `html/img/` und zeigen keine Markenlogos (Logos und Aufdrucke auf den Fotos wurden entfernt). Herkunft und Lizenzen: `html/img/QUELLEN.md`.

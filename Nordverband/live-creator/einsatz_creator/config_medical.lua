@@ -9,7 +9,7 @@
       - Sauerstoff 2/4/6/8 l (SpO2 + 0,8 je Liter)
       - Medikamente und Infusionen mit Wirkung auf die Vitalwerte
         (nur mit Zugang; Kreislauf-/Atem-/BZ-Medikamente erst nach Messung)
-      - Bodycheck mit Koerperregionen; Pflaster, Verband, Schiene, Zervikalstuetze, Beckenschlinge
+      - Bodycheck mit Koerperregionen; Pflaster, Verband, Schiene, Stifneck, Beckenschlinge
       - Trage (Patient wird auf die Trage gelegt)
     Neu: Notruftexte je Meldebild (Tag/Nacht) fuer die Leitstelle.
 
@@ -20,7 +20,7 @@ Medical = {}
 
 -- Koerperregionen fuer den Bodycheck. maxLevel: hoechste moegliche Verletzungsstufe
 --   1 = kleine Wunde (Pflaster), 2 = grosse Wunde (Verband),
---   3 = schwere Verletzung: Kopf -> SHT (Zervikalstuetze), Becken -> instabil (Beckenschlinge),
+--   3 = schwere Verletzung: Kopf -> SHT (Stifneck), Becken -> instabil (Beckenschlinge),
 --       Extremitaeten -> Fraktur (Schiene)
 Medical.BodyParts = {
     { id = 'kopf', label = 'Kopf', maxLevel = 3, severe = 'stifneck', severeText = 'wahrscheinlich ein SHT' },
@@ -112,7 +112,7 @@ Medical.Opqrst = {
 ]]
 Medical.Procedures = {
     { id = 'iv', label = 'Venenzugang (i.v.)', group = 'Zugang', game = 'timing', hits = 2, icon = 'syringe' },
-    { id = 'io', label = 'Intraossaerer Zugang (Bohrsystem)', group = 'Zugang', game = 'drill', icon = 'bore-hole' },
+    { id = 'io', label = 'Intraossaerer Zugang (EZ-IO)', group = 'Zugang', game = 'drill', icon = 'bore-hole' },
     { id = 'bvm', label = 'Beutel-Masken-Beatmung', group = 'Atemweg', icon = 'mask-ventilator' },
     { id = 'tubus', label = 'Larynxtubus einlegen', group = 'Atemweg', game = 'timing', hits = 1, icon = 'lungs' },
     { id = 'thorax', label = 'Thoraxentlastungspunktion', group = 'Atemweg', game = 'landmark', icon = 'lungs' },
@@ -468,22 +468,22 @@ Medical.Profiles = {
       minSys: Gabe nur ab diesem systolischen Blutdruck (z. B. Nitro)
 ]]
 Medical.Medications = {
-    { id = 'akrinor', label = 'Cafedrin/Theodrenalin', group = 'Kreislauf', needs = { 'rr' }, effect = { rrsys = 25, rrdia = 15 } },
-    { id = 'ebrantil', label = 'Urapidil', group = 'Kreislauf', needs = { 'rr' }, effect = { rrsys = -25, rrdia = -10 } },
-    { id = 'haemiton', label = 'Clonidin', group = 'Kreislauf', needs = { 'rr' }, effect = { rrsys = -15, rrdia = -10 } },
+    { id = 'akrinor', label = 'Akrinor', group = 'Kreislauf', needs = { 'rr' }, effect = { rrsys = 25, rrdia = 15 } },
+    { id = 'ebrantil', label = 'Ebrantil (Urapidil)', group = 'Kreislauf', needs = { 'rr' }, effect = { rrsys = -25, rrdia = -10 } },
+    { id = 'haemiton', label = 'Haemiton (Clonidin)', group = 'Kreislauf', needs = { 'rr' }, effect = { rrsys = -15, rrdia = -10 } },
     { id = 'atropin', label = 'Atropin', group = 'Kreislauf', needs = { 'hf' }, effect = { hf = 40 } },
-    { id = 'suprarenin', label = 'Adrenalin 1 mg', group = 'Kreislauf', needs = { 'hf' }, effect = { hf = 50 } },
-    { id = 'atrovent', label = 'Ipratropiumbromid (vernebelt)', group = 'Atmung', route = 'inhal', needs = { 'spo2' }, effect = { spo2Bonus = 10 } },
+    { id = 'suprarenin', label = 'Suprarenin (Adrenalin)', group = 'Kreislauf', needs = { 'hf' }, effect = { hf = 50 } },
+    { id = 'atrovent', label = 'Atrovent (vernebelt)', group = 'Atmung', route = 'inhal', needs = { 'spo2' }, effect = { spo2Bonus = 10 } },
     { id = 'salbutamol', label = 'Salbutamol (vernebelt)', group = 'Atmung', route = 'inhal', needs = { 'spo2' }, effect = { spo2Bonus = 4 } },
     { id = 'prednisolon', label = 'Prednisolon 250 mg', group = 'Atmung', needs = { 'spo2' }, effect = { spo2Bonus = 3 } },
     { id = 'g20', label = 'Glukose 20 %', group = 'Stoffwechsel', needs = { 'bz' }, effect = { bz = 1.8 } },
-    { id = 'buscopan', label = 'Butylscopolamin', group = 'Schmerz', effect = { pain = -2 } },
-    { id = 'novalgin', label = 'Metamizol', group = 'Schmerz', effect = { pain = -2 } },
-    { id = 'fenistil', label = 'Dimetinden', group = 'Schmerz', effect = { pain = -3 } },
+    { id = 'buscopan', label = 'Buscopan', group = 'Schmerz', effect = { pain = -2 } },
+    { id = 'novalgin', label = 'Novalgin', group = 'Schmerz', effect = { pain = -2 } },
+    { id = 'fenistil', label = 'Fenistil', group = 'Schmerz', effect = { pain = -3 } },
     { id = 'paracetamol', label = 'Paracetamol', group = 'Schmerz', effect = { pain = -4, temp = -2.0 } },
-    { id = 'ketanest', label = 'Esketamin', group = 'Schmerz', effect = { pain = -9 } },
+    { id = 'ketanest', label = 'Ketanest', group = 'Schmerz', effect = { pain = -9 } },
     { id = 'oxytocin', label = 'Oxytocin', group = 'Schmerz', effect = { pain = -10 } },
-    { id = 'ass', label = 'ASS 250 mg i.v.', group = 'Herz', needs = { 'ekg' } },
+    { id = 'ass', label = 'ASS 250 mg (Aspisol)', group = 'Herz', needs = { 'ekg' } },
     { id = 'heparin', label = 'Heparin 5000 I.E.', group = 'Herz', needs = { 'ekg' } },
     { id = 'nitro', label = 'Nitro-Spray 0,4 mg', group = 'Herz', route = 'sl', needs = { 'rr' }, minSys = 110, effect = { rrsys = -20, rrdia = -10, pain = -2 } },
     { id = 'amiodaron', label = 'Amiodaron 300 mg', group = 'Herz', needs = { 'ekg' } },
@@ -494,9 +494,9 @@ Medical.Medications = {
     { id = 'naloxon', label = 'Naloxon 0,4 mg', group = 'Sonstiges', effect = { gcs = 3, af = 4 } },
     { id = 'glucagon', label = 'Glucagon 1 mg (i.m.)', group = 'Stoffwechsel', route = 'im', needs = { 'bz' }, effect = { bz = 2.5 } },
     { id = 'ondansetron', label = 'Ondansetron 4 mg', group = 'Sonstiges' },
-    { id = 'dimenhydrinat', label = 'Dimenhydrinat 62 mg', group = 'Sonstiges' },
+    { id = 'dimenhydrinat', label = 'Dimenhydrinat 62 mg (Vomex)', group = 'Sonstiges' },
     { id = 'g5', label = 'Glukose 5 % (Infusion)', group = 'Infusion', needs = { 'bz' }, effectRange = { bz = { 5.25, 10.5 } } },
-    { id = 'jonosteril', label = 'Vollelektrolytloesung (Infusion)', group = 'Infusion', needs = { 'rr' },
+    { id = 'jonosteril', label = 'Jonosteril (Infusion)', group = 'Infusion', needs = { 'rr' },
         effectRange = { rrsys = { 45, 90 }, rrdia = { 15, 30 }, bz = { -3.0, -1.5 } } },
 }
 
