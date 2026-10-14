@@ -607,3 +607,6 @@ input[type="number"].input { font-family: var(--mono); }
 .ctl-row.is-ok { border-color: rgba(63, 185, 80, .45); }
 .ctl-notes { display: flex; flex-direction: column; gap: 0.25rem; padding: 0.5rem 0.7rem; border-radius: var(--radius); background: rgba(227, 179, 65, .1); color: var(--warn-text); font-size: var(--fs-xs); }
 .input--sm { padding: 0.2rem 0.4rem; font-size: var(--fs-xs); }
+.amp-t--p { font-size: 6.6px; font-weight: 800; }
+.amp-t--ps { font-size: 5.6px; font-weight: 600; }
+.amp-t--px { font-size: 4.6px; font-weight: 500; fill: #555; }

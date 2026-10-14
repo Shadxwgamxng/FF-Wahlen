@@ -15,6 +15,7 @@
       solvent   Loesungsmittel bei Trockensubstanz (ml)
       color     Farbe des Spritzenetiketts (nach Wirkstoffgruppe, angelehnt an ISO 26825)
       over      Wirkung bei Ueberdosierung (wird zusaetzlich angewendet)
+      glass     'braun' = Braunglasampulle (lichtempfindlich), sonst klares Glas
 ]]
 Material = Material or {}
 
@@ -118,8 +119,8 @@ Material.Containers = {
 
 -- 40 Rettungsdienst-Medikamente
 Material.Drugs = {
-    { id = 'adrenalin', med = 'suprarenin', label = 'Adrenalin', unit = 'mg', conc = 1, ml = 1, container = 'glas1', dose = 1, max = 1, dilute = 10, color = 'katecholamin' },
-    { id = 'noradrenalin', label = 'Noradrenalin', unit = 'µg', conc = 1000, ml = 1, container = 'glas1', dose = 10, max = 50, dilute = 50, color = 'katecholamin', over = { rrsys = 50, hf = 20 } },
+    { id = 'adrenalin', med = 'suprarenin', label = 'Adrenalin', unit = 'mg', conc = 1, ml = 1, container = 'glas1', dose = 1, max = 1, dilute = 10, color = 'katecholamin', glass = 'braun' },
+    { id = 'noradrenalin', label = 'Noradrenalin', unit = 'µg', conc = 1000, ml = 1, container = 'glas1', dose = 10, max = 50, dilute = 50, color = 'katecholamin', over = { rrsys = 50, hf = 20 }, glass = 'braun' },
     { id = 'akrinor', med = 'akrinor', label = 'Cafedrin/Theodrenalin', unit = 'mg', conc = 100, ml = 2, container = 'glas2', dose = 40, max = 200, dilute = 10, color = 'katecholamin', over = { rrsys = 40, hf = 25 } },
     { id = 'atropin', med = 'atropin', label = 'Atropin', unit = 'mg', conc = 0.5, ml = 1, container = 'glas1', dose = 0.5, max = 3, color = 'anticholinergikum', over = { hf = 40 } },
     { id = 'amiodaron', med = 'amiodaron', label = 'Amiodaron', unit = 'mg', conc = 50, ml = 3, container = 'glas3', dose = 300, max = 300, color = 'sonstige' },
@@ -127,8 +128,8 @@ Material.Drugs = {
     { id = 'metoprolol', label = 'Metoprolol', unit = 'mg', conc = 1, ml = 5, container = 'glas5', dose = 5, max = 15, color = 'sonstige', over = { hf = -35, rrsys = -30 } },
     { id = 'urapidil', med = 'ebrantil', label = 'Urapidil', unit = 'mg', conc = 5, ml = 10, container = 'glas10', dose = 10, max = 50, color = 'sonstige', over = { rrsys = -45 } },
     { id = 'clonidin', med = 'haemiton', label = 'Clonidin', unit = 'µg', conc = 150, ml = 1, container = 'glas1', dose = 75, max = 150, dilute = 10, color = 'sonstige', over = { rrsys = -30, hf = -20 } },
-    { id = 'nitro_iv', label = 'Glyceroltrinitrat i.v.', unit = 'mg', conc = 1, ml = 5, container = 'glas5', dose = 0.4, max = 1, color = 'sonstige', over = { rrsys = -40 } },
-    { id = 'furosemid', med = 'furosemid', label = 'Furosemid', unit = 'mg', conc = 10, ml = 4, container = 'glas4', dose = 40, max = 80, color = 'sonstige' },
+    { id = 'nitro_iv', label = 'Glyceroltrinitrat i.v.', unit = 'mg', conc = 1, ml = 5, container = 'glas5', dose = 0.4, max = 1, color = 'sonstige', over = { rrsys = -40 }, glass = 'braun' },
+    { id = 'furosemid', med = 'furosemid', label = 'Furosemid', unit = 'mg', conc = 10, ml = 4, container = 'glas4', dose = 40, max = 80, color = 'sonstige', glass = 'braun' },
     { id = 'ass', med = 'ass', label = 'Acetylsalicylsaeure', unit = 'mg', conc = 100, ml = 5, container = 'dry', solvent = 5, dose = 250, max = 500, color = 'gerinnung' },
     { id = 'heparin', med = 'heparin', label = 'Heparin', unit = 'IE', conc = 5000, ml = 1, container = 'vial5', dose = 5000, max = 10000, color = 'gerinnung' },
     { id = 'tranexam', label = 'Tranexamsaeure', unit = 'mg', conc = 100, ml = 10, container = 'glas10', dose = 1000, max = 2000, color = 'gerinnung' },

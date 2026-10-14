@@ -2536,20 +2536,21 @@ function syringeSvg(syr, s) {
         ${s.label.stripe ? `<rect x="${x0 + 40}" y="${y + 4}" width="12" height="${h - 8}" fill="#d63a3a"/>` : ''}
         <text x="${x0 + 58}" y="${y + 20}" class="syr-lbl">${esc(s.label.name)}</text>
         <text x="${x0 + 58}" y="${y + 34}" class="syr-lbl syr-lbl--s">${esc(s.label.line)}</text></g>` : '';
-    const plungerX = x0 + len - fillW - 6;
-    return `<svg viewBox="0 0 ${W} 190" class="syr-svg" id="gSyr">
+    // Stopfen an der Fuellgrenze, Kolbenstange mit fester Laenge ragt hinten aus dem Zylinder
+    const plungerX = x0 + len - fillW - 6, rodL = len + 34;
+    return `<svg viewBox="${x0 - rodL - 30} 0 ${W - x0 + rodL + 30} 190" class="syr-svg" id="gSyr">
         <rect x="${x0}" y="${y}" width="${len}" height="${h}" rx="6" class="syr-barrel"/>
         <rect x="${fx}" y="${y + 3}" width="${fillW}" height="${h - 6}" fill="rgba(170,205,235,.55)"/>
         <rect x="${x0 + len - drugW}" y="${y + 3}" width="${drugW}" height="${h - 6}" fill="${col}" opacity="0.55"/>
         ${bubbles}
         <rect x="${plungerX}" y="${y + 2}" width="8" height="${h - 4}" rx="2" fill="#2b2b2b"/>
-        <rect x="${plungerX - 200}" y="${y + h / 2 - 5}" width="200" height="10" fill="#e9ecef" stroke="#adb5bd"/>
-        <rect x="${plungerX - 214}" y="${y + 6}" width="14" height="${h - 12}" rx="3" fill="#e9ecef" stroke="#adb5bd"/>
+        <rect x="${plungerX - rodL}" y="${y + h / 2 - 5}" width="${rodL}" height="10" fill="#e9ecef" stroke="#adb5bd"/>
+        <rect x="${plungerX - rodL - 14}" y="${y - 2}" width="14" height="${h + 4}" rx="3" fill="#e9ecef" stroke="#adb5bd"/>
         <rect x="${x0 - 14}" y="${y - 10}" width="12" height="${h + 20}" rx="3" class="syr-flange"/>
         ${ticks.join('')}
         <path d="M${x0 + len} ${y + 12} L${x0 + len + 40} ${y + h / 2 - 5} L${x0 + len + 40} ${y + h / 2 + 5} L${x0 + len} ${y + h - 12} Z" class="syr-barrel"/>
         ${needle}${label}
-        <text x="${x0}" y="${y + h + 34}" class="syr-cap">${esc(syr.label)}</text>
+        <text x="${x0}" y="${y + h + 40}" class="syr-cap">${esc(syr.label)}</text>
     </svg>`;
 }
 
@@ -2574,12 +2575,21 @@ function containerSvg(drug, cont, opts = {}) {
         body = `<path d="M22 20 L78 20 L78 150 Q78 166 62 166 L38 166 Q22 166 22 150 Z" class="amp-plastic"/>
             <rect x="26" y="${26 + 136 * (1 - fill)}" width="48" height="${136 * fill}" rx="4" class="amp-liquid"/>`;
     } else {
-        // Glasampulle mit Kopf, Hals (Bruchring mit Punkt) und Bauch
-        const head = opts.headFull ? `<ellipse cx="50" cy="22" rx="11" ry="12" class="amp-liquid"/>` : '';
-        body = `${opts.opened ? '' : `<path d="M39 34 Q36 10 50 8 Q64 10 61 34 Z" class="amp-glass"/>${head}`}
-            <path d="M42 34 L58 34 L60 46 Q78 54 78 72 L78 156 Q78 168 66 168 L34 168 Q22 168 22 156 L22 72 Q22 54 40 46 Z" class="amp-glass"/>
-            <rect x="26" y="${74 + 90 * (1 - fill)}" width="48" height="${90 * fill}" rx="6" class="amp-liquid"/>
-            ${opts.opened ? `<path d="M42 34 L45 30 L48 35 L52 30 L55 35 L58 34" fill="none" stroke="#8aa" stroke-width="1.2"/>` : `<circle cx="50" cy="38" r="2.4" fill="#2f6fd1"/><line x1="40" y1="40" x2="60" y2="40" stroke="#2f6fd1" stroke-width="1"/>`}`;
+        // Glasampulle: Foto (medic_equip) mit eigenem Etikett; geoeffnet = Kopf oberhalb des Halses abgeschnitten
+        const src = drug && drug.glass === 'braun' ? 'img/amp_glas_braun.png' : 'img/amp_glas_klar.png';
+        const cid = 'ac' + Math.random().toString(36).slice(2, 8);
+        const name = drug ? drug.label : (cont.solution || cont.label);
+        const fit = (t, max) => t.length > max ? ` textLength="${36}" lengthAdjust="spacingAndGlyphs"` : '';
+        return `<svg viewBox="0 0 100 175" class="amp-svg"><defs><clipPath id="${cid}"><rect x="0" y="${opts.opened ? 79 : 0}" width="100" height="175"/></clipPath></defs>
+            <image href="${src}" x="30" y="3" width="40" height="170" clip-path="url(#${cid})"/>
+            ${opts.headFull ? '<ellipse cx="50" cy="44" rx="6" ry="16" fill="rgba(200,140,40,.55)"/>' : ''}
+            ${opts.opened ? '<path d="M41 79 L44 76 L47 80 L50 76 L53 80 L56 76 L59 79" fill="none" stroke="#9aa" stroke-width="1"/>' : '<circle cx="50" cy="81" r="1.8" fill="#2f6fd1"/>'}
+            <rect x="32" y="101" width="36" height="5" fill="${lbl}"/>
+            <text x="50" y="116" class="amp-t amp-t--p"${fit(name, 9)}>${esc(name)}</text>
+            <text x="50" y="128" class="amp-t amp-t--ps">${esc(drug ? `${numDe(drug.conc, 3)} ${drug.unit}/ml` : '')}</text>
+            <text x="50" y="139" class="amp-t amp-t--ps">${esc(`${numDe(drug ? drug.ml : cont.ml, 1)} ml`)}</text>
+            <text x="50" y="151" class="amp-t amp-t--px">i.v. / i.m.</text>
+            ${opts.fill !== undefined && opts.fill < 1 ? `<rect x="31" y="157" width="38" height="5" fill="rgba(0,0,0,.25)"/><rect x="31" y="157" width="${38 * fill}" height="5" fill="#2f7cf6"/>` : ''}</svg>`;
     }
     const lab = `<rect x="20" y="96" width="60" height="50" fill="${lbl}" stroke="rgba(0,0,0,.25)"/>
         ${drug && (PREP_MAT.colors[drug.color] || {}).stripe ? '<rect x="20" y="96" width="6" height="50" fill="#d63a3a"/>' : ''}
@@ -2829,7 +2839,7 @@ function gamePrep(body, def) {
                 if (box) box.outerHTML = syringeSvg(syr, { total: total(), drugMl: S.drugMl, bubbles: S.bubbles, needle: S.needle, drugColor: (M.colors[S.drug.color] || {}).bg });
                 const rd = $('.draw-read', body);
                 if (rd) rd.innerHTML = `<b>${numDe(total(), 2)} ml</b> in der Spritze<br><span class="dim">${esc(S.drug.label)}: ${numDe(S.drugMl, 2)} ml = ${unitTxt(amount())}${S.dilMl ? ` · Loesung: ${numDe(S.dilMl, 2)} ml` : ''}</span>`;
-                if (!ok) { held = false; msg(cap() <= 0 ? 'Spritze ist voll' : 'Gebinde ist leer', true); }
+                if (!ok) { held = false; const why = cap() <= 0 ? 'Spritze ist voll' : 'Gebinde ist leer'; stDraw(); msg(why, true); return; }
             }
             Game.raf = requestAnimationFrame(loop);
         };

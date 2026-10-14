@@ -18,6 +18,7 @@ Die bearbeiteten Dateien stehen unter derselben Lizenz wie das jeweilige Origina
 | `defi.webp` | Monitor/Defibrillator, Produktfoto vom Serverbetreiber; Herstellerlogos und Typenbezeichnung entfernt |
 | `bzmeter.webp` | Blutzuckermessgeraet, Produktfoto vom Serverbetreiber; Herstellerschriftzug entfernt |
 | `iv_*.png` | Venenzugang (Arm, Stauband, Hautdesinfektion, Kompresse, Kanuele, Pflaster) aus dem Paket medic_equip des Serverbetreibers; Herstellerlogo auf der Spruehflasche entfernt |
+| `amp_glas_braun.png`, `amp_glas_klar.png` | Glasampulle aus dem Paket medic_equip (adrenalin.png); Herstelleretikett durch leeres Etikett ersetzt, klare Variante umgefaerbt |
 | `io_bohrer.png` | i.o.-Bohrer aus dem Paket medic_equip des Serverbetreibers |
 | `io_bein.webp` | Unterschenkel fuer den i.o.-Zugang, vom Serverbetreiber bereitgestellt |
 
