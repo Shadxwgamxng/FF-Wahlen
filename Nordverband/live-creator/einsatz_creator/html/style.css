@@ -494,13 +494,18 @@ input[type="number"].input { font-family: var(--mono); }
 .defimon { position: relative; width: min(940px, 100%); }
 .defimon img { width: 100%; display: block; filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.5)); }
 .defimon__screen { position: absolute; left: 28.67%; top: 29.11%; width: 33.83%; height: 37.08%; display: block; border-radius: 2px; }
-/* Venenzugang */
-.figwrap--arm .fig { height: min(56vh, 560px); }
-.iv-stauimg { opacity: 0; transition: opacity 1.2s var(--ease); pointer-events: none; }
-.iv-stauimg.is-on { opacity: 1; }
-.ivrow { display: flex; gap: 1rem; align-items: stretch; }
-.ivrow .tray { flex: 1; }
-.ivside { display: flex; gap: 1rem; align-items: center; flex: 1; padding: 0.6rem; border: 1px solid var(--border-strong); border-radius: var(--radius-lg); background: var(--bg-2); }
+/* Venenzugang (Bilder aus medic_equip) */
+.ivwrap { display: grid; grid-template-columns: minmax(0, 1fr) 250px; gap: 1rem; align-items: start; }
+.figwrap--ivarm { background: radial-gradient(circle at 50% 40%, #3a3d42, #22252a); }
+.figwrap--ivarm .fig { height: min(64vh, 620px); }
+.ivtools { display: flex; flex-direction: column; gap: 0.8rem; }
+.tray--col { flex-direction: column; align-items: stretch; }
+.tray--col .tool-item { width: auto; flex-direction: row; justify-content: flex-start; gap: 0.7rem; }
+.tray--col .tool-item img { height: 46px; max-width: 70px; }
+.tray--col .tool-item img.tall { height: 64px; max-width: 30px; }
+.iv-stau { opacity: 0; pointer-events: none; transition: opacity .25s; }
+.iv-stau.is-on { opacity: 1; pointer-events: auto; cursor: pointer; }
+.iv-hit { fill: rgba(255, 255, 255, 0.05); stroke: rgba(255, 255, 255, 0.85); stroke-width: 2; stroke-dasharray: 5 4; cursor: pointer; }
+.ivside { display: flex; gap: 1rem; align-items: center; padding: 0.6rem; border: 1px solid var(--border-strong); border-radius: var(--radius-lg); background: var(--bg-2); }
 .ivside__txt { display: flex; flex-direction: column; gap: 0.5rem; }
-#gFinish { justify-content: center; }
-.drill--iv { width: 46px; height: 130px; margin: 0; flex-shrink: 0; }
+.drill--iv { width: 40px; height: 140px; margin: 0; flex-shrink: 0; }
