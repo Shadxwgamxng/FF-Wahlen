@@ -1676,14 +1676,14 @@ const Game = {
         this.def = def || {};
         const box = $('#minigame');
         box.classList.remove('hidden');
-        const size = { ekg: 'game--xl', iv: 'game--wide', bz: 'game--wide', landmark: 'game--wide' }[def.type] || '';
+        const size = { ekg: 'game--xl', iv: 'game--wide', io: 'game--wide', bz: 'game--wide', landmark: 'game--wide' }[def.type] || '';
         box.innerHTML = `<div class="game card ${size}">
             <div class="card__header">${icon('kit-medical')}<span class="card__title">${esc(def.title || 'Massnahme')}</span>
                 <span class="grow"></span><button class="btn btn--ghost btn--icon btn--sm" data-g="cancel" title="Abbrechen (Esc)">${icon('xmark')}</button></div>
             <div class="card__body game__body"></div></div>`;
         $('[data-g="cancel"]', box).onclick = () => this.finish(null, true);
         const body = $('.game__body', box);
-        ({ timing: gameTiming, ekg: gameEkg, bz: gameBz, iv: gameIv, drill: gameDrill, landmark: gameLandmark })[def.type]?.(body, def);
+        ({ timing: gameTiming, ekg: gameEkg, bz: gameBz, iv: gameIv, io: gameIo, landmark: gameLandmark })[def.type]?.(body, def);
     },
     onKey(fn) {
         this.keyHandler = (e) => {
@@ -2303,52 +2303,176 @@ function gameIv(body) {
     Game.onKey(() => {});
 }
 
-/* IO: Stelle waehlen, dann bohren und beim Widerstandsverlust loslassen */
-function gameDrill(body) {
-    const sites = [
-        { id: 'tibia', label: 'Proximale Tibia (2 cm unter der Tuberositas, medial)', ok: true },
-        { id: 'humerus', label: 'Proximaler Humerus (Tuberculum majus)', ok: true },
-        { id: 'patella', label: 'Kniescheibe (Patella)', ok: false },
-        { id: 'femur', label: 'Mitte Oberschenkel', ok: false },
+/* Intraossaerer Zugang am Unterschenkel (Bein 704 x 1066, Knie oben, Sprunggelenk unten; medial = links im Bild):
+   Punktionsstelle ertasten, spruehen - wischen - spruehen, Bohrer senkrecht ansetzen, bohren bis der Widerstand nachlaesst,
+   Mandrin entfernen, mit NaCl spuelen, fixieren. */
+function gameIo(body) {
+    const SITES = [
+        { id: 'prox', x: 300, y: 110, r: 42, name: 'proximale Tibia (unterhalb der Tuberositas, medial)' },
+        { id: 'dist', x: 300, y: 765, r: 42, name: 'distale Tibia (oberhalb des Innenknoechels)' },
     ];
-    body.innerHTML = `<p class="dim">1. Punktionsstelle waehlen</p><div class="list">${sites.map(x =>
-        `<div class="list__item" data-site="${x.id}"><span class="list__icon">${icon('location-crosshairs')}</span><div class="grow list__title">${esc(x.label)}</div></div>`).join('')}</div>`;
-    $$('[data-site]', body).forEach(el => el.onclick = () => {
-        const site = sites.find(x => x.id === el.dataset.site);
-        if (!site.ok) return Game.done(body, false, 'Ungeeignete Punktionsstelle.');
-        drill();
+    const WRONG = [
+        { x: 350, y: 15, r: 30, msg: 'Das ist die Kniescheibe bzw. das Kniegelenk - nie ins Gelenk bohren.' },
+        { x: 365, y: 330, r: 26, msg: 'Direkt auf der Schienbeinkante rutscht der Bohrer ab - etwas medial auf die flache Flaeche.' },
+        { x: 445, y: 220, r: 45, msg: 'Lateral liegt die Fibula unter Muskulatur - nicht geeignet.' },
+        { x: 215, y: 300, r: 55, msg: 'Wadenmuskulatur - dort ist kein Knochen tastbar.' },
+    ];
+    let step = 0, errors = 0, finished = false, site = null, sprays = 0, dry = false;
+    const STEPS = ['Punktionsstelle ertasten und anklicken', 'Punktionsstelle einspruehen', 'Mit der Kompresse wischen',
+        'Erneut einspruehen und Einwirkzeit abwarten', 'Bohrer mit Nadel senkrecht (90 Grad) auf den Knochen setzen',
+        'Bohren - loslassen, sobald der Widerstand nachlaesst', 'Mandrin entfernen und mit 10 ml NaCl spuelen', 'Nadel fixieren'];
+    body.innerHTML = `<p class="dim" id="gStep"></p>
+        <div class="ivwrap">
+            <div class="figwrap figwrap--ivarm figwrap--leg"><svg viewBox="0 0 704 1066" class="fig" id="gFig" preserveAspectRatio="xMidYMid meet">
+                <image href="img/io_bein.webp" x="0" y="0" width="704" height="1066"/>
+                <g id="gMarks"></g><g id="gTools"></g>
+            </svg></div>
+            <div class="ivtools">
+                <div class="tray tray--tools tray--col" id="gTray">
+                    <div class="tool-item" data-t="spray"><img src="img/iv_desinfektion.png" alt="" class="tall"><span>Hautdesinfektion</span></div>
+                    <div class="tool-item" data-t="komp"><img src="img/iv_kompresse.png" alt=""><span>Kompresse</span></div>
+                    <div class="tool-item" data-t="drill"><img src="img/io_bohrer.png" alt=""><span>i.o.-Bohrer mit Nadel</span></div>
+                    <div class="tool-item" data-t="pfl"><img src="img/iv_pflaster.png" alt=""><span>Fixierung</span></div>
+                </div>
+                <div class="ivside hidden" id="gPush">
+                    <div class="drill drill--iv"><div class="drill__zone"></div><div class="drill__fill"></div></div>
+                    <div class="ivside__txt"><b>Bohren</b><span class="dim">"Bohren" oder Leertaste <b>halten</b>. Loslassen, sobald der Widerstand nachlaesst (Markraum erreicht).</span>
+                        <button class="btn btn--primary" id="gPushBtn">${icon('screwdriver')} Bohren (halten)</button></div>
+                </div>
+                <div class="ivside ivside--col hidden" id="gFinish">
+                    <button class="btn" id="gMandrin">${icon('syringe')} Mandrin entfernen</button>
+                    <button class="btn" id="gFlush" disabled>${icon('droplet')} Mit 10 ml NaCl spuelen</button>
+                </div>
+            </div>
+        </div>
+        <div class="dim" id="gStat"></div>
+        <div class="progress-mini hidden" id="gProg"><div></div></div>`;
+    const svg = $('#gFig', body), marks = $('#gMarks', body), toolsG = $('#gTools', body), stepEl = $('#gStep', body), stat = $('#gStat', body);
+    const prog = $('#gProg', body), progFill = $('#gProg div', body);
+    const setStep = (n) => { step = n; stepEl.innerHTML = `<b>Schritt ${n + 1}/${STEPS.length}:</b> ${esc(STEPS[n])}`; };
+    const err = (msg) => { errors++; stat.innerHTML = `<span class="warn">${esc(msg)}</span> · Fehler ${errors}/1`;
+        if (errors > 1 && !finished) { finished = true; Game.done(body, false, 'Zu viele Fehler - Punktion abgebrochen.'); } };
+    const info = (msg) => { stat.innerHTML = `${esc(msg)} · Fehler ${errors}/1`; };
+    const onSite = (x, y) => site && x !== null && dist2(x, y, site.x, site.y) <= 60;
+    const used = (t) => $(`[data-t="${t}"]`, body).classList.add('is-used');
+    setStep(0); info('');
+
+    // 1. Punktionsstelle ertasten
+    Game.listen(svg, 'click', (e) => {
+        if (finished || step !== 0) return;
+        const p = svgPoint(svg, e.clientX, e.clientY);
+        const ok = SITES.find(s => dist2(p.x, p.y, s.x, s.y) <= s.r);
+        if (!ok) {
+            const w = WRONG.find(s => dist2(p.x, p.y, s.x, s.y) <= s.r);
+            return err(w ? w.msg : 'Ungeeignete Stelle - proximale Tibia unterhalb der Tuberositas (medial) oder distale Tibia oberhalb des Innenknoechels.');
+        }
+        site = { x: p.x, y: p.y, name: ok.name };
+        marks.innerHTML = `<circle cx="${site.x}" cy="${site.y}" r="22" class="mark-site"/>`;
+        info(`Punktionsstelle: ${site.name}`);
+        setStep(1);
     });
-    function drill() {
-        body.innerHTML = `<p class="dim">2. Maustaste oder Leertaste <b>gedrueckt halten</b> zum Bohren. Loslassen, sobald der Widerstand nachlaesst (gruener Bereich).</p>
-            <div class="drill"><div class="drill__zone"></div><div class="drill__fill"></div></div>
-            <div class="row"><span class="grow dim" id="gStat">Bereit</span><button class="btn btn--primary" id="gDrill">${icon('screwdriver')} Bohren (halten)</button></div>`;
-        const fill = $('.drill__fill', body), zone = $('.drill__zone', body), stat = $('#gStat', body);
-        const zoneAt = 45 + Math.random() * 30, zoneW = 9;
+
+    // Bohren bis Widerstandsverlust
+    const startDrill = () => {
+        setStep(5);
+        $('#gTray', body).classList.add('hidden');
+        $('#gPush', body).classList.remove('hidden');
+        const fill = $('#gPush .drill__fill', body), zone = $('#gPush .drill__zone', body);
+        const zoneAt = 45 + Math.random() * 25, zoneW = 12;
         zone.style.bottom = zoneAt + '%'; zone.style.height = zoneW + '%';
-        let depth = 0, holding = false, last = performance.now(), ended = false;
+        let depth = 0, holding = false, last = performance.now(), done = false;
         const loop = (t) => {
             const dt = (t - last) / 1000; last = t;
-            if (holding) depth += dt * (depth > zoneAt ? 55 : 28);
+            if (holding && !done) depth += dt * (depth > zoneAt ? 40 : 20);
             fill.style.height = Math.min(100, depth) + '%';
-            if (depth >= zoneAt && depth <= zoneAt + zoneW) { zone.classList.add('is-hit'); stat.textContent = 'Widerstand laesst nach ...'; }
-            else zone.classList.remove('is-hit');
-            if (depth > zoneAt + zoneW + 1 && !ended) { ended = true; return Game.done(body, false, 'Zu tief gebohrt - Gegenkortikalis durchbohrt.'); }
+            zone.classList.toggle('is-hit', depth >= zoneAt && depth <= zoneAt + zoneW);
+            stat.innerHTML = `${depth >= zoneAt ? 'Widerstand laesst nach ...' : holding ? 'Bohrer laeuft - harter Widerstand (Kortikalis)' : 'Bereit'} · Fehler ${errors}/1`;
+            if (depth > zoneAt + zoneW && !done) {
+                done = true; holding = false;
+                err('Zu tief - Gegenkortikalis durchbohrt. Nadel entfernen, neue Punktion.');
+                if (!finished) setTimeout(() => { depth = 0; done = false; }, 900);
+            }
             Game.raf = requestAnimationFrame(loop);
         };
         Game.raf = requestAnimationFrame(loop);
         const release = () => {
-            if (!holding || ended) return;
+            if (!holding || done || finished) return;
             holding = false;
-            if (depth < zoneAt) { stat.textContent = 'Noch nicht im Markraum - weiterbohren.'; return; }
-            ended = true;
-            Game.done(body, depth <= zoneAt + zoneW, depth <= zoneAt + zoneW ? 'Nadel sitzt im Markraum.' : 'Zu tief.');
+            if (depth < zoneAt) return info('Noch im Knochen (Kortikalis) - weiterbohren');
+            done = true;
+            cancelAnimationFrame(Game.raf); Game.raf = null;
+            $('#gDrillImg', body)?.remove();
+            toolsG.insertAdjacentHTML('beforeend', `<g id="gHub"><circle cx="${site.x}" cy="${site.y}" r="15" fill="#1f6fd1" stroke="#0b3a75" stroke-width="3"/>
+                <circle cx="${site.x}" cy="${site.y}" r="6" fill="#e8e8e8" stroke="#555" stroke-width="2" id="gStylet"/></g>`);
+            $('#gPush', body).classList.add('hidden');
+            $('#gFinish', body).classList.remove('hidden');
+            info('Nadel sitzt fest im Markraum');
+            setStep(6);
         };
-        const btn = $('#gDrill', body);
-        btn.onmousedown = () => { holding = true; };
-        Game.listen(window, 'mouseup', release);
-        Game.onKey(e => { if (e.code === 'Space') { e.preventDefault(); holding = true; } });
+        $('#gPushBtn', body).addEventListener('pointerdown', () => { holding = true; });
+        Game.listen(window, 'pointerup', release);
+        Game.listen(window, 'keydown', (e) => { if (e.code === 'Space') { e.preventDefault(); holding = true; } });
         Game.listen(window, 'keyup', (e) => { if (e.code === 'Space') release(); });
-    }
+    };
+    $('#gMandrin', body).onclick = () => {
+        if (finished || step !== 6) return;
+        $('#gStylet', body)?.setAttribute('fill', '#2a2a2a');
+        $('#gMandrin', body).disabled = true; $('#gFlush', body).disabled = false;
+        info('Mandrin entfernt');
+    };
+    $('#gFlush', body).onclick = () => {
+        if (finished || step !== 6) return;
+        $('#gFinish', body).classList.add('hidden');
+        $('#gTray', body).classList.remove('hidden');
+        info('Mit 10 ml NaCl gespuelt - laeuft frei, keine Schwellung');
+        setStep(7);
+    };
+
+    const tools = {
+        spray: { onDrop: (x, y) => {
+            if (finished || !onSite(x, y)) return step === 0 && x !== null ? info('Zuerst die Punktionsstelle ertasten') : undefined;
+            if (step === 1) { sprays = 1; marks.insertAdjacentHTML('afterbegin', `<ellipse cx="${site.x}" cy="${site.y}" rx="55" ry="45" fill="rgba(255,255,255,0.22)" id="gWet"/>`); info('Eingesprueht'); return setStep(2); }
+            if (step === 2) return err('Erst mit der Kompresse wischen, dann erneut spruehen.');
+            if (step === 3 && sprays === 1) {
+                sprays = 2; used('spray'); used('komp'); prog.classList.remove('hidden');
+                marks.insertAdjacentHTML('afterbegin', `<ellipse cx="${site.x}" cy="${site.y}" rx="55" ry="45" fill="rgba(255,255,255,0.22)" id="gWet"/>`);
+                let t = 0;
+                Game.timer = setInterval(() => {
+                    t += 100; progFill.style.width = Math.min(100, t / 30) + '%';
+                    $('#gWet', body)?.setAttribute('opacity', String(Math.max(0, 1 - t / 3000)));
+                    if (t >= 3000) { clearInterval(Game.timer); dry = true; prog.classList.add('hidden'); $('#gWet', body)?.remove(); setStep(4); info('Einwirkzeit abgelaufen'); }
+                }, 100);
+                info('Einwirkzeit laeuft ...');
+            }
+        } },
+        komp: { onDrop: (x, y) => {
+            if (finished || !onSite(x, y)) return;
+            if (step !== 2) return info(step < 2 ? 'Zuerst einspruehen' : 'Nicht mehr wischen - die Stelle ist desinfiziert');
+            $('#gWet', body)?.remove(); info('Gewischt'); setStep(3);
+        } },
+        drill: { onDrop: (x, y) => {
+            if (x === null || finished) return;
+            if (!site) return info('Zuerst die Punktionsstelle ertasten');
+            if (!onSite(x, y)) return err('Daneben - den Bohrer genau an der ertasteten Stelle ansetzen.');
+            if (step < 3) err('Nicht ausreichend desinfiziert (spruehen - wischen - spruehen)!');
+            else if (step === 3 && !dry) { clearInterval(Game.timer); prog.classList.add('hidden'); err('Einwirkzeit nicht abgewartet.'); }
+            if (finished) return;
+            used('drill'); used('spray'); used('komp'); $('.mark-site', body)?.remove(); $('#gWet', body)?.remove();
+            // Nadelspitze des Bohrers (oben links im Bild) auf der Punktionsstelle
+            toolsG.insertAdjacentHTML('beforeend', `<image id="gDrillImg" href="img/io_bohrer.png" x="${site.x - 23}" y="${site.y - 51}" width="230" height="230"/>`);
+            startDrill();
+        } },
+        pfl: { onDrop: (x, y) => {
+            if (x === null || finished || step !== 7) return;
+            if (!onSite(x, y)) return info('Die Fixierung ueber die Nadel kleben');
+            used('pfl'); finished = true;
+            toolsG.insertAdjacentHTML('beforeend', `<image href="img/iv_pflaster.png" x="${site.x - 68}" y="${site.y - 61}" width="136" height="122"/>`);
+            toolsG.appendChild($('#gHub', body));   // Nadelansatz bleibt sichtbar (Pflaster hat ein Fenster)
+            Game.done(body, true, 'i.o.-Zugang liegt sicher und ist fixiert.');
+        } },
+    };
+    Object.entries(tools).forEach(([id, t]) => draggable($(`[data-t="${id}"]`, body), svg, Object.assign({ ghostHtml: () => $(`[data-t="${id}"] img`, body).outerHTML }, t)));
+    Game.onKey(() => {});
 }
 
 /* Thoraxentlastung: richtige Landmarke am echten Oberkoerper waehlen (Monaldi 2. ICR MCL / Buelau 4.-5. ICR vordere Axillarlinie) */

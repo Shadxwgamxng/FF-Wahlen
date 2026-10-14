@@ -42,7 +42,7 @@ local GAMES = {
     ['measure:ekg12'] = { type = 'ekg', title = '12-Kanal-EKG anlegen', twelve = true, awaitValue = true },
     ['proc:iv'] = { type = 'iv', title = 'Venenzugang legen' },
     ['proc:tubus'] = { type = 'timing', title = 'Larynxtubus einlegen', hint = 'Im richtigen Moment vorschieben', hits = 1, speed = 1.5 },
-    ['proc:io'] = { type = 'drill', title = 'Intraossaeren Zugang bohren' },
+    ['proc:io'] = { type = 'io', title = 'Intraossaerer Zugang' },
     ['proc:thorax'] = { type = 'landmark', title = 'Thoraxentlastungspunktion' },
 }
 
