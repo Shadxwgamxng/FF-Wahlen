@@ -218,7 +218,16 @@ local function roleList(action)
     return {}
 end
 
+-- Minispiel (wie Technical Dispatches) statt Fortschrittsbalken?
+local function minigameOf(action)
+    local mg = Config.Tools and Config.Tools.minigames
+    if not mg or mg.enabled == false then return nil end
+    return mg.actions and mg.actions[action] or nil
+end
+Rescue.minigameOf = minigameOf
+
 local function durationOf(action, target)
+    if minigameOf(action) then return Config.Tools.minigames.minSeconds or 5 end
     local d = Config.Rescue.durations
     if action == 'assess' then return d.assess end
     if action == 'treat' then return d.treat[target.severity] or 20 end
@@ -292,7 +301,7 @@ end
 
 local function busyActive(t)
     if not t.busy then return false end
-    if ms() > t.busy.startedAt + t.busy.duration + 15000 then
+    if ms() > t.busy.startedAt + t.busy.duration + (t.busy.hold or 15000) then
         t.busy = nil
         return false
     end
@@ -318,9 +327,11 @@ function Rescue.start(src, incident, targetId, action)
     if not c or not Validate.near(src, c, interactDistance(def.target)) then return false, 'Zu weit entfernt' end
 
     local duration = durationOf(action, t)
-    t.busy = { src = src, action = action, startedAt = ms(), duration = duration * 1000 }
+    local game = minigameOf(action)
+    t.busy = { src = src, action = action, startedAt = ms(), duration = duration * 1000,
+        hold = game and ((Config.Tools.minigames.maxSeconds or 300) * 1000) or nil }
     Incidents.syncPublic(incident)
-    return true, { duration = duration, label = def.label }
+    return true, { duration = duration, label = def.label, minigame = game }
 end
 
 function Rescue.cancel(src, incident, targetId, kind)

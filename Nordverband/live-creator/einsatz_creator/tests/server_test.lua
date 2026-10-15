@@ -303,7 +303,9 @@ end
 ok, res = doAction('ped1', 'assess')
 check(ok and res.patient and res.patient.severity == 'schwer', 'Sichtung liefert Patientendaten')
 waitRate()
-local sok = request('rescueStart', { incidentId = incId, targetId = 'ped1', action = 'free' })
+Config.Tools.minigames.minSeconds = 8
+local sok, sres = request('rescueStart', { incidentId = incId, targetId = 'ped1', action = 'free' })
+check(sok and sres.minigame == 'tdspreader', 'Befreien laeuft als Spreizer-Minispiel')
 waitRate()
 ok, res = request('rescueComplete', { incidentId = incId, targetId = 'ped1', action = 'free' })
 check(not ok, 'Zu frueh abgeschlossene Massnahme abgelehnt: ' .. tostring(res))
@@ -344,6 +346,8 @@ ok = doAction('oil1', 'sweep')
 check(ok and inc.rescue.spills.oil1.status == 'beseitigt', 'Oelspur aufgekehrt und beseitigt')
 check(inc.rescue.trees.tree1 and inc.rescue.trees.tree1.status == 'liegt', 'Baummodell automatisch als Hindernis erkannt')
 -- Werkzeuge aus Technical Dispatches
+check(Config.Tools.require == false and Tools.check(1, 'saw') == true, 'Standard: keine Items noetig')
+Config.Tools.require = 'auto'
 local tdItems = {}
 local oldGRS = GetResourceState
 GetResourceState = function(r) if r == 'technical_dispatches' or r == 'ox_inventory' then return 'started' end return oldGRS(r) end
@@ -367,6 +371,7 @@ check(not ok, 'Zersaegter Baum kann nicht erneut gesaegt werden')
 ok, res = doAction('tree1', 'sweepchips')
 check(ok and inc.rescue.trees.tree1.status == 'beseitigt', 'Saegespaene mit Besen aufgekehrt: ' .. tostring(res))
 exports, GetResourceState = oldEx2, oldGRS
+Config.Tools.require = false
 player.coords = vector3(195, -795, 30)
 ok = doAction('mk1', 'secure')
 check(ok and inc.rescue.markers.mk1.status == 'gesichert', 'Fundstelle gesichert')

@@ -341,14 +341,15 @@ Config.Trees = {
 }
 
 --[[
-    Werkzeuge aus Technical Dispatches (LoveRP) - Items und Objekte
-    Die Massnahmen verlangen das passende Item im Inventar (ox_inventory, sonst QBCore/ESX)
-    und zeigen das Werkzeug-Modell aus technical_dispatches_objects in der Hand.
-    require: 'auto' = nur verlangen, wenn technical_dispatches laeuft | true = immer | false = nie
+    Werkzeuge aus Technical Dispatches (LoveRP) - Minispiele, Objekte und optional Items
+    Die Massnahmen laufen als Minispiel wie bei Technical Dispatches und zeigen das
+    Werkzeug-Modell aus technical_dispatches_objects in der Hand. Items sind standardmaessig
+    nicht noetig; mit require = true/'auto' wird das Item im Inventar verlangt.
+    require: false = keine Items noetig (Standard) | 'auto' = nur wenn technical_dispatches laeuft | true = immer
     items:   eines davon wird gebraucht (leer = kein Werkzeug noetig)
 ]]
 Config.Tools = {
-    require = 'auto',
+    require = false,   -- Items werden nicht verlangt (true / 'auto' = nur wenn technical_dispatches laeuft)
     resource = 'technical_dispatches',
     objectsResource = 'technical_dispatches_objects',
     actions = {
@@ -358,6 +359,19 @@ Config.Tools = {
         sweep = { items = { 'besen' }, label = 'Besen' },
         sweepchips = { items = { 'besen' }, label = 'Besen' },
         open = { items = {}, label = 'Halligan-Tool' },   -- z. B. { 'halligantool', 'rucksack_tuer' }
+    },
+    -- Minispiele wie bei Technical Dispatches statt Fortschrittsbalken
+    minigames = {
+        enabled = true,
+        minSeconds = 5,      -- Mindestdauer (Server-Pruefung)
+        maxSeconds = 300,    -- so lange bleibt die Massnahme fuer den Spieler reserviert
+        actions = {
+            saw = 'tdtree',          -- Kettensaege: 5x im gruenen Bereich stoppen
+            sweep = 'tdbroom',       -- Besen: Maus im wandernden Kreis halten
+            sweepchips = 'tdbroom',
+            bind = 'tdmemory',       -- Oelbindemittel: Memory
+            free = 'tdspreader',     -- Spreizer: drei Spreizpunkte
+        },
     },
     -- Modelle in der Hand (aus technical_dispatches_objects, Ersatz falls nicht vorhanden)
     props = {

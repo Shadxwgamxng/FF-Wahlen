@@ -5,7 +5,7 @@ lua54 'yes'
 name 'einsatz_creator'
 author 'Nordverband'
 description 'Eigenstaendiger Einsatz-Creator: Brand, THL, Tueroeffnung, VU und NPC-Rettungsdienst'
-version '1.5.4'
+version '1.5.5'
 
 -- Voraussetzung: OneSync (Fahrzeuge, Objekte und NPCs werden serverseitig erzeugt).
 -- Fremdressourcen (z_fire, z_hose, QBCore, ox_target, emergencydispatch) werden zur Laufzeit erkannt.
@@ -67,4 +67,6 @@ files {
     'html/app.js',
     'html/vendor/**/*',
     'html/img/*',
+    'html/img/td/*',
+    'html/audio/*',
 }

@@ -61,11 +61,12 @@ Ohne ox_inventory (oder mit `Config.Items.enabled = false`) wird wie bisher dire
 
 ## 4b. Technical Dispatches (Kettensäge, Besen, Ölbindemittel, Spreizer)
 
-1. `technical_dispatches_objects` und `technical_dispatches` **vor** `einsatz_creator` starten.
-2. Die Items von Technical Dispatches (`kettensaege`, `besen`, `oelbindemittel`, `spreizer`) müssen im Inventar existieren (siehe TD-Installation).
-3. In `config.lua`: `Config.Tools` (welches Item für welche Maßnahme, `require = 'auto' | true | false`) und `Config.Trees` (Baummodelle, Dauer, Sägespäne).
+1. `technical_dispatches_objects` **vor** `einsatz_creator` starten (Werkzeug- und Ölfleck-Modelle). Ohne läuft alles mit GTA-Ersatzmodellen.
+2. Items sind **nicht** nötig. Optional in `config.lua`: `Config.Tools.require = true` (bzw. `'auto'`), dann müssen `kettensaege`, `besen`, `oelbindemittel`, `spreizer` im Inventar sein.
+3. Minispiele: `Config.Tools.minigames` (an/aus, welches Spiel für welche Maßnahme).
+4. Bäume: `Config.Trees` (Baummodelle, Sägespäne).
 
-Ablauf Baum: Baum im Creator setzen → Feuerwehr zersägt ihn mit der Kettensäge → Baum verschwindet, Sägespäne liegen auf dem Boden → mit dem Besen aufkehren → Aufgabe erledigt.
+Ablauf Baum: Baum im Creator setzen → Feuerwehr wählt „Baum zersägen“ → Kettensägen-Minispiel → Baum verschwindet, Sägespäne liegen → „Sägespäne aufkehren“ → Besen-Minispiel → Aufgabe erledigt.
 
 ## 5. Nach dem ersten Start prüfen (Serverkonsole)
 - `Speicherung: JSON-Dateien im Ordner data` – Speichern funktioniert.

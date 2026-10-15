@@ -128,18 +128,19 @@ Bauchschmerzen, Verlegung) mit Variante oder zufällig, Geschlecht, **zufällige
 (Listen aus nv_medicDispatches), Verletzungen je Körperregion (leer = laut Meldebild, Sturz würfelt), Transportziel.
 
 ### Technische Hilfe mit Technical Dispatches (Ölspur, Baum, Eingeklemmte)
-Die Logik von Technical Dispatches ist verschlüsselt; der Creator nutzt deshalb dessen **Items** und **Modelle**:
+Die Logik von Technical Dispatches ist verschlüsselt. Der Creator bringt deshalb dessen **Minispiele** nachgebaut in der eigenen Oberfläche mit (gleicher Ablauf, Bilder und Sounds aus TD, Marken entfernt) und nutzt die **Modelle** aus `technical_dispatches_objects`.
 
-| Lage im Creator | Ablauf | benötigtes Item |
+| Lage im Creator | Ablauf | Minispiel |
 |---|---|---|
-| Ölspur (Betriebsstoff) | Ölbindemittel abstreuen → mit dem Besen aufkehren → beseitigt | `oelbindemittel`, dann `besen` |
-| Umgestürzter Baum (Objekt, „Hindernis: Baum“) | mit der Kettensäge zersägen → Baum weg, **Sägespäne bleiben liegen** → mit dem Besen aufkehren → beseitigt | `kettensaege`, dann `besen` |
-| Eingeklemmte Person | Patient befreien | `spreizer` |
+| Ölspur (Betriebsstoff) | Ölbindemittel abstreuen → mit dem Besen aufkehren → beseitigt | Memory (6 Paare), dann Besen-Kreis |
+| Umgestürzter Baum (Objekt, „Hindernis: Baum“) | zersägen → Baum weg, **Sägespäne bleiben liegen** → aufkehren → beseitigt | Kettensäge: 5× im grünen Bereich stoppen (Durchschnitt 80–94 %), dann Besen-Kreis |
+| Eingeklemmte Person | Patient befreien | Spreizer: drei Spreizpunkte nacheinander aus- und einfahren |
 
-- Baummodelle (`Config.Trees.models`, Katalog „Umgestürzte Bäume“) werden automatisch als Hindernis erkannt; im Editor kann man es pro Objekt umstellen.
+- **Keine Items nötig** (`Config.Tools.require = false`). Wer die TD-Items doch verlangen will: `true` oder `'auto'`.
+- Minispiele an/aus und Zuordnung: `Config.Tools.minigames` (aus = wieder Fortschrittsbalken).
+- Baummodelle (`Config.Trees.models`, Katalog „Umgestürzte Bäume“) werden automatisch als Hindernis erkannt; im Editor pro Objekt umstellbar („Hindernis“).
 - In der Hand wird das TD-Modell gezeigt (Kettensäge, Hydraulikwerkzeug); Ölflecken nutzen die TD-Modelle `oelfleck…` / `…_abgestreut` (sonst Decal).
 - Die Sägespäne sind eine Bodentextur (`html/img/saegespaene.png`), die dem Gelände folgt; Größe in `Config.Trees.chips`.
-- `Config.Tools.require = 'auto'`: Items werden nur verlangt, wenn `technical_dispatches` läuft.
 
 ### Feuer: z_fire (Standard) und z_hose
 Mit `Config.Fire.backend = 'z_fire'` werden Brände und Rauch über die dokumentierten z_fire-Exports

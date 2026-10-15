@@ -1677,14 +1677,16 @@ const Game = {
         this.def = def || {};
         const box = $('#minigame');
         box.classList.remove('hidden');
-        const size = { ekg: 'game--xl', prep: 'game--xl', iv: 'game--wide', io: 'game--wide', bz: 'game--wide', landmark: 'game--wide' }[def.type] || '';
+        const size = { ekg: 'game--xl', prep: 'game--xl', iv: 'game--wide', io: 'game--wide', bz: 'game--wide', landmark: 'game--wide',
+            tdtree: 'game--td', tdbroom: 'game--td', tdmemory: 'game--td', tdspreader: 'game--td' }[def.type] || '';
         box.innerHTML = `<div class="game card ${size}">
-            <div class="card__header">${icon('kit-medical')}<span class="card__title">${esc(def.title || 'Massnahme')}</span>
+            <div class="card__header">${icon(def.icon || 'kit-medical')}<span class="card__title">${esc(def.title || 'Massnahme')}</span>
                 <span class="grow"></span><button class="btn btn--ghost btn--icon btn--sm" data-g="cancel" title="Abbrechen (Esc)">${icon('xmark')}</button></div>
             <div class="card__body game__body"></div></div>`;
         $('[data-g="cancel"]', box).onclick = () => this.finish(null, true);
         const body = $('.game__body', box);
-        ({ timing: gameTiming, ekg: gameEkg, bz: gameBz, iv: gameIv, io: gameIo, prep: gamePrep, landmark: gameLandmark })[def.type]?.(body, def);
+        ({ timing: gameTiming, ekg: gameEkg, bz: gameBz, iv: gameIv, io: gameIo, prep: gamePrep, landmark: gameLandmark,
+            tdtree: gameTdTree, tdbroom: gameTdBroom, tdmemory: gameTdMemory, tdspreader: gameTdSpreader })[def.type]?.(body, def);
     },
     onKey(fn) {
         this.keyHandler = (e) => {
@@ -2481,6 +2483,180 @@ function gameIo(body) {
 }
 
 /* Thoraxentlastung: richtige Landmarke am echten Oberkoerper waehlen (Monaldi 2. ICR MCL / Buelau 4.-5. ICR vordere Axillarlinie) */
+/* ------------------------------------------------------------------ */
+/* Minispiele der technischen Hilfe (Ablauf wie bei Technical Dispatches) */
+/* ------------------------------------------------------------------ */
+const tdSound = (name, vol = 0.3) => { try { const a = new Audio(`audio/td_${name}.ogg`); a.volume = vol; a.play().catch(() => {}); return a; } catch (e) { return null; } };
+function tdLayout(body, task) {
+    body.innerHTML = `<div class="tdg">
+        <div class="tdg__play"></div>
+        <div class="tdg__side"><div class="tdg__note hidden"></div>
+            <div class="tdg__h">Aufgabe</div><p class="tdg__task">${task}</p><div class="tdg__extra"></div></div></div>`;
+    const note = $('.tdg__note', body);
+    return {
+        play: $('.tdg__play', body), extra: $('.tdg__extra', body),
+        note(text, ok) { note.innerHTML = text; note.className = `tdg__note ${ok ? 'tdg__note--ok' : 'tdg__note--bad'}`; },
+        hideNote() { note.className = 'tdg__note hidden'; },
+    };
+}
+
+/* Kettensaege: 5x im gruenen Bereich stoppen, Durchschnitt muss reichen */
+function gameTdTree(body, def) {
+    const need = def.need || (80 + Math.floor(Math.random() * 15));
+    const ui = tdLayout(body, `Klicke auf <b>STOP</b> (oder Leertaste), sobald die Kettensäge im untersten (grünen) Bereich ist! Erreiche mit den 5 Versuchen einen Durchschnittswert von <b>${need} %</b>.`);
+    ui.play.innerHTML = `<div class="tdtree__saw"></div><div class="tdtree__scale"></div>`;
+    ui.extra.innerHTML = `<button class="btn btn--primary tdg__btn" id="tdStop">STOP</button>
+        <div class="tdg__h">Erzielte Werte</div><div class="tdtree__vals"></div>`;
+    const saw = $('.tdtree__saw', body), vals = $('.tdtree__vals', body);
+    let tries = [], top = 0, dir = 1, interval = 50, acc = 0, last = performance.now();
+    const sound = tdSound('kettensaege', 0.25);
+    if (sound) { sound.loop = true; Game.cleanups.push(() => sound.pause()); }
+    const render = () => {
+        const avg = tries.length ? Math.floor(tries.reduce((a, b) => a + b, 0) / 5) : 0;
+        vals.innerHTML = [0, 1, 2, 3, 4].map(i => `<div>Versuch ${i + 1}: <b>${tries[i] ?? 0} %</b></div>`).join('') +
+            `<div class="tdtree__avg">Durchschnitt: <b>${avg} %</b></div>`;
+    };
+    render();
+    const loop = (t) => {
+        acc += t - last; last = t;
+        while (acc >= interval) {
+            acc -= interval;
+            top += dir > 0 ? 5 : -10;
+            if (top >= 400) { top = 400; dir = -1; }
+            if (top <= 0) { top = 0; dir = 1; }
+        }
+        saw.style.top = top + 'px';
+        Game.raf = requestAnimationFrame(loop);
+    };
+    Game.raf = requestAnimationFrame(loop);
+    const stop = () => {
+        if (!Game.def) return;
+        ui.hideNote();
+        tries.push(Math.floor(top / 4));
+        render();
+        top = 0; dir = 1; acc = 0; saw.style.top = '0px';
+        if (tries.length < 5) { interval -= 10; return; }
+        const avg = Math.floor(tries.reduce((a, b) => a + b, 0) / 5);
+        if (avg >= need) return Game.done(body, true, 'Baum erfolgreich zersägt!');
+        ui.note(`Du hast nur einen Durchschnittswert von ${avg} % erreicht!<br>Benötigt: ${need} %<br><br>Versuche es erneut!`, false);
+        tries = []; interval = 50; render();
+    };
+    $('#tdStop', body).onclick = stop;
+    Game.onKey(e => { if (e.code === 'Space' || e.key === 'Enter') { e.preventDefault(); stop(); } });
+}
+
+/* Besen: Kreis anklicken, dann mit der Maus im wandernden Kreis bleiben */
+function gameTdBroom(body, def) {
+    const bg = { spaene: 'spaene.jpg', bindemittel: 'bindemittel.jpg', glas: 'glas.png' }[def.bg] || 'glas.png';
+    const ui = tdLayout(body, 'Klicke auf den Kreis, um zu starten.<br>Der Kreis beginnt, sich zu bewegen.<br>Bleibe mit der Maus im Kreis, um die Aufgabe erfolgreich abzuschließen!');
+    ui.play.style.backgroundImage = `url(img/td/${bg})`;
+    ui.play.innerHTML = `<div class="tdbroom__circle"></div>`;
+    ui.extra.innerHTML = `<div class="tdg__h">Fortschritt</div><div class="tdg__bar"><div class="tdg__fill"></div></div>`;
+    const c = $('.tdbroom__circle', body), fill = $('.tdg__fill', body);
+    const total = def.seconds || (10 + Math.floor(Math.random() * 6));
+    let left = 0, running = false, x, y, size, mdir = 1, speed, moveT, downT, smallT;
+    const place = () => { x = 40 + Math.random() * 400; y = 40 + Math.random() * 400; size = 80; draw(); };
+    const draw = () => { c.style.left = x + 'px'; c.style.top = y + 'px'; c.style.width = c.style.height = size + 'px'; fill.style.width = ((total - left) / total * 100) + '%'; };
+    const stopTimers = () => { clearTimeout(moveT); clearInterval(downT); clearInterval(smallT); running = false; };
+    Game.cleanups.push(stopTimers);
+    const move = () => {
+        const step = Math.floor(Math.random() * 4), d = Math.floor(Math.random() * 4);
+        if (d === 1 || d === 3) {
+            if (y > 350) { y -= step; mdir = -1; } else if (y < 150) { y += step; mdir = 1; } else y += step * mdir;
+        } else {
+            if (x > 350) { x -= step; mdir = -1; } else if (x < 150) { x += step; mdir = 1; } else x += step * mdir;
+        }
+        speed = Math.max(8, speed - 0.2);
+        draw();
+        moveT = setTimeout(move, speed);
+    };
+    place(); left = total; draw();
+    c.addEventListener('click', () => {
+        if (running || !Game.def) return;
+        running = true; speed = 100; ui.hideNote();
+        moveT = setTimeout(move, 100);
+        smallT = setInterval(() => { size = Math.max(36, size - Math.floor(Math.random() * 3) / 10); draw(); }, 100);
+        downT = setInterval(() => {
+            left -= 1; draw();
+            if (left <= 0) { stopTimers(); Game.done(body, true, 'Fläche sauber aufgekehrt!'); }
+        }, 1000);
+    });
+    c.addEventListener('mouseleave', () => {
+        if (!running) return;
+        stopTimers(); left = total; place();
+        ui.note('Du hast den Kreis verlassen! Klicke erneut auf den Kreis.', false);
+    });
+}
+
+/* Oelbindemittel: Memory mit 6 Bildpaaren */
+function gameTdMemory(body) {
+    const ui = tdLayout(body, 'Löse das Memory-Rätsel!');
+    const pics = ['besen', 'besen', 'generator', 'generator', 'halligan', 'halligan', 'kettensaege', 'kettensaege', 'schlauch', 'schlauch', 'spreizer', 'spreizer'];
+    for (let i = pics.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pics[i], pics[j]] = [pics[j], pics[i]]; }
+    ui.play.classList.add('tdmem');
+    ui.play.innerHTML = pics.map((p, i) => `<div class="tdmem__card" data-i="${i}"></div>`).join('');
+    const cards = [...body.querySelectorAll('.tdmem__card')];
+    const open = new Set();
+    let first = null, cooldown = false;
+    const show = (i, on) => { cards[i].style.backgroundImage = `url(img/td/${on ? 'memory_' + pics[i] : 'memory'}.png)`; };
+    cards.forEach((el, i) => el.addEventListener('click', () => {
+        if (cooldown || open.has(i) || first === i || !Game.def) return;
+        show(i, true);
+        if (first === null) { first = i; return; }
+        if (pics[first] === pics[i]) {
+            open.add(first); open.add(i); first = null; tdSound('electric_success');
+            if (open.size === pics.length) { cooldown = true; setTimeout(() => Game.done(body, true, 'Ölbindemittel abgestreut!'), 600); }
+            return;
+        }
+        cooldown = true; tdSound('electric_error');
+        body.classList.add('tdg--wait');
+        const a = first; first = null;
+        const t = setTimeout(() => { show(a, false); show(i, false); cooldown = false; body.classList.remove('tdg--wait'); }, 2000);
+        Game.cleanups.push(() => clearTimeout(t));
+    }));
+    cards.forEach((_, i) => show(i, false));
+}
+
+/* Spreizer: drei Spreizpunkte nacheinander ausfahren und wieder einfahren */
+function gameTdSpreader(body) {
+    const ui = tdLayout(body, 'Nutze den Spreizer, um die Tür herauszutrennen. Klicke dazu auf den Punkt, der <b>orange</b> markiert ist, um mit der Arbeit zu beginnen. Sind alle Punkte grün, ist die Arbeit erfolgreich abgeschlossen.');
+    ui.play.classList.add('tdspr');
+    ui.play.innerHTML = `<div class="tdspr__car"></div>` + [1, 2, 3].map(i => `<div class="tdspr__pt" data-p="${i}"></div>`).join('');
+    ui.extra.innerHTML = `<div class="tdg__h">Fortschritt</div><div class="tdg__bar"><div class="tdg__fill"></div></div>`;
+    const pts = [...body.querySelectorAll('.tdspr__pt')], fill = $('.tdg__fill', body);
+    const st = ['orange', 'red', 'red'];
+    let work = false, status = 0, cur = -1, timer = null;
+    const paint = () => pts.forEach((p, i) => p.dataset.s = st[i]);
+    const bar = (col) => { fill.style.width = status + '%'; fill.dataset.c = col; };
+    paint(); bar('orange');
+    Game.cleanups.push(() => clearInterval(timer));
+    const tick = () => {
+        if (status < 100 && st[cur] === 'orange') {
+            status += 10; bar('orange');
+            if (status >= 100) { st[cur] = 'green'; paint(); ui.note('Der Spreizer wird eingefahren...', true); }
+        } else if (status > 0 && st[cur] === 'green') {
+            status = Math.max(0, status - 20); bar('green');
+        } else {
+            clearInterval(timer); timer = null; work = false; status = 0; bar('orange');
+            if (st.every(s => s === 'green')) return Game.done(body, true, 'Tür erfolgreich abgespreizt!');
+            ui.note('Spreizpunkt beendet! Nächsten Punkt ansetzen.', true);
+            if (cur < 2) { st[cur + 1] = 'orange'; paint(); }
+        }
+    };
+    pts.forEach((p, i) => p.addEventListener('mousedown', () => {
+        if (work || !Game.def) return;
+        if (st[i] !== 'orange') {
+            ui.note('Fehler! Starte erneut mit den Arbeiten!', false);
+            st[0] = 'orange'; st[1] = 'red'; st[2] = 'red'; paint();
+            return;
+        }
+        ui.note('Die Tür wird aufgespreizt...', true);
+        tdSound('spreizer', 0.3);
+        work = true; cur = i;
+        timer = setInterval(tick, 1000);
+    }));
+}
+
 function gameLandmark(body) {
     // Bildpixel auf torso.webp (rechte Patientenseite = links im Bild)
     const pts = [

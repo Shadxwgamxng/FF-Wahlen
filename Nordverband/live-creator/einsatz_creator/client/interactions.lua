@@ -222,6 +222,8 @@ end
 ----------------------------------------------------------------------------
 -- Massnahme ausfuehren
 ----------------------------------------------------------------------------
+local ICONS_GAME = { saw = 'tree', sweep = 'broom', sweepchips = 'broom', bind = 'sack-xmark', free = 'car-burst' }
+
 function Interactions.run(target, action)
     if Interactions.running then return end
     if action == 'medical' then
@@ -252,7 +254,25 @@ function Interactions.run(target, action)
 
     local duration = (res and res.duration or 0) * 1000
     local cancelled = false
-    if duration > 0 then
+    if res and res.minigame then
+        -- Minispiel wie bei Technical Dispatches; Werkzeug/Animation laufen waehrenddessen
+        if not IsPedInAnyVehicle(ped, false) then
+            TaskTurnPedToFaceCoord(ped, target.pos.x, target.pos.y, target.pos.z, 800)
+            Wait(400)
+            if not Interactions.toolAnim(ped, action) and SCENARIOS[action] then
+                TaskStartScenarioInPlace(ped, SCENARIOS[action], 0, true)
+            end
+        end
+        local started = GetGameTimer()
+        local game = MedClient.game({ type = res.minigame, title = res.label or ACTION_LABELS[action], icon = ICONS_GAME[action],
+            bg = action == 'sweepchips' and 'spaene' or action == 'sweep' and 'bindemittel' or nil })
+        cancelled = not game or game.cancel or game.result ~= true
+        -- Server verlangt eine Mindestdauer
+        local rest = duration - (GetGameTimer() - started)
+        if not cancelled and rest > 0 then Wait(rest) end
+        ClearPedTasks(ped)
+        Interactions.dropTool()
+    elseif duration > 0 then
         local start = GetEntityCoords(ped)
         if not IsPedInAnyVehicle(ped, false) then
             TaskTurnPedToFaceCoord(ped, target.pos.x, target.pos.y, target.pos.z, 800)
