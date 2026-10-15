@@ -435,6 +435,7 @@ function Incidents.tasksDone(inc)
     for _, p in pairs(r.patients or {}) do total = total + 1 if not (p.handedOver or p.released) then open = open + 1 end end
     for _, d in pairs(r.doors or {}) do total = total + 1 if d.status ~= 'geoeffnet' then open = open + 1 end end
     for _, sp in pairs(r.spills or {}) do total = total + 1 if sp.status ~= 'beseitigt' then open = open + 1 end end
+    for _, t in pairs(r.trees or {}) do total = total + 1 if t.status ~= 'beseitigt' then open = open + 1 end end
     for _, m in pairs(r.markers or {}) do
         if m.interactive then total = total + 1 if m.status ~= 'gesichert' then open = open + 1 end end
     end

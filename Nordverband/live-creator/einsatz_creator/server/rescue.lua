@@ -7,6 +7,10 @@
       gesichtet   -> (Behandeln) -> versorgt/transportbereit
       versorgt    -> (Einladen in RTW) -> im Rettungsmittel -> (Uebergabe an Klinik) -> uebergeben
       leicht verletzt + gehfaehig: "vor Ort entlassen" moeglich
+    Oelspur: abstreuen (Oelbindemittel) -> aufkehren (Besen) -> beseitigt
+    Baum (Objekt mit Hindernis "Baum"): zersaegen (Kettensaege) -> Objekt entfernt,
+      Saegespaene bleiben liegen -> aufkehren (Besen) -> beseitigt
+    Werkzeuge aus Technical Dispatches: siehe Config.Tools
     Behandeln ist auch waehrend der Einklemmung moeglich.
 
     Alle Aktionen mit Dauer laufen zweistufig: start (Server merkt sich Beginn)
@@ -29,7 +33,10 @@ local ACTIONS = {
     release = { target = 'patient', label = 'Vor Ort entlassen' },
     -- sonstige
     open = { target = 'door', label = 'Tuer oeffnen' },
-    clean = { target = 'spill', label = 'Betriebsstoff abstreuen / aufnehmen' },
+    bind = { target = 'spill', label = 'Oelbindemittel abstreuen' },
+    sweep = { target = 'spill', label = 'Bindemittel aufkehren' },
+    saw = { target = 'tree', label = 'Baum zersaegen' },
+    sweepchips = { target = 'tree', label = 'Saegespaene aufkehren' },
     secure = { target = 'marker', label = 'Fundstelle sichern' },
 }
 Rescue.Actions = ACTIONS
@@ -74,8 +81,11 @@ local function resolveDestination(incident, el)
 end
 
 function Rescue.init(incident)
-    local r = { patients = {}, doors = {}, spills = {}, markers = {} }
+    local r = { patients = {}, doors = {}, spills = {}, markers = {}, trees = {} }
     for _, el in ipairs(incident.scenario.elements) do
+        if el.kind == 'object' and el.props.obstacle == 'tree' then
+            r.trees[el.id] = { id = el.id, status = 'liegt', pos = el.pos, h = el.rot and el.rot.z or 0.0, label = el.label ~= '' and el.label or 'Umgestuerzter Baum' }
+        end
         if el.kind == 'ped' and el.props.isPatient then
             local pt = el.props.patient
             r.patients[el.id] = {
@@ -120,7 +130,7 @@ end
 function Rescue.publicState(incident)
     local r = incident.rescue
     if not r then return nil end
-    local out = { patients = {}, doors = {}, spills = {}, markers = {} }
+    local out = { patients = {}, doors = {}, spills = {}, markers = {}, trees = {} }
     for id, p in pairs(r.patients) do
         local rec = incident.entities and incident.entities[id]
         out.patients[id] = {
@@ -139,6 +149,10 @@ function Rescue.publicState(incident)
     for id, m in pairs(r.markers) do
         out.markers[id] = { s = m.status, pos = m.pos, kind = m.kind, label = m.label, i = m.interactive, desc = m.description }
     end
+    for id, t in pairs(r.trees or {}) do
+        local rec = incident.entities and incident.entities[id]
+        out.trees[id] = { s = t.status, pos = t.pos, h = t.h, label = t.label, net = rec and rec.netId or nil }
+    end
     return out
 end
 
@@ -155,6 +169,8 @@ function Rescue.summary(incident)
     end
     for _, d in pairs(r.doors) do if d.status ~= 'geoeffnet' then s.doorsClosed = s.doorsClosed + 1 end end
     for _, sp in pairs(r.spills) do if sp.status ~= 'beseitigt' then s.spillsOpen = s.spillsOpen + 1 end end
+    s.treesOpen = 0
+    for _, t in pairs(r.trees or {}) do if t.status ~= 'beseitigt' then s.treesOpen = s.treesOpen + 1 end end
     return s
 end
 
@@ -167,7 +183,8 @@ local function targetOf(incident, kind, id)
     if kind == 'patient' then return r.patients[id]
     elseif kind == 'door' then return r.doors[id]
     elseif kind == 'spill' then return r.spills[id]
-    elseif kind == 'marker' then return r.markers[id] end
+    elseif kind == 'marker' then return r.markers[id]
+    elseif kind == 'tree' then return r.trees and r.trees[id] end
 end
 
 local function elementOf(incident, id)
@@ -195,7 +212,8 @@ end
 local function roleList(action)
     if ACTIONS[action].target == 'patient' then return Config.Rescue.roles[action] end
     if action == 'open' then return Config.Doors.roles end
-    if action == 'clean' then return Config.Spills.roles end
+    if action == 'bind' or action == 'sweep' then return Config.Spills.roles end
+    if action == 'saw' or action == 'sweepchips' then return Config.Trees.roles end
     if action == 'secure' then return Config.Markers.roles end
     return {}
 end
@@ -207,7 +225,9 @@ local function durationOf(action, target)
     if action == 'free' then return d.free end
     if action == 'load' then return d.load end
     if action == 'open' then return Config.Doors.durationSeconds end
-    if action == 'clean' then return Config.Spills.durationSeconds end
+    if action == 'bind' or action == 'sweep' then return Config.Spills.durationSeconds end
+    if action == 'saw' then return Config.Trees.durationSeconds end
+    if action == 'sweepchips' then return Config.Trees.chips.durationSeconds end
     if action == 'secure' then return Config.Markers.durationSeconds end
     return 0
 end
@@ -215,6 +235,7 @@ end
 local function interactDistance(kind)
     if kind == 'marker' then return Config.Markers.interactDistance + 1.5 end
     if kind == 'spill' then return 8.0 end
+    if kind == 'tree' then return 9.0 end
     return Config.Rescue.interactDistance + 2.0
 end
 
@@ -231,7 +252,10 @@ end
 -- Ist die Aktion im aktuellen Zustand erlaubt?
 local function allowed(action, t)
     if action == 'open' then return t.status == 'verschlossen', 'Tuer ist bereits geoeffnet' end
-    if action == 'clean' then return t.status == 'vorhanden', 'Bereits beseitigt' end
+    if action == 'bind' then return t.status == 'vorhanden', t.status == 'abgestreut' and 'Bereits abgestreut - jetzt aufkehren' or 'Bereits beseitigt' end
+    if action == 'sweep' then return t.status == 'abgestreut', t.status == 'vorhanden' and 'Zuerst Oelbindemittel abstreuen' or 'Bereits beseitigt' end
+    if action == 'saw' then return t.status == 'liegt', 'Baum ist bereits zersaegt' end
+    if action == 'sweepchips' then return t.status == 'gesaegt', t.status == 'liegt' and 'Zuerst den Baum zersaegen' or 'Bereits beseitigt' end
     if action == 'secure' then
         if not t.interactive then return false, 'Diese Position hat keine Interaktion' end
         return t.status == 'offen', 'Bereits gesichert'
@@ -286,6 +310,8 @@ function Rescue.start(src, incident, targetId, action)
     if not Perm.hasAnyRole(src, roleList(action)) then return false, 'Dafuer fehlt dir die Qualifikation/Rolle' end
     local ok, err = allowed(action, t)
     if not ok then return false, err end
+    local hasTool, toolErr = Tools.check(src, action)
+    if not hasTool then return false, toolErr end
     if busyActive(t) and t.busy.src ~= src then return false, 'Hier arbeitet bereits jemand' end
 
     local c = targetCoords(incident, def.target, targetId, t)
@@ -340,6 +366,8 @@ function Rescue.complete(src, incident, targetId, action, extra)
     if not Perm.hasAnyRole(src, roleList(action)) then return false, 'Dafuer fehlt dir die Qualifikation/Rolle' end
     local ok, err = allowed(action, t)
     if not ok then t.busy = nil return false, err end
+    local hasTool, toolItem = Tools.check(src, action)
+    if not hasTool then t.busy = nil return false, toolItem end
 
     local duration = durationOf(action, t)
     if duration > 0 then
@@ -429,12 +457,21 @@ function Rescue.complete(src, incident, targetId, action, extra)
             local p = incident.rescue.patients[pid]
             if p and p.blockedBy == targetId then p.blockedBy = nil end
         end
-    elseif action == 'clean' then
+    elseif action == 'bind' then
+        t.status = 'abgestreut'
+    elseif action == 'sweep' then
+        t.status = 'beseitigt'
+    elseif action == 'saw' then
+        local rec = incident.entities and incident.entities[targetId]
+        if rec then Spawner.delete(rec, incident.id) incident.entities[targetId] = nil end
+        t.status = Config.Trees.chips.enabled and 'gesaegt' or 'beseitigt'
+    elseif action == 'sweepchips' then
         t.status = 'beseitigt'
     elseif action == 'secure' then
         t.status = 'gesichert'
     end
 
+    Tools.consume(src, action, toolItem)
     t.busy = nil
     local actor = Perm.actor(src)
     incident.log = incident.log or {}

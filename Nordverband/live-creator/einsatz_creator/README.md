@@ -34,6 +34,8 @@ ensure ox_target
 ensure z_hose
 ensure z_fire        # optional, ohne z_fire laeuft das eigene Feuersystem
 ensure emergencydispatch
+ensure technical_dispatches_objects   # optional: Werkzeug- und Oelfleck-Modelle
+ensure technical_dispatches           # optional: Werkzeug-Items
 
 ensure einsatz_creator
 
@@ -98,7 +100,7 @@ Feuer/Rauch lassen sich an Fahrzeuge/Objekte koppeln, NPCs in Fahrzeuge setzen (
 |---|---|
 | Alarmierung | ausschließlich über EmergencyDispatch (der Creator alarmiert keine Jobs/Spieler selbst) |
 | `/einsatzinfo` | Lage, Gefahren, SOP, Patientenübersicht, Protokoll |
-| ox_target an Patient/Tür/Ölspur/Fundstelle | passende Maßnahmen je Rolle und Zustand (ohne ox_target: Taste `E`) |
+| ox_target an Patient/Tür/Ölspur/Baum/Fundstelle | passende Maßnahmen je Rolle und Zustand (ohne ox_target: Taste `E`) |
 | `X` | laufende Maßnahme abbrechen |
 
 ### Medizinische Versorgung (aus nv_medicDispatches übernommen)
@@ -124,6 +126,20 @@ Alle Werte liegen auf dem Server; der Client sieht nur Gemessenes.
 Im Creator je Patient: **Meldebild** (Kreislauf, Alkohol, Drogen, Reanimation, Schwindel, Sturz, Diabetes, Atemnot,
 Bauchschmerzen, Verlegung) mit Variante oder zufällig, Geschlecht, **zufälliger Name** und **zufälliges Modell**
 (Listen aus nv_medicDispatches), Verletzungen je Körperregion (leer = laut Meldebild, Sturz würfelt), Transportziel.
+
+### Technische Hilfe mit Technical Dispatches (Ölspur, Baum, Eingeklemmte)
+Die Logik von Technical Dispatches ist verschlüsselt; der Creator nutzt deshalb dessen **Items** und **Modelle**:
+
+| Lage im Creator | Ablauf | benötigtes Item |
+|---|---|---|
+| Ölspur (Betriebsstoff) | Ölbindemittel abstreuen → mit dem Besen aufkehren → beseitigt | `oelbindemittel`, dann `besen` |
+| Umgestürzter Baum (Objekt, „Hindernis: Baum“) | mit der Kettensäge zersägen → Baum weg, **Sägespäne bleiben liegen** → mit dem Besen aufkehren → beseitigt | `kettensaege`, dann `besen` |
+| Eingeklemmte Person | Patient befreien | `spreizer` |
+
+- Baummodelle (`Config.Trees.models`, Katalog „Umgestürzte Bäume“) werden automatisch als Hindernis erkannt; im Editor kann man es pro Objekt umstellen.
+- In der Hand wird das TD-Modell gezeigt (Kettensäge, Hydraulikwerkzeug); Ölflecken nutzen die TD-Modelle `oelfleck…` / `…_abgestreut` (sonst Decal).
+- Die Sägespäne sind eine Bodentextur (`html/img/saegespaene.png`), die dem Gelände folgt; Größe in `Config.Trees.chips`.
+- `Config.Tools.require = 'auto'`: Items werden nur verlangt, wenn `technical_dispatches` läuft.
 
 ### Feuer: z_fire (Standard) und z_hose
 Mit `Config.Fire.backend = 'z_fire'` werden Brände und Rauch über die dokumentierten z_fire-Exports

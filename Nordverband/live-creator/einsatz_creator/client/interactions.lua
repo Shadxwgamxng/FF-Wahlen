@@ -33,7 +33,10 @@ local ACTION_ROLES = {
     handover = function() return Config.Rescue.roles.handover end,
     release = function() return Config.Rescue.roles.treat end,
     open = function() return Config.Doors.roles end,
-    clean = function() return Config.Spills.roles end,
+    bind = function() return Config.Spills.roles end,
+    sweep = function() return Config.Spills.roles end,
+    saw = function() return Config.Trees.roles end,
+    sweepchips = function() return Config.Trees.roles end,
     secure = function() return Config.Markers.roles end,
 }
 
@@ -41,13 +44,14 @@ local ACTION_LABELS = {
     medical = 'Medizinische Versorgung',
     assess = 'Sichten / Erstuntersuchung', free = 'Patient befreien (technische Rettung)',
     treat = 'Patient versorgen', load = 'In Rettungsmittel einladen', handover = 'In Klinik uebergeben',
-    release = 'Vor Ort entlassen', open = 'Tuer oeffnen', clean = 'Betriebsstoff abstreuen / aufnehmen',
+    release = 'Vor Ort entlassen', open = 'Tuer oeffnen',
+    bind = 'Oelbindemittel abstreuen', sweep = 'Bindemittel aufkehren (Besen)', saw = 'Baum zersaegen (Kettensaege)', sweepchips = 'Saegespaene aufkehren (Besen)',
     secure = 'Fundstelle sichern',
 }
 
 local SCENARIOS = {
     assess = 'CODE_HUMAN_MEDIC_TEND_TO_DEAD', treat = 'CODE_HUMAN_MEDIC_TEND_TO_DEAD',
-    free = 'WORLD_HUMAN_WELDING', open = 'WORLD_HUMAN_HAMMERING', clean = 'WORLD_HUMAN_JANITOR',
+    free = 'WORLD_HUMAN_WELDING', open = 'WORLD_HUMAN_HAMMERING', sweep = 'WORLD_HUMAN_JANITOR', sweepchips = 'WORLD_HUMAN_JANITOR', bind = 'WORLD_HUMAN_GARDENER_PLANT',
     secure = 'CODE_HUMAN_MEDIC_KNEEL', load = 'CODE_HUMAN_MEDIC_KNEEL',
 }
 
@@ -88,11 +92,19 @@ local function candidates(me)
             end
         end
         for id, s in pairs(r.spills or {}) do
-            if s.s == 'vorhanden' then
+            if s.s == 'vorhanden' or s.s == 'abgestreut' then
                 local pos = U.vec(s.pos)
                 local kind = EC.SpillKindById[s.kind]
                 consider({ incident = inc.id, kind = 'spill', id = id, data = s, pos = pos,
-                    label = kind and kind.label or 'Betriebsstoff' }, #(me - pos), (s.w or 2.0) + 1.5)
+                    label = (kind and kind.label or 'Betriebsstoff') .. (s.s == 'abgestreut' and ' (abgestreut)' or '') }, #(me - pos), (s.w or 2.0) + 1.5)
+            end
+        end
+        for id, t in pairs(r.trees or {}) do
+            if t.s == 'liegt' or t.s == 'gesaegt' then
+                local pos = U.vec(t.pos)
+                consider({ incident = inc.id, kind = 'tree', id = id, data = t, pos = pos,
+                    label = t.s == 'gesaegt' and 'Saegespaene' or (t.label or 'Umgestuerzter Baum') },
+                    #(me - pos), 6.0)
             end
         end
         for id, m in pairs(r.markers or {}) do
@@ -144,7 +156,9 @@ local function actionsFor(target)
     elseif target.kind == 'door' then
         add('open')
     elseif target.kind == 'spill' then
-        add('clean')
+        if d.s == 'vorhanden' then add('bind') else add('sweep') end
+    elseif target.kind == 'tree' then
+        if d.s == 'gesaegt' then add('sweepchips') else add('saw') end
     elseif target.kind == 'marker' then
         add('secure')
     end
@@ -171,6 +185,41 @@ local function nearestTransport(pos)
 end
 
 ----------------------------------------------------------------------------
+-- Werkzeug aus Technical Dispatches in der Hand (Kettensaege, Spreizer)
+----------------------------------------------------------------------------
+local toolObj
+local function loadModel(name)
+    local hash = GetHashKey(name)
+    if not IsModelInCdimage(hash) then return nil end
+    RequestModel(hash)
+    local t = GetGameTimer() + 3000
+    while not HasModelLoaded(hash) and GetGameTimer() < t do Wait(10) end
+    return HasModelLoaded(hash) and hash or nil
+end
+
+function Interactions.toolAnim(ped, action)
+    local cfg = Config.Tools and Config.Tools.props and Config.Tools.props[action]
+    if not cfg then return false end
+    local hash = loadModel(cfg.model) or (cfg.fallback and loadModel(cfg.fallback))
+    if not hash then return false end
+    local dict, clip = 'anim@heists@fleeca_bank@drilling', 'drill_straight_idle'
+    RequestAnimDict(dict)
+    local t = GetGameTimer() + 3000
+    while not HasAnimDictLoaded(dict) and GetGameTimer() < t do Wait(10) end
+    local c = GetEntityCoords(ped)
+    toolObj = CreateObject(hash, c.x, c.y, c.z, false, false, false)
+    AttachEntityToEntity(toolObj, ped, GetPedBoneIndex(ped, 57005), 0.12, 0.02, -0.02, -90.0, 0.0, 0.0, true, true, false, true, 1, true)
+    SetModelAsNoLongerNeeded(hash)
+    if HasAnimDictLoaded(dict) then TaskPlayAnim(ped, dict, clip, 2.0, 2.0, -1, 1, 0.0, false, false, false) end
+    return true
+end
+
+function Interactions.dropTool()
+    if toolObj and DoesEntityExist(toolObj) then DeleteEntity(toolObj) end
+    toolObj = nil
+end
+
+----------------------------------------------------------------------------
 -- Massnahme ausfuehren
 ----------------------------------------------------------------------------
 function Interactions.run(target, action)
@@ -193,7 +242,7 @@ function Interactions.run(target, action)
         extra = { vehicleNet = NetworkGetNetworkIdFromEntity(veh) }
     end
 
-    local kindMap = { patient = 'patient', door = 'door', spill = 'spill', marker = 'marker' }
+    local kindMap = { patient = 'patient', door = 'door', spill = 'spill', marker = 'marker', tree = 'tree' }
     local ok, res = Request('rescueStart', { incidentId = target.incident, targetId = target.id, action = action })
     if not ok then
         Interactions.running = false
@@ -205,10 +254,12 @@ function Interactions.run(target, action)
     local cancelled = false
     if duration > 0 then
         local start = GetEntityCoords(ped)
-        if SCENARIOS[action] and not IsPedInAnyVehicle(ped, false) then
+        if not IsPedInAnyVehicle(ped, false) then
             TaskTurnPedToFaceCoord(ped, target.pos.x, target.pos.y, target.pos.z, 800)
             Wait(400)
-            TaskStartScenarioInPlace(ped, SCENARIOS[action], 0, true)
+            if not Interactions.toolAnim(ped, action) and SCENARIOS[action] then
+                TaskStartScenarioInPlace(ped, SCENARIOS[action], 0, true)
+            end
         end
         NUI.send('progress', { label = res.label or ACTION_LABELS[action], duration = duration, cancelKey = Config.Interaction.cancelLabel })
         local endAt = GetGameTimer() + duration
@@ -222,6 +273,7 @@ function Interactions.run(target, action)
         end
         NUI.send('progress', nil)
         ClearPedTasks(ped)
+        Interactions.dropTool()
     end
 
     if cancelled then
@@ -329,11 +381,12 @@ local ICONS = {
     medical = 'fa-solid fa-user-doctor',
     assess = 'fa-solid fa-stethoscope', free = 'fa-solid fa-screwdriver-wrench', treat = 'fa-solid fa-kit-medical',
     load = 'fa-solid fa-truck-medical', handover = 'fa-solid fa-hospital', release = 'fa-solid fa-person-walking',
-    open = 'fa-solid fa-door-open', clean = 'fa-solid fa-broom', secure = 'fa-solid fa-flag-checkered',
+    open = 'fa-solid fa-door-open', bind = 'fa-solid fa-sack-xmark', sweep = 'fa-solid fa-broom', secure = 'fa-solid fa-flag-checkered',
+    saw = 'fa-solid fa-tree', sweepchips = 'fa-solid fa-broom',
 }
 local KIND_ACTIONS = {
     patient = { 'medical', 'free', 'assess', 'treat', 'load', 'handover', 'release' },
-    door = { 'open' }, spill = { 'clean' }, marker = { 'secure' },
+    door = { 'open' }, spill = { 'bind', 'sweep' }, marker = { 'secure' }, tree = { 'saw', 'sweepchips' },
 }
 local registered = {}   -- key -> { kind, net | zone }
 
@@ -341,7 +394,8 @@ local function currentTarget(incidentId, kind, id)
     local inc = World.incidents[incidentId]
     local r = inc and inc.rescue
     if not r then return nil end
-    local data = (kind == 'patient' and r.patients or kind == 'door' and r.doors or kind == 'spill' and r.spills or r.markers)[id]
+    local data = (kind == 'patient' and r.patients or kind == 'door' and r.doors or kind == 'spill' and r.spills
+        or kind == 'tree' and (r.trees or {}) or r.markers)[id]
     if not data then return nil end
     local pos
     if kind == 'patient' then
@@ -362,7 +416,7 @@ local function buildOptions(incidentId, kind, id)
             name = ('ec_%s_%s'):format(id, action),
             label = ACTION_LABELS[action],
             icon = ICONS[action],
-            distance = kind == 'spill' and 4.0 or 2.5,
+            distance = (kind == 'spill' or kind == 'tree') and 4.0 or 2.5,
             canInteract = function()
                 if Interactions.running or State.open then return false end
                 local t = currentTarget(incidentId, kind, id)
@@ -448,7 +502,8 @@ CreateThread(function()
                     end
                 end
                 zone('door', r.doors, function(d) return d.s == 'verschlossen' end, function() return 1.2 end)
-                zone('spill', r.spills, function(d) return d.s == 'vorhanden' end, function(d) return math.max(1.0, d.w or 2.0) end)
+                zone('spill', r.spills, function(d) return d.s == 'vorhanden' or d.s == 'abgestreut' end, function(d) return math.max(1.0, d.w or 2.0) end)
+                zone('tree', r.trees, function(d) return d.s == 'liegt' or d.s == 'gesaegt' end, function() return 3.0 end)
                 zone('marker', r.markers, function(d) return d.i and d.s == 'offen' end, function() return 1.2 end)
             end
             for key in pairs(registered) do
@@ -462,6 +517,7 @@ end)
 
 AddEventHandler('onResourceStop', function(res)
     if res ~= GetCurrentResourceName() then return end
+    Interactions.dropTool()
     for key in pairs(registered) do unregister(key) end
 end)
 

@@ -138,7 +138,7 @@ end
 local files_to_load = {
     'config.lua', 'config_catalog.lua', 'config_medical.lua', 'config_material.lua', 'config_names.lua', 'shared/constants.lua', 'shared/utils.lua', 'shared/schema.lua',
     'server/storage.lua', 'bridge/framework.lua', 'server/permissions.lua', 'server/validation.lua',
-    'server/spawner.lua', 'server/fire.lua', 'server/zfire.lua', 'server/medical.lua', 'bridge/inventory.lua', 'server/variants.lua', 'server/rescue.lua', 'bridge/dispatch.lua', 'server/alarm.lua',
+    'server/spawner.lua', 'server/fire.lua', 'server/zfire.lua', 'server/medical.lua', 'bridge/inventory.lua', 'bridge/tools.lua', 'server/variants.lua', 'server/rescue.lua', 'bridge/dispatch.lua', 'server/alarm.lua',
     'server/incidents.lua', 'server/random.lua', 'server/main.lua',
 }
 for _, f in ipairs(files_to_load) do dofile(f) end
@@ -202,6 +202,7 @@ local scenario = {
         { id = 'smk1', kind = 'smoke', pos = { x = 202, y = -801, z = 32 }, props = { smokeType = 'stark', untilFiresOut = true } },
         { id = 'door1', kind = 'door', pos = { x = 190, y = -790, z = 30 }, props = { linked = { 'ped2' } } },
         { id = 'oil1', kind = 'spill', pos = { x = 198, y = -799, z = 30 }, props = { spillKind = 'oel' } },
+        { id = 'tree1', kind = 'object', model = 'prop_tree_fallen_pine_01', pos = { x = 196, y = -797, z = 30 }, props = {} },
         { id = 'mk1', kind = 'marker', pos = { x = 195, y = -795, z = 30 }, props = { markerKind = 'fundstelle', interactive = true } },
         { id = 'area1', kind = 'area', pos = center, props = { radius = 60 } },
     },
@@ -240,7 +241,7 @@ check(ok, 'Live-Einsatz erstellt ' .. tostring(ok and res.id or res))
 local incId = ok and res.id
 local inc = Incidents.get(incId)
 check(inc and inc.status == 'aktiv', 'Status aktiv')
-check(inc and EC.Utils.tableCount(inc.entities) == 3, 'Fahrzeug + 2 NPCs erzeugt')
+check(inc and EC.Utils.tableCount(inc.entities) == 4, 'Fahrzeug, 2 NPCs und Baum erzeugt')
 local bridgeCreated = false
 for _, ev in ipairs(serverEvents) do if ev.name == 'einsatzcreator:bridge:created' then bridgeCreated = ev.args[1] end end
 check(bridgeCreated and bridgeCreated.incidentId == incId and bridgeCreated.priority == 1, 'Leitstellen-Bridge "created" mit Payload')
@@ -335,8 +336,37 @@ check(ok, 'Patient nach Tueroeffnung erreichbar')
 ok = doAction('ped2', 'release')
 check(ok and inc.rescue.patients.ped2.released, 'Leicht verletzter Patient vor Ort entlassen')
 player.coords = vector3(198, -799, 30)
-ok = doAction('oil1', 'clean')
-check(ok and inc.rescue.spills.oil1.status == 'beseitigt', 'Oelspur beseitigt')
+ok, res = doAction('oil1', 'sweep')
+check(not ok and tostring(res):find('abstreuen'), 'Aufkehren erst nach dem Abstreuen')
+ok = doAction('oil1', 'bind')
+check(ok and inc.rescue.spills.oil1.status == 'abgestreut', 'Oelbindemittel abgestreut')
+ok = doAction('oil1', 'sweep')
+check(ok and inc.rescue.spills.oil1.status == 'beseitigt', 'Oelspur aufgekehrt und beseitigt')
+check(inc.rescue.trees.tree1 and inc.rescue.trees.tree1.status == 'liegt', 'Baummodell automatisch als Hindernis erkannt')
+-- Werkzeuge aus Technical Dispatches
+local tdItems = {}
+local oldGRS = GetResourceState
+GetResourceState = function(r) if r == 'technical_dispatches' or r == 'ox_inventory' then return 'started' end return oldGRS(r) end
+local oldEx2 = exports
+exports = setmetatable({}, { __call = oldEx2, __index = function(_, k)
+    if k == 'ox_inventory' then return { Search = function(_, src, what, name) return tdItems[name] or 0 end, RemoveItem = function() return true end } end
+    return oldEx2[k] end })
+player.coords = vector3(196, -797, 30)
+ok, res = doAction('tree1', 'saw')
+check(not ok and tostring(res):find('Kettensaege'), 'Ohne Kettensaege kein Zersaegen: ' .. tostring(res))
+tdItems.kettensaege = 1
+local treeEnt = inc.entities.tree1
+ok, res = doAction('tree1', 'saw')
+check(ok and inc.rescue.trees.tree1.status == 'gesaegt' and inc.entities.tree1 == nil, 'Baum mit Kettensaege zersaegt und entfernt')
+check(Incidents.tasksDone(inc) == false, 'Spaene zaehlen als offene Aufgabe')
+ok, res = doAction('tree1', 'sweepchips')
+check(not ok and tostring(res):find('Besen'), 'Ohne Besen keine Spaene aufkehren: ' .. tostring(res))
+tdItems.besen = 1
+ok, res = doAction('tree1', 'saw')
+check(not ok, 'Zersaegter Baum kann nicht erneut gesaegt werden')
+ok, res = doAction('tree1', 'sweepchips')
+check(ok and inc.rescue.trees.tree1.status == 'beseitigt', 'Saegespaene mit Besen aufgekehrt: ' .. tostring(res))
+exports, GetResourceState = oldEx2, oldGRS
 player.coords = vector3(195, -795, 30)
 ok = doAction('mk1', 'secure')
 check(ok and inc.rescue.markers.mk1.status == 'gesichert', 'Fundstelle gesichert')

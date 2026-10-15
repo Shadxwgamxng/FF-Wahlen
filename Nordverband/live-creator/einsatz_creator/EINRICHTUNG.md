@@ -17,6 +17,8 @@ ensure ox_target
 ensure emergencydispatch
 ensure z_fire          # optional
 ensure z_hose          # optional
+ensure technical_dispatches_objects   # optional (Kettensaege, Oelflecken ...)
+ensure technical_dispatches           # optional (Items)
 ensure einsatz_creator
 
 # Wer darf den Creator benutzen? (Beispiel: Admin-Gruppe)
@@ -56,6 +58,14 @@ Wer ein Medikament aufzieht, bekommt eine **aufgezogene Spritze** als Item (mit 
 4. Einstellungen in `config.lua` unter `Config.Items` (Item-Namen, benutzte Spritze an/aus, Höchstalter einer Spritze).
 
 Ohne ox_inventory (oder mit `Config.Items.enabled = false`) wird wie bisher direkt nach dem Aufziehen verabreicht.
+
+## 4b. Technical Dispatches (Kettensäge, Besen, Ölbindemittel, Spreizer)
+
+1. `technical_dispatches_objects` und `technical_dispatches` **vor** `einsatz_creator` starten.
+2. Die Items von Technical Dispatches (`kettensaege`, `besen`, `oelbindemittel`, `spreizer`) müssen im Inventar existieren (siehe TD-Installation).
+3. In `config.lua`: `Config.Tools` (welches Item für welche Maßnahme, `require = 'auto' | true | false`) und `Config.Trees` (Baummodelle, Dauer, Sägespäne).
+
+Ablauf Baum: Baum im Creator setzen → Feuerwehr zersägt ihn mit der Kettensäge → Baum verschwindet, Sägespäne liegen auf dem Boden → mit dem Besen aufkehren → Aufgabe erledigt.
 
 ## 5. Nach dem ersten Start prüfen (Serverkonsole)
 - `Speicherung: JSON-Dateien im Ordner data` – Speichern funktioniert.

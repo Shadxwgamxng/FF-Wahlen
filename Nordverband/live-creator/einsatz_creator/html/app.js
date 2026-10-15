@@ -128,6 +128,7 @@ const HUB_PAGES = [
     { id: 'active', label: 'Laufende Einsätze', icon: 'tower-broadcast', desc: 'Aktive Einsätze in der Welt steuern und beenden.' },
     { id: 'random', label: 'Zufallseinsätze', icon: 'shuffle', desc: 'Einsätze automatisch aus dem Pool erzeugen und an EmergencyDispatch übergeben.' },
 ];
+const OBSTACLES = [['auto', 'Automatisch (Baummodelle)'], ['tree', 'Umgestürzter Baum (Kettensäge, danach Späne kehren)'], ['none', 'Kein Hindernis']];
 const VEH_TYPES = ['automobile', 'bike', 'boat', 'heli', 'plane', 'trailer', 'train', 'submarine'];
 const SEATS = [[-1, 'Fahrer'], [0, 'Beifahrer'], [1, 'Hinten links'], [2, 'Hinten rechts'], [3, 'Sitz 4'], [4, 'Sitz 5']];
 
@@ -513,7 +514,7 @@ function toolPanel(kind) {
                 ${fSwitch('Reifen platt', 'props.tyresBurst', p.tyresBurst)}${fSwitch('Motor aus', 'props.engineOff', p.engineOff)}</div>
                 ${place(t.model ? `${t.model} setzen` : 'Modell wählen')}`;
         case 'object':
-            return `${modelList('object', C.props)}<div class="switches">${fSwitch('Fixiert', 'props.frozen', p.frozen)}${fSwitch('Kollision', 'props.collision', p.collision)}</div>
+            return `${modelList('object', C.props)}${fSel('Hindernis', 'props.obstacle', p.obstacle || 'auto', OBSTACLES)}<div class="switches">${fSwitch('Fixiert', 'props.frozen', p.frozen)}${fSwitch('Kollision', 'props.collision', p.collision)}</div>
                 ${place(t.model ? `${t.model} setzen` : 'Modell wählen')}`;
         case 'line':
             return `${modelList('line', C.props)}${fNum('Abstand in Metern', 'spacing', t.spacing, { step: 0.25, min: 0.5, max: 10, hint: 'Start- und Endpunkt in der Welt anklicken, Mausrad ändert den Abstand.' })}
@@ -1294,7 +1295,7 @@ function kindFields(e) {
                 <div class="grid-2">${fText('Kennzeichen', 'props.plate', p.plate, { max: 8 })}${fNum('Farbe', 'props.colour', p.colour, { int: true, min: -1, max: 160, hint: '-1 = Standard' })}</div>
                 ${fSel('Fahrzeugtyp', 'props.vehType', p.vehType, VEH_TYPES.map(v => [v, v]))}`;
         case 'object':
-            return `<div class="switches">${fSwitch('Fixiert', 'props.frozen', p.frozen)}${fSwitch('Kollision', 'props.collision', p.collision)}</div>`;
+            return `${fSel('Hindernis', 'props.obstacle', p.obstacle || 'auto', OBSTACLES)}<div class="switches">${fSwitch('Fixiert', 'props.frozen', p.frozen)}${fSwitch('Kollision', 'props.collision', p.collision)}</div>`;
         case 'ped': {
             const vehicles = els.filter(x => x.kind === 'vehicle');
             let h = fSel('Haltung', 'props.pose', p.pose, arr(C.poses).map(x => [x.id, x.label]));

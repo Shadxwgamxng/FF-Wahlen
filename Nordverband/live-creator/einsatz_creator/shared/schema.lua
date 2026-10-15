@@ -92,7 +92,7 @@ Schema.Defaults = {
         return { vehType = 'automobile', damage = 0, hazard = false, lights = false, locked = true, frozen = true,
             doorsOpen = false, windowsBroken = false, tyresBurst = false, engineOff = true, plate = '', colour = -1 }
     end,
-    object = function() return { frozen = true, collision = true } end,
+    object = function() return { frozen = true, collision = true, obstacle = 'auto' } end,
     ped = function()
         return {
             pose = 'bewusstlos', vehicleId = nil, seat = -1, isPatient = true, randomModel = false,
@@ -180,8 +180,15 @@ function Props.vehicle(raw)
     }
 end
 
-function Props.object(raw)
-    return { frozen = U.bool(raw.frozen, true), collision = U.bool(raw.collision, true) }
+local TREE_MODELS
+function Props.object(raw, el)
+    if not TREE_MODELS then
+        TREE_MODELS = {}
+        for _, m in ipairs(Config.Trees and Config.Trees.models or {}) do TREE_MODELS[m:lower()] = true end
+    end
+    local obstacle = raw.obstacle
+    if obstacle ~= 'tree' and obstacle ~= 'none' then obstacle = (el and el.model and TREE_MODELS[el.model]) and 'tree' or 'none' end
+    return { frozen = U.bool(raw.frozen, true), collision = U.bool(raw.collision, true), obstacle = obstacle }
 end
 
 function Props.ped(raw)

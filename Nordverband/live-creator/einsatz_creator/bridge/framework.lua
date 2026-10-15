@@ -81,3 +81,32 @@ function Framework.getName(src)
     if ok and name and name ~= '' and name ~= ' ' then return name end
     return GetPlayerName(src) or ('ID ' .. tostring(src))
 end
+
+-- Items (Fallback ohne ox_inventory)
+function Framework.itemCount(src, name)
+    local ok, n = pcall(function()
+        if Framework.name == 'esx' and ESX then
+            local x = ESX.GetPlayerFromId(src)
+            local it = x and x.getInventoryItem(name)
+            return it and it.count or 0
+        elseif Framework.name == 'qb' and QBCore then
+            local p = QBCore.Functions.GetPlayer(src)
+            local it = p and p.Functions.GetItemByName(name)
+            return it and it.amount or 0
+        end
+        return 0
+    end)
+    return ok and tonumber(n) or 0
+end
+
+function Framework.removeItem(src, name)
+    pcall(function()
+        if Framework.name == 'esx' and ESX then
+            local x = ESX.GetPlayerFromId(src)
+            if x then x.removeInventoryItem(name, 1) end
+        elseif Framework.name == 'qb' and QBCore then
+            local p = QBCore.Functions.GetPlayer(src)
+            if p then p.Functions.RemoveItem(name, 1) end
+        end
+    end)
+end

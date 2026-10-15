@@ -320,8 +320,55 @@ Config.Doors = {
 
 -- Betriebsstoffe / Oelspur
 Config.Spills = {
-    durationSeconds = 12,
+    durationSeconds = 12,          -- je Schritt: abstreuen (Oelbindemittel), dann aufkehren (Besen)
     roles = { 'fire' },
+}
+
+-- Umgestuerzte Baeume (Objekt mit "Hindernis: Baum") - mit der Kettensaege beseitigen
+Config.Trees = {
+    durationSeconds = 20,
+    roles = { 'fire' },
+    -- Objektmodelle, die beim Platzieren automatisch als Baum-Hindernis gelten
+    models = { 'prop_tree_fallen_01', 'prop_tree_fallen_02', 'prop_tree_fallen_pine_01', 'prop_tree_log_01', 'prop_tree_log_02' },
+    -- Saegespaene: bleiben nach dem Zersaegen liegen und muessen mit dem Besen aufgekehrt werden
+    chips = {
+        enabled = true,
+        durationSeconds = 15,
+        length = 7.0,   -- Flaeche in Metern (entlang des Stamms)
+        width = 3.0,
+        drawDistance = 60.0,
+    },
+}
+
+--[[
+    Werkzeuge aus Technical Dispatches (LoveRP) - Items und Objekte
+    Die Massnahmen verlangen das passende Item im Inventar (ox_inventory, sonst QBCore/ESX)
+    und zeigen das Werkzeug-Modell aus technical_dispatches_objects in der Hand.
+    require: 'auto' = nur verlangen, wenn technical_dispatches laeuft | true = immer | false = nie
+    items:   eines davon wird gebraucht (leer = kein Werkzeug noetig)
+]]
+Config.Tools = {
+    require = 'auto',
+    resource = 'technical_dispatches',
+    objectsResource = 'technical_dispatches_objects',
+    actions = {
+        saw = { items = { 'kettensaege' }, label = 'Kettensaege' },
+        free = { items = { 'spreizer' }, label = 'Spreizer (hydraulisches Rettungsgeraet)' },
+        bind = { items = { 'oelbindemittel' }, label = 'Oelbindemittel', consume = false },
+        sweep = { items = { 'besen' }, label = 'Besen' },
+        sweepchips = { items = { 'besen' }, label = 'Besen' },
+        open = { items = {}, label = 'Halligan-Tool' },   -- z. B. { 'halligantool', 'rucksack_tuer' }
+    },
+    -- Modelle in der Hand (aus technical_dispatches_objects, Ersatz falls nicht vorhanden)
+    props = {
+        saw = { model = 'kettensaege', fallback = 'prop_tool_consaw' },
+        free = { model = 'mdev_hydraulictool', fallback = 'prop_tool_jackham' },
+    },
+    -- Oelfleck-Modelle aus technical_dispatches_objects (sonst Decal)
+    oilProps = {
+        vorhanden = { 'oelfleck', 'oelfleck_2fach', 'oelfleck_3fach', 'oelfleck_4fach' },
+        abgestreut = { 'oelfleck_abgestreut', 'oelfleck_2fach_abgestreut', 'oelfleck_3fach_abgestreut', 'oelfleck_4fach_abgestreut' },
+    },
 }
 
 -- Fundstellen / Marker mit Interaktion ("Fundstelle sichern")
