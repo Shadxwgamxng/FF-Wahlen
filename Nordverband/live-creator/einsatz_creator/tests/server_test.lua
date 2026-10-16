@@ -894,6 +894,22 @@ do
     Storage.init()
 end
 
+print('Speichern ohne Ordner')
+do
+    local oldSave, oldOpen, oldExec = SaveResourceFile, io.open, os.execute
+    local made = false
+    os.execute = function(cmd) if cmd:find('mkdir', 1, true) then made = true end return true end
+    -- Ordner fehlt: SaveResourceFile schlaegt fehl, bis mkdir gelaufen ist
+    SaveResourceFile = function(_, path, content) if not made then return false end files[path] = content return true end
+    check(Storage.save('incidents/TEST-ORDNER.json', { a = 1 }) == true and made, 'Fehlender Ordner wird angelegt und erneut gespeichert')
+    -- SaveResourceFile geht gar nicht: direkt per io schreiben
+    SaveResourceFile = function() return false end
+    io.open = function(p) local rel = p:gsub('^/nicht/vorhanden/einsatz_creator/', '')
+        return { write = function(_, c) files[rel] = c end, close = function() end } end
+    check(Storage.save('incidents/TEST-IO.json', { a = 2 }) == true, 'Rueckfall: Datei direkt geschrieben')
+    SaveResourceFile, io.open, os.execute = oldSave, oldOpen, oldExec
+end
+
 print('Berechtigungen')
 IsPlayerAceAllowed = function() return false end
 waitRate()

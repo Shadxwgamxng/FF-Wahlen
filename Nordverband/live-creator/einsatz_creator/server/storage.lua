@@ -39,8 +39,39 @@ local function readRaw(name)
     return LoadResourceFile(RES, path(name))
 end
 
+local function absPath(name)
+    return ('%s/%s'):format(GetResourcePath(RES), path(name))
+end
+
+-- Ordner einer Datei anlegen (fehlt z. B., wenn die Resource ohne den Ordner data/ kopiert wurde)
+local function makeDirFor(name)
+    local folder = absPath(name):match('^(.*)/[^/]*$')
+    if not folder then return end
+    pcall(function()
+        if package.config:sub(1, 1) == '\\' then
+            os.execute(('mkdir "%s" >nul 2>nul'):format(folder:gsub('/', '\\')))
+        else
+            os.execute(('mkdir -p "%s"'):format(folder))
+        end
+    end)
+end
+
 local function writeRaw(name, content)
-    return SaveResourceFile(RES, path(name), content, -1)
+    if SaveResourceFile(RES, path(name), content, -1) then return true end
+    -- Ordner fehlt? anlegen und erneut versuchen
+    makeDirFor(name)
+    if SaveResourceFile(RES, path(name), content, -1) then return true end
+    -- letzter Versuch: direkt in die Datei schreiben
+    local written = false
+    pcall(function()
+        local f = io.open(absPath(name), 'wb')
+        if f then
+            f:write(content)
+            f:close()
+            written = true
+        end
+    end)
+    return written
 end
 
 local function decode(content)
@@ -105,7 +136,7 @@ function Storage.save(name, data, noBackup)
     end
 
     if not writeRaw(name, content) then
-        U.log('error', '%s konnte nicht geschrieben werden (Schreibrechte fuer %s pruefen)', name, path(name))
+        U.log('error', '%s konnte nicht geschrieben werden. Ordner vorhanden und beschreibbar? (%s)', name, absPath(name))
         return false
     end
 
@@ -263,8 +294,8 @@ local function jsonSaveScenarios()
         end
     end
     if not ok then
-        U.log('error', 'Einsaetze konnten nicht vollstaendig gespeichert werden. Existiert der Ordner %s/%s und ist er beschreibbar?',
-            Config.Storage.directory, dir())
+        U.log('error', 'Einsaetze konnten nicht vollstaendig gespeichert werden. Existiert der Ordner %s/%s/%s und ist er beschreibbar?',
+            GetResourcePath(RES), Config.Storage.directory, dir())
     end
     return ok
 end
