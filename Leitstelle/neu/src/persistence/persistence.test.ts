@@ -129,3 +129,21 @@ describe('Statistik', () => {
     expect(s.vehicles.every((v) => v.availability + v.utilization <= 1.0001)).toBe(true);
   });
 });
+
+describe('Dokumentiertes Minimalbeispiel', () => {
+  it('importiert die Minimal-Leitstelle aus docs/DATENFORMAT.md', () => {
+    const r = importJson(JSON.stringify({
+      format: 'leitwarte', formatVersion: 1, kind: 'leitstelle',
+      data: {
+        name: 'ILS Beispielstadt', mapCenter: [50.1, 8.7],
+        stations: [{ id: 'st_1', name: 'Feuerwache 1', kind: 'feuerwache', organizationId: 'org_bf', position: [50.1, 8.7], address: 'Hauptstraße 1', capacity: 6, turnoutSeconds: 60 }],
+        vehicles: [{ id: 'v_1', callsign: 'Florian Beispielstadt 1/46-1', typeId: 'hlf20', organizationId: 'org_bf', stationId: 'st_1' }],
+      },
+    }));
+    expect(r.ok).toBe(true);
+    if (!r.ok || r.kind !== 'leitstelle') throw new Error();
+    expect(r.issues).toEqual([]);
+    expect(r.center.vehicles[0].rt.position).toEqual([50.1, 8.7]);
+    expect(createGame(r.center).center.vehicles).toHaveLength(1);
+  });
+});
