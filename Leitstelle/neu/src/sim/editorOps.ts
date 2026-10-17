@@ -77,6 +77,7 @@ export function saveVehicle(g: GameState, input: Vehicle, isNew: boolean): EditR
   if (atStation >= st.capacity) return `Die Wache "${st.name}" hat keinen freien Stellplatz (Kapazität ${st.capacity}).`;
   for (const w of input.serviceWindows) if (w.fromHour >= w.toHour) return 'Dienstzeit: Beginn muss vor dem Ende liegen.';
   for (const m of input.maintenance) if (m.from >= m.to) return 'Wartung: Beginn muss vor dem Ende liegen.';
+  if (input.radioGroup && (!input.radioGroup.name.trim() || !input.radioGroup.code.trim())) return 'Abweichende Funkrufgruppe: Name und Kürzel angeben.';
   if (input.external && !c.neighbors.some((n) => n.id === input.external!.neighborId)) return 'Externe Anforderung: Nachbarleitstelle wählen.';
   const existing = c.vehicles.find((v) => v.id === input.id);
   const v: Vehicle = {
@@ -120,6 +121,7 @@ export function deleteVehicleType(g: GameState, id: string): EditResult {
 
 export function saveOrganization(g: GameState, o: Organization, isNew: boolean): EditResult {
   if (g.center.organizations.some((x) => x.id !== o.id && same(x.name, o.name))) return `Organisation "${o.name}" existiert bereits.`;
+  if (!o.radioGroup?.name.trim() || !o.radioGroup.code.trim()) return 'Jede Organisation braucht eine Funkrufgruppe (Name und Kürzel).';
   return upsert(g.center.organizations, o, isNew);
 }
 
@@ -185,7 +187,7 @@ export function deleteNeighbor(g: GameState, id: string): EditResult {
 }
 
 export function saveArea(g: GameState, a: Area, isNew: boolean): EditResult {
-  if (a.polygon.length < 3) return 'Ein Gebiet braucht mindestens 3 Eckpunkte.';
+  if (!a.polygons.length || a.polygons.some((r) => !r[0] || r[0].length < 3)) return 'Ein Gebiet braucht mindestens 3 Eckpunkte.';
   return upsert(g.center.areas, a, isNew);
 }
 

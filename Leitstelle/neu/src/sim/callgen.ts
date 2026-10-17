@@ -1,8 +1,9 @@
-import type { Call, GameState, KeywordCategory, LatLng, Weather } from '../model/types';
+import type { Call, GameState, KeywordCategory, LatLng, PlaceKind, Weather } from '../model/types';
 import { SCENARIOS, type FactSpec, type LocationKind, type ScenarioDef, type VariantDef } from '../data/scenarios';
 import type { Facts, FactValue } from '../data/questions';
 import { Rng } from './rng';
-import { pointInPolygon, polygonBounds } from './geo';
+import { areaBounds, pointInArea } from './geo';
+import { describePlace, pickPlace, placeLatLng } from '../geo/places';
 import { hourOf } from './availability';
 import { DIFFICULTY, isNight } from './difficulty';
 
@@ -70,20 +71,46 @@ const RELATIONS: Record<KeywordCategory, string[]> = {
   sonstiges: ['Anrufer/-in'],
 };
 
-export function randomLocation(state: GameState, rng: Rng, kind: LocationKind) {
+const PLACE_FOR: Record<LocationKind, PlaceKind> = { wohn: 'w', strasse: 's', land: 'l', gewerbe: 'g', wasser: 'x', oeffentlich: 'o', klinik: 'k' };
+
+export interface GeneratedLocation {
+  position: LatLng;
+  address: string;
+  areaId: string | null;
+  detail: string;
+  street: string;
+  houseNumber: string;
+  postcode: string;
+  city: string;
+}
+
+export function randomLocation(state: GameState, rng: Rng, kind: LocationKind): GeneratedLocation {
   const c = state.center;
+  // 1. Echte Orte aus OpenStreetMap, passend zur Lage (Türöffnung im Wohnhaus, Waldbrand im Wald …)
+  if (c.places && c.places.places.length > 0) {
+    let pk = PLACE_FOR[kind];
+    if (kind === 'strasse' && rng.chance(0.15)) pk = 'b';
+    const t = pickPlace(c.places, rng, pk);
+    if (t) {
+      const d = describePlace(c.places, t);
+      const position = placeLatLng(t);
+      const detail = t[0] === 'w' ? `${d.detail === 'Wohnhaus' ? rng.pick(DETAILS.wohn) : d.detail}` : t[0] === 's' ? rng.pick(DETAILS.strasse) : d.detail;
+      return { position, address: d.address, areaId: areaAt(state, position), detail, street: d.street, houseNumber: d.houseNumber, postcode: d.postcode, city: d.city };
+    }
+  }
+  // 2. Ohne OSM-Daten: Klinik der Leitstelle bzw. zufälliger Punkt im Gebiet mit Straßennamen aus der Liste
   if (kind === 'klinik' && c.hospitals.length > 0) {
     const h = rng.pick(c.hospitals);
-    return { position: [...h.position] as LatLng, address: h.name, areaId: areaAt(state, h.position), detail: rng.pick(DETAILS.klinik) };
+    return { position: [...h.position] as LatLng, address: h.name, areaId: areaAt(state, h.position), detail: rng.pick(DETAILS.klinik), street: h.name, houseNumber: '', postcode: '', city: '' };
   }
   let position: LatLng = [...c.mapCenter] as LatLng;
   let areaId: string | null = null;
-  if (c.areas.length > 0) {
-    const area = rng.pick(c.areas);
-    const b = polygonBounds(area.polygon);
-    for (let i = 0; i < 50; i++) {
+  const area = c.areas.length ? rng.pick(c.areas) : null;
+  const b = area ? areaBounds(area) : null;
+  if (area && b) {
+    for (let i = 0; i < 80; i++) {
       const p: LatLng = [rng.range(b.minLat, b.maxLat), rng.range(b.minLng, b.maxLng)];
-      if (pointInPolygon(p, area.polygon)) {
+      if (pointInArea(p, area)) {
         position = p;
         break;
       }
@@ -93,14 +120,14 @@ export function randomLocation(state: GameState, rng: Rng, kind: LocationKind) {
     // Ohne definierte Gebiete: Umkreis ~6 km um den Kartenmittelpunkt
     position = [c.mapCenter[0] + rng.range(-0.05, 0.05), c.mapCenter[1] + rng.range(-0.08, 0.08)];
   }
-  const areaName = c.areas.find((a) => a.id === areaId)?.name ?? c.city ?? '';
+  const city = area?.name ?? c.city ?? '';
   const street = c.streetNames.length ? rng.pick(c.streetNames) : 'Hauptstraße';
-  const address = `${street} ${rng.int(1, 120)}, ${areaName}`.trim();
-  return { position, address, areaId, detail: rng.pick(DETAILS[kind]) };
+  const nr = String(rng.int(1, 120));
+  return { position, address: `${street} ${nr}, ${city}`.trim(), areaId, detail: rng.pick(DETAILS[kind]), street, houseNumber: nr, postcode: '', city };
 }
 
 export function areaAt(state: GameState, p: LatLng): string | null {
-  return state.center.areas.find((a) => pointInPolygon(p, a.polygon))?.id ?? null;
+  return state.center.areas.find((a) => pointInArea(p, a))?.id ?? null;
 }
 
 /** Erzeugt einen neuen Notruf (ohne ihn in den Zustand einzufügen) */

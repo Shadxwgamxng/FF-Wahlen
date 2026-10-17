@@ -6,6 +6,8 @@ import { deleteStation, deleteVehicle, saveStation, saveVehicle } from '../../si
 import { vehicleAvailability } from '../../sim/availability';
 import { emptyVehicleRuntime } from '../../data/sampleCenter';
 import { fmtDateTime, StatusBadge } from '../components/common';
+import { radioGroupOf } from '../../model/radio';
+import { RadioGroupFields } from './EditorView';
 
 export const STATION_KINDS: [Station['kind'], string][] = [
   ['feuerwache', 'Feuerwache (hauptamtlich)'],
@@ -125,6 +127,7 @@ export function VehiclesView({ game }: { game: GameState }) {
           { label: 'Typ', render: (v) => c.vehicleTypes.find((t) => t.id === v.typeId)?.code },
           { label: 'Wache', render: (v) => c.stations.find((s) => s.id === v.stationId)?.name },
           { label: 'Kennung', render: (v) => <span className="mono small">{v.identifier}</span> },
+          { label: 'Funkrufgruppe', render: (v) => <span className="mono small">{radioGroupOf(c, v)?.code ?? '–'}</span> },
           {
             label: 'Dienstzeit',
             render: (v) =>
@@ -145,6 +148,23 @@ export function VehiclesView({ game }: { game: GameState }) {
           { key: 'stationId', label: 'Wache', type: 'select', options: c.stations.map((s) => [s.id, s.name]), required: true },
           { key: 'organizationId', label: 'Organisation (leer = wie Wache)', type: 'select', options: c.organizations.map((o) => [o.id, o.name]) },
           { key: 'identifier', label: 'Kennzeichen / Kennung', type: 'text' },
+          {
+            key: 'radioGroup',
+            label: 'Funkrufgruppe',
+            type: 'custom',
+            render: (d, set) => {
+              const org = c.organizations.find((o) => o.id === (d.organizationId || c.stations.find((s) => s.id === d.stationId)?.organizationId));
+              return (
+                <div className="col" style={{ gap: 4 }}>
+                  <label className="check small">
+                    <input type="checkbox" checked={!d.radioGroup} onChange={(e) => set({ radioGroup: e.target.checked ? undefined : { ...(org?.radioGroup ?? { name: '', code: '' }) } })} />
+                    wie Organisation: <span className="mono">{org ? `${org.radioGroup.code} – ${org.radioGroup.name}` : '–'}</span>
+                  </label>
+                  {d.radioGroup && <RadioGroupFields value={d.radioGroup} onChange={(radioGroup) => set({ radioGroup })} invalid />}
+                </div>
+              );
+            },
+          },
           {
             key: 'equipment',
             label: 'Zusatzausrüstung (kommagetrennt)',

@@ -1,4 +1,4 @@
-import type { LatLng, Movement } from '../model/types';
+import type { Area, LatLng, Movement } from '../model/types';
 
 /**
  * Geografie und Fahrzeit-Näherung.
@@ -74,4 +74,49 @@ export function formatDuration(ms: number): string {
 
 export function formatKm(m: number): string {
   return `${(m / 1000).toFixed(1).replace('.', ',')} km`;
+}
+
+// ---------------------------------------------------------------------------
+// Gebiete (Multipolygone mit Löchern)
+// ---------------------------------------------------------------------------
+
+
+export function pointInArea(p: LatLng, area: Pick<Area, 'polygons'>): boolean {
+  return area.polygons.some((rings) => rings.length > 0 && pointInPolygon(p, rings[0]) && !rings.slice(1).some((hole) => pointInPolygon(p, hole)));
+}
+
+export function areaBounds(area: Pick<Area, 'polygons'>) {
+  const pts = area.polygons.flatMap((r) => r[0] ?? []);
+  return pts.length ? polygonBounds(pts) : null;
+}
+
+/** Douglas-Peucker-Vereinfachung eines Rings (Toleranz in Grad) */
+export function simplifyRing(ring: LatLng[], tol: number): LatLng[] {
+  if (ring.length <= 4) return ring;
+  const keep = new Uint8Array(ring.length);
+  keep[0] = keep[ring.length - 1] = 1;
+  const stack: [number, number][] = [[0, ring.length - 1]];
+  while (stack.length) {
+    const [a, b] = stack.pop()!;
+    let maxD = 0;
+    let idx = -1;
+    const [ay, ax] = ring[a];
+    const [by, bx] = ring[b];
+    const dx = bx - ax;
+    const dy = by - ay;
+    const len = Math.hypot(dx, dy) || 1e-12;
+    for (let i = a + 1; i < b; i++) {
+      const d = Math.abs(dy * ring[i][1] - dx * ring[i][0] + bx * ay - by * ax) / len;
+      if (d > maxD) {
+        maxD = d;
+        idx = i;
+      }
+    }
+    if (maxD > tol && idx > 0) {
+      keep[idx] = 1;
+      stack.push([a, idx], [idx, b]);
+    }
+  }
+  const out = ring.filter((_, i) => keep[i]);
+  return out.length >= 4 ? out : ring;
 }

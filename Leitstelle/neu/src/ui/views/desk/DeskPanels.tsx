@@ -4,6 +4,7 @@ import { vehicleAvailability, outOfServiceReason } from '../../../sim/availabili
 import { setVehicleServiceStatus } from '../../../sim/engine';
 import { formatDuration } from '../../../sim/geo';
 import { store } from '../../../store/gameStore';
+import { radioGroupOf } from '../../../model/radio';
 import { fmtAgo, fmtClock, StatusBadge } from '../../components/common';
 
 export function CallList({ game, selectedId, onSelect }: { game: GameState; selectedId: string | null; onSelect: (id: string) => void }) {
@@ -131,7 +132,9 @@ export function VehicleBoard({ game, selectedId, onSelect }: { game: GameState; 
                     <div className="ellipsis">{v.callsign}</div>
                     {info && <div className={`small ellipsis ${av && !av.available ? 'field-error' : 'muted'}`}>{info}</div>}
                   </div>
-                  <span className="small muted">{t?.code}</span>
+                  <span className="small muted" title={`Funkrufgruppe ${radioGroupOf(game.center, v)?.name ?? ''}`}>
+                    {t?.code} <span className="mono dim">{radioGroupOf(game.center, v)?.code}</span>
+                  </span>
                 </div>
               );
             })}
@@ -158,6 +161,7 @@ export function VehicleDetail({ game, vehicleId, onClose, onOpenIncident }: { ga
       </div>
       <div className="panel-body pad col small" style={{ gap: 4 }}>
         <div>{t?.name} ({t?.code}) · {st?.name} · {v.identifier}</div>
+        <div>Funkrufgruppe: <span className="mono">{radioGroupOf(game.center, v)?.code}</span> – {radioGroupOf(game.center, v)?.name}</div>
         <div>Fähigkeiten: <span className="muted">{t?.capabilities.join(', ')}</span></div>
         <div>Status seit {fmtClock(v.rt.lastStatusChange)}{v.rt.move ? ` · Ankunft in ${formatDuration(v.rt.move.arriveAt - now)}` : ''}</div>
         {v.rt.incidentId && (

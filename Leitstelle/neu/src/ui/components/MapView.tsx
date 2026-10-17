@@ -58,7 +58,7 @@ export function MapView(p: Props) {
     L_.areas.clearLayers();
     if (show.areas)
       for (const a of center.areas) {
-        L.polygon(a.polygon, { color: '#3d8bfd', weight: 1.5, fillOpacity: 0.04, dashArray: '4 4' })
+        L.polygon(a.polygons, { color: a.kind === 'landkreis' ? '#f5a524' : '#3d8bfd', weight: a.kind === 'landkreis' ? 2.5 : 1.5, fillOpacity: 0.03, dashArray: a.kind === 'landkreis' ? undefined : '4 4' })
           .bindTooltip(`${a.name} (${a.kind})`, { sticky: true })
           .addTo(L_.areas);
       }

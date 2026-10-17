@@ -112,16 +112,16 @@ export const DEFAULT_VEHICLE_TYPES: VehicleType[] = [
 ];
 
 export const DEFAULT_ORGANIZATIONS: Organization[] = [
-  { id: 'org_bf', name: 'Berufsfeuerwehr Bergstadt', kind: 'berufsfeuerwehr', responsibilities: 'Brandschutz, technische Hilfe, Gefahrgut im Stadtgebiet Bergstadt', color: '#e5484d' },
-  { id: 'org_ff', name: 'Freiwillige Feuerwehren', kind: 'freiwillige_feuerwehr', responsibilities: 'Brandschutz und technische Hilfe in den Umlandgemeinden', color: '#f76b15' },
-  { id: 'org_rd', name: 'Rettungsdienst Hessenwald gGmbH', kind: 'rettungsdienst', responsibilities: 'Notfallrettung und Krankentransport im Rettungsdienstbereich', color: '#ffffff' },
-  { id: 'org_ktp', name: 'Krankentransport (Hilfsorganisationen)', kind: 'krankentransport', responsibilities: 'Qualifizierter Krankentransport', color: '#a3a3a3' },
-  { id: 'org_na', name: 'Notarztdienst Klinikum', kind: 'notarzt', responsibilities: 'Notarztgestellung', color: '#f5d90a' },
-  { id: 'org_pol', name: 'Polizei (Kooperation)', kind: 'polizei', responsibilities: 'Gefahrenabwehr, Verkehrsabsicherung – in dieser Simulation als Partnerkräfte', color: '#3e63dd' },
-  { id: 'org_thw', name: 'THW Ortsverband', kind: 'thw', responsibilities: 'Bergung, Pumpen, Logistik bei Großschadenslagen', color: '#0090ff' },
-  { id: 'org_kats', name: 'Katastrophenschutz Landkreis', kind: 'katastrophenschutz', responsibilities: 'Sanitäts- und Betreuungsdienst bei MANV', color: '#8e4ec6' },
-  { id: 'org_wf', name: 'Werkfeuerwehr Chemiepark', kind: 'werkfeuerwehr', responsibilities: 'Betrieblicher Brandschutz im Chemiepark', color: '#d6409f' },
-  { id: 'org_ext', name: 'Luftrettung / Nachbarbereiche', kind: 'sonstige', responsibilities: 'Externe Einsatzmittel aus Nachbarbereichen', color: '#12a594' },
+  { id: 'org_bf', name: 'Berufsfeuerwehr Bergstadt', kind: 'berufsfeuerwehr', responsibilities: 'Brandschutz, technische Hilfe, Gefahrgut im Stadtgebiet Bergstadt', color: '#e5484d', radioGroup: { name: 'Berufsfeuerwehr Bergstadt', code: 'FW_BF' } },
+  { id: 'org_ff', name: 'Freiwillige Feuerwehren', kind: 'freiwillige_feuerwehr', responsibilities: 'Brandschutz und technische Hilfe in den Umlandgemeinden', color: '#f76b15', radioGroup: { name: 'Freiwillige Feuerwehren', code: 'FW_FF' } },
+  { id: 'org_rd', name: 'Rettungsdienst Hessenwald gGmbH', kind: 'rettungsdienst', responsibilities: 'Notfallrettung und Krankentransport im Rettungsdienstbereich', color: '#ffffff', radioGroup: { name: 'Rettungsdienst Hessenwald gGmbH', code: 'RD' } },
+  { id: 'org_ktp', name: 'Krankentransport (Hilfsorganisationen)', kind: 'krankentransport', responsibilities: 'Qualifizierter Krankentransport', color: '#a3a3a3', radioGroup: { name: 'Krankentransport (Hilfsorganisationen)', code: 'KTP' } },
+  { id: 'org_na', name: 'Notarztdienst Klinikum', kind: 'notarzt', responsibilities: 'Notarztgestellung', color: '#f5d90a', radioGroup: { name: 'Notarztdienst Klinikum', code: 'NA' } },
+  { id: 'org_pol', name: 'Polizei (Kooperation)', kind: 'polizei', responsibilities: 'Gefahrenabwehr, Verkehrsabsicherung – in dieser Simulation als Partnerkräfte', color: '#3e63dd', radioGroup: { name: 'Polizei (Kooperation)', code: 'POL' } },
+  { id: 'org_thw', name: 'THW Ortsverband', kind: 'thw', responsibilities: 'Bergung, Pumpen, Logistik bei Großschadenslagen', color: '#0090ff', radioGroup: { name: 'THW Ortsverband', code: 'THW' } },
+  { id: 'org_kats', name: 'Katastrophenschutz Landkreis', kind: 'katastrophenschutz', responsibilities: 'Sanitäts- und Betreuungsdienst bei MANV', color: '#8e4ec6', radioGroup: { name: 'Katastrophenschutz Landkreis', code: 'KATS' } },
+  { id: 'org_wf', name: 'Werkfeuerwehr Chemiepark', kind: 'werkfeuerwehr', responsibilities: 'Betrieblicher Brandschutz im Chemiepark', color: '#d6409f', radioGroup: { name: 'Werkfeuerwehr Chemiepark', code: 'WF' } },
+  { id: 'org_ext', name: 'Luftrettung / Nachbarbereiche', kind: 'sonstige', responsibilities: 'Externe Einsatzmittel aus Nachbarbereichen', color: '#12a594', radioGroup: { name: 'Luftrettung / Nachbarbereiche', code: 'EXT' } },
 ];
 
 /** Standard-Statusdefinitionen (FMS-angelehnt). Codes, Texte und Farben sind pro Leitstelle änderbar. */

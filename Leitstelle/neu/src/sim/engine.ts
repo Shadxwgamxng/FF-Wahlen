@@ -19,7 +19,7 @@ import { keywordNeeds } from '../data/keywords';
 import { findQuestion } from '../data/questions';
 import { hourOf, outOfServiceReason, vehicleAvailability } from './availability';
 import { DIFFICULTY, HOURLY_PROFILE } from './difficulty';
-import { interpolate, pointInPolygon as pointInArea, travelTimeMs } from './geo';
+import { interpolate, pointInArea, travelTimeMs } from './geo';
 import { aaoRequirements, capsOf, coverage, hospitalOptions, MEDICAL_CAPS, mergeRequirements, openRequirements, typeOf } from './dispatch';
 import { SIM_START, emptyVehicleRuntime } from '../data/sampleCenter';
 
@@ -777,7 +777,7 @@ export function createManualIncident(state: GameState, keywordId: string, positi
     category: kw.category,
     position,
     address,
-    areaId: state.center.areas.find((a) => a.polygon.length > 2 && pointInArea(position, a.polygon))?.id ?? null,
+    areaId: state.center.areas.find((a) => pointInArea(position, a))?.id ?? null,
     description,
     priority: kw.priority,
     needs: nonMedical(rule?.requirements ?? keywordNeeds(kw.code)),

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
-import type { Area, CenterConfig, GameState, LatLng, OrgKind, Organization, StatusDef, VehicleType } from '../../model/types';
+import type { Area, CenterConfig, GameState, LatLng, OrgKind, Organization, RadioGroup, StatusDef, VehicleType } from '../../model/types';
 import { EntityEditor } from '../components/EntityEditor';
 import { confirmDialog, Tabs } from '../components/common';
 import { LatLngPicker } from '../components/LatLngPicker';
@@ -173,21 +173,30 @@ function AreasEditor({ game }: { game: GameState }) {
       columns={[
         { label: 'Name', render: (a) => <b>{a.name}</b> },
         { label: 'Art', render: (a) => a.kind },
-        { label: 'Eckpunkte', render: (a) => a.polygon.length },
+        { label: 'Grenze', render: (a) => (a.kind === 'landkreis' ? `OSM-Relation ${a.osmRelationId ?? '–'} (${a.polygons.length} Teilfläche(n))` : `${a.polygons[0]?.[0]?.length ?? 0} Eckpunkte`) },
         { label: 'Zuständige Wachen', render: (a) => <span className="small">{a.responsibleStationIds.map((id) => c.stations.find((s) => s.id === id)?.name).join(', ') || <span className="dim">keine</span>}</span> },
       ]}
       fields={[
         { key: 'name', label: 'Name', type: 'text', required: true },
-        { key: 'kind', label: 'Art', type: 'select', options: [['gemeinde', 'Gemeinde'], ['teilgebiet', 'Teilgebiet'], ['stadtteil', 'Stadtteil']], required: true },
+        { key: 'kind', label: 'Art', type: 'select', options: [['landkreis', 'Landkreis (OSM)'], ['gemeinde', 'Gemeinde'], ['teilgebiet', 'Teilgebiet'], ['stadtteil', 'Stadtteil']], required: true },
         { key: 'responsibleStationIds', label: 'Zuständige Wachen', type: 'multi', options: c.stations.map((s) => [s.id, s.name]) },
-        { key: 'polygon', label: 'Gebietsgrenze', type: 'custom', render: (d, set) => <PolygonEditor value={d.polygon} onChange={(polygon) => set({ polygon })} /> },
+        { key: 'polygon', label: 'Gebietsgrenze', type: 'custom', render: (d, set) => (d.kind === 'landkreis' ? <span className="small muted">Echte Kreisgrenze aus OpenStreetMap – nicht von Hand bearbeitbar.</span> : <PolygonEditor value={d.polygons[0]?.[0] ?? []} onChange={(ring) => set({ polygons: [[ring]] })} />) },
       ]}
-      validate={(a) => (a.polygon.length < 3 ? { polygon: 'Mindestens 3 Eckpunkte setzen.', _: 'Die Gebietsgrenze braucht mindestens 3 Eckpunkte.' } : {})}
-      create={() => ({ id: newId('area'), name: '', kind: 'gemeinde', polygon: [], responsibleStationIds: [] })}
+      validate={(a) => (a.kind !== 'landkreis' && (a.polygons[0]?.[0]?.length ?? 0) < 3 ? { polygon: 'Mindestens 3 Eckpunkte setzen.', _: 'Die Gebietsgrenze braucht mindestens 3 Eckpunkte.' } : {})}
+      create={() => ({ id: newId('area'), name: '', kind: 'teilgebiet', polygons: [], responsibleStationIds: [] })}
       duplicate={(a) => ({ ...a, id: newId('area'), name: `${a.name} (Kopie)` })}
       onSave={(a, isNew) => store.edit((_, g) => saveArea(g, a, isNew) ?? undefined, 'Gebiet gespeichert.')}
       onDelete={(a) => store.edit((_, g) => deleteArea(g, a.id) ?? undefined, 'Gebiet gelöscht.')}
     />
+  );
+}
+
+export function RadioGroupFields({ value, onChange, invalid }: { value: RadioGroup; onChange: (v: RadioGroup) => void; invalid?: boolean }) {
+  return (
+    <div className="row wrap">
+      <input type="text" placeholder="Name, z. B. Rettungsdienst Ostholstein" value={value.name} className={invalid && !value.name.trim() ? 'invalid' : ''} onChange={(e) => onChange({ ...value, name: e.target.value })} aria-label="Name der Funkrufgruppe" style={{ minWidth: 260 }} />
+      <input type="text" placeholder="Kürzel, z. B. RD_OH" value={value.code} className={invalid && !value.code.trim() ? 'invalid' : ''} onChange={(e) => onChange({ ...value, code: e.target.value.toUpperCase() })} aria-label="Kürzel der Funkrufgruppe" style={{ width: 140 }} />
+    </div>
   );
 }
 
@@ -202,6 +211,7 @@ function OrgsEditor({ game }: { game: GameState }) {
         { label: '', render: (o) => <span className="st-marker" style={{ display: 'inline-block', background: o.color }} /> },
         { label: 'Name', render: (o) => <b>{o.name}</b> },
         { label: 'Art', render: (o) => ORG_KINDS.find((k) => k[0] === o.kind)?.[1] },
+        { label: 'Funkrufgruppe', render: (o) => <span className="mono small">{o.radioGroup.code} – {o.radioGroup.name}</span> },
         { label: 'Wachen', render: (o) => c.stations.filter((s) => s.organizationId === o.id).length },
         { label: 'Zuständigkeit', render: (o) => <span className="small muted">{o.responsibilities}</span> },
       ]}
@@ -209,9 +219,11 @@ function OrgsEditor({ game }: { game: GameState }) {
         { key: 'name', label: 'Name', type: 'text', required: true },
         { key: 'kind', label: 'Art', type: 'select', options: ORG_KINDS, required: true },
         { key: 'color', label: 'Farbe (Karte)', type: 'color' },
+        { key: 'radioGroup', label: 'Funkrufgruppe (Pflicht)', type: 'custom', render: (d, set) => <RadioGroupFields value={d.radioGroup} onChange={(radioGroup) => set({ radioGroup })} /> },
         { key: 'responsibilities', label: 'Zuständigkeiten', type: 'textarea' },
       ]}
-      create={() => ({ id: newId('org'), name: '', kind: 'sonstige', responsibilities: '', color: '#12a594' })}
+      validate={(o) => ({ radioGroup: !o.radioGroup.name.trim() || !o.radioGroup.code.trim() ? 'Name und Kürzel der Funkrufgruppe sind Pflicht.' : undefined })}
+      create={() => ({ id: newId('org'), name: '', kind: 'sonstige', responsibilities: '', color: '#12a594', radioGroup: { name: '', code: '' } })}
       duplicate={(o) => ({ ...o, id: newId('org'), name: `${o.name} (Kopie)` })}
       onSave={(o, isNew) => store.edit((_, g) => saveOrganization(g, o, isNew) ?? undefined, 'Organisation gespeichert.')}
       onDelete={(o) => store.edit((_, g) => deleteOrganization(g, o.id) ?? undefined, 'Organisation gelöscht.')}

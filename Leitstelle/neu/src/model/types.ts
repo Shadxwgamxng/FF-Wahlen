@@ -37,6 +37,15 @@ export interface Organization {
   /** Kurzbeschreibung der Zuständigkeiten */
   responsibilities: string;
   color: string;
+  /** Pflicht-Funkrufgruppe der Organisation (z. B. TETRA-Gruppe); Fahrzeuge erben sie */
+  radioGroup: RadioGroup;
+}
+
+export interface RadioGroup {
+  /** Klarname, z. B. "Rettungsdienst Ostholstein" */
+  name: string;
+  /** Kürzel, z. B. "RD_OH" */
+  code: string;
 }
 
 /** Fähigkeiten, aus denen Einsatzbedarfe zusammengesetzt werden (frei erweiterbar). */
@@ -61,14 +70,36 @@ export interface VehicleType {
   extra?: Record<string, string>;
 }
 
+/** Polygon als Liste von Ringen: [Außenring, Loch1, Loch2, …] */
+export type PolygonRings = LatLng[][];
+
 export interface Area {
   id: ID;
   name: string;
-  /** Gemeinde, Teilgebiet o. ä. */
-  kind: 'gemeinde' | 'teilgebiet' | 'stadtteil';
-  polygon: LatLng[];
+  /** Landkreis (echte Grenze aus OpenStreetMap) oder selbst gezeichnetes Teilgebiet */
+  kind: 'landkreis' | 'gemeinde' | 'teilgebiet' | 'stadtteil';
+  /** Multipolygon: mehrere Teilflächen (z. B. Inseln), jeweils mit optionalen Löchern */
+  polygons: PolygonRings[];
+  /** OSM-Relation, aus der die Grenze stammt */
+  osmRelationId?: number;
   /** Zuständige Wachen (für Zuständigkeitsprüfung in der Disposition) */
   responsibleStationIds: ID[];
+}
+
+/**
+ * Echte Orte aus OpenStreetMap für Einsatzadressen.
+ * Kompakt gespeichert: [Art, Breite×1e5, Länge×1e5, Straße(idx), Hausnr., Ort(idx), PLZ, Name(idx | -1)]
+ *  Art: w = Wohnhaus, g = Gewerbe, o = öffentlich, k = Klinik/Pflege, s = Straße, b = Autobahn/Schnellstraße,
+ *       l = Wald/Feld, x = Gewässer/Strand
+ */
+export type PlaceKind = 'w' | 'g' | 'o' | 'k' | 's' | 'b' | 'l' | 'x';
+export type PlaceTuple = [PlaceKind, number, number, number, string, number, string, number];
+
+export interface PlaceIndex {
+  source: 'osm';
+  fetchedAt: string;
+  strings: string[];
+  places: PlaceTuple[];
 }
 
 export type StationKind =
@@ -117,6 +148,8 @@ export interface Vehicle {
   typeId: ID;
   organizationId: ID;
   stationId: ID;
+  /** Abweichende Funkrufgruppe (leer = Gruppe der Organisation) */
+  radioGroup?: RadioGroup;
   /** Kennzeichen o. ä. */
   identifier: string;
   equipment: string[];
@@ -273,8 +306,10 @@ export interface CenterConfig {
   aao: AaoRule[];
   hospitals: Hospital[];
   neighbors: NeighborCenter[];
-  /** Fiktive Straßennamen für generierte Einsatzadressen */
+  /** Straßennamen für Einsatzadressen, falls keine OSM-Orte geladen sind */
   streetNames: string[];
+  /** Echte Adressen/Orte aus OpenStreetMap (für realistische Einsatzorte) */
+  places: PlaceIndex | null;
   settings: SimSettings;
   /** Vorbereitet für spätere Community-Bibliothek */
   sharing: { visibility: 'privat' | 'geteilt' | 'oeffentlich'; author: string; tags: string[] };
@@ -304,7 +339,16 @@ export interface Call {
   scenarioId: string;
   variantIdx: number;
   category: KeywordCategory;
-  location: { position: LatLng; address: string; areaId: ID | null; detail: string };
+  location: {
+    position: LatLng;
+    address: string;
+    areaId: ID | null;
+    detail: string;
+    street?: string;
+    houseNumber?: string;
+    postcode?: string;
+    city?: string;
+  };
   /** Verdeckte Fakten (Wahrheit des Szenarios) */
   facts: Record<string, string | number | boolean>;
   dialog: CallQA[];

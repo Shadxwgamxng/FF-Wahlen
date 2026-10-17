@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { projects, type ProjectRecord } from '../../persistence/db';
 import { importJson, validateStoredGame } from '../../persistence/schema';
-import { createEmptyCenter, createSampleCenter } from '../../data/sampleCenter';
+import { createSampleCenter } from '../../data/sampleCenter';
+import { CreateWizard } from './CreateWizard';
 import { store } from '../../store/gameStore';
 import { newId } from '../../model/ids';
 import { confirmDialog, fmtDateTime, Modal, readFile } from '../components/common';
@@ -11,7 +12,7 @@ const SAMPLE = createSampleCenter();
 export function StartScreen() {
   const [list, setList] = useState<ProjectRecord[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [newName, setNewName] = useState<string | null>(null);
+  const [wizard, setWizard] = useState(false);
   const [report, setReport] = useState<{ title: string; lines: string[] } | null>(null);
 
   const refresh = () =>
@@ -59,6 +60,8 @@ export function StartScreen() {
     if (r.issues.length) setReport({ title: `Import mit ${r.issues.length} Korrektur(en)`, lines: r.issues.map((i) => `${i.path}: ${i.message}`) });
   };
 
+  if (wizard) return <CreateWizard onCancel={() => setWizard(false)} />;
+
   return (
     <div className="start" data-testid="start-screen">
       <div className="hero">
@@ -76,8 +79,8 @@ export function StartScreen() {
         </div>
         <div className="card col">
           <h3>Eigene Leitstelle</h3>
-          <div className="small muted grow">Leere Leitstelle mit Standardkatalogen (Fahrzeugtypen, Stichwörter, AAO, Status). Wachen und Fahrzeuge legst du im Editor an.</div>
-          <button className="btn" onClick={() => setNewName('')} data-testid="new-empty">Neue Leitstelle erstellen</button>
+          <div className="small muted grow">Assistent: echte Landkreise per Klick wählen, Organisationen mit Funkrufgruppen, echte Adressen und reale Wachen/Kliniken aus OpenStreetMap übernehmen.</div>
+          <button className="btn" onClick={() => setWizard(true)} data-testid="new-empty">Neue Leitstelle erstellen</button>
         </div>
         <div className="card col">
           <h3>Importieren</h3>
@@ -125,34 +128,6 @@ export function StartScreen() {
         Kartendaten © OpenStreetMap-Mitwirkende. Fahrzeiten sind Näherungen ohne Verkehrsdaten. Mehrspieler ist in dieser Version noch nicht verfügbar.
       </div>
 
-      {newName !== null && (
-        <Modal
-          title="Neue Leitstelle"
-          onClose={() => setNewName(null)}
-          footer={
-            <>
-              <button className="btn" onClick={() => setNewName(null)}>Abbrechen</button>
-              <button
-                className="btn primary"
-                disabled={!newName.trim()}
-                onClick={() => {
-                  const c = createEmptyCenter(newName.trim());
-                  setNewName(null);
-                  void store.newProject(c);
-                }}
-              >
-                Erstellen
-              </button>
-            </>
-          }
-        >
-          <label className="field">
-            <span className="req">Name der Leitstelle</span>
-            <input type="text" autoFocus value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="z. B. ILS Musterstadt" />
-          </label>
-          <div className="small muted">Nach dem Erstellen öffnest du den Leitstellen-Editor, legst Gebiete, Wachen und Fahrzeuge an und kannst sofort spielen.</div>
-        </Modal>
-      )}
       {report && (
         <Modal title={report.title} onClose={() => setReport(null)} footer={<button className="btn" onClick={() => setReport(null)}>OK</button>}>
           <ul className="small" style={{ margin: 0, paddingLeft: 18, maxHeight: 400, overflow: 'auto' }}>

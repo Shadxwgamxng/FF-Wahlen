@@ -22,8 +22,25 @@ const orgKind = z.enum(['feuerwehr', 'berufsfeuerwehr', 'freiwillige_feuerwehr',
 const category = z.enum(['brand', 'th', 'vu', 'rd', 'ktp', 'abc', 'wasser', 'tier', 'pol', 'sonstiges']);
 const meaning = z.enum(['frei_funk', 'frei_wache', 'alarmiert', 'anfahrt', 'einsatzort', 'sprechwunsch', 'ausser_dienst', 'transport', 'am_ziel']);
 
+const placeIndexSchema = z.object({
+  source: z.literal('osm'),
+  fetchedAt: z.string(),
+  strings: z.array(z.string()),
+  places: z.array(z.tuple([z.enum(['w', 'g', 'o', 'k', 's', 'b', 'l', 'x']), z.number(), z.number(), z.number(), z.string(), z.number(), z.string(), z.number()])),
+});
+
 export const schemas = {
-  organization: z.object({ id, name: z.string().min(1), kind: orgKind, responsibilities: z.string().default(''), color: z.string().default('#888888') }),
+  organization: z.preprocess(
+    (v) => (v && typeof v === 'object' && !('radioGroup' in v) ? { ...(v as Record<string, unknown>), radioGroup: { name: String((v as { name?: unknown }).name ?? ''), code: '' } } : v),
+    z.object({
+      id,
+      name: z.string().min(1),
+      kind: orgKind,
+      responsibilities: z.string().default(''),
+      color: z.string().default('#888888'),
+      radioGroup: z.object({ name: z.string(), code: z.string() }),
+    }),
+  ),
   vehicleType: z.object({
     id,
     code: z.string().min(1),
@@ -36,7 +53,18 @@ export const schemas = {
     canTransport: z.boolean().optional(),
     extra: z.record(z.string(), z.string()).optional(),
   }),
-  area: z.object({ id, name: z.string().min(1), kind: z.enum(['gemeinde', 'teilgebiet', 'stadtteil']), polygon: z.array(latLng).min(3), responsibleStationIds: z.array(z.string()) }),
+  area: z.preprocess(
+    // Migration: frühere Versionen speicherten nur einen Ring in "polygon"
+    (v) => (v && typeof v === 'object' && 'polygon' in v && !('polygons' in v) ? { ...(v as Record<string, unknown>), polygons: [[(v as { polygon: unknown }).polygon]] } : v),
+    z.object({
+      id,
+      name: z.string().min(1),
+      kind: z.enum(['landkreis', 'gemeinde', 'teilgebiet', 'stadtteil']),
+      polygons: z.array(z.array(z.array(latLng).min(3)).min(1)).min(1),
+      osmRelationId: z.number().optional(),
+      responsibleStationIds: z.array(z.string()),
+    }),
+  ),
   station: z.object({
     id,
     name: z.string().min(1),
@@ -58,6 +86,7 @@ export const schemas = {
     serviceWindows: z.array(z.object({ fromHour: z.number().int().min(0).max(23), toHour: z.number().int().min(1).max(24), weekdays: z.array(z.number().int().min(0).max(6)) })).default([]),
     maintenance: z.array(z.object({ id, from: z.number(), to: z.number(), reason: z.string() })).default([]),
     external: z.object({ neighborId: z.string(), requestDelaySeconds: z.number().min(0) }).optional(),
+    radioGroup: z.object({ name: z.string(), code: z.string() }).optional(),
     rt: z.any().optional(),
   }),
   statusDef: z.object({ meaning, code: z.string().min(1), label: z.string().min(1), color: z.string() }),
@@ -115,6 +144,12 @@ export function parseCenterLenient(raw: unknown): { center: CenterConfig | null;
   if (mc.success) out.mapCenter = mc.data;
   if (typeof r.mapZoom === 'number') out.mapZoom = r.mapZoom;
   if (Array.isArray(r.streetNames)) out.streetNames = r.streetNames.filter((s): s is string => typeof s === 'string');
+  out.places = null;
+  if (r.places) {
+    const pp = placeIndexSchema.safeParse(r.places);
+    if (pp.success) out.places = pp.data as CenterConfig['places'];
+    else issues.push({ path: 'places', message: 'OSM-Ortsdaten beschädigt – verworfen (können im Editor neu geladen werden).' });
+  }
 
   for (const [key, schemaName] of COLLECTIONS) {
     const arr = r[key];

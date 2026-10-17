@@ -34,11 +34,11 @@ const rect = (s: number, w: number, n: number, e: number): LatLng[] => [
 ];
 
 const AREAS: Area[] = [
-  { id: 'area_bergstadt', name: 'Bergstadt', kind: 'gemeinde', polygon: rect(50.52, 9.62, 50.59, 9.73), responsibleStationIds: ['st_fw1', 'st_fw2', 'st_rw_berg', 'st_pol_berg'] },
-  { id: 'area_talheim', name: 'Talheim', kind: 'gemeinde', polygon: rect(50.59, 9.5, 50.68, 9.86), responsibleStationIds: ['st_ff_tal', 'st_rw_tal'] },
-  { id: 'area_lindenfeld', name: 'Lindenfeld', kind: 'gemeinde', polygon: rect(50.44, 9.5, 50.52, 9.86), responsibleStationIds: ['st_ff_lin', 'st_rw_lin', 'st_pol_lin'] },
-  { id: 'area_wiesbach', name: 'Wiesbach', kind: 'gemeinde', polygon: rect(50.52, 9.5, 50.59, 9.62), responsibleStationIds: ['st_ff_wie', 'st_rw_wie'] },
-  { id: 'area_eichenau', name: 'Eichenau', kind: 'gemeinde', polygon: rect(50.52, 9.73, 50.59, 9.86), responsibleStationIds: ['st_ff_eich', 'st_rw_eich', 'st_wf'] },
+  { id: 'area_bergstadt', name: 'Bergstadt', kind: 'gemeinde', polygons: [[rect(50.52, 9.62, 50.59, 9.73)]], responsibleStationIds: ['st_fw1', 'st_fw2', 'st_rw_berg', 'st_pol_berg'] },
+  { id: 'area_talheim', name: 'Talheim', kind: 'gemeinde', polygons: [[rect(50.59, 9.5, 50.68, 9.86)]], responsibleStationIds: ['st_ff_tal', 'st_rw_tal'] },
+  { id: 'area_lindenfeld', name: 'Lindenfeld', kind: 'gemeinde', polygons: [[rect(50.44, 9.5, 50.52, 9.86)]], responsibleStationIds: ['st_ff_lin', 'st_rw_lin', 'st_pol_lin'] },
+  { id: 'area_wiesbach', name: 'Wiesbach', kind: 'gemeinde', polygons: [[rect(50.52, 9.5, 50.59, 9.62)]], responsibleStationIds: ['st_ff_wie', 'st_rw_wie'] },
+  { id: 'area_eichenau', name: 'Eichenau', kind: 'gemeinde', polygons: [[rect(50.52, 9.73, 50.59, 9.86)]], responsibleStationIds: ['st_ff_eich', 'st_rw_eich', 'st_wf'] },
 ];
 
 const st = (
@@ -224,7 +224,7 @@ export function createSampleCenter(): CenterConfig {
     mapZoom: 11,
     organizations: DEFAULT_ORGANIZATIONS.map((o) => ({ ...o })),
     vehicleTypes: types,
-    areas: AREAS.map((a) => ({ ...a, polygon: a.polygon.map((p) => [...p] as LatLng) })),
+    areas: structuredClone(AREAS),
     stations: STATIONS.map((s) => ({ ...s })),
     vehicles,
     statusDefs: DEFAULT_STATUS_DEFS.map((s) => ({ ...s })),
@@ -233,6 +233,7 @@ export function createSampleCenter(): CenterConfig {
     hospitals: HOSPITALS.map((h) => ({ ...h })),
     neighbors: NEIGHBORS.map((n) => ({ ...n })),
     streetNames: [...STREET_NAMES],
+    places: null,
     settings: {
       callsPerHour: 5,
       difficulty: 'normal',
