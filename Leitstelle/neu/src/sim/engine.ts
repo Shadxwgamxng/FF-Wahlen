@@ -464,21 +464,30 @@ function updateIncidents(state: GameState, dtMs: number) {
     if (inc.state === 'vor_ort') {
       // Arbeit an der Einsatzstelle
       const reqs = nonMedical(inc.needs);
-      if (present.length > 0) {
+      handlePatients(state, inc, present);
+      const patientsDone = inc.patients.every((p) => p.state !== 'wartet' && p.state !== 'versorgt');
+      if (reqs.length === 0 && inc.patients.length > 0) {
+        // Rein medizinischer Einsatz: Maßnahmen = Patientenversorgung
+        if (patientsDone) inc.workDoneMs = inc.workTotalMs;
+      } else if (present.length > 0) {
         const cov = reqs.length === 0 ? 1 : coverage(state, reqs, present);
         inc.workDoneMs = Math.min(inc.workTotalMs, inc.workDoneMs + dtMs * Math.pow(cov, 1.5));
       }
-      handlePatients(state, inc, present);
       checkMissingForces(state, inc, present);
-      const patientsDone = inc.patients.every((p) => p.state !== 'wartet' && p.state !== 'versorgt');
-      if (inc.workDoneMs >= inc.workTotalMs && patientsDone && present.length > 0) {
+      const onlyTransports = inc.activeVehicleIds.every((id) => {
+        const s = vehicle(state, id)?.rt.status;
+        return s === 'transport' || s === 'am_ziel';
+      });
+      if (inc.workDoneMs >= inc.workTotalMs && patientsDone && (present.length > 0 || onlyTransports)) {
         inc.state = 'abarbeitung_beendet';
         inc.workDoneAt = now;
-        log(state, 'einsatz', `Einsatzmaßnahmen beendet.`, { incidentId: inc.id });
-        if (state.center.settings.autoRelease) {
-          for (const v of present) releaseVehicleInternal(state, v, 'automatisch entlassen');
-        } else {
-          radio(state, { vehicleId: present[0].id, incidentId: inc.id, kind: 'lage', text: 'Einsatzstelle abgearbeitet, Kräfte können entlassen werden.' });
+        log(state, 'einsatz', `Einsatzmaßnahmen an der Einsatzstelle beendet.`, { incidentId: inc.id });
+        if (present.length > 0) {
+          if (state.center.settings.autoRelease) {
+            for (const v of present) releaseVehicleInternal(state, v, 'automatisch entlassen');
+          } else {
+            radio(state, { vehicleId: present[0].id, incidentId: inc.id, kind: 'lage', text: 'Einsatzstelle abgearbeitet, Kräfte können entlassen werden.' });
+          }
         }
       }
     }
@@ -1005,4 +1014,28 @@ export function setSpeed(state: GameState, speed: number): CommandResult {
   if (!(speed > 0 && speed <= 120)) return fail('Ungültige Geschwindigkeit.');
   state.runtime.clock.speed = speed;
   return ok();
+}
+
+/** Löst sofort einen Notruf eines bestimmten Szenarios aus (Übungs-/Szenariomodus) */
+export function injectScenarioCall(state: GameState, scenarioId: string): CommandResult {
+  const sc = findScenario(scenarioId);
+  if (!sc) return fail('Unbekanntes Szenario.');
+  const rt = state.runtime;
+  return withRng(state, (rng) => {
+    rt.counters.call++;
+    const call = generateCall(state, rng, `c_${rt.counters.call}`, rt.clock.now, sc);
+    if (!call) return fail('Notruf konnte nicht erzeugt werden.');
+    rt.calls.push(call);
+    rt.stats.callsTotal++;
+    log(state, 'notruf', `Notruf geht ein (${call.caller.relation}) – Übungsszenario`, { callId: call.id });
+    return ok(`Notruf "${sc.name}" ausgelöst.`);
+  });
+}
+
+/** Setzt den Spielverlauf zurück, behält aber die Leitstellenkonfiguration */
+export function restartSimulation(state: GameState): CommandResult {
+  const fresh = createGame(state.center, state.runtime.clock.startedAt);
+  state.runtime = fresh.runtime;
+  state.center = fresh.center;
+  return ok('Simulation neu gestartet.');
 }

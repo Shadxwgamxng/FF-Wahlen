@@ -303,7 +303,7 @@ export function createSampleCenter(): CenterConfig {
     neighbors: NEIGHBORS.map((n) => ({ ...n })),
     streetNames: [...STREET_NAMES],
     settings: {
-      callsPerHour: 8,
+      callsPerHour: 5,
       difficulty: 'normal',
       seed: 20261019,
       categoryWeights: {},

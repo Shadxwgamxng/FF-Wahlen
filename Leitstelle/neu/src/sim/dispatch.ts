@@ -94,7 +94,9 @@ export interface Suggestion {
 export function suggestForIncident(state: GameState, inc: Incident): Suggestion {
   const required = aaoRequirements(state, inc);
   const bound = state.center.vehicles.filter((v) => inc.activeVehicleIds.includes(v.id));
-  const open = openRequirements(state, required, bound);
+  // Nach Ende der Maßnahmen werden keine weiteren Kräfte vorgeschlagen
+  const finished = inc.state === 'abarbeitung_beendet' || inc.state === 'abgeschlossen';
+  const open = finished ? [] : openRequirements(state, required, bound);
   const area = state.center.areas.find((a) => a.id === inc.areaId);
   const busy = busyPersonIds(state);
   const openCaps = new Set(open.map((o) => o.capability));

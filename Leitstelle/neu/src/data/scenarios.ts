@@ -372,11 +372,11 @@ export const SCENARIOS: ScenarioDef[] = [
   },
   {
     id: 'rd_sturz', name: 'Sturz', category: 'rd', keyword: 'RD 1', weight: 6, location: 'wohn',
-    openings: ['Meine Mutter ist gestürzt und kommt nicht mehr hoch.', 'Ich bin ausgerutscht, mein Bein tut höllisch weh.'],
+    openings: ['Meine Mutter ist gestürzt und kommt nicht mehr hoch.', 'Mein Nachbar ist auf dem Gehweg ausgerutscht, sein Bein tut ihm höllisch weh.'],
     facts: { what: 'Sturz mit Verletzung.', age: range(60, 95), conscious: true, breathing: 'normal', symptoms: oneOf('Schmerzen in der Hüfte, Bein verkürzt.', 'Platzwunde am Kopf.', 'Handgelenk verformt.'), history: 'Blutverdünner.' },
     keyQuestions: ['rd_bewusst', 'rd_beschwerden'], workMin: [20, 35],
     patients: { count: [1, 1], doctorProb: 0.05, departments: ['unfallchirurgie'], noTransportProb: 0.15 },
-    variants: [{ label: 'Bewusstlos nach Sturz', weight: 0.25, keyword: 'RD 2', facts: { conscious: false }, patients: { count: [1, 1], doctorProb: 1, departments: ['neurologie', 'unfallchirurgie'] } }],
+    variants: [{ label: 'Bewusstlos nach Sturz', weight: 0.25, keyword: 'RD 2', openings: ['Mein Vater ist die Treppe runtergefallen und reagiert nicht mehr richtig!'], facts: { conscious: false }, patients: { count: [1, 1], doctorProb: 1, departments: ['neurologie', 'unfallchirurgie'] } }],
   },
   {
     id: 'rd_rea', name: 'Reanimation', category: 'rd', keyword: 'RD REA', weight: 1.2, location: 'wohn',

@@ -246,6 +246,10 @@ describe('Disposition und Einsatzlebenszyklus', () => {
       return rtw.rt.status === 'frei_wache';
     });
     expect(seen).toEqual(['alarmiert', 'anfahrt', 'einsatzort', 'sprechwunsch', 'transport', 'am_ziel', 'frei_funk', 'frei_wache']);
+    // Rein medizinischer Einsatz ist nach Übergabe abgearbeitet und abschließbar
+    expect(g.runtime.incidents.find((i) => i.id === id)!.state).toBe('abarbeitung_beendet');
+    expect(closeIncident(g, id).ok).toBe(true);
+    expect(g.runtime.archive.map((a) => a.id)).toContain(id);
     expect(g.center.hospitals.find((h) => h.id === 'kh_klinikum')!.occupied).toBe(1);
   });
 
@@ -460,5 +464,9 @@ describe('Simulation', () => {
       expect(new Set(crews).size).toBe(crews.length);
     }
     expect(g.runtime.archive.length).toBeGreaterThan(20);
+    // Kein Einsatz bleibt dauerhaft hängen
+    const stale = g.runtime.incidents.filter((i) => g.runtime.clock.now - i.createdAt > 3 * 3600 * SEC);
+    if (stale.length) console.log(JSON.stringify(stale.map((i) => ({ sc: i.scenarioId, st: i.state, kw: i.keywordId, needs: i.needs, act: i.activeVehicleIds.map((id) => { const v = g.center.vehicles.find((x) => x.id === id)!; return `${v.callsign}:${v.rt.status}:${v.rt.move ? 'move' : ''}:${v.rt.phaseUntil}`; }), pats: i.patients.map((p) => `${p.state}:${p.vehicleId}:${p.needsDoctor}`), work: `${i.workDoneMs}/${i.workTotalMs}`, log: i.log.slice(-6).map((l) => l.text) })), null, 1));
+    expect(stale.map((i) => `${i.scenarioId}:${i.state}`)).toEqual([]);
   }, 120_000);
 });
