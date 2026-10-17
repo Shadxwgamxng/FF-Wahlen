@@ -7,10 +7,13 @@ export interface Prefs {
   tts: boolean;
   ttsRate: number;
   mapDark: boolean;
+  /** Adresse des lokalen OSRM-Routing-Servers */
+  routingUrl: string;
+  routingEnabled: boolean;
 }
 
 const KEY = 'leitwarte.prefs';
-const DEFAULTS: Prefs = { sound: true, volume: 0.4, tts: false, ttsRate: 1.1, mapDark: true };
+const DEFAULTS: Prefs = { sound: true, volume: 0.4, tts: false, ttsRate: 1.1, mapDark: true, routingUrl: 'http://localhost:5000', routingEnabled: true };
 
 let prefs: Prefs = load();
 const listeners = new Set<() => void>();

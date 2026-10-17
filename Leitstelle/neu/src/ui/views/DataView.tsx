@@ -9,6 +9,7 @@ import { confirmDialog, downloadFile, fmtDateTime, Modal, readFile } from '../co
 import { setPrefs, usePrefs } from '../prefs';
 import { sounds, speak, ttsAvailable } from '../audio';
 import { HelpModal } from '../App';
+import { testRouting } from '../routingService';
 
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9äöüß]+/gi, '-').replace(/^-|-$/g, '');
 
@@ -20,6 +21,7 @@ export function DataView({ game }: { game: GameState }) {
   const [csv, setCsv] = useState<{ title: string; r: CsvResult } | null>(null);
   const [help, setHelp] = useState(false);
   const prefs = usePrefs();
+  const [routeTest, setRouteTest] = useState<string | null>(null);
 
   const refresh = () => snapshots.listFor(project.id).then(setSnaps).catch(() => setSnaps([]));
   useEffect(() => {
@@ -150,6 +152,14 @@ Stichwörter:  code;bezeichnung;kategorie;prioritaet;bedarf   (bedarf z. B. loes
         </label>
         {prefs.tts && <button className="btn small" style={{ alignSelf: 'flex-start' }} onClick={() => speak('Florian Bergstadt eins sechsundvierzig eins, Status vier.')}>Sprachausgabe testen</button>}
         <label className="check"><input type="checkbox" checked={prefs.mapDark} onChange={(e) => setPrefs({ mapDark: e.target.checked })} /> Dunkle Kartendarstellung</label>
+        <h4 style={{ marginTop: 8 }}>Straßenrouting (OSRM)</h4>
+        <label className="check"><input type="checkbox" checked={prefs.routingEnabled} onChange={(e) => setPrefs({ routingEnabled: e.target.checked })} /> Echte Straßenrouten verwenden (sonst Luftlinien-Näherung)</label>
+        <div className="row wrap">
+          <input type="text" value={prefs.routingUrl} onChange={(e) => setPrefs({ routingUrl: e.target.value.trim() })} style={{ width: 280 }} aria-label="Adresse des OSRM-Servers" />
+          <button className="btn small" onClick={async () => setRouteTest(await testRouting(prefs.routingUrl))}>Verbindung testen</button>
+          {routeTest && <span className={`small ${routeTest.startsWith('OK') ? '' : 'field-error'}`}>{routeTest}</span>}
+        </div>
+        <span className="dim small">Lokaler, kostenloser OSRM-Server – Einrichtung mit Docker siehe docs/ROUTING.md.</span>
         <div className="row">
           <button className="btn small" onClick={() => setHelp(true)}>Tastaturkürzel anzeigen</button>
           <button

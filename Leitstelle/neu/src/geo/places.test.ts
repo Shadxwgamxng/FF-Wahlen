@@ -117,3 +117,22 @@ describe('Leitstelle aus dem Assistenten', () => {
     tick(g, 1000);
   });
 });
+
+describe('Beispielleitstelle Ostholstein', () => {
+  it('nutzt die echte Kreisgrenze und verteilt Fahrzeuge auf reale Standorte', async () => {
+    const { createOstholsteinCenter, OSTHOLSTEIN } = await import('../data/ostholstein');
+    expect(OSTHOLSTEIN.name).toBe('Kreis Ostholstein');
+    expect(OSTHOLSTEIN.polygons.length).toBeGreaterThanOrEqual(2);
+    const c = createOstholsteinCenter(ELEMENTS);
+    expect(c.areas[0].osmRelationId).toBe(27025);
+    expect(c.stations.find((s) => s.name === 'Freiwillige Feuerwehr Eutin')).toBeDefined();
+    const eutinFf = c.stations.find((s) => s.name === 'Freiwillige Feuerwehr Eutin')!;
+    expect(c.vehicles.filter((v) => v.stationId === eutinFf.id).map((v) => v.typeId)).toContain('dlk');
+    expect(c.vehicles.some((v) => v.callsign === 'Christoph 12')).toBe(true);
+    expect(c.organizations.every((o) => o.radioGroup.code)).toBe(true);
+    const g = createGame(c);
+    for (let i = 0; i < 100; i++) tick(g, 10_000);
+    expect(g.runtime.calls.length).toBeGreaterThan(0);
+    for (const call of g.runtime.calls) expect(call.location.city).toBe('Eutin');
+  });
+});

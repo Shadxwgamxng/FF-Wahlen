@@ -1,12 +1,12 @@
 import type { Area, LatLng, Movement } from '../model/types';
+import { pointAlong } from './routing';
 
 /**
  * Geografie und Fahrzeit-Näherung.
  *
- * WICHTIG: LEITWARTE nutzt in Version 1 KEINEN Routingdienst und KEINE Verkehrsdaten.
- * Fahrzeiten werden als Luftlinie × Umwegfaktor ÷ Durchschnittsgeschwindigkeit geschätzt.
- * Fahrzeuge bewegen sich auf der Karte entlang der Luftlinie. Dies ist in der Oberfläche
- * als "Näherung" gekennzeichnet.
+ * Fahrzeiten: Mit laufendem OSRM-Server fahren Fahrzeuge echte Straßenrouten (sim/routing.ts).
+ * Ohne Route (Server nicht erreichbar, noch nicht geladen, Tests) gilt die gekennzeichnete
+ * Näherung Luftlinie × Umwegfaktor ÷ Durchschnittsgeschwindigkeit. Verkehrsdaten gibt es nicht.
  */
 
 const R = 6371000;
@@ -40,6 +40,7 @@ export function interpolate(m: Movement, now: number): LatLng {
   if (now <= m.departAt) return m.from;
   if (now >= m.arriveAt) return m.to;
   const t = (now - m.departAt) / (m.arriveAt - m.departAt);
+  if (m.path && m.cum && m.path.length > 1) return pointAlong(m.path, m.cum, t);
   return [m.from[0] + (m.to[0] - m.from[0]) * t, m.from[1] + (m.to[1] - m.from[1]) * t];
 }
 

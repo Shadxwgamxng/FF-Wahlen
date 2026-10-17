@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { GameState, Incident } from '../../../model/types';
 import { CAPABILITIES } from '../../../data/vehicleTypes';
 import {
+  prefetchRoutes,
   alarmVehicles,
   capLabel,
   changeIncidentKeyword,
@@ -43,6 +44,12 @@ export function IncidentWindow({ game, incident: inc, onClose, onSelectVehicle, 
   const [showAll, setShowAll] = useState(false);
   const [backupCap, setBackupCap] = useState('loeschen');
   const [backupCount, setBackupCount] = useState(1);
+
+  // Straßenrouten der nächstgelegenen verfügbaren Fahrzeuge vorab laden (genaue Eintreffzeiten)
+  useEffect(() => {
+    prefetchRoutes(sug.candidates.filter((c) => c.available && !c.type?.airborne).slice(0, 15).map((c) => [c.vehicle.rt.position, inc.position]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inc.id, inc.position[0], inc.position[1]]);
 
   // Bei Wechsel des Einsatzes: Vorschlag vorauswählen
   useEffect(() => {
@@ -235,7 +242,7 @@ export function IncidentWindow({ game, incident: inc, onClose, onSelectVehicle, 
                         <td className="nowrap">{c.vehicle.callsign}</td>
                         <td>{c.type?.code}</td>
                         <td><StatusBadge game={game} meaning={c.vehicle.rt.status} /></td>
-                        <td className="mono nowrap">{Math.round(c.etaMs / 60000)} min</td>
+                        <td className="mono nowrap" title={c.routed ? 'Straßenroute (OSRM)' : 'Näherung (Luftlinie × Umwegfaktor)'}>{Math.round(c.etaMs / 60000)} min{c.routed ? '' : '*'}</td>
                         <td className="mono small nowrap">{formatKm(c.distanceM)}</td>
                         <td className="small">
                           {!c.available ? <span className="field-error">{c.reason}</span> : reasons ? <span style={{ color: 'var(--ok)' }}>Vorschlag: {reasons.join(' · ')}</span> : c.matches.length ? `passt: ${c.matches.map(capLabel).join(', ')}` : <span className="dim">kein offener Bedarf{c.inArea ? '' : ' · nicht zuständig'}</span>}
@@ -246,7 +253,7 @@ export function IncidentWindow({ game, incident: inc, onClose, onSelectVehicle, 
                 </tbody>
               </table>
             </div>
-            <div className="dim small">* ETA = Ausrückzeit + geschätzte Fahrzeit (Luftlinie × Umwegfaktor, keine Verkehrsdaten).</div>
+            <div className="dim small">ETA = Ausrückzeit + Fahrzeit über die Straßenroute (OSRM, mit Sonderrechte-Faktor 0,75). * = Route noch nicht verfügbar, Näherung Luftlinie × Umwegfaktor. Keine Verkehrsdaten.</div>
           </div>
         )}
 

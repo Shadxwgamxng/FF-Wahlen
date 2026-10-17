@@ -14,6 +14,7 @@ import { SimulationView } from './views/SimulationView';
 import { MultiplayerView } from './views/MultiplayerView';
 import { DataView } from './views/DataView';
 import { installAudio } from './audio';
+import { installRouting, useRoutingState } from './routingService';
 
 export type ViewId = 'leitstand' | 'wachen' | 'fahrzeuge' | 'aao' | 'kliniken' | 'statistik' | 'editor' | 'simulation' | 'mehrspieler' | 'daten';
 
@@ -40,6 +41,7 @@ export function App() {
   // Beim Laden einer anderen Leitstelle immer im Leitstand beginnen
   useEffect(() => setView('leitstand'), [projectId]);
 
+  useEffect(() => installRouting(), []);
   useEffect(() => {
     const off = installAudio();
     return () => {
@@ -133,6 +135,19 @@ export function App() {
   );
 }
 
+function RoutingChip() {
+  const r = useRoutingState();
+  const label = { aus: 'Routing aus', unbekannt: 'Routing …', ok: 'Straßenrouting', fehler: 'Luftlinie!' }[r.state];
+  const cls = r.state === 'ok' ? 'ok' : r.state === 'fehler' ? 'warn' : '';
+  const title =
+    r.state === 'fehler'
+      ? `OSRM-Server nicht erreichbar (${r.error}) – Fahrzeuge fahren die Luftlinien-Näherung. Einrichtung: docs/ROUTING.md, Adresse unter „Daten & Einstellungen“.`
+      : r.state === 'ok'
+        ? 'Fahrzeuge fahren echte Straßenrouten (OSRM).'
+        : 'Routing-Status';
+  return <span className={`chip ${cls}`} title={title}>🛣 {label}</span>;
+}
+
 function TopBar({ onHelp }: { onHelp: () => void }) {
   const game = useStore((s) => s.state)!;
   const project = useStore((s) => s.project);
@@ -170,6 +185,7 @@ function TopBar({ onHelp }: { onHelp: () => void }) {
       <span className={`chip ${ringing ? 'alarm' : ''}`}>☎ {ringing}</span>
       <span className={`chip ${undisp ? 'warn' : ''}`} title="Nicht disponierte Einsätze">⚠ {undisp}</span>
       <span className={`chip ${radio ? 'warn' : ''}`} title="Offene Sprechwünsche">📻 {radio}</span>
+      <RoutingChip />
       <span className="chip ok" title="Freie Fahrzeuge">🚒 {free}/{game.center.vehicles.length}</span>
       <span className="small dim" title="Automatisches Speichern in diesem Browser (IndexedDB)">
         {saveStatus === 'gespeichert' ? '✓ gespeichert' : saveStatus === 'speichert' ? 'speichert …' : saveStatus === 'fehler' ? '⚠ Speicherfehler' : '● ungespeichert'}

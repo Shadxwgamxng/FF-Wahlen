@@ -1,6 +1,7 @@
 import type { AaoRequirement, GameState, Hospital, Incident, LatLng, Patient, Vehicle, VehicleType } from '../model/types';
 import { vehicleAvailability } from './availability';
 import { distanceMeters, travelTimeMs } from './geo';
+import { EMERGENCY_FACTOR, getRoute } from './routing';
 
 /**
  * Einsatzmittelvorschlag (nachvollziehbar, deterministisch).
@@ -63,24 +64,24 @@ export interface Candidate {
   etaMs: number;
   distanceM: number;
   inArea: boolean;
+  /** ETA aus echter Straßenroute (sonst Näherung) */
+  routed: boolean;
   /** Fähigkeiten, die offenen Bedarf decken */
   matches: string[];
 }
 
-export function etaFor(state: GameState, v: Vehicle, target: LatLng): { etaMs: number; distanceM: number } {
+export function etaFor(state: GameState, v: Vehicle, target: LatLng): { etaMs: number; distanceM: number; routed: boolean } {
   const type = typeOf(state, v);
   const station = state.center.stations.find((s) => s.id === v.stationId);
   const distanceM = distanceMeters(v.rt.position, target);
   let turnout = 0;
   if (v.rt.status === 'frei_wache') turnout = (station?.turnoutSeconds ?? 60) * 1000;
   if (v.external) turnout += v.external.requestDelaySeconds * 1000;
-  const drive = travelTimeMs(v.rt.position, target, {
-    speedKmh: type?.speedKmh ?? 50,
-    detourFactor: state.center.settings.detourFactor,
-    airborne: type?.airborne,
-    emergency: true,
-  });
-  return { etaMs: turnout + drive, distanceM };
+  const route = type?.airborne ? undefined : getRoute(v.rt.position, target);
+  const drive = route
+    ? route.durationS * 1000 * EMERGENCY_FACTOR
+    : travelTimeMs(v.rt.position, target, { speedKmh: type?.speedKmh ?? 50, detourFactor: state.center.settings.detourFactor, airborne: type?.airborne, emergency: true });
+  return { etaMs: turnout + drive, distanceM: route ? route.distanceM : distanceM, routed: Boolean(route) };
 }
 
 export interface Suggestion {
@@ -104,7 +105,7 @@ export function suggestForIncident(state: GameState, inc: Incident): Suggestion 
     .filter((v) => !inc.activeVehicleIds.includes(v.id))
     .map((v) => {
       const av = vehicleAvailability(state, v);
-      const { etaMs, distanceM } = etaFor(state, v, inc.position);
+      const { etaMs, distanceM, routed } = etaFor(state, v, inc.position);
       const caps = capsOf(state, v);
       return {
         vehicle: v,
@@ -113,6 +114,7 @@ export function suggestForIncident(state: GameState, inc: Incident): Suggestion 
         reason: av.reason,
         etaMs,
         distanceM,
+        routed,
         inArea: !area || area.responsibleStationIds.includes(v.stationId),
         matches: caps.filter((c) => openCaps.has(c)),
       };

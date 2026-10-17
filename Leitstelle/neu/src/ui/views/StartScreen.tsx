@@ -1,18 +1,35 @@
 import { useEffect, useState } from 'react';
 import { projects, type ProjectRecord } from '../../persistence/db';
 import { importJson, validateStoredGame } from '../../persistence/schema';
-import { createSampleCenter } from '../../data/sampleCenter';
+import { createOstholsteinCenter, OSTHOLSTEIN } from '../../data/ostholstein';
+import { overpassQueries, runOverpass } from '../../geo/osm';
+import type { OverpassElement } from '../../geo/places';
 import { CreateWizard } from './CreateWizard';
 import { store } from '../../store/gameStore';
 import { newId } from '../../model/ids';
 import { confirmDialog, fmtDateTime, Modal, readFile } from '../components/common';
 
-const SAMPLE = createSampleCenter();
 
 export function StartScreen() {
   const [list, setList] = useState<ProjectRecord[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [wizard, setWizard] = useState(false);
+  const [sampleState, setSampleState] = useState<string | null>(null);
+
+  const startSample = async () => {
+    try {
+      const all: OverpassElement[] = [];
+      const qs = overpassQueries([OSTHOLSTEIN.osmRelationId]);
+      for (let i = 0; i < qs.length; i++) {
+        setSampleState(`Lade OpenStreetMap-Daten: ${qs[i].label} (${i + 1}/${qs.length}) …`);
+        all.push(...(await runOverpass(qs[i].query)));
+      }
+      setSampleState('Baue Leitstelle auf …');
+      await store.newProject(createOstholsteinCenter(all));
+    } catch (e) {
+      setSampleState(`Fehler: ${(e as Error).message} – Internetverbindung prüfen und erneut versuchen.`);
+    }
+  };
   const [report, setReport] = useState<{ title: string; lines: string[] } | null>(null);
 
   const refresh = () =>
@@ -71,11 +88,14 @@ export function StartScreen() {
       {error && <div className="errbox">{error}</div>}
       <div className="cards" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))' }}>
         <div className="card col">
-          <h3>Beispielleitstelle</h3>
+          <h3>Beispielleitstelle Ostholstein</h3>
           <div className="small muted grow">
-            ILS Hessenwald (fiktiv): {SAMPLE.areas.length} Gemeinden, {SAMPLE.stations.length} Standorte, {SAMPLE.vehicles.length} Fahrzeuge, {SAMPLE.hospitals.length} Kliniken. Sofort spielbar.
+            Echter Kreis Ostholstein mit echten Adressen, Feuerwehren, Rettungswachen und Kliniken aus OpenStreetMap. Die Fahrzeuge verteilt LEITWARTE selbst. Beim ersten Start werden die Kartendaten geladen (Internet nötig, ca. 1 Minute).
           </div>
-          <button className="btn primary" onClick={() => store.newProject(createSampleCenter())} data-testid="new-sample">Beispielleitstelle starten</button>
+          {sampleState && <div className={sampleState.startsWith('Fehler') ? 'errbox small' : 'infobox small'}>{sampleState}</div>}
+          <button className="btn primary" disabled={Boolean(sampleState && !sampleState.startsWith('Fehler'))} onClick={startSample} data-testid="new-sample">
+            Beispielleitstelle starten
+          </button>
         </div>
         <div className="card col">
           <h3>Eigene Leitstelle</h3>

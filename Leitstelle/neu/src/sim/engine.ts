@@ -20,6 +20,7 @@ import { findQuestion } from '../data/questions';
 import { hourOf, outOfServiceReason, vehicleAvailability } from './availability';
 import { DIFFICULTY, HOURLY_PROFILE } from './difficulty';
 import { interpolate, pointInArea, travelTimeMs } from './geo';
+import { cumulative, EMERGENCY_FACTOR, getRoute, requestRoute } from './routing';
 import { aaoRequirements, capsOf, coverage, hospitalOptions, MEDICAL_CAPS, mergeRequirements, openRequirements, typeOf } from './dispatch';
 import { SIM_START, emptyVehicleRuntime } from '../data/sampleCenter';
 
@@ -136,13 +137,54 @@ const stationPos = (state: GameState, v: Vehicle): LatLng =>
 function startMove(state: GameState, v: Vehicle, to: LatLng, purpose: 'einsatz' | 'transport' | 'rueckfahrt', emergency: boolean) {
   const now = state.runtime.clock.now;
   const type = typeOf(state, v);
-  const dur = travelTimeMs(v.rt.position, to, {
-    speedKmh: type?.speedKmh ?? 50,
-    detourFactor: state.center.settings.detourFactor,
-    airborne: type?.airborne,
+  const from = [...v.rt.position] as LatLng;
+  const route = type?.airborne ? undefined : getRoute(from, to);
+  let dur: number;
+  if (route) dur = route.durationS * 1000 * (emergency ? EMERGENCY_FACTOR : 1);
+  else {
+    dur = travelTimeMs(from, to, { speedKmh: type?.speedKmh ?? 50, detourFactor: state.center.settings.detourFactor, airborne: type?.airborne, emergency });
+    if (!type?.airborne) requestRoute(from, to);
+  }
+  v.rt.move = {
+    from,
+    to: [...to] as LatLng,
+    departAt: now,
+    arriveAt: now + Math.max(dur, 5000),
+    purpose,
     emergency,
-  });
-  v.rt.move = { from: [...v.rt.position] as LatLng, to: [...to] as LatLng, departAt: now, arriveAt: now + Math.max(dur, 5000), purpose, emergency };
+    routed: Boolean(route) || Boolean(type?.airborne),
+    ...(route ? { path: route.path, cum: cumulative(route.path) } : {}),
+  };
+}
+
+/**
+ * Stellt laufende Fahrten, die mit der Näherung gestartet sind, auf inzwischen geladene
+ * Straßenrouten um. Der bereits gefahrene Anteil bleibt erhalten.
+ */
+export function applyRoutes(state: GameState): CommandResult {
+  const now = state.runtime.clock.now;
+  let n = 0;
+  for (const v of state.center.vehicles) {
+    const m = v.rt.move;
+    if (!m || m.routed) continue;
+    const r = getRoute(m.from, m.to);
+    if (!r) continue;
+    const frac = m.arriveAt > m.departAt ? Math.min(1, Math.max(0, (now - m.departAt) / (m.arriveAt - m.departAt))) : 0;
+    const total = Math.max(5000, r.durationS * 1000 * (m.emergency ? EMERGENCY_FACTOR : 1));
+    m.path = r.path;
+    m.cum = cumulative(r.path);
+    m.routed = true;
+    m.departAt = now - frac * total;
+    m.arriveAt = m.departAt + total;
+    v.rt.position = interpolate(m, now);
+    n++;
+  }
+  return ok(n ? `${n} Fahrt(en) auf Straßenroute umgestellt.` : undefined);
+}
+
+/** Merkt Routen vor (z. B. für Kandidaten im Einsatzmittelvorschlag), ohne den Zustand zu ändern */
+export function prefetchRoutes(pairs: [LatLng, LatLng][]) {
+  for (const [a, b] of pairs) if (!getRoute(a, b)) requestRoute(a, b);
 }
 
 export function capLabel(cap: string) {

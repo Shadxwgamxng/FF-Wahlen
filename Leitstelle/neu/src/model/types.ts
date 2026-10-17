@@ -208,6 +208,11 @@ export interface Movement {
   arriveAt: number;
   purpose: 'einsatz' | 'transport' | 'rueckfahrt';
   emergency: boolean;
+  /** Straßenroute (OSRM); fehlt sie, fährt das Fahrzeug die Luftlinien-Näherung */
+  path?: LatLng[];
+  /** Kumulierte Streckenanteile 0..1 je Stützpunkt von path */
+  cum?: number[];
+  routed: boolean;
 }
 
 export type KeywordCategory =

@@ -158,12 +158,20 @@ export function MapView(p: Props) {
         if (!v.rt.move) continue;
         seenLines.add(v.id);
         const color = v.rt.move.purpose === 'rueckfahrt' ? '#30a46c' : v.rt.move.purpose === 'transport' ? '#8e4ec6' : '#f76b15';
-        const pts: LatLng[] = [v.rt.position, v.rt.move.to];
+        const m = v.rt.move;
+        let pts: LatLng[] = [v.rt.position, m.to];
+        if (m.path && m.cum) {
+          // verbleibender Teil der Straßenroute
+          const t = m.arriveAt > m.departAt ? (g.runtime.clock.now - m.departAt) / (m.arriveAt - m.departAt) : 1;
+          const i = m.cum.findIndex((c) => c > t);
+          pts = i < 0 ? [v.rt.position, m.to] : [v.rt.position, ...m.path.slice(i)];
+        }
         const ex = lines.current.get(v.id);
         if (ex) {
           ex.setLatLngs(pts);
           ex.setStyle({ color });
-        } else lines.current.set(v.id, L.polyline(pts, { color, weight: 2, dashArray: '6 6', opacity: 0.8 }).addTo(layers.current.routes));
+          ex.setStyle({ dashArray: m.routed ? '' : '6 6', weight: m.routed ? 3 : 2 });
+        } else lines.current.set(v.id, L.polyline(pts, { color, weight: m.routed ? 3 : 2, dashArray: m.routed ? undefined : '6 6', opacity: 0.85 }).addTo(layers.current.routes));
       }
     for (const [k, l] of lines.current) {
       if (!seenLines.has(k)) {
@@ -200,8 +208,7 @@ export function MapView(p: Props) {
         {p.pickHint && <span className="chip warn">{p.pickHint}</span>}
       </div>
       <div className="map-legend">
-        <div><b>Karte:</b> Routen sind eine Näherung (Luftlinie × Umwegfaktor {center.settings.detourFactor.toFixed(2).replace('.', ',')}), keine echten Straßen-/Verkehrsdaten.</div>
-        <div className="dim">Adressen und Wachen der Beispielleitstelle sind fiktiv.</div>
+        <div><b>Routen:</b> durchgezogen = Straßenroute (OSRM), gestrichelt gerade = Näherung (Luftlinie). Keine Verkehrsdaten.</div>
       </div>
     </>
   );
