@@ -49,8 +49,6 @@ export interface VehicleType {
   name: string;
   orgKind: OrgKind;
   capabilities: Capability[];
-  /** Mindestbesatzung als Qualifikations-Anforderungen */
-  crewRequirements: CrewRequirement[];
   /** Sitzplätze gesamt */
   seats: number;
   /** Durchschnittsgeschwindigkeit mit Sonderrechten in km/h (Näherung) */
@@ -61,18 +59,6 @@ export interface VehicleType {
   canTransport?: boolean;
   /** Freie, organisationsspezifische Zusatzeigenschaften */
   extra?: Record<string, string>;
-}
-
-export interface CrewRequirement {
-  qualification: QualificationId;
-  count: number;
-}
-
-export type QualificationId = string;
-
-export interface Qualification {
-  id: QualificationId;
-  name: string;
 }
 
 export interface Area {
@@ -170,8 +156,6 @@ export interface VehicleRuntime {
   move: Movement | null;
   /** Wann die aktuelle Phase endet (Ausrücken, Übergabe im Krankenhaus …) */
   phaseUntil: number | null;
-  /** Gebundenes Personal */
-  crewIds: ID[];
   /** Patient an Bord / zugewiesen */
   patientId: ID | null;
   /** Ziel bei Transport */
@@ -191,26 +175,6 @@ export interface Movement {
   arriveAt: number;
   purpose: 'einsatz' | 'transport' | 'rueckfahrt';
   emergency: boolean;
-}
-
-export type ShiftKind = 'tag' | 'nacht' | '24h' | 'ehrenamt';
-
-export interface Person {
-  id: ID;
-  name: string;
-  stationId: ID;
-  qualifications: QualificationId[];
-  shift: ShiftKind;
-  absences: { id: ID; from: number; to: number; reason: string }[];
-}
-
-export interface ShiftModel {
-  /** Tagdienst Beginn/Ende (Stunde) */
-  dayStart: number;
-  dayEnd: number;
-  /** Anteil der Ehrenamtlichen, die tagsüber erreichbar sind (0..1) */
-  volunteerDayAvailability: number;
-  volunteerNightAvailability: number;
 }
 
 export type KeywordCategory =
@@ -300,13 +264,10 @@ export interface CenterConfig {
   mapCenter: LatLng;
   mapZoom: number;
   organizations: Organization[];
-  qualifications: Qualification[];
   vehicleTypes: VehicleType[];
   areas: Area[];
   stations: Station[];
   vehicles: Vehicle[];
-  personnel: Person[];
-  shiftModel: ShiftModel;
   statusDefs: StatusDef[];
   keywords: Keyword[];
   aao: AaoRule[];

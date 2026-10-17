@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
-import type { Area, CenterConfig, GameState, LatLng, OrgKind, Organization, Qualification, StatusDef, VehicleType } from '../../model/types';
+import type { Area, CenterConfig, GameState, LatLng, OrgKind, Organization, StatusDef, VehicleType } from '../../model/types';
 import { EntityEditor } from '../components/EntityEditor';
 import { confirmDialog, Tabs } from '../components/common';
 import { LatLngPicker } from '../components/LatLngPicker';
@@ -11,11 +11,9 @@ import { CAPABILITIES } from '../../data/vehicleTypes';
 import {
   deleteArea,
   deleteOrganization,
-  deleteQualification,
   deleteVehicleType,
   saveArea,
   saveOrganization,
-  saveQualification,
   saveStatusDef,
   saveVehicleType,
 } from '../../sim/editorOps';
@@ -34,7 +32,7 @@ export const ORG_KINDS: [OrgKind, string][] = [
   ['sonstige', 'Sonstige'],
 ];
 
-type Tab = 'allgemein' | 'gebiete' | 'orgs' | 'typen' | 'quals' | 'status' | 'strassen';
+type Tab = 'allgemein' | 'gebiete' | 'orgs' | 'typen' | 'status' | 'strassen';
 
 export function EditorView({ game }: { game: GameState }) {
   const [tab, setTab] = useState<Tab>('allgemein');
@@ -46,7 +44,6 @@ export function EditorView({ game }: { game: GameState }) {
           ['gebiete', 'Einsatzgebiete'],
           ['orgs', 'Organisationen'],
           ['typen', 'Fahrzeugtypen'],
-          ['quals', 'Qualifikationen'],
           ['status', 'Fahrzeugstatus'],
           ['strassen', 'Adressen'],
         ]}
@@ -54,13 +51,12 @@ export function EditorView({ game }: { game: GameState }) {
         onChange={setTab}
       />
       <div className="small muted" style={{ marginBottom: 10 }}>
-        Wachen, Fahrzeuge, Stichwörter/AAO, Personal und Kliniken bearbeitest du in den gleichnamigen Bereichen oben. Alle Änderungen wirken sofort im laufenden Spiel und werden automatisch gespeichert.
+        Wachen, Fahrzeuge, Stichwörter/AAO und Kliniken bearbeitest du in den gleichnamigen Bereichen oben. Alle Änderungen wirken sofort im laufenden Spiel und werden automatisch gespeichert.
       </div>
       {tab === 'allgemein' && <GeneralForm center={game.center} />}
       {tab === 'gebiete' && <AreasEditor game={game} />}
       {tab === 'orgs' && <OrgsEditor game={game} />}
       {tab === 'typen' && <TypesEditor game={game} />}
-      {tab === 'quals' && <QualsEditor game={game} />}
       {tab === 'status' && <StatusEditor game={game} />}
       {tab === 'strassen' && <StreetsEditor center={game.center} />}
     </div>
@@ -235,7 +231,6 @@ function TypesEditor({ game }: { game: GameState }) {
         { label: 'Bezeichnung', render: (t) => t.name },
         { label: 'Organisation', render: (t) => ORG_KINDS.find((k) => k[0] === t.orgKind)?.[1] },
         { label: 'Fähigkeiten', render: (t) => <span className="small">{t.capabilities.join(', ')}</span> },
-        { label: 'Besatzung', render: (t) => <span className="small">{t.crewRequirements.map((r) => `${r.count}× ${r.qualification}`).join(', ') || '–'}</span> },
         { label: 'km/h', render: (t) => t.speedKmh },
         { label: 'Fahrzeuge', render: (t) => c.vehicles.filter((v) => v.typeId === t.id).length },
       ]}
@@ -248,58 +243,11 @@ function TypesEditor({ game }: { game: GameState }) {
         { key: 'canTransport', label: 'Patiententransport möglich', type: 'checkbox' },
         { key: 'airborne', label: 'Luftfahrzeug (Luftlinie)', type: 'checkbox' },
         { key: 'capabilities', label: 'Fähigkeiten', type: 'multi', options: Object.entries(CAPABILITIES) },
-        {
-          key: 'crewRequirements',
-          label: 'Mindestbesatzung',
-          type: 'custom',
-          render: (d, set) => (
-            <div className="col" style={{ gap: 4 }}>
-              {d.crewRequirements.map((r, i) => (
-                <div key={i} className="row">
-                  <input type="number" min={1} max={20} value={r.count} style={{ width: 64 }} aria-label="Anzahl" onChange={(e) => set({ crewRequirements: d.crewRequirements.map((x, j) => (j === i ? { ...x, count: Number(e.target.value) } : x)) })} />
-                  <span>×</span>
-                  <select value={r.qualification} aria-label="Qualifikation" onChange={(e) => set({ crewRequirements: d.crewRequirements.map((x, j) => (j === i ? { ...x, qualification: e.target.value } : x)) })}>
-                    {c.qualifications.map((q) => (
-                      <option key={q.id} value={q.id}>{q.name}</option>
-                    ))}
-                  </select>
-                  <button className="btn small danger" onClick={() => set({ crewRequirements: d.crewRequirements.filter((_, j) => j !== i) })}>Entfernen</button>
-                </div>
-              ))}
-              <button className="btn small" style={{ alignSelf: 'flex-start' }} onClick={() => set({ crewRequirements: [...d.crewRequirements, { qualification: c.qualifications[0]?.id ?? '', count: 1 }] })}>
-                + Funktion
-              </button>
-            </div>
-          ),
-        },
       ]}
-      create={() => ({ id: newId('vt'), code: '', name: '', orgKind: 'feuerwehr', capabilities: [], crewRequirements: [], seats: 2, speedKmh: 55 })}
+      create={() => ({ id: newId('vt'), code: '', name: '', orgKind: 'feuerwehr', capabilities: [], seats: 2, speedKmh: 55 })}
       duplicate={(t) => ({ ...t, id: newId('vt'), code: `${t.code} (Kopie)` })}
       onSave={(t, isNew) => store.edit((_, g) => saveVehicleType(g, t, isNew) ?? undefined, 'Fahrzeugtyp gespeichert.')}
       onDelete={(t) => store.edit((_, g) => deleteVehicleType(g, t.id) ?? undefined, 'Fahrzeugtyp gelöscht.')}
-    />
-  );
-}
-
-function QualsEditor({ game }: { game: GameState }) {
-  return (
-    <EntityEditor<Qualification>
-      title="Qualifikationen"
-      items={game.center.qualifications}
-      searchText={(q) => `${q.name} | ${q.id}`}
-      columns={[
-        { label: 'Kürzel', render: (q) => <span className="mono">{q.id}</span> },
-        { label: 'Bezeichnung', render: (q) => q.name },
-        { label: 'Personen', render: (q) => game.center.personnel.filter((p) => p.qualifications.includes(q.id)).length },
-      ]}
-      fields={[
-        { key: 'id', label: 'Kürzel (nur bei Neuanlage)', type: 'text', required: true, help: 'Kleinbuchstaben/Ziffern, z. B. "hoehenretter"' },
-        { key: 'name', label: 'Bezeichnung', type: 'text', required: true },
-      ]}
-      validate={(q, isNew) => (isNew && game.center.qualifications.some((x) => x.id === q.id) ? { id: 'Kürzel bereits vergeben' } : {})}
-      create={() => ({ id: '', name: '' })}
-      onSave={(q, isNew) => store.edit((_, g) => saveQualification(g, q, isNew) ?? undefined, 'Qualifikation gespeichert.')}
-      onDelete={(q) => store.edit((_, g) => deleteQualification(g, q.id) ?? undefined, 'Qualifikation gelöscht.')}
     />
   );
 }

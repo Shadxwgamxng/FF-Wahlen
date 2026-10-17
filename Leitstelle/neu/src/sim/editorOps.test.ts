@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { createEmptyCenter, createSampleCenter, emptyVehicleRuntime } from '../data/sampleCenter';
-import type { GameState, Person, Station, Vehicle } from '../model/types';
+import type { GameState, Station, Vehicle } from '../model/types';
 import { acceptCall, alarmVehicles, askQuestion, createGame, createIncidentFromCall, setCallKeyword, tick, injectScenarioCall } from './engine';
-import { deleteKeyword, deleteStation, deleteVehicle, saveKeyword, savePerson, saveStation, saveStatusDef, saveVehicle, deleteVehicleType } from './editorOps';
+import { deleteKeyword, deleteStation, deleteVehicle, saveKeyword, saveStation, saveStatusDef, saveVehicle, deleteVehicleType } from './editorOps';
 import { suggestForIncident } from './dispatch';
 import { vehicleAvailability } from './availability';
 
@@ -33,7 +33,7 @@ const vehicle = (g: GameState, over: Partial<Vehicle> = {}): Vehicle => ({
 });
 
 describe('Leitstellen-Editor: eigene Leitstelle von Grund auf', () => {
-  it('leere Leitstelle -> Wache -> Fahrzeug -> Personal -> Notruf -> Alarm', () => {
+  it('leere Leitstelle -> Wache -> Fahrzeug -> Notruf -> Alarm', () => {
     const g = createGame(createEmptyCenter('ILS Test'));
     g.runtime.nextCallAt = Number.MAX_SAFE_INTEGER;
     expect(g.center.vehicles).toHaveLength(0);
@@ -42,20 +42,6 @@ describe('Leitstellen-Editor: eigene Leitstelle von Grund auf', () => {
     const v = g.center.vehicles[0];
     expect(v.organizationId).toBe('org_bf'); // von der Wache übernommen
     expect(v.rt.position).toEqual([50.6, 9.6]);
-    // ohne Personal nicht besetzbar
-    expect(vehicleAvailability(g, v).available).toBe(false);
-    const quals: [string, string[]][] = [
-      ['gf', ['gf', 'agt', 'tm', 'ma']],
-      ['ma', ['ma', 'tm', 'agt']],
-      ['a1', ['agt', 'tm']],
-      ['a2', ['agt', 'tm']],
-      ['t1', ['tm']],
-      ['t2', ['tm']],
-    ];
-    for (const [id, q] of quals) {
-      const p: Person = { id, name: id, stationId: 'st_x', qualifications: q, shift: '24h', absences: [] };
-      expect(savePerson(g, p, true)).toBeNull();
-    }
     expect(vehicleAvailability(g, v).available).toBe(true);
     // Notruf -> Einsatz -> Vorschlag enthält das eigene Fahrzeug
     expect(injectScenarioCall(g, 'brand_muell').ok).toBe(true);
@@ -69,7 +55,6 @@ describe('Leitstellen-Editor: eigene Leitstelle von Grund auf', () => {
     const sug = suggestForIncident(g, inc);
     expect(sug.proposal.map((p) => p.vehicleId)).toEqual(['v_x']);
     expect(alarmVehicles(g, inc.id, ['v_x']).ok).toBe(true);
-    expect(v.rt.crewIds).toHaveLength(6);
     for (let i = 0; i < 200; i++) tick(g, 10_000);
     expect(['anfahrt', 'einsatzort']).toContain(v.rt.status);
   });

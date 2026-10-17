@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import type { EventKind, GameState, OrgKind } from '../../../model/types';
-import { vehicleAvailability, busyPersonIds, outOfServiceReason } from '../../../sim/availability';
+import { vehicleAvailability, outOfServiceReason } from '../../../sim/availability';
 import { setVehicleServiceStatus } from '../../../sim/engine';
 import { formatDuration } from '../../../sim/geo';
 import { store } from '../../../store/gameStore';
@@ -89,7 +89,6 @@ export function VehicleBoard({ game, selectedId, onSelect }: { game: GameState; 
   const [org, setOrg] = useState('alle');
   const [onlyFree, setOnlyFree] = useState(false);
   const kinds = ORG_FILTER.find((o) => o[0] === org)![2];
-  const busy = useMemo(() => busyPersonIds(game), [game]);
   const groups = game.center.stations
     .map((s) => ({
       s,
@@ -123,7 +122,7 @@ export function VehicleBoard({ game, selectedId, onSelect }: { game: GameState; 
               const t = game.center.vehicleTypes.find((x) => x.id === v.typeId);
               const inc = v.rt.incidentId ? game.runtime.incidents.find((i) => i.id === v.rt.incidentId) : null;
               const kw = inc ? game.center.keywords.find((k) => k.id === inc.keywordId) : null;
-              const av = v.rt.status === 'frei_wache' ? vehicleAvailability(game, v, busy) : null;
+              const av = v.rt.status === 'frei_wache' ? vehicleAvailability(game, v) : null;
               const info = kw ? `${kw.code} · ${inc!.address.split(',')[0]}` : v.rt.status === 'ausser_dienst' ? outOfServiceReason(v, game.runtime.clock.now) ?? '' : av && !av.available ? av.reason ?? '' : '';
               return (
                 <div key={v.id} className={`vehicle-row ${selectedId === v.id ? 'selected' : ''}`} onClick={() => onSelect(v.id)} data-testid="vehicle-row">
@@ -149,7 +148,6 @@ export function VehicleDetail({ game, vehicleId, onClose, onOpenIncident }: { ga
   const now = game.runtime.clock.now;
   const t = game.center.vehicleTypes.find((x) => x.id === v.typeId);
   const st = game.center.stations.find((x) => x.id === v.stationId);
-  const crew = game.center.personnel.filter((p) => v.rt.crewIds.includes(p.id));
   const av = vehicleAvailability(game, v);
   return (
     <div className="panel" style={{ flex: '0 0 auto', borderBottom: '1px solid var(--line)' }} data-testid="vehicle-detail">
@@ -167,7 +165,6 @@ export function VehicleDetail({ game, vehicleId, onClose, onOpenIncident }: { ga
             Einsatz: <a href="#" onClick={(e) => (e.preventDefault(), onOpenIncident(v.rt.incidentId!))}>öffnen</a>
           </div>
         )}
-        <div>Besatzung: {crew.length ? crew.map((p) => p.name).join(', ') : <span className="dim">nicht gebunden (auf Wache)</span>}</div>
         {!av.available && av.reason && <div className="field-error">{av.reason}</div>}
         <div className="row">
           {v.rt.status === 'ausser_dienst' ? (

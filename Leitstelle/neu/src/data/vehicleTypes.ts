@@ -1,4 +1,4 @@
-import type { Qualification, VehicleType, Organization, StatusDef } from '../model/types';
+import type { VehicleType, Organization, StatusDef } from '../model/types';
 
 /**
  * Standard-Fähigkeiten (Capabilities). Einsatzbedarfe (AAO, Szenarien) werden über diese
@@ -35,29 +35,11 @@ export const CAPABILITIES: Record<string, string> = {
   tier: 'Tierrettung',
 };
 
-export const QUALIFICATIONS: Qualification[] = [
-  { id: 'tm', name: 'Truppmann/-frau (Feuerwehr)' },
-  { id: 'agt', name: 'Atemschutzgeräteträger/-in' },
-  { id: 'gf', name: 'Gruppenführer/-in' },
-  { id: 'zf', name: 'Zugführer/-in' },
-  { id: 'vf', name: 'Verbandsführer/-in' },
-  { id: 'ma', name: 'Maschinist/-in' },
-  { id: 'dlk', name: 'Drehleitermaschinist/-in' },
-  { id: 'ns', name: 'Notfallsanitäter/-in' },
-  { id: 'rs', name: 'Rettungssanitäter/-in' },
-  { id: 'na', name: 'Notarzt/Notärztin' },
-  { id: 'elrd', name: 'Einsatzleiter Rettungsdienst' },
-  { id: 'pvb', name: 'Polizeivollzugsbeamter/-in' },
-  { id: 'thw', name: 'THW-Helfer/-in' },
-  { id: 'pilot', name: 'Pilot/-in' },
-];
-
 const ff = (
   id: string,
   code: string,
   name: string,
   capabilities: string[],
-  crew: [string, number][],
   seats: number,
   speedKmh = 55,
   orgKind: VehicleType['orgKind'] = 'feuerwehr',
@@ -67,7 +49,6 @@ const ff = (
   name,
   orgKind,
   capabilities,
-  crewRequirements: crew.map(([qualification, count]) => ({ qualification, count })),
   seats,
   speedKmh,
 });
@@ -75,59 +56,59 @@ const ff = (
 /** Standard-Fahrzeugtypen. Die Leitstelle kann sie im Editor ändern oder ergänzen. */
 export const DEFAULT_VEHICLE_TYPES: VehicleType[] = [
   // Feuerwehr
-  ff('kdow', 'KdoW', 'Kommandowagen', ['fuehrung_kdo'], [['zf', 1]], 4, 70),
-  ff('elw1', 'ELW 1', 'Einsatzleitwagen 1', ['fuehrung_1'], [['zf', 1], ['tm', 1]], 4, 65),
-  ff('elw2', 'ELW 2', 'Einsatzleitwagen 2', ['fuehrung_2', 'fuehrung_1'], [['vf', 1], ['tm', 3]], 6, 55),
-  ff('mtf', 'MTF', 'Mannschaftstransportfahrzeug', ['mannschaft'], [['tm', 1]], 9, 65),
-  ff('lf10', 'LF 10', 'Löschgruppenfahrzeug 10', ['loeschen', 'th'], [['gf', 1], ['ma', 1], ['agt', 2], ['tm', 2]], 9, 55),
-  ff('lf20', 'LF 20', 'Löschgruppenfahrzeug 20', ['loeschen', 'th', 'wasser_gross'], [['gf', 1], ['ma', 1], ['agt', 2], ['tm', 2]], 9, 55),
-  ff('hlf10', 'HLF 10', 'Hilfeleistungslöschgruppenfahrzeug 10', ['loeschen', 'th'], [['gf', 1], ['ma', 1], ['agt', 2], ['tm', 2]], 9, 55),
-  ff('hlf20', 'HLF 20', 'Hilfeleistungslöschgruppenfahrzeug 20', ['loeschen', 'th', 'th_schwer'], [['gf', 1], ['ma', 1], ['agt', 2], ['tm', 2]], 9, 55),
-  ff('tlf', 'TLF 4000', 'Tanklöschfahrzeug', ['loeschen', 'wasser_gross'], [['gf', 1], ['ma', 1], ['agt', 1]], 3, 50),
-  ff('dlk', 'DLK 23/12', 'Drehleiter mit Korb', ['hoehenrettung'], [['dlk', 1], ['tm', 1]], 3, 55),
-  ff('rw', 'RW', 'Rüstwagen', ['th', 'th_schwer', 'oel'], [['gf', 1], ['ma', 1], ['tm', 1]], 3, 55),
-  ff('gwg', 'GW-G', 'Gerätewagen Gefahrgut', ['gefahrgut'], [['gf', 1], ['ma', 1], ['agt', 2]], 6, 50),
-  ff('gwa', 'GW-A', 'Gerätewagen Atemschutz', ['atemschutz'], [['ma', 1], ['tm', 1]], 3, 55),
-  ff('gwl', 'GW-L2', 'Gerätewagen Logistik', ['logistik', 'oel'], [['ma', 1], ['tm', 1]], 3, 55),
-  ff('gww', 'GW-Wasserrettung', 'Gerätewagen Wasserrettung', ['wasserrettung'], [['gf', 1], ['ma', 1], ['tm', 2]], 6, 55),
-  ff('gwt', 'GW-Tier', 'Gerätewagen Tierrettung', ['tier'], [['ma', 1], ['tm', 1]], 3, 55),
+  ff('kdow', 'KdoW', 'Kommandowagen', ['fuehrung_kdo'], 4, 70),
+  ff('elw1', 'ELW 1', 'Einsatzleitwagen 1', ['fuehrung_1'], 4, 65),
+  ff('elw2', 'ELW 2', 'Einsatzleitwagen 2', ['fuehrung_2', 'fuehrung_1'], 6, 55),
+  ff('mtf', 'MTF', 'Mannschaftstransportfahrzeug', ['mannschaft'], 9, 65),
+  ff('lf10', 'LF 10', 'Löschgruppenfahrzeug 10', ['loeschen', 'th'], 9, 55),
+  ff('lf20', 'LF 20', 'Löschgruppenfahrzeug 20', ['loeschen', 'th', 'wasser_gross'], 9, 55),
+  ff('hlf10', 'HLF 10', 'Hilfeleistungslöschgruppenfahrzeug 10', ['loeschen', 'th'], 9, 55),
+  ff('hlf20', 'HLF 20', 'Hilfeleistungslöschgruppenfahrzeug 20', ['loeschen', 'th', 'th_schwer'], 9, 55),
+  ff('tlf', 'TLF 4000', 'Tanklöschfahrzeug', ['loeschen', 'wasser_gross'], 3, 50),
+  ff('dlk', 'DLK 23/12', 'Drehleiter mit Korb', ['hoehenrettung'], 3, 55),
+  ff('rw', 'RW', 'Rüstwagen', ['th', 'th_schwer', 'oel'], 3, 55),
+  ff('gwg', 'GW-G', 'Gerätewagen Gefahrgut', ['gefahrgut'], 6, 50),
+  ff('gwa', 'GW-A', 'Gerätewagen Atemschutz', ['atemschutz'], 3, 55),
+  ff('gwl', 'GW-L2', 'Gerätewagen Logistik', ['logistik', 'oel'], 3, 55),
+  ff('gww', 'GW-Wasserrettung', 'Gerätewagen Wasserrettung', ['wasserrettung'], 6, 55),
+  ff('gwt', 'GW-Tier', 'Gerätewagen Tierrettung', ['tier'], 3, 55),
   // Rettungsdienst
   {
-    ...ff('rtw', 'RTW', 'Rettungswagen', ['rtw'], [['ns', 1], ['rs', 1]], 2, 65, 'rettungsdienst'),
+    ...ff('rtw', 'RTW', 'Rettungswagen', ['rtw'], 2, 65, 'rettungsdienst'),
     canTransport: true,
   },
   {
-    ...ff('ktw', 'KTW', 'Krankentransportwagen', ['ktw'], [['rs', 2]], 2, 60, 'krankentransport'),
+    ...ff('ktw', 'KTW', 'Krankentransportwagen', ['ktw'], 2, 60, 'krankentransport'),
     canTransport: true,
   },
-  ff('nef', 'NEF', 'Notarzteinsatzfahrzeug', ['notarzt'], [['na', 1], ['ns', 1]], 2, 75, 'notarzt'),
+  ff('nef', 'NEF', 'Notarzteinsatzfahrzeug', ['notarzt'], 2, 75, 'notarzt'),
   {
-    ...ff('naw', 'NAW', 'Notarztwagen', ['rtw', 'notarzt'], [['na', 1], ['ns', 1], ['rs', 1]], 3, 65, 'notarzt'),
-    canTransport: true,
-  },
-  {
-    ...ff('itw', 'ITW', 'Intensivtransportwagen', ['intensiv', 'rtw'], [['na', 1], ['ns', 2]], 3, 60, 'rettungsdienst'),
+    ...ff('naw', 'NAW', 'Notarztwagen', ['rtw', 'notarzt'], 3, 65, 'notarzt'),
     canTransport: true,
   },
   {
-    ...ff('iktw', 'I-KTW', 'Infektions-Krankentransportwagen', ['ktw'], [['rs', 2]], 2, 60, 'krankentransport'),
+    ...ff('itw', 'ITW', 'Intensivtransportwagen', ['intensiv', 'rtw'], 3, 60, 'rettungsdienst'),
     canTransport: true,
   },
-  ff('gwsan', 'GW-San', 'Gerätewagen Sanität', ['san_gross'], [['rs', 2]], 4, 55, 'katastrophenschutz'),
-  ff('elrd', 'ELRD', 'Einsatzleiter Rettungsdienst', ['rd_fuehrung'], [['elrd', 1]], 2, 75, 'rettungsdienst'),
-  ff('orgl', 'OrgL RD', 'Organisatorischer Leiter Rettungsdienst', ['rd_fuehrung'], [['elrd', 1]], 2, 70, 'rettungsdienst'),
   {
-    ...ff('rth', 'RTH', 'Rettungshubschrauber', ['notarzt', 'rth'], [['pilot', 1], ['na', 1], ['ns', 1]], 3, 220, 'rettungsdienst'),
+    ...ff('iktw', 'I-KTW', 'Infektions-Krankentransportwagen', ['ktw'], 2, 60, 'krankentransport'),
+    canTransport: true,
+  },
+  ff('gwsan', 'GW-San', 'Gerätewagen Sanität', ['san_gross'], 4, 55, 'katastrophenschutz'),
+  ff('elrd', 'ELRD', 'Einsatzleiter Rettungsdienst', ['rd_fuehrung'], 2, 75, 'rettungsdienst'),
+  ff('orgl', 'OrgL RD', 'Organisatorischer Leiter Rettungsdienst', ['rd_fuehrung'], 2, 70, 'rettungsdienst'),
+  {
+    ...ff('rth', 'RTH', 'Rettungshubschrauber', ['notarzt', 'rth'], 3, 220, 'rettungsdienst'),
     airborne: true,
   },
   // Polizei
-  ff('fustw', 'FuStW', 'Funkstreifenwagen', ['polizei'], [['pvb', 2]], 2, 75, 'polizei'),
-  ff('pol_fueh', 'FüKw', 'Führungskraftwagen Polizei', ['polizei_fuehrung', 'polizei'], [['pvb', 2]], 4, 70, 'polizei'),
-  ff('pol_grukw', 'GruKw', 'Gruppenkraftwagen Polizei', ['polizei_gruppe', 'polizei'], [['pvb', 6]], 9, 65, 'polizei'),
-  ff('pol_tech', 'TechKw', 'Technischer Einsatzkraftwagen Polizei', ['polizei'], [['pvb', 2]], 3, 60, 'polizei'),
+  ff('fustw', 'FuStW', 'Funkstreifenwagen', ['polizei'], 2, 75, 'polizei'),
+  ff('pol_fueh', 'FüKw', 'Führungskraftwagen Polizei', ['polizei_fuehrung', 'polizei'], 4, 70, 'polizei'),
+  ff('pol_grukw', 'GruKw', 'Gruppenkraftwagen Polizei', ['polizei_gruppe', 'polizei'], 9, 65, 'polizei'),
+  ff('pol_tech', 'TechKw', 'Technischer Einsatzkraftwagen Polizei', ['polizei'], 3, 60, 'polizei'),
   // THW
-  ff('thw_gkw', 'GKW', 'Gerätekraftwagen THW', ['thw_bergung', 'th_schwer'], [['thw', 4]], 9, 50, 'thw'),
-  ff('thw_mzkw', 'MzKW', 'Mehrzweckkraftwagen THW', ['thw_pumpen', 'logistik'], [['thw', 3]], 6, 50, 'thw'),
+  ff('thw_gkw', 'GKW', 'Gerätekraftwagen THW', ['thw_bergung', 'th_schwer'], 9, 50, 'thw'),
+  ff('thw_mzkw', 'MzKW', 'Mehrzweckkraftwagen THW', ['thw_pumpen', 'logistik'], 6, 50, 'thw'),
 ];
 
 export const DEFAULT_ORGANIZATIONS: Organization[] = [

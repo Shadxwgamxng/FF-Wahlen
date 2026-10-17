@@ -24,14 +24,12 @@ const meaning = z.enum(['frei_funk', 'frei_wache', 'alarmiert', 'anfahrt', 'eins
 
 export const schemas = {
   organization: z.object({ id, name: z.string().min(1), kind: orgKind, responsibilities: z.string().default(''), color: z.string().default('#888888') }),
-  qualification: z.object({ id, name: z.string().min(1) }),
   vehicleType: z.object({
     id,
     code: z.string().min(1),
     name: z.string().min(1),
     orgKind,
     capabilities: z.array(z.string()),
-    crewRequirements: z.array(z.object({ qualification: z.string(), count: z.number().int().min(1) })),
     seats: z.number().int().min(1),
     speedKmh: z.number().positive().max(400),
     airborne: z.boolean().optional(),
@@ -62,20 +60,11 @@ export const schemas = {
     external: z.object({ neighborId: z.string(), requestDelaySeconds: z.number().min(0) }).optional(),
     rt: z.any().optional(),
   }),
-  person: z.object({
-    id,
-    name: z.string().min(1),
-    stationId: z.string(),
-    qualifications: z.array(z.string()),
-    shift: z.enum(['tag', 'nacht', '24h', 'ehrenamt']),
-    absences: z.array(z.object({ id, from: z.number(), to: z.number(), reason: z.string() })).default([]),
-  }),
   statusDef: z.object({ meaning, code: z.string().min(1), label: z.string().min(1), color: z.string() }),
   keyword: z.object({ id, code: z.string().min(1), label: z.string().min(1), category, priority: z.union([z.literal(1), z.literal(2), z.literal(3)]) }),
   aao: z.object({ id, keywordId: z.string(), requirements: z.array(z.object({ capability: z.string(), count: z.number().int().min(1) })), note: z.string().default('') }),
   hospital: z.object({ id, name: z.string().min(1), position: latLng, departments: z.array(z.string()), capacity: z.number().int().min(0), occupied: z.number().int().min(0).default(0), available: z.boolean().default(true) }),
   neighbor: z.object({ id, name: z.string().min(1), position: latLng, note: z.string().default('') }),
-  shiftModel: z.object({ dayStart: z.number().int().min(0).max(23), dayEnd: z.number().int().min(1).max(24), volunteerDayAvailability: z.number().min(0).max(1), volunteerNightAvailability: z.number().min(0).max(1) }),
   settings: z.object({
     callsPerHour: z.number().min(0).max(200),
     difficulty: z.enum(['leicht', 'normal', 'schwer', 'experte']),
@@ -98,12 +87,10 @@ export interface ImportIssue {
 
 const COLLECTIONS = [
   ['organizations', 'organization'],
-  ['qualifications', 'qualification'],
   ['vehicleTypes', 'vehicleType'],
   ['areas', 'area'],
   ['stations', 'station'],
   ['vehicles', 'vehicle'],
-  ['personnel', 'person'],
   ['statusDefs', 'statusDef'],
   ['keywords', 'keyword'],
   ['aao', 'aao'],
@@ -155,7 +142,7 @@ export function parseCenterLenient(raw: unknown): { center: CenterConfig | null;
     });
     (out as unknown as Record<string, unknown>)[key] = valid;
   }
-  for (const [key, schemaName] of [['shiftModel', 'shiftModel'], ['settings', 'settings']] as const) {
+  for (const [key, schemaName] of [['settings', 'settings']] as const) {
     if (r[key] === undefined) continue;
     const p = (schemas[schemaName] as z.ZodTypeAny).safeParse(r[key]);
     if (p.success) (out as unknown as Record<string, unknown>)[key] = p.data;
@@ -190,11 +177,6 @@ export function repairReferences(c: CenterConfig): ImportIssue[] {
     if (!typeIds.has(v.typeId)) issues.push({ path: `vehicles/${v.id}`, message: `Unbekannter Fahrzeugtyp "${v.typeId}" – Fahrzeug verworfen.` });
     else if (!stationIds.has(v.stationId)) issues.push({ path: `vehicles/${v.id}`, message: `Unbekannte Wache "${v.stationId}" – Fahrzeug verworfen.` });
     else return true;
-    return false;
-  });
-  c.personnel = c.personnel.filter((p) => {
-    if (stationIds.has(p.stationId)) return true;
-    issues.push({ path: `personnel/${p.id}`, message: `Unbekannte Wache "${p.stationId}" – Person verworfen.` });
     return false;
   });
   c.aao = c.aao.filter((a) => {

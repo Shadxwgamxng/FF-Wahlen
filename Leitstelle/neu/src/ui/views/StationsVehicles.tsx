@@ -32,7 +32,6 @@ export function StationsView({ game }: { game: GameState }) {
           { label: 'Art', render: (s) => STATION_KINDS.find((k) => k[0] === s.kind)?.[1] },
           { label: 'Organisation', render: (s) => c.organizations.find((o) => o.id === s.organizationId)?.name },
           { label: 'Fahrzeuge / Plätze', render: (s) => `${c.vehicles.filter((v) => v.stationId === s.id).length} / ${s.capacity}` },
-          { label: 'Personal', render: (s) => c.personnel.filter((p) => p.stationId === s.id).length },
           { label: 'Ausrückzeit', render: (s) => `${s.turnoutSeconds} s` },
           { label: 'Adresse', render: (s) => <span className="small muted">{s.address}</span> },
         ]}
@@ -49,10 +48,6 @@ export function StationsView({ game }: { game: GameState }) {
         duplicate={(s) => ({ ...s, id: newId('st'), name: `${s.name} (Kopie)` })}
         onSave={(s, isNew) => store.edit((_, g) => saveStation(g, s, isNew) ?? undefined, 'Wache gespeichert.')}
         onDelete={(s) => store.edit((_, g) => deleteStation(g, s.id) ?? undefined, 'Wache gelöscht.')}
-        deleteWarning={(s) => {
-          const n = c.personnel.filter((p) => p.stationId === s.id).length;
-          return n ? `Das Personal der Wache (${n} Personen) wird ebenfalls gelöscht.` : null;
-        }}
       />
     </div>
   );

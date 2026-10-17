@@ -5,16 +5,12 @@ import type {
   Hospital,
   LatLng,
   NeighborCenter,
-  Person,
   ServiceWindow,
-  ShiftKind,
   Station,
   Vehicle,
-  VehicleType,
 } from '../model/types';
 import { DEFAULT_KEYWORDS, KEYWORD_SEEDS, keywordIdFromCode } from './keywords';
-import { DEFAULT_ORGANIZATIONS, DEFAULT_STATUS_DEFS, DEFAULT_VEHICLE_TYPES, QUALIFICATIONS } from './vehicleTypes';
-import { Rng } from '../sim/rng';
+import { DEFAULT_ORGANIZATIONS, DEFAULT_STATUS_DEFS, DEFAULT_VEHICLE_TYPES } from './vehicleTypes';
 
 /**
  * Vollständig vorkonfigurierte Beispielleitstelle "ILS Hessenwald" (fiktiv).
@@ -167,63 +163,6 @@ const NEIGHBORS: NeighborCenter[] = [
   { id: 'nb_west', name: 'Leitstelle Westtal', position: [50.56, 9.33], note: 'Überlandhilfe Feuerwehr nach Absprache (in Version 1 nur informativ).' },
 ];
 
-/** Qualifikationsbündel für generiertes Personal */
-const QUAL_PROFILES: Record<string, string[]> = {
-  vf: ['vf', 'zf', 'gf', 'agt', 'tm', 'ma'],
-  zf: ['zf', 'gf', 'agt', 'tm', 'ma'],
-  gf: ['gf', 'agt', 'tm', 'ma'],
-  ma: ['ma', 'tm', 'agt'],
-  dlk: ['dlk', 'ma', 'tm', 'agt'],
-  agt: ['agt', 'tm'],
-  tm: ['tm'],
-  ns: ['ns', 'rs'],
-  rs: ['rs'],
-  na: ['na'],
-  elrd: ['elrd', 'ns', 'rs'],
-  pvb: ['pvb'],
-  thw: ['thw'],
-  pilot: ['pilot'],
-};
-
-const FIRST = ['Anna', 'Ben', 'Clara', 'David', 'Elif', 'Finn', 'Greta', 'Hannes', 'Ida', 'Jonas', 'Kira', 'Lukas', 'Mara', 'Niklas', 'Olga', 'Paul', 'Rosa', 'Samuel', 'Tara', 'Umut', 'Vera', 'Wim', 'Yasmin', 'Zoe', 'Malte', 'Leonie', 'Emil', 'Sophie', 'Can', 'Mila'];
-const LAST = ['Becker', 'Schmidt', 'Yilmaz', 'Wagner', 'Hoffmann', 'Krause', 'Neumann', 'Schulz', 'Weber', 'Kowalski', 'Lang', 'Fischer', 'Brandt', 'Vogel', 'Arslan', 'Roth', 'Kaiser', 'Winter', 'Sommer', 'Engel', 'Frank', 'Busch'];
-
-function generatePersonnel(stations: Station[], vehicles: Vehicle[], types: VehicleType[]): Person[] {
-  const rng = new Rng(4711);
-  const persons: Person[] = [];
-  let n = 1;
-  for (const station of stations) {
-    const stVehicles = vehicles.filter((v) => v.stationId === station.id);
-    if (stVehicles.length === 0) continue;
-    // Bedarf je Qualifikation summieren
-    const need: Record<string, number> = {};
-    for (const v of stVehicles) {
-      const t = types.find((x) => x.id === v.typeId);
-      for (const r of t?.crewRequirements ?? []) need[r.qualification] = (need[r.qualification] ?? 0) + r.count;
-    }
-    const volunteer = station.kind === 'feuerwehrhaus' || station.kind === 'thw' || station.kind === 'kats';
-    const shifts: ShiftKind[] = volunteer ? ['ehrenamt'] : station.kind === 'sonstige' ? ['24h'] : ['tag', 'nacht'];
-    // Ehrenamtliche: Überbesetzung, da nur ein Teil erreichbar ist
-    const factor = volunteer ? 1.8 : 1;
-    for (const shift of shifts) {
-      for (const [qual, count] of Object.entries(need)) {
-        const total = Math.ceil(count * factor);
-        for (let i = 0; i < total; i++) {
-          persons.push({
-            id: `p_${String(n++).padStart(4, '0')}`,
-            name: `${rng.pick(FIRST)} ${rng.pick(LAST)}`,
-            stationId: station.id,
-            qualifications: QUAL_PROFILES[qual] ?? [qual],
-            shift,
-            absences: [],
-          });
-        }
-      }
-    }
-  }
-  return persons;
-}
-
 export const SIM_START = Date.UTC(2026, 9, 19, 7, 30); // Montag, 19.10.2026, 07:30 (Simulationszeit, "UTC-naiv")
 
 export function emptyVehicleRuntime(position: LatLng, now = SIM_START): Vehicle['rt'] {
@@ -233,7 +172,6 @@ export function emptyVehicleRuntime(position: LatLng, now = SIM_START): Vehicle[
     incidentId: null,
     move: null,
     phaseUntil: null,
-    crewIds: [],
     patientId: null,
     targetHospitalId: null,
     breakdownUntil: null,
@@ -266,10 +204,6 @@ export function createSampleCenter(): CenterConfig {
   const gwt = vehicles.find((v) => v.typeId === 'gwt');
   if (gwt) gwt.maintenance.push({ id: 'mw_1', from: Date.UTC(2026, 9, 19, 9), to: Date.UTC(2026, 9, 19, 13), reason: 'TÜV-Prüfung' });
 
-  const personnel = generatePersonnel(STATIONS, vehicles, types);
-  // Beispiel-Abwesenheit
-  if (personnel[3]) personnel[3].absences.push({ id: 'abs_1', from: SIM_START, to: SIM_START + 3 * 86400000, reason: 'Urlaub' });
-
   const aao: AaoRule[] = KEYWORD_SEEDS.map((k) => ({
     id: `aao_${keywordIdFromCode(k.code).slice(3)}`,
     keywordId: keywordIdFromCode(k.code),
@@ -289,13 +223,10 @@ export function createSampleCenter(): CenterConfig {
     mapCenter: [50.56, 9.69],
     mapZoom: 11,
     organizations: DEFAULT_ORGANIZATIONS.map((o) => ({ ...o })),
-    qualifications: QUALIFICATIONS.map((q) => ({ ...q })),
     vehicleTypes: types,
     areas: AREAS.map((a) => ({ ...a, polygon: a.polygon.map((p) => [...p] as LatLng) })),
     stations: STATIONS.map((s) => ({ ...s })),
     vehicles,
-    personnel,
-    shiftModel: { dayStart: 7, dayEnd: 19, volunteerDayAvailability: 0.55, volunteerNightAvailability: 0.85 },
     statusDefs: DEFAULT_STATUS_DEFS.map((s) => ({ ...s })),
     keywords: DEFAULT_KEYWORDS.map((k) => ({ ...k })),
     aao,
@@ -334,7 +265,6 @@ export function createEmptyCenter(name: string): CenterConfig {
     areas: [],
     stations: [],
     vehicles: [],
-    personnel: [],
     hospitals: [],
     neighbors: [],
     sharing: { visibility: 'privat', author: '', tags: [] },

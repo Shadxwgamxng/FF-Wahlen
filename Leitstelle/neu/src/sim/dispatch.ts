@@ -1,5 +1,5 @@
 import type { AaoRequirement, GameState, Hospital, Incident, LatLng, Patient, Vehicle, VehicleType } from '../model/types';
-import { busyPersonIds, vehicleAvailability } from './availability';
+import { vehicleAvailability } from './availability';
 import { distanceMeters, travelTimeMs } from './geo';
 
 /**
@@ -98,13 +98,12 @@ export function suggestForIncident(state: GameState, inc: Incident): Suggestion 
   const finished = inc.state === 'abarbeitung_beendet' || inc.state === 'abgeschlossen';
   const open = finished ? [] : openRequirements(state, required, bound);
   const area = state.center.areas.find((a) => a.id === inc.areaId);
-  const busy = busyPersonIds(state);
   const openCaps = new Set(open.map((o) => o.capability));
 
   const candidates: Candidate[] = state.center.vehicles
     .filter((v) => !inc.activeVehicleIds.includes(v.id))
     .map((v) => {
-      const av = vehicleAvailability(state, v, busy);
+      const av = vehicleAvailability(state, v);
       const { etaMs, distanceM } = etaFor(state, v, inc.position);
       const caps = capsOf(state, v);
       return {

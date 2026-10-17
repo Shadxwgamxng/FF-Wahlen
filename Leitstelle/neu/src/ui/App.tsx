@@ -7,7 +7,6 @@ import { StartScreen } from './views/StartScreen';
 import { Desk } from './views/desk/Desk';
 import { StationsView, VehiclesView } from './views/StationsVehicles';
 import { KeywordsView } from './views/KeywordsView';
-import { PersonnelView } from './views/PersonnelView';
 import { HospitalsView } from './views/HospitalsView';
 import { StatsView } from './views/StatsView';
 import { EditorView } from './views/EditorView';
@@ -16,14 +15,13 @@ import { MultiplayerView } from './views/MultiplayerView';
 import { DataView } from './views/DataView';
 import { installAudio } from './audio';
 
-export type ViewId = 'leitstand' | 'wachen' | 'fahrzeuge' | 'aao' | 'personal' | 'kliniken' | 'statistik' | 'editor' | 'simulation' | 'mehrspieler' | 'daten';
+export type ViewId = 'leitstand' | 'wachen' | 'fahrzeuge' | 'aao' | 'kliniken' | 'statistik' | 'editor' | 'simulation' | 'mehrspieler' | 'daten';
 
 const NAV: [ViewId, string][] = [
   ['leitstand', 'Leitstand'],
   ['wachen', 'Wachen'],
   ['fahrzeuge', 'Fahrzeuge'],
   ['aao', 'Stichwörter & AAO'],
-  ['personal', 'Personal & Dienst'],
   ['kliniken', 'Kliniken & Extern'],
   ['statistik', 'Archiv & Statistik'],
   ['editor', 'Leitstellen-Editor'],
@@ -121,7 +119,6 @@ export function App() {
         {view === 'wachen' && <StationsView game={game} />}
         {view === 'fahrzeuge' && <VehiclesView game={game} />}
         {view === 'aao' && <KeywordsView game={game} />}
-        {view === 'personal' && <PersonnelView game={game} />}
         {view === 'kliniken' && <HospitalsView game={game} />}
         {view === 'statistik' && <StatsView game={game} />}
         {view === 'editor' && <EditorView game={game} />}

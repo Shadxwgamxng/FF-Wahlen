@@ -17,10 +17,10 @@ import { generateCall } from './callgen';
 import { findScenario, NO_INCIDENT_KEYWORD } from '../data/scenarios';
 import { keywordNeeds } from '../data/keywords';
 import { findQuestion } from '../data/questions';
-import { allocateCrew, busyPersonIds, hourOf, outOfServiceReason, vehicleAvailability } from './availability';
+import { hourOf, outOfServiceReason, vehicleAvailability } from './availability';
 import { DIFFICULTY, HOURLY_PROFILE } from './difficulty';
 import { interpolate, pointInPolygon as pointInArea, travelTimeMs } from './geo';
-import { capsOf, coverage, hospitalOptions, MEDICAL_CAPS, mergeRequirements, openRequirements, typeOf } from './dispatch';
+import { aaoRequirements, capsOf, coverage, hospitalOptions, MEDICAL_CAPS, mergeRequirements, openRequirements, typeOf } from './dispatch';
 import { SIM_START, emptyVehicleRuntime } from '../data/sampleCenter';
 
 /**
@@ -379,7 +379,6 @@ function arrive(state: GameState, v: Vehicle) {
     withRng(state, (rng) => (v.rt.phaseUntil = now + rng.range(8, 15) * MIN));
   } else {
     // Rückfahrt beendet
-    v.rt.crewIds = [];
     const reason = outOfServiceReason(v, now);
     setStatus(state, v, reason ? 'ausser_dienst' : 'frei_wache', reason ?? undefined);
   }
@@ -567,8 +566,13 @@ function checkMissingForces(state: GameState, inc: Incident, present: Vehicle[])
   if (waiting > freeTransporters) missing.push({ capability: 'rtw', count: waiting - freeTransporters });
   const needDoc = inc.patients.some((p) => p.needsDoctor && (p.state === 'wartet' || p.state === 'versorgt'));
   if (needDoc && !bound.some((v) => capsOf(state, v).includes('notarzt'))) missing.push({ capability: 'notarzt', count: 1 });
-  if (missing.length === 0) return;
-  addBackupRequest(state, inc, present[0], missing, `Nachforderung: ${reqText(missing)}`);
+  // Bereits angeforderte, aber noch nicht alarmierte Kräfte nicht erneut nachfordern
+  const outstanding = new Map(openRequirements(state, aaoRequirements(state, inc), bound).map((r) => [r.capability, r.count]));
+  const fresh = missing
+    .map((r) => ({ capability: r.capability, count: r.count - (outstanding.get(r.capability) ?? 0) }))
+    .filter((r) => r.count > 0);
+  if (fresh.length === 0) return;
+  addBackupRequest(state, inc, present[0], fresh, `Nachforderung: ${reqText(fresh)}`);
 }
 
 function addBackupRequest(state: GameState, inc: Incident, v: Vehicle, reqs: AaoRequirement[], text: string) {
@@ -822,15 +826,10 @@ export function alarmVehicles(state: GameState, incidentId: string, vehicleIds: 
       errors.push(`Fahrzeug ${vid} existiert nicht.`);
       continue;
     }
-    const busy = busyPersonIds(state);
-    const av = vehicleAvailability(state, v, busy);
+    const av = vehicleAvailability(state, v);
     if (!av.available) {
       errors.push(`${v.callsign}: ${av.reason}`);
       continue;
-    }
-    if (v.rt.status === 'frei_wache') {
-      const crew = allocateCrew(state, v, typeOf(state, v), now, busy);
-      v.rt.crewIds = crew.crewIds;
     }
     v.rt.incidentId = inc.id;
     v.rt.alarms++;
@@ -875,7 +874,6 @@ function releaseVehicleInternal(state: GameState, v: Vehicle, note: string) {
   if (inc) log(state, 'einsatz', `${v.callsign} entlassen (${note}).`, { incidentId: inc.id, vehicleId: v.id });
   const atStation = !v.rt.move && dist2(v.rt.position, stationPos(state, v)) < 1e-8;
   if (atStation) {
-    v.rt.crewIds = [];
     setStatus(state, v, 'frei_wache');
   } else {
     setStatus(state, v, 'frei_funk');

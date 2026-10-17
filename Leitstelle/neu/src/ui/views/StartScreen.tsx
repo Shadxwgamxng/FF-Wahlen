@@ -70,8 +70,7 @@ export function StartScreen() {
         <div className="card col">
           <h3>Beispielleitstelle</h3>
           <div className="small muted grow">
-            ILS Hessenwald (fiktiv): {SAMPLE.areas.length} Gemeinden, {SAMPLE.stations.length} Standorte, {SAMPLE.vehicles.length} Fahrzeuge, {SAMPLE.hospitals.length} Kliniken,{' '}
-            {SAMPLE.personnel.length} Einsatzkräfte mit Dienstplan. Sofort spielbar.
+            ILS Hessenwald (fiktiv): {SAMPLE.areas.length} Gemeinden, {SAMPLE.stations.length} Standorte, {SAMPLE.vehicles.length} Fahrzeuge, {SAMPLE.hospitals.length} Kliniken. Sofort spielbar.
           </div>
           <button className="btn primary" onClick={() => store.newProject(createSampleCenter())} data-testid="new-sample">Beispielleitstelle starten</button>
         </div>

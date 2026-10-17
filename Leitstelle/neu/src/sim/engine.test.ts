@@ -216,7 +216,6 @@ describe('Disposition und Einsatzlebenszyklus', () => {
       const v = g.center.vehicles.find((x) => x.id === vid)!;
       expect(v.rt.incidentId).toBeNull();
       expect(['frei_wache', 'ausser_dienst']).toContain(v.rt.status);
-      expect(v.rt.crewIds).toEqual([]);
     }
   });
 
@@ -293,6 +292,25 @@ describe('Disposition und Einsatzlebenszyklus', () => {
     expect(suggestForIncident(g, inc).proposal.length).toBeGreaterThan(0);
   });
 
+  it('wiederholte Nachforderungen summieren sich nicht auf, wenn keine Kräfte verfügbar sind', () => {
+    const g = newGame(5);
+    const call = injectCall(g, 'abc_co');
+    acceptCall(g, call.id);
+    askQuestion(g, call.id, 'ort');
+    setCallKeyword(g, call.id, 'kw_rd_1'); // zu klein: Feuerwehr fehlt
+    const r = createIncidentFromCall(g, call.id);
+    const id = r.ok ? r.id! : '';
+    const inc = g.runtime.incidents.find((i) => i.id === id)!;
+    // alle Löschfahrzeuge außer Dienst
+    for (const v of g.center.vehicles) if (g.center.vehicleTypes.find((t) => t.id === v.typeId)!.capabilities.includes('loeschen')) setVehicleServiceStatus(g, v.id, false);
+    alarmVehicles(g, id, suggestForIncident(g, inc).proposal.map((p) => p.vehicleId));
+    runUntil(g, () => false, 90 * MIN, 10 * SEC);
+    for (const m of g.runtime.radio.filter((x) => !x.handled)) acknowledgeRadio(g, m.id);
+    runUntil(g, () => false, 60 * MIN, 10 * SEC);
+    const requested = inc.backupRequests.flatMap((b) => b.requirements).filter((q) => q.capability === 'loeschen').reduce((a, b) => a + b.count, 0);
+    expect(requested).toBe(1);
+  });
+
   it('Entlassen eines Fahrzeugs während der Anfahrt macht es wieder verfügbar', () => {
     const g = newGame();
     const call = injectCall(g, 'th_oel');
@@ -343,17 +361,6 @@ describe('Verfügbarkeit', () => {
     expect(gwt.rt.status).toBe('ausser_dienst');
     runUntil(g, () => new Date(g.runtime.clock.now).getUTCHours() === 14, 6 * 3600 * SEC, MIN);
     expect(gwt.rt.status).toBe('frei_wache');
-  });
-
-  it('fehlendes Personal verhindert die Alarmierung', () => {
-    const g = newGame();
-    const nef = g.center.vehicles.find((v) => v.typeId === 'nef' && v.stationId === 'st_rw_lin')!;
-    for (const p of g.center.personnel.filter((x) => x.stationId === nef.stationId && x.qualifications.includes('na'))) {
-      p.absences.push({ id: 'x', from: 0, to: Number.MAX_SAFE_INTEGER, reason: 'krank' });
-    }
-    const av = vehicleAvailability(g, nef);
-    expect(av.available).toBe(false);
-    expect(av.reason).toContain('Besatzung');
   });
 
   it('manuell außer Dienst gestellte Fahrzeuge werden nicht vorgeschlagen', () => {
@@ -460,13 +467,11 @@ describe('Simulation', () => {
       for (const inc of g.runtime.incidents) {
         for (const vid of inc.activeVehicleIds) expect(g.center.vehicles.find((v) => v.id === vid)!.rt.incidentId).toBe(inc.id);
       }
-      const crews = g.center.vehicles.flatMap((v) => v.rt.crewIds);
-      expect(new Set(crews).size).toBe(crews.length);
     }
     expect(g.runtime.archive.length).toBeGreaterThan(20);
     // Kein Einsatz bleibt dauerhaft hängen
     const stale = g.runtime.incidents.filter((i) => g.runtime.clock.now - i.createdAt > 3 * 3600 * SEC);
-    if (stale.length) console.log(JSON.stringify(stale.map((i) => ({ sc: i.scenarioId, st: i.state, kw: i.keywordId, needs: i.needs, act: i.activeVehicleIds.map((id) => { const v = g.center.vehicles.find((x) => x.id === id)!; return `${v.callsign}:${v.rt.status}:${v.rt.move ? 'move' : ''}:${v.rt.phaseUntil}`; }), pats: i.patients.map((p) => `${p.state}:${p.vehicleId}:${p.needsDoctor}`), work: `${i.workDoneMs}/${i.workTotalMs}`, log: i.log.slice(-6).map((l) => l.text) })), null, 1));
+    if (stale.length) console.log("NOW", g.runtime.clock.now, JSON.stringify(stale.map((i) => ({ created: i.createdAt, firstArr: i.firstArrivalAt, moves: g.center.vehicles.filter((v) => v.rt.incidentId === i.id && v.rt.move).map((v) => [v.rt.move!.departAt, v.rt.move!.arriveAt]).slice(0, 3), sc: i.scenarioId, st: i.state, kw: i.keywordId, needs: i.needs, act: i.activeVehicleIds.map((id) => { const v = g.center.vehicles.find((x) => x.id === id)!; return `${v.callsign}:${v.rt.status}:${v.rt.move ? 'move' : ''}:${v.rt.phaseUntil}`; }), pats: i.patients.map((p) => `${p.state}:${p.vehicleId}:${p.needsDoctor}`), work: `${i.workDoneMs}/${i.workTotalMs}`, log: i.log.slice(-6).map((l) => l.text) })), null, 1));
     expect(stale.map((i) => `${i.scenarioId}:${i.state}`)).toEqual([]);
   }, 120_000);
 });

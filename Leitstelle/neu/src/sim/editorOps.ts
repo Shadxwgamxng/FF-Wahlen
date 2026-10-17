@@ -6,8 +6,6 @@ import type {
   Keyword,
   NeighborCenter,
   Organization,
-  Person,
-  Qualification,
   StatusDef,
   Station,
   Vehicle,
@@ -61,7 +59,6 @@ export function deleteStation(g: GameState, id: string): EditResult {
   const n = c.vehicles.filter((v) => v.stationId === id).length;
   if (n > 0) return `Der Wache sind noch ${n} Fahrzeug(e) zugeordnet. Bitte zuerst verlegen oder löschen.`;
   c.stations = c.stations.filter((s) => s.id !== id);
-  c.personnel = c.personnel.filter((p) => p.stationId !== id);
   for (const a of c.areas) a.responsibleStationIds = a.responsibleStationIds.filter((s) => s !== id);
   return null;
 }
@@ -92,7 +89,6 @@ export function saveVehicle(g: GameState, input: Vehicle, isNew: boolean): EditR
   if (err) return err;
   if (existing && existing.stationId !== v.stationId && !v.rt.incidentId && !v.rt.move && (v.rt.status === 'frei_wache' || v.rt.status === 'ausser_dienst')) {
     v.rt.position = [...st.position];
-    v.rt.crewIds = [];
   }
   return null;
 }
@@ -106,13 +102,12 @@ export function deleteVehicle(g: GameState, id: string): EditResult {
   return null;
 }
 
-// ------------------------------------------------------------------ Fahrzeugtypen, Organisationen, Qualifikationen
+// ------------------------------------------------------------------ Fahrzeugtypen, Organisationen
 
 export function saveVehicleType(g: GameState, t: VehicleType, isNew: boolean): EditResult {
   const c = g.center;
   if (c.vehicleTypes.some((x) => x.id !== t.id && same(x.code, t.code))) return `Kürzel "${t.code}" ist bereits vergeben.`;
   if (t.capabilities.length === 0) return 'Mindestens eine Fähigkeit auswählen.';
-  for (const r of t.crewRequirements) if (!c.qualifications.some((q) => q.id === r.qualification) || r.count < 1) return 'Besatzung: ungültige Qualifikation oder Anzahl.';
   return upsert(c.vehicleTypes, { ...t, seats: Number(t.seats), speedKmh: Number(t.speedKmh) }, isNew);
 }
 
@@ -132,19 +127,6 @@ export function deleteOrganization(g: GameState, id: string): EditResult {
   const n = g.center.stations.filter((s) => s.organizationId === id).length;
   if (n) return `Die Organisation ist ${n} Wache(n) zugeordnet.`;
   g.center.organizations = g.center.organizations.filter((o) => o.id !== id);
-  return null;
-}
-
-export function saveQualification(g: GameState, q: Qualification, isNew: boolean): EditResult {
-  if (!/^[a-z0-9_]+$/.test(q.id)) return 'Kürzel: nur Kleinbuchstaben, Ziffern und _ erlaubt.';
-  return upsert(g.center.qualifications, q, isNew);
-}
-
-export function deleteQualification(g: GameState, id: string): EditResult {
-  const c = g.center;
-  if (c.vehicleTypes.some((t) => t.crewRequirements.some((r) => r.qualification === id))) return 'Die Qualifikation wird in Besatzungsanforderungen verwendet.';
-  c.qualifications = c.qualifications.filter((q) => q.id !== id);
-  for (const p of c.personnel) p.qualifications = p.qualifications.filter((x) => x !== id);
   return null;
 }
 
@@ -174,24 +156,6 @@ export function saveAao(g: GameState, a: AaoRule, isNew: boolean): EditResult {
 
 export function deleteAao(g: GameState, id: string): EditResult {
   g.center.aao = g.center.aao.filter((a) => a.id !== id);
-  return null;
-}
-
-// ------------------------------------------------------------------ Personal
-
-export function savePerson(g: GameState, p: Person, isNew: boolean): EditResult {
-  if (!g.center.stations.some((s) => s.id === p.stationId)) return 'Bitte eine Wache wählen.';
-  for (const a of p.absences) if (a.from >= a.to) return 'Abwesenheit: Beginn muss vor dem Ende liegen.';
-  const bound = g.center.vehicles.find((v) => v.rt.crewIds.includes(p.id));
-  const old = g.center.personnel.find((x) => x.id === p.id);
-  if (bound && old && old.stationId !== p.stationId) return `${p.name} ist derzeit auf ${bound.callsign} im Einsatz und kann nicht versetzt werden.`;
-  return upsert(g.center.personnel, p, isNew);
-}
-
-export function deletePerson(g: GameState, id: string): EditResult {
-  const bound = g.center.vehicles.find((v) => v.rt.crewIds.includes(id));
-  if (bound) return `Die Person ist derzeit auf ${bound.callsign} im Einsatz.`;
-  g.center.personnel = g.center.personnel.filter((p) => p.id !== id);
   return null;
 }
 
