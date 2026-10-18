@@ -404,6 +404,28 @@ async function main() {
       assert(callState.info === 'Wohnungsbrand mit Menschen in Gefahr' && /Notrufabfrage: Feuer \/ Technische Hilfe, Wohnung, Ja/.test(callState.remarks), 'Meldebild und Infotext übernommen');
     }
     log(`DIAS durchgeklickt: Ergebnis „${callState.info}“ → Stichwort ${callState.kw ?? '(selbst wählen)'}`);
+    if (!process.env.DIAS_FILE) {
+      // Lücke im Mitschnitt: Freitext-Schritt → LEITWARTE-Folgefragen → LEITWARTE-Ergebnis
+      await cw.getByRole('button', { name: 'Neu', exact: true }).click();
+      await cw.getByTestId('dias-option').filter({ hasText: 'Medizinischer Notfall' }).click();
+      await cw.getByTestId('lw-input').waitFor();
+      await cw.getByTestId('lw-text').fill('Sturz von der Leiter');
+      await cw.getByTestId('lw-next').click();
+      for (let i = 0; i < 10 && !(await cw.getByTestId('lw-result').count()); i++) await cw.getByTestId('lw-option').first().click();
+      await cw.getByTestId('lw-apply').click();
+      await page.waitForFunction(() => {
+        const c = window.leitwarte.state.runtime.calls.find((x) => x.state === 'in_abfrage');
+        return c && /LEITWARTE-Ergänzung/.test(c.mask.remarks) && /Sturz von der Leiter/.test(c.mask.remarks);
+      });
+      // ausgegraute Antwort (ohne aufgezeichnete Folgeseite) ist klickbar
+      await cw.getByRole('button', { name: 'Neu', exact: true }).click();
+      await cw.getByTestId('dias-option').filter({ hasText: 'Feuer' }).click();
+      await cw.getByTestId('dias-option').filter({ hasText: 'Mülltonne' }).click();
+      await cw.getByTestId('lw-note').waitFor();
+      for (let i = 0; i < 10 && !(await cw.getByTestId('lw-result').count()); i++) await cw.getByTestId('lw-option').first().click();
+      const lwKw = (await cw.getByTestId('lw-result').innerText()).match(/Stichwort:\s*(\S+(?: \S+)*?)\s{2,}|Stichwort:\s*([^\n]+)/);
+      log(`DIAS-Lücken: Freitext und Antwort ohne Folgeseite → LEITWARTE-Folgefragen und Ergebnis (${(lwKw?.[1] ?? lwKw?.[2] ?? '').trim()})`);
+    }
   } else {
     await page.screenshot({ path: `${shots}06-dias.png` });
     log('DIAS durchgeklickt: Pfad endet an einem im Mitschnitt unvollständigen Schritt');

@@ -3,3 +3,4 @@ dist
 e2e/screenshots
 e2e/video
 src/**/_review_*.test.ts
+src/**/_real*.test.ts

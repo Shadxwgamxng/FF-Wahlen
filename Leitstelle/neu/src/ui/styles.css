@@ -302,3 +302,9 @@ table.grid tr.unavailable td { color: var(--text-3); }
 .funk-vehicles { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 6px; }
 .funk-vehicle { display: flex; gap: 8px; align-items: center; padding: 6px 8px; border: 1px solid var(--line); border-radius: var(--radius); font-size: 15px; }
 @media (max-width: 800px) { .funk-tablet { grid-template-columns: 1fr; } }
+.lw-badge { display: inline-block; background: #3b2a5c; border: 1px solid #8a63d2; color: #e2d4ff; border-radius: 3px; padding: 0 5px; font-size: 11px; font-weight: 700; letter-spacing: .04em; vertical-align: 1px; }
+.lw-note { padding: 6px 8px; border: 1px dashed #8a63d2; border-radius: var(--radius); background: #221a33; margin-bottom: 6px; }
+.lw-result .dias-summary { background: #221a33; border-color: #8a63d2; }
+.dias-opt.lw-gap { border-style: dashed; }
+.dias-opt.active { background: #1d3557; border-color: var(--accent); }
+.lw-step .linklike { color: #e2d4ff; }

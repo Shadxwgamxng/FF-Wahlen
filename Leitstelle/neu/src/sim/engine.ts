@@ -732,12 +732,18 @@ export function setCallMeldebild(state: GameState, callId: string, meldebildId: 
 }
 
 /** Fortschritt der Notrufabfrage (DIAS) speichern – damit Tablet und Einsatzmaske denselben Stand zeigen */
-export function setCallDias(state: GameState, callId: string, steps: { nodeId: string; option: number }[]): CommandResult {
+export function setCallDias(state: GameState, callId: string, steps: { nodeId: string; option: number }[], completion?: { input?: string; answers: Record<string, string> } | null): CommandResult {
   const c = state.runtime.calls.find((x) => x.id === callId);
   if (!c || c.state !== 'in_abfrage') return fail('Kein Notruf in Abfrage.');
   if (!Array.isArray(steps) || steps.length > 300 || steps.some((s) => !s || typeof s.nodeId !== 'string' || !Number.isInteger(s.option) || s.option < 0))
     return fail('Ungültiger Abfrageverlauf.');
-  c.dias = { steps: steps.map((s) => ({ nodeId: s.nodeId, option: s.option })) };
+  let comp: { input?: string; answers: Record<string, string> } | undefined;
+  if (completion) {
+    const answers: Record<string, string> = {};
+    for (const [k, v] of Object.entries(completion.answers ?? {}).slice(0, 50)) if (typeof v === 'string') answers[String(k).slice(0, 40)] = v.slice(0, 40);
+    comp = { answers, ...(typeof completion.input === 'string' ? { input: completion.input.slice(0, 2000) } : {}) };
+  }
+  c.dias = { steps: steps.map((s) => ({ nodeId: s.nodeId, option: s.option })), ...(comp ? { completion: comp } : {}) };
   return ok();
 }
 

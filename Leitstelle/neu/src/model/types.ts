@@ -388,7 +388,7 @@ export interface Call {
   /** Vom Disponenten gewähltes Meldebild */
   meldebildId?: ID | null;
   /** Fortschritt der standardisierten Notrufabfrage (DIAS): gewählte Antworten je Schritt – geteilt mit Tablet/Zweitfenstern */
-  dias?: { steps: { nodeId: string; option: number }[] };
+  dias?: { steps: { nodeId: string; option: number }[]; completion?: { input?: string; answers: Record<string, string> } };
   incidentId: ID | null;
   /** Zeitpunkt, an dem der Anrufer ohne Annahme auflegt */
   hangupAt: number;

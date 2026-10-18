@@ -3,6 +3,7 @@ import type { Call, GameState } from '../../../model/types';
 import { useDias } from '../../../dias/store';
 import { pathMismatch, type DiasNode, type DiasTree } from '../../../dias/model';
 import { mapDiasKeyword } from '../../../dias/keywordMap';
+import { deriveResult, followUpsFor, gapAt, nextFollowUp, pickKeyword, type Completion, type Gap } from '../../../dias/completion';
 import { store } from '../../../store/gameStore';
 
 /**
@@ -45,29 +46,42 @@ export function DiasPanel({ game, call, tablet }: { game: GameState; call: Call;
   // Der Abfrageverlauf liegt im Spielzustand (Notruf) und ist so auf PC, Zweitfenstern und Tablet gleich.
   // Lokal wird sofort weitergeschaltet; der geteilte Stand folgt mit kurzer Verzögerung.
   const shared = call.dias?.steps ?? NO_STEPS;
-  const sharedKey = JSON.stringify(shared);
+  const sharedComp = call.dias?.completion;
+  const sharedKey = JSON.stringify([shared, sharedComp ?? null]);
   const [steps, setLocal] = useState<Step[]>(shared);
+  const [completion, setLocalComp] = useState<Completion | undefined>(sharedComp);
   const lastLocal = useRef(0);
   const lastCall = useRef(call.id);
-  const latestShared = useRef(shared);
-  latestShared.current = shared;
+  const latestShared = useRef({ steps: shared, comp: sharedComp });
+  latestShared.current = { steps: shared, comp: sharedComp };
   useEffect(() => {
     const switched = lastCall.current !== call.id;
     lastCall.current = call.id;
     const wait = 1500 - (Date.now() - lastLocal.current);
     if (switched || wait <= 0) {
       setLocal(shared);
+      setLocalComp(sharedComp);
       return;
     }
     // kurz nach eigener Eingabe: veraltete Zwischenstände nicht übernehmen, danach den neuesten Stand
-    const t = setTimeout(() => setLocal(latestShared.current), wait);
+    const t = setTimeout(() => {
+      setLocal(latestShared.current.steps);
+      setLocalComp(latestShared.current.comp);
+    }, wait);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [call.id, sharedKey]);
+  /** Neuer DIAS-Weg: eine begonnene LEITWARTE-Ergänzung gilt nur für die bisherige Lücke */
   const setSteps = (next: Step[]) => {
     lastLocal.current = Date.now();
     setLocal(next);
-    store.cmdQuiet('setCallDias', call.id, next);
+    setLocalComp(undefined);
+    store.cmdQuiet('setCallDias', call.id, next, null);
+  };
+  const setCompletion = (c: Completion | undefined) => {
+    lastLocal.current = Date.now();
+    setLocalComp(c);
+    store.cmdQuiet('setCallDias', call.id, steps, c ?? null);
   };
   const [open, setOpen] = useState(true);
 
@@ -91,12 +105,31 @@ export function DiasPanel({ game, call, tablet }: { game: GameState; call: Call;
           {open ? '▾' : '▸'}
         </button>
       </div>
-      {open && <DiasBody game={game} call={call} tree={tree} steps={steps} setSteps={setSteps} tablet={tablet} />}
+      {open && <DiasBody game={game} call={call} tree={tree} steps={steps} setSteps={setSteps} completion={completion} setCompletion={setCompletion} tablet={tablet} />}
     </div>
   );
 }
 
-function DiasBody({ game, call, tree, steps, setSteps, tablet }: { game: GameState; call: Call; tree: DiasTree; steps: Step[]; setSteps: (s: Step[]) => void; tablet?: boolean }) {
+function DiasBody({
+  game,
+  call,
+  tree,
+  steps,
+  setSteps,
+  completion,
+  setCompletion,
+  tablet,
+}: {
+  game: GameState;
+  call: Call;
+  tree: DiasTree;
+  steps: Step[];
+  setSteps: (s: Step[]) => void;
+  completion: Completion | undefined;
+  setCompletion: (c: Completion | undefined) => void;
+  tablet?: boolean;
+}) {
+  const gap = gapAt(tree, steps);
   const currentId = steps.length ? tree.nodes[steps[steps.length - 1].nodeId]?.options[steps[steps.length - 1].option]?.to : tree.root;
   const node: DiasNode | undefined = currentId ? tree.nodes[currentId] : undefined;
   const ref = useRef<HTMLDivElement>(null);
@@ -105,7 +138,8 @@ function DiasBody({ game, call, tree, steps, setSteps, tablet }: { game: GameSta
   }, [currentId]);
 
   const choose = (opt: number) => {
-    if (!node || !node.options[opt]?.to) return;
+    if (!node || !node.options[opt]) return;
+    // auch Antworten ohne aufgezeichnete Folgeseite sind wählbar – danach ergänzt LEITWARTE
     setSteps([...steps, { nodeId: node.id, option: opt }]);
   };
 
@@ -142,18 +176,37 @@ function DiasBody({ game, call, tree, steps, setSteps, tablet }: { game: GameSta
               </li>
             );
           })}
+          {completion &&
+            followUpsFor(tree, steps)
+              .filter((q) => completion.answers[q.id] !== undefined)
+              .map((q, i, arr) => (
+                <li key={q.id} className="lw-step">
+                  <button
+                    className="linklike"
+                    title="Ab hier neu beantworten"
+                    onClick={() => {
+                      const keep = Object.fromEntries(arr.slice(0, i).map((x) => [x.id, completion.answers[x.id]]));
+                      setCompletion({ ...completion, answers: keep });
+                    }}
+                  >
+                    <span className="lw-badge">LW</span> <span className="muted">{q.text}</span> → <b>{q.options.find((o) => o.v === completion.answers[q.id])?.label}</b>
+                  </button>
+                </li>
+              ))}
         </ol>
       )}
-      {!node ? (
-        <div className="field-error small">Folgeschritt fehlt im Mitschnitt – bitte Stichwort selbst wählen.</div>
+      {gap ? (
+        <GapView game={game} call={call} tree={tree} steps={steps} gap={gap} completion={completion} setCompletion={setCompletion} tablet={tablet} />
+      ) : !node ? (
+        <div className="field-error small">Folgeschritt fehlt im Mitschnitt.</div>
       ) : node.kind === 'ergebnis' ? (
-        <DiasResultView game={game} call={call} node={node} tablet={tablet} pathText={pathText(tree, steps)} mismatch={pathMismatch(node, steps.map((x) => tree.nodes[x.nodeId]?.options[x.option]?.answerId ?? ''), steps.map((x) => tree.nodes[x.nodeId]?.options[x.option]?.label ?? ''))} />
+        <DiasResultView game={game} call={call} node={node} tablet={tablet} tree={tree} steps={steps} pathText={pathText(tree, steps)} mismatch={pathMismatch(node, steps.map((x) => tree.nodes[x.nodeId]?.options[x.option]?.answerId ?? ''), steps.map((x) => tree.nodes[x.nodeId]?.options[x.option]?.label ?? ''))} />
       ) : node.kind === 'frage' ? (
         <div className="dias-current" data-testid="dias-question">
           <div className="dias-q" dangerouslySetInnerHTML={{ __html: node.html }} />
           <div className="dias-options">
             {node.options.map((o, i) => (
-              <button key={i} className="btn dias-opt" disabled={!o.to} onClick={() => choose(i)} title={o.to ? undefined : 'Im Mitschnitt nicht enthalten'} data-testid="dias-option">
+              <button key={i} className={`btn dias-opt${o.to ? '' : ' lw-gap'}`} onClick={() => choose(i)} title={o.to ? undefined : 'Folgeseite fehlt im Mitschnitt – LEITWARTE ergänzt'} data-testid="dias-option">
                 <span className="mono dias-code">{o.code}</span>
                 <span className="dias-label">{o.label}</span>
               </button>
@@ -172,7 +225,7 @@ function DiasBody({ game, call, tree, steps, setSteps, tablet }: { game: GameSta
   );
 }
 
-function DiasResultView({ game, call, node, pathText, mismatch, tablet }: { game: GameState; call: Call; node: DiasNode; pathText: string; mismatch: ReturnType<typeof pathMismatch>; tablet?: boolean }) {
+function DiasResultView({ game, call, node, pathText, mismatch, tablet, tree, steps }: { game: GameState; call: Call; node: DiasNode; pathText: string; mismatch: ReturnType<typeof pathMismatch>; tablet?: boolean; tree: DiasTree; steps: Step[] }) {
   const res = node.result!;
   const [infos, setInfos] = useState<Set<string>>(new Set());
   const codes = useMemo(() => game.center.keywords.map((k) => k.code), [game.center.keywords]);
@@ -244,6 +297,186 @@ function DiasResultView({ game, call, node, pathText, mismatch, tablet }: { game
       <button className="btn primary" onClick={apply} data-testid="dias-apply">
         {tablet ? (mismatch ? 'Daten trotzdem übernehmen' : 'Daten übernehmen') : mismatch ? 'Trotzdem übernehmen' : 'In Einsatzmaske übernehmen'}
         {targetKw ? ` (${targetKw.code})` : ''}
+      </button>
+      {mismatch && (
+        <div data-testid="lw-alternative">
+          <div className="small muted" style={{ margin: '6px 0 2px' }}>
+            Alternative: von LEITWARTE aus deinem tatsächlichen Abfrageweg berechnet
+          </div>
+          <LwResultView game={game} call={call} tree={tree} steps={steps} completion={{ answers: {} }} tablet={tablet} compact />
+        </div>
+      )}
+    </div>
+  );
+}
+
+const BODY_PARTS = ['Kopf', 'Gesicht', 'Hals', 'Brust', 'Bauch', 'Rücken', 'Becken', 'Arm links', 'Arm rechts', 'Hand', 'Bein links', 'Bein rechts', 'Fuß', 'ganzer Körper', 'unklar'];
+
+/**
+ * Lücke im Mitschnitt: Eingabeschritt, danach LEITWARTE-Folgefragen und LEITWARTE-Ergebnis.
+ * Alles hier ist eigene Ergänzung und nicht Teil von DIAS.
+ */
+function GapView({
+  game,
+  call,
+  tree,
+  steps,
+  gap,
+  completion,
+  setCompletion,
+  tablet,
+}: {
+  game: GameState;
+  call: Call;
+  tree: DiasTree;
+  steps: Step[];
+  gap: Gap;
+  completion: Completion | undefined;
+  setCompletion: (c: Completion | undefined) => void;
+  tablet?: boolean;
+}) {
+  const needsInput = gap.kind !== 'fehlt' && gap.kind !== 'ende';
+  const header = (
+    <div className="lw-note small" data-testid="lw-note">
+      <span className="lw-badge">LEITWARTE</span>{' '}
+      {gap.kind === 'fehlt' ? 'Die Folgeseite dieser Antwort ist im DIAS-Mitschnitt nicht enthalten.' : `Dieser Schritt (${INCOMPLETE_TEXT[gap.kind]}) ist im DIAS-Mitschnitt nicht enthalten.`} Ab hier ergänzt LEITWARTE mit eigenen
+      Fragen – nicht aus DIAS.
+    </div>
+  );
+  if (!completion && needsInput) return <GapInput gap={gap} header={header} onDone={(input) => setCompletion({ input, answers: {} })} />;
+  const comp = completion ?? { answers: {} };
+  const next = nextFollowUp(tree, steps, comp);
+  if (next)
+    return (
+      <div className="dias-current" data-testid="lw-question">
+        {header}
+        <div className="dias-q">
+          <span className="lw-badge">LW</span> {next.text}
+        </div>
+        <div className="dias-options">
+          {next.options.map((o, i) => (
+            <button key={o.v} className="btn dias-opt" onClick={() => setCompletion({ ...comp, answers: { ...comp.answers, [next.id]: o.v } })} data-testid="lw-option">
+              <span className="mono dias-code">{i}</span>
+              <span className="dias-label">{o.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  return (
+    <div className="dias-current">
+      {header}
+      <LwResultView game={game} call={call} tree={tree} steps={steps} completion={comp} tablet={tablet} />
+    </div>
+  );
+}
+
+function GapInput({ gap, header, onDone }: { gap: Gap; header: React.ReactNode; onDone: (input: string) => void }) {
+  const [text, setText] = useState('');
+  const [age, setAge] = useState('');
+  const [sex, setSex] = useState('unbekannt');
+  const [parts, setParts] = useState<Set<string>>(new Set());
+  const node = gap.node;
+  const toggle = (set: Set<string>, v: string, apply: (s: Set<string>) => void) => {
+    const n = new Set(set);
+    if (n.has(v)) n.delete(v);
+    else n.add(v);
+    apply(n);
+  };
+  let body: React.ReactNode;
+  let value = '';
+  if (gap.kind === 'alter') {
+    value = `Alter ${age || 'unbekannt'}${age ? ' J.' : ''}, ${sex}`;
+    body = (
+      <div className="row wrap">
+        <label className="field">
+          <span>Alter (Jahre)</span>
+          <input type="number" min={0} max={120} value={age} onChange={(e) => setAge(e.target.value)} aria-label="Alter" data-testid="lw-age" />
+        </label>
+        <label className="field">
+          <span>Geschlecht</span>
+          <select value={sex} onChange={(e) => setSex(e.target.value)} aria-label="Geschlecht">
+            <option value="unbekannt">unbekannt</option>
+            <option value="männlich">männlich</option>
+            <option value="weiblich">weiblich</option>
+            <option value="divers">divers</option>
+          </select>
+        </label>
+      </div>
+    );
+  } else if (gap.kind === 'koerperschema' || (gap.kind === 'mehrfach' && !(node?.options.length ?? 0))) {
+    value = parts.size ? `Betroffen: ${[...parts].join(', ')}` : '';
+    body = (
+      <div className="dias-options">
+        {BODY_PARTS.map((p) => (
+          <button key={p} className={`btn dias-opt ${parts.has(p) ? 'active' : ''}`} onClick={() => toggle(parts, p, setParts)} aria-pressed={parts.has(p)}>
+            <span className="dias-label">{parts.has(p) ? '☑' : '☐'} {p}</span>
+          </button>
+        ))}
+      </div>
+    );
+  } else if (gap.kind === 'mehrfach') {
+    value = parts.size ? [...parts].join(', ') : '';
+    body = (
+      <div className="dias-options">
+        {node!.options.map((o) => (
+          <button key={o.label} className={`btn dias-opt ${parts.has(o.label) ? 'active' : ''}`} onClick={() => toggle(parts, o.label, setParts)} aria-pressed={parts.has(o.label)}>
+            <span className="dias-label">{parts.has(o.label) ? '☑' : '☐'} {o.label}</span>
+          </button>
+        ))}
+      </div>
+    );
+  } else {
+    value = text;
+    body = <textarea rows={3} value={text} onChange={(e) => setText(e.target.value)} placeholder="Angabe des Anrufers" aria-label="Angabe" style={{ width: '100%' }} data-testid="lw-text" />;
+  }
+  return (
+    <div className="dias-current" data-testid="lw-input">
+      {header}
+      <div className="dias-q">{node?.question && node.question !== 'Freitext Eingabe' ? node.question : INCOMPLETE_TEXT[gap.kind]}</div>
+      {node?.dialog && gap.kind !== 'freitext' && <div className="small muted">{node.dialog.split('\n').filter(Boolean).slice(0, 6).join(' · ')}</div>}
+      {body}
+      <div className="row">
+        <button className="btn primary" onClick={() => onDone(value)} data-testid="lw-next">
+          Weiter
+        </button>
+        <button className="btn" onClick={() => onDone('')}>
+          Überspringen
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** LEITWARTE-Ergebnis (aus Weg, Eingabe und Folgefragen abgeleitet) mit Übernahme in die Maske */
+function LwResultView({ game, call, tree, steps, completion, tablet, compact }: { game: GameState; call: Call; tree: DiasTree; steps: Step[]; completion: Completion; tablet?: boolean; compact?: boolean }) {
+  const res = useMemo(() => deriveResult(tree, steps, completion), [tree, steps, completion]);
+  const code = pickKeyword(res.candidates, game.center.keywords.map((k) => k.code));
+  const kw = code ? game.center.keywords.find((k) => k.code === code) : undefined;
+  const apply = () => {
+    store.cmdQuiet('applyDiasResult', call.id, { keywordId: kw?.id ?? null, info: res.meldebild, remarks: [`Notrufabfrage (LEITWARTE-Ergänzung): ${res.info}`] });
+    store.toast('ok', kw ? `LEITWARTE-Ergebnis übernommen: ${kw.code}` : 'LEITWARTE-Ergebnis übernommen – Stichwort bitte selbst wählen.');
+  };
+  return (
+    <div className="dias-result lw-result" data-testid="lw-result">
+      <div className="dias-summary">
+        <b>
+          <span className="lw-badge">LEITWARTE</span> Ergebnis (nicht aus DIAS)
+        </b>
+        {!compact && <div className="small">{res.info}</div>}
+      </div>
+      <div className="dias-section">
+        <div>
+          Meldebild: <b>{res.meldebild}</b>
+        </div>
+        <div>
+          Stichwort: <b className="mono">{kw?.code ?? '–'}</b> {kw && <span className="small muted">{kw.label}</span>}
+        </div>
+        <div className="small muted">Begründung: {res.reasons.join(' · ') || '–'}</div>
+      </div>
+      <button className="btn primary" onClick={apply} data-testid="lw-apply">
+        {tablet ? 'Daten übernehmen' : 'In Einsatzmaske übernehmen'}
+        {kw ? ` (${kw.code})` : ''}
       </button>
     </div>
   );
