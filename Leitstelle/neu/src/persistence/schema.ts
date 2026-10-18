@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { CenterConfig, GameState } from '../model/types';
 import { SCHEMA_VERSION } from '../model/types';
 import { createEmptyCenter, emptyVehicleRuntime } from '../data/sampleCenter';
+import { emptyMask } from '../model/mask';
 
 /**
  * Validierung und Migration des dokumentierten JSON-Austauschformats (siehe docs/DATENFORMAT.md).
@@ -311,6 +312,18 @@ export function importJson(text: string): ImportResult {
     return { ok: false, error: `Laufzeitdaten des Spielstands sind beschädigt (${fmtZod(rtP.error)}). Tipp: Die Datei kann als Leitstelle ohne Spielverlauf neu gestartet werden.`, issues };
   }
   const game: GameState = { schemaVersion: SCHEMA_VERSION, center, runtime: rtP.data as unknown as GameState['runtime'] };
+  // Migration älterer Spielstände (vor Einsatzmaske/Ortung)
+  for (const inc of game.runtime.incidents as unknown as Record<string, unknown>[]) {
+    inc.truePosition ??= inc.position;
+    inc.times ??= {};
+    inc.mask ??= null;
+    inc.locationWrongReported ??= false;
+  }
+  for (const c of game.runtime.calls as unknown as Record<string, unknown>[]) {
+    c.mask ??= emptyMask(String((c.caller as { phone?: string })?.phone ?? ''));
+    c.locate ??= null;
+    c.phoneType ??= 'mobil';
+  }
   // Konsistenz: Fahrzeuge dürfen nur an existierende Einsätze gebunden sein
   const incIds = new Set(game.runtime.incidents.map((i: { id: string }) => i.id));
   for (const v of center.vehicles) {

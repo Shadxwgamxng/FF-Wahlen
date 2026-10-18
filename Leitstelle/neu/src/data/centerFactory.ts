@@ -5,6 +5,7 @@ import { DEFAULT_STATUS_DEFS, DEFAULT_VEHICLE_TYPES } from './vehicleTypes';
 import { STREET_NAMES } from './sampleCenter';
 import { newId } from '../model/ids';
 import { pointInArea } from '../sim/geo';
+import { reverseGeocode } from '../geo/places';
 
 /**
  * Baut eine neue Leitstelle aus den Angaben des Assistenten "Leitstelle erstellen":
@@ -94,7 +95,22 @@ export function buildCenter(i: WizardInput): CenterConfig {
 
   const stations: Station[] = [];
   const hospitals: Hospital[] = [];
-  for (const f of i.facilities) {
+  // Unbenannte Standorte (in OSM ohne Namen) nach dem nächstgelegenen Ort benennen
+  const cityNear = (p: LatLng) => {
+    if (!i.places) return '';
+    const r = reverseGeocode(i.places, p);
+    return r && r.distanceM < 3000 ? (i.places.strings[r.tuple[5]] ?? '') : '';
+  };
+  const usedNames = new Set<string>();
+  const uniqueName = (n: string) => {
+    let name = n;
+    for (let k = 2; usedNames.has(name); k++) name = `${n} (${k})`;
+    usedNames.add(name);
+    return name;
+  };
+  for (const f0 of i.facilities) {
+    const generic = /^(Feuerwehr|Rettungswache|Polizei|Krankenhaus)$/.test(f0.name);
+    const f = { ...f0, name: uniqueName(generic ? `${f0.name} ${cityNear(f0.position)}`.trim() : f0.name) };
     if (f.kind === 'krankenhaus') {
       hospitals.push({ id: newId('kh'), name: f.name, position: f.position, departments: ['allgemein', 'innere', 'unfallchirurgie'], capacity: 8, occupied: 0, available: true });
       continue;

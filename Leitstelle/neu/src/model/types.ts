@@ -368,6 +368,44 @@ export interface Call {
   redialOf: ID | null;
   /** Folgeanruf (Doppelmeldung) zu einem bereits angelegten Einsatz */
   duplicateOfIncidentId: ID | null;
+  /** Anschlussart des Anrufers (bestimmt die Genauigkeit der Ortung) */
+  phoneType: 'festnetz' | 'mobil';
+  /** Laufende bzw. abgeschlossene Ortung */
+  locate: CallLocate | null;
+  /** Eingaben in der Einsatzmaske */
+  mask: EinsatzMask;
+}
+
+export interface CallLocate {
+  startedAt: number;
+  readyAt: number;
+  status: 'laeuft' | 'ok' | 'fehler';
+  position?: LatLng;
+  /** Ungenauigkeitsradius in Metern (Mobilfunk) */
+  accuracyM?: number;
+  street?: string;
+  houseNumber?: string;
+  postcode?: string;
+  city?: string;
+  message?: string;
+}
+
+/** Vom Disponenten ausgefüllte Felder der Einsatzmaske */
+export interface EinsatzMask {
+  callerName: string;
+  callerPhone: string;
+  street: string;
+  houseNumber: string;
+  postcode: string;
+  city: string;
+  object: string;
+  /** Alarmierungstext / Info an die Kräfte */
+  info: string;
+  patientName: string;
+  targetHospitalId: string;
+  remarks: string;
+  /** Aus Ortung übernommene Position (statt Geokodierung der Adresse) */
+  position: LatLng | null;
 }
 
 export type IncidentState =
@@ -425,6 +463,23 @@ export interface Incident {
   keywordCorrect: boolean | null;
   /** Zeitpunkt der letzten automatischen Bedarfsprüfung der Kräfte vor Ort */
   lastNeedCheckAt: number | null;
+  /** Tatsächlicher Ort des Geschehens (kann von der eingegebenen Adresse abweichen) */
+  truePosition: LatLng;
+  /** Kräfte vor Ort haben gemeldet, dass an der Adresse nichts festzustellen ist */
+  locationWrongReported: boolean;
+  /** Statuszeiten je Fahrzeug für die Dispoliste */
+  times: Record<ID, VehicleTimes>;
+  /** Daten aus der Einsatzmaske */
+  mask: EinsatzMask | null;
+}
+
+export interface VehicleTimes {
+  alarm?: number;
+  anfahrt?: number;
+  einsatzort?: number;
+  transport?: number;
+  am_ziel?: number;
+  frei?: number;
 }
 
 export type EventKind =

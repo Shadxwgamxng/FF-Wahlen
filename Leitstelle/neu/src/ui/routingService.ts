@@ -1,6 +1,5 @@
 import { useSyncExternalStore } from 'react';
 import { markFailed, onRouteRequest, parseKey, putRoute, resetFailures, takePending } from '../sim/routing';
-import { applyRoutes } from '../sim/engine';
 import { store } from '../store/gameStore';
 import { getPrefs } from './prefs';
 import type { LatLng } from '../model/types';
@@ -76,7 +75,7 @@ async function pump() {
         setState('ok');
       }
     }
-    if (any && store.state) store.run((s) => applyRoutes(s), { toast: false });
+    if (any && store.state) store.cmdQuiet('applyRoutes');
   } finally {
     running = false;
   }

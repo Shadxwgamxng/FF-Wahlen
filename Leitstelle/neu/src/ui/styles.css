@@ -105,7 +105,7 @@ label.field > span.req::after { content: ' *'; color: var(--alarm); }
   grid-template-areas: 'left sl map sr right' 'left sl hb sr right' 'left sl bottom sr right';
 }
 .desk-left { grid-area: left; display: flex; flex-direction: column; min-height: 0; border-right: 1px solid var(--line); }
-.desk-map { grid-area: map; position: relative; min-height: 0; }
+.desk-map { grid-area: map; position: relative; min-height: 0; z-index: 0; }
 .desk-right { grid-area: right; min-height: 0; display: flex; flex-direction: column; border-left: 1px solid var(--line); }
 .desk-bottom { grid-area: bottom; min-height: 0; display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid var(--line); }
 .splitter { background: var(--line); cursor: col-resize; }
@@ -208,3 +208,33 @@ table.grid tr.unavailable td { color: var(--text-3); }
   .desk-right { max-height: 420px; }
   .desk-bottom { grid-template-columns: 1fr; }
 }
+
+/* ---------- Einsatzmaske ---------- */
+.mask-host { grid-row: 1 / 4; grid-column: 3 / 6; position: relative; z-index: 10; min-height: 0; display: flex; }
+.mask { flex: 1; display: flex; flex-direction: column; min-height: 0; background: var(--bg-2); border-left: 1px solid var(--line-2); }
+.mask-head { display: flex; align-items: center; gap: 10px; padding: 6px 10px; background: #1b2738; border-bottom: 2px solid var(--accent); flex-wrap: wrap; }
+.mask-body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(340px, 420px) 1fr; gap: 8px; padding: 8px; overflow: hidden; }
+.mask-left { overflow: auto; display: flex; flex-direction: column; gap: 6px; padding-right: 4px; }
+.mask-right { overflow: auto; display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+.mask-box { border: 1px solid var(--line-2); border-radius: 4px; padding: 6px 8px; background: var(--panel); margin: 0; min-width: 0; }
+.mask-box legend { padding: 0 4px; font-size: 11px; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: .05em; }
+.mask-title { font-size: 11px; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 4px; }
+.mask-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 8px; }
+.mask-grid label, .mask-grid1 { display: flex; flex-direction: column; font-size: 11px; color: var(--text-2); gap: 2px; min-width: 0; }
+.mask-grid input, .mask-grid select, .mask-grid1 input, .mask-grid1 select { width: 100%; min-width: 0; }
+.mask-grid1 { margin-top: 4px; }
+.mask input[type=text], .mask select, .mask textarea { padding: 3px 6px; font-size: 13px; }
+.mask label.req > input, .mask label.req select, .mask label.req input { border-color: #8a6d1d; background: #2a2412; }
+.mask-table td, .mask-table th { padding: 3px 6px; font-size: 12px; }
+.suggest { position: absolute; z-index: 1000; left: 0; right: 0; top: 100%; background: var(--panel-2); border: 1px solid var(--line-2); border-radius: 4px; max-height: 260px; overflow: auto; box-shadow: 0 6px 20px #000a; }
+.suggest-item { padding: 5px 8px; cursor: pointer; font-size: 13px; }
+.suggest-item:hover { background: #1d3557; }
+@media (max-width: 1100px) {
+  .mask-host { grid-row: auto; grid-column: auto; position: fixed; inset: 90px 0 0 0; }
+  .mask-body { grid-template-columns: 1fr; overflow: auto; }
+}
+.menu { position: relative; }
+.menu > summary { list-style: none; }
+.menu > summary::-webkit-details-marker { display: none; }
+.menu-list { position: absolute; right: 0; top: 110%; z-index: 3000; background: var(--panel-2); border: 1px solid var(--line-2); border-radius: 6px; padding: 6px; display: flex; flex-direction: column; gap: 2px; min-width: 240px; box-shadow: 0 8px 24px #000a; }
+.menu-list .btn { justify-content: flex-start; }

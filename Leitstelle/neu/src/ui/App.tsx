@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { store, useStore } from '../store/gameStore';
-import { setRunning, setSpeed, WEATHER_LABEL } from '../sim/engine';
+import { WEATHER_LABEL } from '../sim/engine';
 import { DIFFICULTY } from '../sim/difficulty';
 import { ConfirmHost, fmtClock, fmtDate, Modal, Toasts } from './components/common';
 import { StartScreen } from './views/StartScreen';
@@ -14,6 +14,7 @@ import { SimulationView } from './views/SimulationView';
 import { MultiplayerView } from './views/MultiplayerView';
 import { DataView } from './views/DataView';
 import { installAudio } from './audio';
+import { openPopout, POPOUTS } from './PopoutApp';
 import { installRouting, useRoutingState } from './routingService';
 
 export type ViewId = 'leitstand' | 'wachen' | 'fahrzeuge' | 'aao' | 'kliniken' | 'statistik' | 'editor' | 'simulation' | 'mehrspieler' | 'daten';
@@ -72,9 +73,9 @@ export function App() {
       if (e.altKey) return;
       if (e.key === ' ') {
         e.preventDefault();
-        store.run((s) => setRunning(s, !s.runtime.clock.running), { toast: false });
+        store.cmdQuiet('toggleRunning');
       } else if (/^[1-6]$/.test(e.key)) {
-        store.run((s) => setSpeed(s, SPEEDS[Number(e.key) - 1]), { toast: false });
+        store.cmdQuiet('setSpeed', SPEEDS[Number(e.key) - 1]);
       } else if (e.key === '?' || e.key === 'F1') {
         e.preventDefault();
         setHelp(true);
@@ -135,6 +136,26 @@ export function App() {
   );
 }
 
+function WindowMenu() {
+  const ref = useRef<HTMLDetailsElement>(null);
+  return (
+    <details className="menu" ref={ref}>
+      <summary className="btn small" title="Bereiche in eigene Fenster lösen – z. B. Karte auf dem zweiten Bildschirm">🖥 Fenster</summary>
+      <div className="menu-list">
+        {POPOUTS.map(([k, l]) => (
+          <button key={k} className="btn small ghost" onClick={() => {
+              openPopout(k);
+              if (ref.current) ref.current.open = false;
+            }} data-testid={`popout-${k}`}>
+            {l} in neuem Fenster
+          </button>
+        ))}
+        <span className="dim small" style={{ padding: 4 }}>Fenster auf einen anderen Bildschirm ziehen; alles bleibt synchron.</span>
+      </div>
+    </details>
+  );
+}
+
 function RoutingChip() {
   const r = useRoutingState();
   const label = { aus: 'Routing aus', unbekannt: 'Routing …', ok: 'Straßenrouting', fehler: 'Luftlinie!' }[r.state];
@@ -166,7 +187,7 @@ function TopBar({ onHelp }: { onHelp: () => void }) {
       <span className="small muted">{fmtDate(now)}</span>
       <button
         className={`btn ${rt.clock.running ? '' : 'primary'}`}
-        onClick={() => store.run((s) => setRunning(s, !s.runtime.clock.running), { toast: false })}
+        onClick={() => store.cmdQuiet('toggleRunning')}
         data-testid="play-pause"
         title="Leertaste"
       >
@@ -174,7 +195,7 @@ function TopBar({ onHelp }: { onHelp: () => void }) {
       </button>
       <div className="row" role="group" aria-label="Simulationsgeschwindigkeit">
         {SPEEDS.map((sp, i) => (
-          <button key={sp} className={`btn small ${rt.clock.speed === sp ? 'active' : ''}`} onClick={() => store.run((s) => setSpeed(s, sp), { toast: false })} title={`Taste ${i + 1}`}>
+          <button key={sp} className={`btn small ${rt.clock.speed === sp ? 'active' : ''}`} onClick={() => store.cmdQuiet('setSpeed', sp)} title={`Taste ${i + 1}`}>
             {sp}×
           </button>
         ))}
@@ -185,6 +206,7 @@ function TopBar({ onHelp }: { onHelp: () => void }) {
       <span className={`chip ${ringing ? 'alarm' : ''}`}>☎ {ringing}</span>
       <span className={`chip ${undisp ? 'warn' : ''}`} title="Nicht disponierte Einsätze">⚠ {undisp}</span>
       <span className={`chip ${radio ? 'warn' : ''}`} title="Offene Sprechwünsche">📻 {radio}</span>
+      <WindowMenu />
       <RoutingChip />
       <span className="chip ok" title="Freie Fahrzeuge">🚒 {free}/{game.center.vehicles.length}</span>
       <span className="small dim" title="Automatisches Speichern in diesem Browser (IndexedDB)">

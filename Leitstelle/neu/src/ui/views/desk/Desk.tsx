@@ -1,13 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { GameState, LatLng } from '../../../model/types';
-import { acceptCall, createManualIncident } from '../../../sim/engine';
 import { areaAt } from '../../../sim/callgen';
 import { store } from '../../../store/gameStore';
 import { Modal, Splitter } from '../../components/common';
 import { MapView } from '../../components/MapView';
-import { CallTaking } from './CallTaking';
 import { CallList, EventLog, IncidentList, VehicleBoard, VehicleDetail } from './DeskPanels';
-import { IncidentWindow } from './IncidentWindow';
+import { Maske } from './Maske';
 import { KeywordSelect } from './KeywordSelect';
 import { RadioPanel } from './RadioPanel';
 
@@ -33,6 +31,17 @@ export function Desk({ game }: { game: GameState }) {
   const call = sel?.kind === 'call' ? game.runtime.calls.find((c) => c.id === sel.id) : undefined;
   const incident = sel?.kind === 'incident' ? game.runtime.incidents.find((i) => i.id === sel.id) : undefined;
 
+  // Aktionen aus weiteren Fenstern (zweiter Bildschirm): Einsatz/Notruf in der Maske öffnen
+  useEffect(
+    () =>
+      store.onUiAction((a) => {
+        if (a.kind === 'openIncident' && a.id) openIncident(a.id);
+        else if (a.kind === 'openCall' && a.id) setSel({ kind: 'call', id: a.id });
+        window.focus();
+      }),
+    [openIncident],
+  );
+
   // Geschlossene/archivierte Auswahl automatisch aufheben
   useEffect(() => {
     if (sel?.kind === 'incident' && !incident) setSel(null);
@@ -53,17 +62,12 @@ export function Desk({ game }: { game: GameState }) {
         setVehicleId(null);
         return;
       }
-      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && call?.state === 'in_abfrage') {
-        e.preventDefault();
-        document.querySelector<HTMLButtonElement>('[data-testid="call-window"] .btn.alarm')?.click();
-        return;
-      }
       if (typing || e.ctrlKey || e.metaKey || e.altKey) return;
       const now = store.state!.runtime.clock.now;
       if (e.key === 'n' || e.key === 'N') {
         const next = store.state!.runtime.calls.filter((c) => c.state === 'klingelt' && c.receivedAt <= now).sort((a, b) => a.receivedAt - b.receivedAt)[0];
         if (next) {
-          store.run((s) => acceptCall(s, next.id));
+          store.cmd('acceptCall', next.id);
           setSel({ kind: 'call', id: next.id });
         } else store.toast('info', 'Kein wartender Notruf.');
       } else if ((e.key === 'a' || e.key === 'A') && incident) {
@@ -82,7 +86,7 @@ export function Desk({ game }: { game: GameState }) {
   const createManual = () => {
     if (!manual?.pos) return store.toast('fehler', 'Bitte den Einsatzort in der Karte anklicken.');
     if (!manual.keywordId) return store.toast('fehler', 'Bitte ein Stichwort wählen.');
-    const r = store.run((s) => createManualIncident(s, manual.keywordId!, manual.pos!, manual.address, manual.description));
+    const r = store.cmd('createManualIncident', manual.keywordId!, manual.pos!, manual.address, manual.description);
     if (r.ok && r.id) {
       setManual(null);
       openIncident(r.id);
@@ -119,27 +123,6 @@ export function Desk({ game }: { game: GameState }) {
               : undefined
           }
         />
-        <div className="overlay">
-          {call && (
-            <CallTaking
-              game={game}
-              call={call}
-              onClose={() => setSel(null)}
-              onIncidentCreated={(id) => openIncident(id)}
-              onShowOnMap={showOnMap}
-            />
-          )}
-          {incident && (
-            <IncidentWindow
-              game={game}
-              incident={incident}
-              onClose={() => setSel(null)}
-              onSelectVehicle={setVehicleId}
-              onShowOnMap={showOnMap}
-              alarmRequest={alarmReq}
-            />
-          )}
-        </div>
       </div>
       <Splitter cssVar="--right-w" dir="x" invert className="sr" min={260} max={700} />
       <div className="desk-right">
@@ -147,6 +130,23 @@ export function Desk({ game }: { game: GameState }) {
         <VehicleBoard game={game} selectedId={vehicleId} onSelect={setVehicleId} />
       </div>
       <Splitter cssVar="--bottom-h" dir="y" invert className="h" min={100} max={600} />
+      {(call || incident) && (
+        <div className="mask-host">
+          <Maske
+            game={game}
+            call={call ?? (incident?.callId ? game.runtime.calls.find((c) => c.id === incident.callId) : undefined)}
+            incident={incident}
+            onClose={() => setSel(null)}
+            onIncidentCreated={(id) => setSel({ kind: 'incident', id })}
+            onShowOnMap={(pos) => {
+              setSel(null);
+              showOnMap(pos);
+            }}
+            onSelectVehicle={setVehicleId}
+            alarmRequest={alarmReq}
+          />
+        </div>
+      )}
       <div className="desk-bottom">
         <RadioPanel game={game} onOpenIncident={openIncident} />
         <EventLog game={game} />

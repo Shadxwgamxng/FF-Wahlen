@@ -3,7 +3,6 @@ import type { Difficulty, GameState, KeywordCategory, SimSettings } from '../../
 import { SCENARIOS } from '../../data/scenarios';
 import { CATEGORY_LABELS } from '../../data/keywords';
 import { DIFFICULTY } from '../../sim/difficulty';
-import { injectScenarioCall, restartSimulation } from '../../sim/engine';
 import { store } from '../../store/gameStore';
 import { confirmDialog, Tabs } from '../components/common';
 
@@ -102,7 +101,7 @@ function SettingsForm({ game }: { game: GameState }) {
           className="btn danger"
           onClick={async () => {
             if (await confirmDialog('Simulation neu starten? Laufende Notrufe, Einsätze, Archiv und Statistik dieses Spielstands werden gelöscht. Die Leitstellenkonfiguration bleibt erhalten.\n\nTipp: Vorher unter „Daten“ einen Spielstand sichern.', { confirmLabel: 'Neu starten' }))
-              store.run((g) => restartSimulation(g));
+              store.cmd('restartSimulation');
           }}
         >
           Simulation neu starten
@@ -140,7 +139,7 @@ function ScenarioList({ game }: { game: GameState }) {
                 <td className="mono">{s.keyword === '-' ? 'kein Einsatz' : s.keyword}{s.variants?.some((v) => v.keyword) ? ' (+ Varianten)' : ''}</td>
                 <td>{1 + (s.variants?.length ?? 0)}</td>
                 <td className="mono">{s.weight}</td>
-                <td><button className="btn small" onClick={() => store.run((g) => injectScenarioCall(g, s.id))}>Auslösen</button></td>
+                <td><button className="btn small" onClick={() => store.cmd('injectScenarioCall', s.id)}>Auslösen</button></td>
               </tr>
             ))}
           </tbody>

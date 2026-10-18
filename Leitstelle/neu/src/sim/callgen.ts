@@ -4,6 +4,7 @@ import type { Facts, FactValue } from '../data/questions';
 import { Rng } from './rng';
 import { areaBounds, pointInArea } from './geo';
 import { describePlace, pickPlace, placeLatLng } from '../geo/places';
+import { emptyMask } from '../model/mask';
 import { hourOf } from './availability';
 import { DIFFICULTY, isNight } from './difficulty';
 
@@ -164,5 +165,9 @@ export function generateCall(state: GameState, rng: Rng, id: string, at: number,
     hangupAt: at + diff.hangupSeconds * 1000 * rng.range(0.7, 1.3),
     redialOf: null,
     duplicateOfIncidentId: null,
+    phoneType: rng.chance(0.45) ? 'festnetz' : 'mobil',
+    locate: null,
+    // Rufnummer wird wie in echten Systemen automatisch übermittelt
+    mask: emptyMask(phone),
   };
 }

@@ -80,7 +80,12 @@ export function buildPlaceIndex(elements: OverpassElement[], opts: BuildOptions 
   const strings = new Strings();
   const addressed: { p: LatLng; street: string; city: string; pc: string }[] = [];
   const raw: { kind: PlaceKind; p: LatLng; t: Record<string, string> }[] = [];
+  const seenIds = new Set<string>();
   for (const e of elements) {
+    // mehrere Overpass-Abfragen können dasselbe Element liefern
+    const uid = `${e.type}/${e.id}`;
+    if (seenIds.has(uid)) continue;
+    seenIds.add(uid);
     const t = e.tags ?? {};
     const kind = classify(t);
     const p = pos(e);

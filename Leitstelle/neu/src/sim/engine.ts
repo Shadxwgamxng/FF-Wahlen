@@ -9,6 +9,8 @@ import type {
   RadioMessage,
   StatusMeaning,
   Vehicle,
+  VehicleTimes,
+  EinsatzMask,
   Weather,
 } from '../model/types';
 import { SCHEMA_VERSION } from '../model/types';
@@ -19,10 +21,12 @@ import { keywordNeeds } from '../data/keywords';
 import { findQuestion } from '../data/questions';
 import { hourOf, outOfServiceReason, vehicleAvailability } from './availability';
 import { DIFFICULTY, HOURLY_PROFILE } from './difficulty';
-import { interpolate, pointInArea, travelTimeMs } from './geo';
+import { distanceMeters, interpolate, pointInArea, travelTimeMs } from './geo';
 import { cumulative, EMERGENCY_FACTOR, getRoute, requestRoute } from './routing';
 import { aaoRequirements, capsOf, coverage, hospitalOptions, MEDICAL_CAPS, mergeRequirements, openRequirements, typeOf } from './dispatch';
 import { SIM_START, emptyVehicleRuntime } from '../data/sampleCenter';
+import { emptyMask, maskAddress } from '../model/mask';
+import { geocode, reverseGeocode, describePlace } from '../geo/places';
 
 /**
  * Simulations-Engine. Alle Zustandsänderungen des Spiels laufen über die hier exportierten
@@ -105,10 +109,15 @@ export function statusDef(state: GameState, meaning: StatusMeaning) {
   return state.center.statusDefs.find((s) => s.meaning === meaning) ?? { meaning, code: '?', label: meaning, color: '#888' };
 }
 
+const TIME_KEY: Partial<Record<StatusMeaning, keyof VehicleTimes>> = { alarmiert: 'alarm', anfahrt: 'anfahrt', einsatzort: 'einsatzort', transport: 'transport', am_ziel: 'am_ziel' };
+
 function setStatus(state: GameState, v: Vehicle, meaning: StatusMeaning, note?: string) {
   if (v.rt.status === meaning) return;
   v.rt.status = meaning;
   v.rt.lastStatusChange = state.runtime.clock.now;
+  const tk = TIME_KEY[meaning];
+  const tinc = v.rt.incidentId ? incident(state, v.rt.incidentId) : undefined;
+  if (tk && tinc) (tinc.times[v.id] ??= {})[tk] = state.runtime.clock.now;
   const d = statusDef(state, meaning);
   log(state, 'status', `${v.callsign}: Status ${d.code} – ${d.label}${note ? ` (${note})` : ''}`, {
     vehicleId: v.id,
@@ -211,6 +220,7 @@ export function tick(state: GameState, dtMs: number) {
   updateWeather(state);
   generateCalls(state);
   handleCallTimeouts(state);
+  processLocates(state);
   updateServiceStatus(state);
   randomBreakdowns(state, dtMs);
   updateVehicles(state);
@@ -300,6 +310,8 @@ function createDuplicateCall(state: GameState, rng: Rng, inc: Incident, at: numb
     redialOf: null,
     duplicateOfIncidentId: inc.id,
     facts: { ...orig.facts },
+    locate: null,
+    mask: emptyMask(orig.caller.phone),
   });
   rt.stats.callsTotal++;
   log(state, 'notruf', 'Notruf geht ein (weiterer Anrufer)', { callId: `c_${rt.counters.call}` });
@@ -330,6 +342,8 @@ function handleCallTimeouts(state: GameState) {
           redialOf: c.id,
           facts: { ...c.facts },
           dialog: [],
+          locate: null,
+          mask: emptyMask(c.caller.phone),
         });
         rt.stats.callsTotal++;
       });
@@ -404,7 +418,12 @@ function arrive(state: GameState, v: Vehicle) {
   if (m.purpose === 'einsatz') {
     const inc = v.rt.incidentId ? incident(state, v.rt.incidentId) : undefined;
     setStatus(state, v, 'einsatzort');
-    if (inc) {
+    if (inc && !locationCorrect(inc)) {
+      if (!inc.locationWrongReported) {
+        inc.locationWrongReported = true;
+        radio(state, { vehicleId: v.id, incidentId: inc.id, kind: 'lage', text: `An der Adresse ${inc.address} ist keine Einsatzstelle feststellbar – erbitten Überprüfung der Adresse.` });
+      }
+    } else if (inc) {
       if (!inc.firstArrivalAt) {
         inc.firstArrivalAt = now;
         inc.lastNeedCheckAt = now;
@@ -448,7 +467,10 @@ function finishHandover(state: GameState, v: Vehicle) {
 
 function detachFromIncident(state: GameState, v: Vehicle) {
   const inc = v.rt.incidentId ? incident(state, v.rt.incidentId) : undefined;
-  if (inc) inc.activeVehicleIds = inc.activeVehicleIds.filter((id) => id !== v.id);
+  if (inc) {
+    inc.activeVehicleIds = inc.activeVehicleIds.filter((id) => id !== v.id);
+    (inc.times[v.id] ??= {}).frei = state.runtime.clock.now;
+  }
   v.rt.incidentId = null;
 }
 
@@ -476,8 +498,14 @@ function accumulateStats(state: GameState, dt: number) {
 // Einsatzablauf
 // ---------------------------------------------------------------------------
 
+/** Liegt die eingegebene Adresse nah genug am tatsächlichen Geschehen? */
+export const locationCorrect = (inc: Incident) => distanceMeters(inc.position, inc.truePosition) <= WRONG_LOCATION_M;
+const WRONG_LOCATION_M = 250;
+
 const onScene = (state: GameState, inc: Incident) =>
-  state.center.vehicles.filter((v) => v.rt.incidentId === inc.id && (v.rt.status === 'einsatzort' || (v.rt.status === 'sprechwunsch' && v.rt.statusBeforeSpeak === 'einsatzort')));
+  !locationCorrect(inc)
+    ? []
+    : state.center.vehicles.filter((v) => v.rt.incidentId === inc.id && (v.rt.status === 'einsatzort' || (v.rt.status === 'sprechwunsch' && v.rt.statusBeforeSpeak === 'einsatzort')));
 
 const nonMedical = (reqs: AaoRequirement[]) => reqs.filter((r) => !MEDICAL_CAPS.has(r.capability) && r.capability !== 'rd_fuehrung');
 
@@ -703,11 +731,131 @@ export function truthKeywordCode(scenarioId: string, variantIdx: number): string
   return (variantIdx >= 0 ? sc.variants?.[variantIdx]?.keyword : undefined) ?? sc.keyword;
 }
 
-export function createIncidentFromCall(state: GameState, callId: string): CommandResult {
+/**
+ * Ermittelt die Position zur in der Einsatzmaske eingegebenen Adresse.
+ * Reihenfolge: übernommene Ortung → Geokodierung über die OSM-Adressen → (ohne OSM-Daten) Abgleich
+ * mit dem Straßennamen des Anrufs. Eine falsch eingegebene Adresse führt zu einer falschen Position.
+ */
+export function resolveMaskLocation(state: GameState, mask: EinsatzMask, truth?: { street?: string; position: LatLng }): { position: LatLng; address: string; exact: boolean } | { error: string } {
+  if (!mask.street.trim()) return { error: 'Bitte die Straße des Einsatzorts eingeben (oder den Anrufer orten).' };
+  const address = maskAddress(mask);
+  if (mask.position) return { position: mask.position, address, exact: true };
+  const ix = state.center.places;
+  if (ix && ix.places.length) {
+    const g = geocode(ix, mask.street, mask.houseNumber, mask.city);
+    if (!g) return { error: `Adresse „${address}“ nicht gefunden – Schreibweise prüfen, Ort ergänzen oder den Anrufer orten.` };
+    return { position: g.position, address, exact: g.exact };
+  }
+  const norm = (x: string) => x.toLowerCase().replace(/[^a-zäöüß0-9]/g, '');
+  if (truth?.street && norm(truth.street) === norm(mask.street)) return { position: truth.position, address, exact: true };
+  return { error: 'Ohne Kartendaten kann die Adresse nicht geprüft werden – bitte den Anrufer orten.' };
+}
+
+export function updateCallMask(state: GameState, callId: string, patch: Partial<EinsatzMask>): CommandResult {
+  const c = state.runtime.calls.find((x) => x.id === callId);
+  if (!c) return fail('Notruf nicht gefunden.');
+  // Wird die Adresse von Hand geändert, gilt eine übernommene Ortungsposition nicht mehr
+  const addrChanged = ['street', 'houseNumber', 'postcode', 'city'].some((k) => k in patch && !('position' in patch));
+  c.mask = { ...c.mask, ...patch, ...(addrChanged ? { position: null } : {}) };
+  return ok();
+}
+
+/** Startet die Ortung des Anrufers (Festnetz: genaue Adresse, Mobilfunk: Standort mit Ungenauigkeit) */
+export function startLocating(state: GameState, callId: string): CommandResult {
+  const c = state.runtime.calls.find((x) => x.id === callId);
+  if (!c || c.state !== 'in_abfrage') return fail('Kein Notruf in Abfrage.');
+  if (c.locate?.status === 'laeuft') return fail('Ortung läuft bereits.');
+  const now = state.runtime.clock.now;
+  const dur = withRng(state, (rng) => (c.phoneType === 'festnetz' ? rng.range(4, 7) : rng.range(10, 25)) * 1000);
+  c.locate = { startedAt: now, readyAt: now + dur, status: 'laeuft' };
+  log(state, 'notruf', `Ortung gestartet (${c.phoneType === 'festnetz' ? 'Festnetz' : 'Mobilfunk'})`, { callId });
+  return ok();
+}
+
+function processLocates(state: GameState) {
+  const now = state.runtime.clock.now;
+  for (const c of state.runtime.calls) {
+    const l = c.locate;
+    if (!l || l.status !== 'laeuft' || now < l.readyAt) continue;
+    withRng(state, (rng) => {
+      const loc = c.location;
+      if (c.phoneType === 'festnetz') {
+        // Anschlussadresse – stimmt nur, wenn der Anrufer von zu Hause aus anruft
+        const atHome = loc.houseNumber && !/Wald|Ufer|Fahrbahn|Schnellstraße/.test(loc.detail);
+        if (atHome) {
+          Object.assign(l, { status: 'ok', position: loc.position, accuracyM: 0, street: loc.street, houseNumber: loc.houseNumber, postcode: loc.postcode, city: loc.city, message: 'Anschlussadresse ermittelt.' });
+        } else {
+          Object.assign(l, { status: 'fehler', message: 'Festnetzanschluss ohne verwertbare Adresse für diesen Einsatzort – bitte Adresse erfragen.' });
+        }
+        return;
+      }
+      if (rng.chance(0.1)) {
+        Object.assign(l, { status: 'fehler', message: 'Ortung fehlgeschlagen (kein Standort vom Netz übermittelt).' });
+        return;
+      }
+      const acc = Math.round(rng.range(15, 500));
+      const ang = rng.range(0, Math.PI * 2);
+      const d = rng.range(0, acc * 0.7);
+      const pos: LatLng = [loc.position[0] + (Math.cos(ang) * d) / 111_320, loc.position[1] + (Math.sin(ang) * d) / (111_320 * Math.cos((loc.position[0] * Math.PI) / 180))];
+      const ix = state.center.places;
+      const near = ix ? reverseGeocode(ix, pos) : null;
+      const parts = near && ix ? describePlace(ix, near.tuple) : null;
+      Object.assign(l, {
+        status: 'ok',
+        position: pos,
+        accuracyM: acc,
+        street: parts?.street ?? '',
+        houseNumber: parts?.houseNumber ?? '',
+        postcode: parts?.postcode ?? '',
+        city: parts?.city ?? '',
+        message: `Mobilfunkortung: Standort mit ±${acc} m Genauigkeit${parts ? `, nächste Adresse ${parts.street} ${parts.houseNumber}` : ''}.`,
+      });
+    });
+    log(state, 'notruf', `Ortung abgeschlossen: ${l.message}`, { callId: c.id });
+  }
+}
+
+/** Übernimmt das Ortungsergebnis in die Einsatzmaske */
+export function applyLocate(state: GameState, callId: string): CommandResult {
+  const c = state.runtime.calls.find((x) => x.id === callId);
+  const l = c?.locate;
+  if (!c || !l || l.status !== 'ok' || !l.position) return fail('Kein Ortungsergebnis vorhanden.');
+  c.mask = { ...c.mask, street: l.street ?? '', houseNumber: l.houseNumber ?? '', postcode: l.postcode ?? '', city: l.city ?? '', position: l.position };
+  return ok('Ortung in die Einsatzmaske übernommen.');
+}
+
+/** Korrigiert die Adresse eines Einsatzes; gebundene Kräfte fahren den neuen Ort an */
+export function correctIncidentLocation(state: GameState, incidentId: string, patch: Pick<EinsatzMask, 'street' | 'houseNumber' | 'postcode' | 'city'> & { position?: LatLng | null }): CommandResult {
+  const inc = incident(state, incidentId);
+  if (!inc || inc.state === 'abgeschlossen') return fail('Einsatz nicht gefunden.');
+  const mask = { ...(inc.mask ?? emptyMask()), ...patch, position: patch.position ?? null };
+  const r = resolveMaskLocation(state, mask);
+  if ('error' in r) return fail(r.error);
+  inc.position = r.position;
+  inc.address = r.address;
+  inc.mask = mask;
+  inc.areaId = state.center.areas.find((a) => pointInArea(r.position, a))?.id ?? null;
+  inc.locationWrongReported = false;
+  for (const v of state.center.vehicles) {
+    if (v.rt.incidentId !== inc.id || v.rt.status === 'transport' || v.rt.status === 'am_ziel' || v.rt.status === 'alarmiert') continue;
+    startMove(state, v, inc.position, 'einsatz', true);
+    setStatus(state, v, 'anfahrt', 'neue Adresse');
+  }
+  log(state, 'einsatz', `Einsatzadresse korrigiert: ${r.address}`, { incidentId });
+  return ok('Adresse korrigiert – Kräfte fahren den neuen Einsatzort an.');
+}
+
+export function createIncidentFromCall(state: GameState, callId: string, mask?: EinsatzMask): CommandResult {
   const rt = state.runtime;
   const c = rt.calls.find((x) => x.id === callId);
   if (!c || c.state !== 'in_abfrage') return fail('Kein Notruf in Abfrage.');
-  if (!c.dialog.some((d) => d.questionId === 'ort')) return fail('Der Einsatzort wurde noch nicht abgefragt.');
+  // Ohne Einsatzmaske (Tests, automatischer Spieler): Ort muss abgefragt sein und wird übernommen
+  let loc: { position: LatLng; address: string } = { position: c.location.position, address: c.location.address };
+  if (mask) {
+    const r = resolveMaskLocation(state, mask, { street: c.location.street, position: c.location.position });
+    if ('error' in r) return fail(r.error);
+    loc = r;
+  } else if (!c.dialog.some((d) => d.questionId === 'ort')) return fail('Der Einsatzort wurde noch nicht abgefragt.');
   if (!c.keywordId) return fail('Bitte zuerst ein Einsatzstichwort wählen.');
   const kw = state.center.keywords.find((k) => k.id === c.keywordId);
   if (!kw) return fail('Unbekanntes Stichwort.');
@@ -743,10 +891,14 @@ export function createIncidentFromCall(state: GameState, callId: string): Comman
       keywordId: kw.id,
       scenarioId: c.scenarioId,
       category: kw.category,
-      position: [...c.location.position] as LatLng,
-      address: c.location.address,
-      areaId: c.location.areaId,
-      description: c.notes || c.opening,
+      position: [...loc.position] as LatLng,
+      truePosition: [...c.location.position] as LatLng,
+      locationWrongReported: false,
+      times: {},
+      mask: mask ? { ...mask } : null,
+      address: loc.address,
+      areaId: state.center.areas.find((a) => pointInArea(loc.position, a))?.id ?? c.location.areaId,
+      description: mask?.info || c.notes || c.opening,
       priority: kw.priority,
       needs: truthCode === NO_INCIDENT_KEYWORD ? [] : keywordNeeds(truthCode),
       workTotalMs: Math.round(rng.range(work[0], work[1]) * MIN * diff.workTime),
@@ -818,6 +970,10 @@ export function createManualIncident(state: GameState, keywordId: string, positi
     scenarioId: 'manuell',
     category: kw.category,
     position,
+    truePosition: position,
+    locationWrongReported: false,
+    times: {},
+    mask: null,
     address,
     areaId: state.center.areas.find((a) => pointInArea(position, a))?.id ?? null,
     description,

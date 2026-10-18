@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import type { GameState, RadioMessage } from '../../../model/types';
-import { acknowledgeRadio, assignHospital, releaseAllOnScene } from '../../../sim/engine';
 import { hospitalOptions } from '../../../sim/dispatch';
 import { formatDuration } from '../../../sim/geo';
 import { store } from '../../../store/gameStore';
@@ -33,7 +32,7 @@ export function RadioActions({ game, msg }: { game: GameState; msg: RadioMessage
             </option>
           ))}
         </select>
-        <button className="btn small primary" onClick={() => store.run((s) => assignHospital(s, msg.id, chosen))} disabled={!chosen}>
+        <button className="btn small primary" onClick={() => store.cmd('assignHospital', msg.id, chosen)} disabled={!chosen}>
           Ziel zuweisen
         </button>
         <span className="dim small">✓ = Fachrichtung „{patient?.department}“ laut Spieldaten vorhanden</span>
@@ -43,9 +42,9 @@ export function RadioActions({ game, msg }: { game: GameState; msg: RadioMessage
   return (
     <div className="row wrap">
       {msg.kind === 'lage' && inc?.state === 'abarbeitung_beendet' && (
-        <button className="btn small primary" onClick={() => store.run((s) => releaseAllOnScene(s, inc.id))}>Kräfte entlassen</button>
+        <button className="btn small primary" onClick={() => store.cmd('releaseAllOnScene', inc.id)}>Kräfte entlassen</button>
       )}
-      <button className="btn small" onClick={() => store.run((s) => acknowledgeRadio(s, msg.id))}>Quittieren</button>
+      <button className="btn small" onClick={() => store.cmd('acknowledgeRadio', msg.id)}>Quittieren</button>
     </div>
   );
 }

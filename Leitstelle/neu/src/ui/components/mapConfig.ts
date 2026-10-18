@@ -14,9 +14,14 @@ export const TILE_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/c
  * Timer, der nach dem Entfernen der Karte auf nicht mehr vorhandene DOM-Elemente zugreift.
  */
 export function safeRemoveMap(m: { remove: () => void; stop?: () => unknown }) {
-  const anyMap = m as unknown as Record<string, unknown>;
-  anyMap._onZoomTransitionEnd = () => {};
-  anyMap._catchTransitionEnd = () => {};
+  const anyMap = m as unknown as { _animatingZoom?: boolean; _onZoomTransitionEnd?: () => void };
+  // Laufende Zoom-Animation sofort beenden: Der bereits geplante Timer bricht dann ab,
+  // weil _animatingZoom false ist (siehe Leaflet _onZoomTransitionEnd).
+  try {
+    if (anyMap._animatingZoom) anyMap._onZoomTransitionEnd?.();
+  } catch {
+    /* Karte ist bereits teilweise abgebaut */
+  }
   m.stop?.();
   m.remove();
 }

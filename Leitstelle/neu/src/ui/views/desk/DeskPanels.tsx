@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import type { EventKind, GameState, OrgKind } from '../../../model/types';
 import { vehicleAvailability, outOfServiceReason } from '../../../sim/availability';
-import { setVehicleServiceStatus } from '../../../sim/engine';
 import { formatDuration } from '../../../sim/geo';
 import { store } from '../../../store/gameStore';
 import { radioGroupOf } from '../../../model/radio';
@@ -172,9 +171,9 @@ export function VehicleDetail({ game, vehicleId, onClose, onOpenIncident }: { ga
         {!av.available && av.reason && <div className="field-error">{av.reason}</div>}
         <div className="row">
           {v.rt.status === 'ausser_dienst' ? (
-            <button className="btn small" onClick={() => store.run((s) => setVehicleServiceStatus(s, v.id, true))}>Status 2 – in Dienst</button>
+            <button className="btn small" onClick={() => store.cmd('setVehicleServiceStatus', v.id, true)}>Status 2 – in Dienst</button>
           ) : (
-            <button className="btn small" disabled={Boolean(v.rt.incidentId)} onClick={() => store.run((s) => setVehicleServiceStatus(s, v.id, false))}>Status 6 – außer Dienst</button>
+            <button className="btn small" disabled={Boolean(v.rt.incidentId)} onClick={() => store.cmd('setVehicleServiceStatus', v.id, false)}>Status 6 – außer Dienst</button>
           )}
           <span className="dim">Alarme: {v.rt.alarms}</span>
         </div>
