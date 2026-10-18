@@ -40,6 +40,10 @@ Für den E2E-Test muss Playwright samt Chromium vorhanden sein (`npm i -D playwr
 
 Fahrzeuge fahren über echte Straßen, wenn ein lokaler OSRM-Server läuft (kostenlos, Anleitung: [docs/ROUTING.md](docs/ROUTING.md), Skripte in `osrm/`). Ohne Server nutzt das Spiel eine deutlich gekennzeichnete Luftlinien-Näherung.
 
+## PC + Tablet im lokalen Netz
+
+`npm run lan` startet einen kleinen LAN-Server. Am PC öffnest du die angezeigte Adresse, am Tablet `…/tablet`. Das Tablet zeigt synchron die Notrufabfrage (DIAS) zum Durchtippen mit „Daten übernehmen“. Ohne laufende Abfrage ist es ein Funkbedienplatz mit Rufgruppenauswahl. Details: [docs/LAN.md](docs/LAN.md).
+
 ## Mehrere Bildschirme
 
 Über das Menü **Fenster** lassen sich Karte, Fahrzeuge, Einsätze und Funk als eigene Browserfenster lösen und auf weitere Monitore ziehen. Alle Fenster bleiben synchron.
@@ -113,6 +117,7 @@ Wählst du ein zu kleines Stichwort, fordern die Kräfte vor Ort nach. Lagen kö
 | Paket | Zweck | Lizenz |
 |---|---|---|
 | React 18 | Oberfläche | MIT |
+| ws | WebSocket für den LAN-Server (nur `server/lan.mjs`) | MIT |
 | Leaflet 1.9 | Karte | BSD-2-Clause |
 | immer | unveränderliche Zustandsübergänge | MIT |
 | zod | Validierung beim Import | MIT |

@@ -6,6 +6,8 @@ import { projects, snapshots, type ProjectRecord } from '../persistence/db';
 import { COMMANDS, execCommand, type CommandArgs, type CommandName } from './commands';
 import { repairReferences } from '../persistence/schema';
 import { newId } from '../model/ids';
+import { SyncBus } from './syncBus';
+import type { DiasTree } from '../dias/model';
 
 /**
  * Zentraler Spielzustand. Einzige Stelle, an der der Zustand ersetzt wird.
@@ -60,9 +62,31 @@ export class GameStore {
   /** 'main' simuliert und speichert; 'remote' (weiteres Fenster) zeigt nur an und sendet Befehle */
   role: 'main' | 'remote' = 'main';
   windowId = Math.random().toString(36).slice(2);
-  private channel: BroadcastChannel | null = null;
+  private channel: SyncBus<SyncMsg> | null = null;
   private bcTimer: ReturnType<typeof setTimeout> | null = null;
+  private lanTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Wird über den LAN-Server ausgeliefert (andere Geräte können sich verbinden) */
+  readonly lan = typeof window !== 'undefined' && Boolean((window as unknown as { __LEITWARTE_LAN__?: boolean }).__LEITWARTE_LAN__);
+  /** Liefert die Notrufabfrage für andere Geräte (setzt dias/store, um Importzyklen zu vermeiden) */
+  diasProvider: (() => Promise<DiasTree | null>) | null = null;
+  /** Empfängt die Notrufabfrage vom Hauptgerät (Tablet) */
+  diasReceiver: ((t: DiasTree | null) => void) | null = null;
+
+  get lanStatus() {
+    return { enabled: this.lan, connected: Boolean(this.channel?.lanConnected), peers: this.channel?.peers ?? 0 };
+  }
+
+  /** Hauptgerät: neue bzw. gelöschte Notrufabfrage an andere Geräte verteilen */
+  broadcastDias(tree: DiasTree | null) {
+    if (this.role === 'main') this.channel?.postLan({ t: 'dias', tree } satisfies SyncMsg);
+  }
+
+  /** Tablet/Zweitgerät: Notrufabfrage beim Hauptgerät anfordern */
+  requestDias() {
+    this.channel?.post({ t: 'diasReq' } satisfies SyncMsg);
+  }
   private placesCache: { version: string; places: CenterConfig['places'] } | null = null;
+  private placesRequested: string | null = null;
   mainAlive = true;
   private uiListeners = new Set<(a: UiAction) => void>();
 
@@ -72,69 +96,95 @@ export class GameStore {
 
   /** Hauptfenster: Synchronisation mit weiteren Fenstern starten */
   startSyncMain() {
-    if (typeof BroadcastChannel === 'undefined' || this.channel) return;
-    this.channel = new BroadcastChannel('leitwarte-sync');
-    this.channel.onmessage = (ev) => {
-      const m = ev.data as SyncMsg;
+    if (this.channel) return;
+    this.channel = new SyncBus<SyncMsg>('leitwarte-sync', this.lan);
+    this.channel.onStatus = () => this.emitLocal();
+    this.channel.on((m) => {
+      if (m.t === 'diasReq') {
+        void (this.diasProvider?.() ?? Promise.resolve(null)).then((tree) => this.channel?.post({ t: 'dias', tree } satisfies SyncMsg));
+        return;
+      }
       if (m.t === 'hello') {
         this.broadcastNow();
         this.sendPlaces();
       } else if (m.t === 'needPlaces') this.sendPlaces();
       else if (m.t === 'cmd') {
         const r = this.cmdLocal(m.name as CommandName, m.args, !m.quiet);
-        this.channel?.postMessage({ t: 'result', to: m.from, result: r } satisfies SyncMsg);
+        this.channel?.post({ t: 'result', to: m.from, result: r } satisfies SyncMsg);
       } else if (m.t === 'ui') this.uiListeners.forEach((l) => l(m.action));
-    };
-    window.addEventListener('beforeunload', () => this.channel?.postMessage({ t: 'bye' } satisfies SyncMsg));
+    });
+    window.addEventListener('beforeunload', () => this.channel?.post({ t: 'bye' } satisfies SyncMsg));
+  }
+
+  /** Nur lokal neu zeichnen (ohne erneutes Senden) */
+  private emitLocal() {
+    this.version++;
+    for (const l of this.listeners) l();
   }
 
   private sendPlaces() {
     if (!this.channel) return;
     const c = this.state?.center;
-    this.channel.postMessage({ t: 'places', version: this.placesVersion(c), places: c?.places ?? null } satisfies SyncMsg);
+    this.channel.post({ t: 'places', version: this.placesVersion(c), places: c?.places ?? null } satisfies SyncMsg);
   }
 
   private scheduleBroadcast() {
-    if (this.role !== 'main' || !this.channel || this.bcTimer) return;
-    this.bcTimer = setTimeout(() => {
-      this.bcTimer = null;
-      this.broadcastNow();
-    }, 300);
+    if (this.role !== 'main' || !this.channel) return;
+    if (!this.bcTimer)
+      this.bcTimer = setTimeout(() => {
+        this.bcTimer = null;
+        this.channel?.postLocal(this.stateMsg());
+      }, 300);
+    // Andere Geräte (LAN) etwas seltener – nur wenn welche verbunden sind
+    if (!this.lanTimer && this.channel.peers > 0)
+      this.lanTimer = setTimeout(() => {
+        this.lanTimer = null;
+        this.channel?.postLan(this.stateMsg());
+      }, 500);
+  }
+
+  private stateMsg(): SyncMsg {
+    const s = this.state;
+    const center = s ? { ...s.center, places: null } : null;
+    return { t: 'state', project: this.project, placesVersion: this.placesVersion(s?.center), state: s ? { ...s, center: center! } : null };
   }
 
   private broadcastNow() {
-    if (!this.channel) return;
-    const s = this.state;
-    const center = s ? { ...s.center, places: null } : null;
-    this.channel.postMessage({
-      t: 'state',
-      project: this.project,
-      placesVersion: this.placesVersion(s?.center),
-      state: s ? { ...s, center: center! } : null,
-    } satisfies SyncMsg);
+    this.channel?.post(this.stateMsg());
   }
 
   /** Weiteres Fenster: verbindet sich mit dem Hauptfenster */
   startSyncRemote() {
-    if (typeof BroadcastChannel === 'undefined') return;
     this.role = 'remote';
-    this.channel = new BroadcastChannel('leitwarte-sync');
+    this.channel = new SyncBus<SyncMsg>('leitwarte-sync', this.lan);
     let lastSeen = Date.now();
-    this.channel.onmessage = (ev) => {
-      const m = ev.data as SyncMsg;
+    this.channel.onStatus = () => {
+      // nach (Wieder-)Verbindung mit dem LAN-Server sofort den Zustand anfordern
+      if (this.channel?.lanConnected) this.channel.post({ t: 'hello' } satisfies SyncMsg);
+      this.emitLocal();
+    };
+    this.channel.on((m) => {
+      if (m.t === 'dias') {
+        this.diasReceiver?.(m.tree);
+        return;
+      }
       if (m.t === 'state') {
         lastSeen = Date.now();
         this.mainAlive = true;
         this.project = m.project;
         if (!m.state) this.state = null;
         else {
-          if (this.placesCache?.version !== m.placesVersion) this.channel?.postMessage({ t: 'needPlaces' } satisfies SyncMsg);
+          if (this.placesCache?.version !== m.placesVersion && this.placesRequested !== m.placesVersion) {
+            this.placesRequested = m.placesVersion;
+            this.channel?.post({ t: 'needPlaces' } satisfies SyncMsg);
+          }
           this.state = { ...m.state, center: { ...m.state.center, places: this.placesCache?.version === m.placesVersion ? this.placesCache.places : null } };
         }
         this.version++;
         for (const l of this.listeners) l();
       } else if (m.t === 'places') {
         this.placesCache = { version: m.version, places: m.places };
+        this.placesRequested = null;
         if (this.state) this.state = { ...this.state, center: { ...this.state.center, places: m.places } };
       } else if (m.t === 'result' && m.to === this.windowId) {
         const r = m.result;
@@ -145,12 +195,12 @@ export class GameStore {
         this.mainAlive = false;
         this.emit();
       }
-    };
-    this.channel.postMessage({ t: 'hello' } satisfies SyncMsg);
+    });
+    this.channel.post({ t: 'hello' } satisfies SyncMsg);
     // Lebenszeichen: läuft die Simulation nicht, schickt das Hauptfenster keine Zustände – daher nachfragen
     setInterval(() => {
       if (Date.now() - lastSeen > 4000) {
-        this.channel?.postMessage({ t: 'hello' } satisfies SyncMsg);
+        this.channel?.post({ t: 'hello' } satisfies SyncMsg);
         if (Date.now() - lastSeen > 8000 && this.mainAlive) {
           this.mainAlive = false;
           this.emit();
@@ -161,7 +211,7 @@ export class GameStore {
 
   /** UI-Aktion (z. B. "Einsatz in der Maske öffnen") an das Hauptfenster bzw. lokal */
   uiAction(a: UiAction) {
-    if (this.role === 'remote') this.channel?.postMessage({ t: 'ui', action: a } satisfies SyncMsg);
+    if (this.role === 'remote') this.channel?.post({ t: 'ui', action: a } satisfies SyncMsg);
     else this.uiListeners.forEach((l) => l(a));
   }
 
@@ -185,7 +235,7 @@ export class GameStore {
   private dispatch(name: CommandName, args: unknown[], toast: boolean): CommandResult {
     if (this.role === 'remote') {
       if (!(name in COMMANDS)) return { ok: false, error: 'Unbekannter Befehl.' };
-      this.channel?.postMessage({ t: 'cmd', from: this.windowId, name, args, quiet: !toast } satisfies SyncMsg);
+      this.channel?.post({ t: 'cmd', from: this.windowId, name, args, quiet: !toast } satisfies SyncMsg);
       // Ergebnis kommt asynchron vom Hauptfenster; IDs neu angelegter Objekte sind hier nicht bekannt
       return { ok: true };
     }
@@ -389,7 +439,9 @@ type SyncMsg =
   | { t: 'places'; version: string; places: CenterConfig['places'] }
   | { t: 'cmd'; from: string; name: string; args: unknown[]; quiet: boolean }
   | { t: 'result'; to: string; result: CommandResult }
-  | { t: 'ui'; action: UiAction };
+  | { t: 'ui'; action: UiAction }
+  | { t: 'diasReq' }
+  | { t: 'dias'; tree: DiasTree | null };
 
 export const store = new GameStore();
 

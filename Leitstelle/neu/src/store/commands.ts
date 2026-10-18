@@ -12,6 +12,8 @@ export const COMMANDS = {
   acknowledgeRadio: E.acknowledgeRadio,
   alarmVehicles: E.alarmVehicles,
   alarmGroups: E.alarmGroups,
+  setCallDias: E.setCallDias,
+  applyDiasResult: E.applyDiasResult,
   applyLocate: E.applyLocate,
   applyRoutes: E.applyRoutes,
   askQuestion: E.askQuestion,

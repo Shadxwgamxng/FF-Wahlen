@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { kvStore } from '../persistence/db';
 import { parseDiasExport, type DiasTree } from './model';
+import { store } from '../store/gameStore';
 
 /**
  * Die importierte Notrufabfrage liegt nur lokal in IndexedDB (Schlüssel "dias").
@@ -18,8 +19,32 @@ export function diasTree(): DiasTree | null {
   return tree;
 }
 
+// Hauptgerät: liefert die Abfrage an andere Geräte (Tablet). Zweitgerät: empfängt sie vom Hauptgerät.
+store.diasProvider = () => loadDias();
+store.diasReceiver = (t) => {
+  tree = t && t.version === 1 && t.nodes ? t : null;
+  loaded = true;
+  loading = null;
+  emit();
+};
+
 export function loadDias(): Promise<DiasTree | null> {
   if (loaded) return Promise.resolve(tree);
+  // Andere Geräte haben die Datei nicht selbst – sie kommt vom Hauptgerät
+  if (store.role === 'remote' && store.lan) {
+    store.requestDias();
+    // Anfrage wiederholen, bis das Hauptgerät antwortet (Verbindung kann noch im Aufbau sein)
+    const again = setInterval(() => (loaded ? clearInterval(again) : store.requestDias()), 3000);
+    return new Promise((resolve) => {
+      const l = () => {
+        if (!loaded) return;
+        listeners.delete(l);
+        clearInterval(again);
+        resolve(tree);
+      };
+      listeners.add(l);
+    });
+  }
   loading ??= kvStore
     .get<DiasTree>(KEY)
     .then((t) => {
@@ -48,6 +73,7 @@ export async function importDias(json: string): Promise<DiasTree> {
   tree = t;
   loaded = true;
   emit();
+  store.broadcastDias(t);
   return t;
 }
 
@@ -56,6 +82,7 @@ export async function removeDias() {
   tree = null;
   loaded = true;
   emit();
+  store.broadcastDias(null);
 }
 
 /** React: aktuelle Notrufabfrage (null = nicht importiert), lädt beim ersten Gebrauch */

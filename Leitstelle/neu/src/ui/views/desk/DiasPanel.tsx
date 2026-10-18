@@ -17,8 +17,7 @@ interface Step {
   option: number;
 }
 
-/** Abfrageverlauf je Notruf (bleibt erhalten, solange die Seite offen ist) */
-const progress = new Map<string, Step[]>();
+const NO_STEPS: Step[] = [];
 
 /**
  * Infotext aus den tatsächlich gewählten Antworten. (Die im Mitschnitt gespeicherte Zusammenfassung
@@ -41,16 +40,36 @@ const INCOMPLETE_TEXT: Record<string, string> = {
   ende: 'Ende des Mitschnitts',
 };
 
-export function DiasPanel({ game, call }: { game: GameState; call: Call }) {
+export function DiasPanel({ game, call, tablet }: { game: GameState; call: Call; tablet?: boolean }) {
   const { tree, ready } = useDias();
-  const [steps, setSteps] = useState<Step[]>(() => progress.get(call.id) ?? []);
+  // Der Abfrageverlauf liegt im Spielzustand (Notruf) und ist so auf PC, Zweitfenstern und Tablet gleich.
+  // Lokal wird sofort weitergeschaltet; der geteilte Stand folgt mit kurzer Verzögerung.
+  const shared = call.dias?.steps ?? NO_STEPS;
+  const sharedKey = JSON.stringify(shared);
+  const [steps, setLocal] = useState<Step[]>(shared);
+  const lastLocal = useRef(0);
+  const lastCall = useRef(call.id);
+  const latestShared = useRef(shared);
+  latestShared.current = shared;
+  useEffect(() => {
+    const switched = lastCall.current !== call.id;
+    lastCall.current = call.id;
+    const wait = 1500 - (Date.now() - lastLocal.current);
+    if (switched || wait <= 0) {
+      setLocal(shared);
+      return;
+    }
+    // kurz nach eigener Eingabe: veraltete Zwischenstände nicht übernehmen, danach den neuesten Stand
+    const t = setTimeout(() => setLocal(latestShared.current), wait);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [call.id, sharedKey]);
+  const setSteps = (next: Step[]) => {
+    lastLocal.current = Date.now();
+    setLocal(next);
+    store.cmdQuiet('setCallDias', call.id, next);
+  };
   const [open, setOpen] = useState(true);
-  useEffect(() => {
-    setSteps(progress.get(call.id) ?? []);
-  }, [call.id]);
-  useEffect(() => {
-    progress.set(call.id, steps);
-  }, [call.id, steps]);
 
   if (!ready) return <div className="dias small muted">Notrufabfrage wird geladen …</div>;
   if (!tree)
@@ -60,7 +79,7 @@ export function DiasPanel({ game, call }: { game: GameState; call: Call }) {
       </div>
     );
   return (
-    <div className="dias" data-testid="dias">
+    <div className={`dias${tablet ? ' dias-tablet' : ''}`} data-testid="dias">
       <div className="dias-head">
         <b className="grow">DIAS · Standardisierte Notrufabfrage</b>
         {steps.length > 0 && (
@@ -72,12 +91,12 @@ export function DiasPanel({ game, call }: { game: GameState; call: Call }) {
           {open ? '▾' : '▸'}
         </button>
       </div>
-      {open && <DiasBody game={game} call={call} tree={tree} steps={steps} setSteps={setSteps} />}
+      {open && <DiasBody game={game} call={call} tree={tree} steps={steps} setSteps={setSteps} tablet={tablet} />}
     </div>
   );
 }
 
-function DiasBody({ game, call, tree, steps, setSteps }: { game: GameState; call: Call; tree: DiasTree; steps: Step[]; setSteps: (s: Step[]) => void }) {
+function DiasBody({ game, call, tree, steps, setSteps, tablet }: { game: GameState; call: Call; tree: DiasTree; steps: Step[]; setSteps: (s: Step[]) => void; tablet?: boolean }) {
   const currentId = steps.length ? tree.nodes[steps[steps.length - 1].nodeId]?.options[steps[steps.length - 1].option]?.to : tree.root;
   const node: DiasNode | undefined = currentId ? tree.nodes[currentId] : undefined;
   const ref = useRef<HTMLDivElement>(null);
@@ -128,7 +147,7 @@ function DiasBody({ game, call, tree, steps, setSteps }: { game: GameState; call
       {!node ? (
         <div className="field-error small">Folgeschritt fehlt im Mitschnitt – bitte Stichwort selbst wählen.</div>
       ) : node.kind === 'ergebnis' ? (
-        <DiasResultView game={game} call={call} node={node} pathText={pathText(tree, steps)} mismatch={pathMismatch(node, steps.map((x) => tree.nodes[x.nodeId]?.options[x.option]?.answerId ?? ''), steps.map((x) => tree.nodes[x.nodeId]?.options[x.option]?.label ?? ''))} />
+        <DiasResultView game={game} call={call} node={node} tablet={tablet} pathText={pathText(tree, steps)} mismatch={pathMismatch(node, steps.map((x) => tree.nodes[x.nodeId]?.options[x.option]?.answerId ?? ''), steps.map((x) => tree.nodes[x.nodeId]?.options[x.option]?.label ?? ''))} />
       ) : node.kind === 'frage' ? (
         <div className="dias-current" data-testid="dias-question">
           <div className="dias-q" dangerouslySetInnerHTML={{ __html: node.html }} />
@@ -153,7 +172,7 @@ function DiasBody({ game, call, tree, steps, setSteps }: { game: GameState; call
   );
 }
 
-function DiasResultView({ game, call, node, pathText, mismatch }: { game: GameState; call: Call; node: DiasNode; pathText: string; mismatch: ReturnType<typeof pathMismatch> }) {
+function DiasResultView({ game, call, node, pathText, mismatch, tablet }: { game: GameState; call: Call; node: DiasNode; pathText: string; mismatch: ReturnType<typeof pathMismatch>; tablet?: boolean }) {
   const res = node.result!;
   const [infos, setInfos] = useState<Set<string>>(new Set());
   const codes = useMemo(() => game.center.keywords.map((k) => k.code), [game.center.keywords]);
@@ -163,12 +182,9 @@ function DiasResultView({ game, call, node, pathText, mismatch }: { game: GameSt
   const notes = mapped.map((x) => x.m?.note).filter((n): n is string => Boolean(n));
 
   const apply = () => {
-    if (targetKw) store.cmd('setCallKeyword', call.id, targetKw.id);
     const meldebild = res.sections.map((s) => s.meldebild).join(' / ');
-    const summary = pathText;
     const extra = [...infos].join(', ');
-    const remarks = [call.mask.remarks.trim(), `Notrufabfrage: ${summary}`, extra && `Info: ${extra}`].filter(Boolean).join('\n');
-    store.cmdQuiet('updateCallMask', call.id, { info: meldebild, remarks });
+    store.cmdQuiet('applyDiasResult', call.id, { keywordId: targetKw?.id ?? null, info: meldebild, remarks: [`Notrufabfrage: ${pathText}`, extra && `Info: ${extra}`].filter(Boolean) });
     store.toast('ok', targetKw ? `Abfrageergebnis übernommen: ${targetKw.code}` : 'Abfrageergebnis übernommen – Stichwort bitte selbst wählen.');
   };
 
@@ -226,7 +242,8 @@ function DiasResultView({ game, call, node, pathText, mismatch }: { game: GameSt
       )}
       {res.infoExtern.length > 0 && <div className="small muted">Info extern: {res.infoExtern.join(', ')}</div>}
       <button className="btn primary" onClick={apply} data-testid="dias-apply">
-        {mismatch ? 'Trotzdem übernehmen' : 'In Einsatzmaske übernehmen'}{targetKw ? ` (${targetKw.code})` : ''}
+        {tablet ? (mismatch ? 'Daten trotzdem übernehmen' : 'Daten übernehmen') : mismatch ? 'Trotzdem übernehmen' : 'In Einsatzmaske übernehmen'}
+        {targetKw ? ` (${targetKw.code})` : ''}
       </button>
     </div>
   );

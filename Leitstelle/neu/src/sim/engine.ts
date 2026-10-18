@@ -731,6 +731,33 @@ export function setCallMeldebild(state: GameState, callId: string, meldebildId: 
   return ok();
 }
 
+/** Fortschritt der Notrufabfrage (DIAS) speichern – damit Tablet und Einsatzmaske denselben Stand zeigen */
+export function setCallDias(state: GameState, callId: string, steps: { nodeId: string; option: number }[]): CommandResult {
+  const c = state.runtime.calls.find((x) => x.id === callId);
+  if (!c || c.state !== 'in_abfrage') return fail('Kein Notruf in Abfrage.');
+  if (!Array.isArray(steps) || steps.length > 300 || steps.some((s) => !s || typeof s.nodeId !== 'string' || !Number.isInteger(s.option) || s.option < 0))
+    return fail('Ungültiger Abfrageverlauf.');
+  c.dias = { steps: steps.map((s) => ({ nodeId: s.nodeId, option: s.option })) };
+  return ok();
+}
+
+/**
+ * Ergebnis der Notrufabfrage in die Maske übernehmen: Stichwort, Meldebild als Alarmierungstext,
+ * Abfrageweg und Info-Bausteine als Hinweise (ergänzt, nicht überschrieben; doppelte Zeilen werden nicht wiederholt).
+ */
+export function applyDiasResult(state: GameState, callId: string, r: { keywordId: string | null; info: string; remarks: string[] }): CommandResult {
+  const c = state.runtime.calls.find((x) => x.id === callId);
+  if (!c || c.state !== 'in_abfrage') return fail('Kein Notruf in Abfrage.');
+  if (r.keywordId) {
+    if (!state.center.keywords.some((k) => k.id === r.keywordId)) return fail('Unbekanntes Stichwort.');
+    c.keywordId = r.keywordId;
+  }
+  const lines = c.mask.remarks.split('\n').filter((l) => l.trim());
+  for (const l of r.remarks) if (l.trim() && !lines.includes(l.trim())) lines.push(l.trim());
+  c.mask = { ...c.mask, info: String(r.info ?? '').slice(0, 500) || c.mask.info, remarks: lines.join('\n') };
+  return ok('Abfrageergebnis übernommen.');
+}
+
 export function setCallKeyword(state: GameState, callId: string, keywordId: string | null): CommandResult {
   const c = state.runtime.calls.find((x) => x.id === callId);
   if (!c || c.state !== 'in_abfrage') return fail('Kein Notruf in Abfrage.');
