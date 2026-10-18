@@ -201,7 +201,18 @@ async function main() {
   log('Einsatz angelegt – Maske zeigt Dispoliste, Maßnahmen, Rückmeldungen');
 
   // ------------------------------------------------------------------ Alarm + Routing
+  await im.getByTestId('group-row').first().waitFor();
+  await page.screenshot({ path: `${shots}02a-alarmgruppen.png` });
   await im.getByTestId('alarm-button').click();
+  {
+    const st = await page.evaluate(() => {
+      const s = window.leitwarte.state;
+      const i = s.runtime.incidents[0];
+      return { groupLog: i.log.some((l) => l.text.startsWith('Alarmgruppe ')), vehicles: i.activeVehicleIds.length };
+    });
+    assert(st.groupLog && st.vehicles > 0, 'Freiwillige Feuerwehr über Alarmgruppe alarmiert');
+    log(`Alarmierung: Freiwillige Feuerwehr über Alarmgruppe, ${st.vehicles} Fahrzeuge gebunden`);
+  }
   await page.getByRole('button', { name: '30×' }).click();
   await page.getByTestId('play-pause').click();
   if (withOsrm) {

@@ -25,6 +25,7 @@ import { distanceMeters, interpolate, pointInArea, travelTimeMs } from './geo';
 import { cumulative, EMERGENCY_FACTOR, getRoute, requestRoute } from './routing';
 import { aaoRequirements, capsOf, coverage, hospitalOptions, MEDICAL_CAPS, mergeRequirements, openRequirements, typeOf } from './dispatch';
 import { SIM_START, emptyVehicleRuntime } from '../data/sampleCenter';
+import { groupDeployment, groupName, isGroupStation, isGroupVehicle, turnoutFactor } from './alarmGroups';
 import { emptyMask, maskAddress } from '../model/mask';
 import { geocode, reverseGeocode, describePlace } from '../geo/places';
 
@@ -403,6 +404,7 @@ function updateVehicles(state: GameState) {
       if (inc) {
         startMove(state, v, inc.position, 'einsatz', incEmergency(state, inc));
         setStatus(state, v, 'anfahrt');
+        reportGroupTurnout(state, v, inc);
       }
     }
     if (v.rt.move) {
@@ -1115,6 +1117,64 @@ export function alarmVehicles(state: GameState, incidentId: string, vehicleIds: 
   }
   if (count === 0) return fail(errors.join(' '));
   return ok(errors.length ? `${count} Fahrzeug(e) alarmiert. Nicht alarmiert: ${errors.join(' ')}` : `${count} Fahrzeug(e) alarmiert.`);
+}
+
+/**
+ * Alarmgruppen Freiwilliger Feuerwehren alarmieren. Jede Wehr entscheidet nach der Lage, mit welchen
+ * Fahrzeugen sie ausrückt (siehe alarmGroups.ts); die Ausrückzeit hängt von der Tageszeit ab.
+ */
+export function alarmGroups(state: GameState, incidentId: string, stationIds: string[]): CommandResult {
+  const inc = incident(state, incidentId);
+  if (!inc) return fail('Einsatz nicht gefunden.');
+  if (inc.state === 'abgeschlossen') return fail('Einsatz ist bereits abgeschlossen.');
+  if (stationIds.length === 0) return fail('Keine Alarmgruppe ausgewählt.');
+  const now = state.runtime.clock.now;
+  const { factor, label } = turnoutFactor(now);
+  const taken: Vehicle[] = [];
+  const errors: string[] = [];
+  const done: string[] = [];
+  for (const sid of [...new Set(stationIds)]) {
+    const st = state.center.stations.find((s) => s.id === sid);
+    if (!st || !isGroupStation(state, st)) {
+      errors.push(`${st?.name ?? sid}: keine Alarmgruppe.`);
+      continue;
+    }
+    const dep = groupDeployment(state, inc, st, taken);
+    if (!dep.length) {
+      errors.push(`${groupName(st)}: keine einsatzbereiten Fahrzeuge.`);
+      continue;
+    }
+    const r = alarmVehicles(state, inc.id, dep.map((v) => v.id));
+    if (!r.ok) {
+      errors.push(r.error);
+      continue;
+    }
+    taken.push(...dep);
+    // Sammeln am Gerätehaus: das erste Fahrzeug nach der Ausrückzeit, die weiteren kurz danach
+    withRng(state, (rng) => {
+      let t = now + st.turnoutSeconds * 1000 * factor * rng.range(0.8, 1.25);
+      for (const v of dep) {
+        if (v.rt.status !== 'alarmiert') continue;
+        v.rt.phaseUntil = Math.round(t);
+        t += rng.range(30, 120) * 1000;
+      }
+    });
+    const codes = dep.map((v) => typeOf(state, v)?.code ?? v.typeId).join(', ');
+    log(state, 'alarm', `Alarmgruppe ${groupName(st)} alarmiert (${label}) – Wehr rückt aus mit ${codes}`, { incidentId: inc.id });
+    done.push(groupName(st));
+  }
+  if (!done.length) return fail(errors.join(' ') || 'Keine Alarmgruppe alarmiert.');
+  return ok(`${done.length} Alarmgruppe(n) alarmiert${errors.length ? `. Nicht alarmiert: ${errors.join(' ')}` : '.'}`);
+}
+
+/** Das erste ausrückende Fahrzeug einer Wehr meldet über Funk, mit welchen Fahrzeugen die Wehr kommt */
+function reportGroupTurnout(state: GameState, v: Vehicle, inc: Incident) {
+  if (!isGroupVehicle(state, v)) return;
+  const same = state.center.vehicles.filter((x) => x.stationId === v.stationId && x.rt.incidentId === inc.id);
+  if (same.some((x) => x !== v && x.rt.status !== 'alarmiert')) return;
+  const st = state.center.stations.find((s) => s.id === v.stationId)!;
+  const codes = same.map((x) => typeOf(state, x)?.code ?? x.typeId).join(', ');
+  radio(state, { vehicleId: v.id, incidentId: inc.id, kind: 'lage', text: `${groupName(st)} rückt aus mit ${codes}.` });
 }
 
 function releaseVehicleInternal(state: GameState, v: Vehicle, note: string) {

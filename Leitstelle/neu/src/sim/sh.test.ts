@@ -6,6 +6,7 @@ import type { GameState } from '../model/types';
 import {
   acceptCall,
   acknowledgeRadio,
+  alarmGroups,
   alarmVehicles,
   askQuestion,
   assignHospital,
@@ -22,6 +23,8 @@ import {
   truthMeldebild,
 } from './engine';
 import { hospitalOptions, suggestForIncident } from './dispatch';
+import { groupDeployment, isGroupVehicle, proposalWithGroups, turnoutFactor } from './alarmGroups';
+import { injectScenarioCall } from './engine';
 
 const SEC = 1000;
 /** Echte OSM-Daten aus dem Süden des Kreises (siehe e2e/fixtures/README.md) */
@@ -86,7 +89,10 @@ describe('Katalog Schleswig-Holstein in der Beispielleitstelle Ostholstein', () 
       for (const inc of [...g.runtime.incidents]) {
         if (i % 6 === 0) {
           const s = suggestForIncident(g, inc);
-          if (s.proposal.length) alarmVehicles(g, inc.id, s.proposal.map((p) => p.vehicleId));
+          // wie in der Oberfläche: Freiwillige Feuerwehren über Alarmgruppen, alle anderen fahrzeugweise
+          const plan = proposalWithGroups(g, inc, s);
+          if (plan.groups.length) alarmGroups(g, inc.id, plan.groups.map((x) => x.station.id));
+          if (plan.vehicleIds.length) alarmVehicles(g, inc.id, plan.vehicleIds);
         }
         for (const m of g.runtime.radio.filter((x) => !x.handled && x.incidentId === inc.id)) {
           if (m.kind === 'transportziel') {
@@ -112,4 +118,50 @@ describe('Katalog Schleswig-Holstein in der Beispielleitstelle Ostholstein', () 
     const stale = g.runtime.incidents.filter((i) => g.runtime.clock.now - i.createdAt > 3 * 3600 * SEC);
     expect(stale.map((i) => `${i.scenarioId}:${i.state}`)).toEqual([]);
   }, 120_000);
+
+  it('Alarmgruppe: die Wehr rückt nach Lage aus, später zur Tageszeit passend, mit Funkrückmeldung', () => {
+    const g = ostholstein(9);
+    tick(g, SEC);
+    expect(injectScenarioCall(g, 'brand_kueche').ok).toBe(true);
+    const call = g.runtime.calls[g.runtime.calls.length - 1];
+    acceptCall(g, call.id);
+    askQuestion(g, call.id, 'ort');
+    const kw = g.center.keywords.find((k) => k.code === 'FEU 00')!;
+    setCallKeyword(g, call.id, kw.id);
+    expect(createIncidentFromCall(g, call.id).ok).toBe(true);
+    const inc = g.runtime.incidents[0];
+    const plan = proposalWithGroups(g, inc, suggestForIncident(g, inc));
+    expect(plan.groups.length).toBeGreaterThan(0);
+    // FF-Fahrzeuge stehen nicht mehr einzeln im Vorschlag
+    for (const id of plan.vehicleIds) expect(isGroupVehicle(g, g.center.vehicles.find((v) => v.id === id)!)).toBe(false);
+    const first = plan.groups[0];
+    const dep = groupDeployment(g, inc, first.station);
+    expect(dep.length).toBeGreaterThan(0);
+    // Die Wehr rückt nicht mit allen Fahrzeugen aus, wenn der Bedarf kleiner ist (MTF bleibt z. B. stehen)
+    const stationVehicles = g.center.vehicles.filter((v) => v.stationId === first.station.id);
+    if (stationVehicles.some((v) => v.typeId === 'mtf')) expect(dep.some((v) => v.typeId === 'mtf')).toBe(false);
+    expect(alarmGroups(g, inc.id, [first.station.id]).ok).toBe(true);
+    const alarmed = g.center.vehicles.filter((v) => v.rt.incidentId === inc.id && v.stationId === first.station.id);
+    expect(alarmed.map((v) => v.id).sort()).toEqual(dep.map((v) => v.id).sort());
+    // Ausrückzeit mit Tageszeitfaktor, Fahrzeuge rücken nacheinander aus
+    const f = turnoutFactor(g.runtime.clock.now).factor;
+    const times = alarmed.map((v) => v.rt.phaseUntil! - g.runtime.clock.now).sort((a, b) => a - b);
+    expect(times[0]).toBeGreaterThanOrEqual(first.station.turnoutSeconds * 1000 * f * 0.8 - 1);
+    for (let i = 1; i < times.length; i++) expect(times[i]).toBeGreaterThan(times[i - 1]);
+    // Funkrückmeldung beim Ausrücken – genau eine je Wehr
+    for (let i = 0; i < 120 && !alarmed.every((v) => v.rt.status !== 'alarmiert'); i++) tick(g, 10 * SEC);
+    const reports = g.runtime.radio.filter((r) => r.incidentId === inc.id && r.kind === 'lage' && r.text.includes('rückt aus mit'));
+    expect(reports).toHaveLength(1);
+    // Zweite Alarmierung derselben Gruppe ohne offenen Bedarf: es rückt noch ein Fahrzeug aus (Verstärkung) oder es gibt eine klare Meldung
+    const again = alarmGroups(g, inc.id, [first.station.id]);
+    if (!again.ok) expect(again.error).toMatch(/keine einsatzbereiten Fahrzeuge/);
+  });
+
+  it('Tageszeitfaktor der Ausrückzeit', () => {
+    const at = (iso: string) => Date.parse(iso);
+    expect(turnoutFactor(at('2026-10-19T10:00:00Z')).factor).toBe(1.4); // Montag Vormittag
+    expect(turnoutFactor(at('2026-10-19T20:00:00Z')).factor).toBe(1); // Montag Abend
+    expect(turnoutFactor(at('2026-10-20T03:00:00Z')).factor).toBe(1.15); // Nacht
+    expect(turnoutFactor(at('2026-10-18T10:00:00Z')).factor).toBe(1); // Sonntag
+  });
 });

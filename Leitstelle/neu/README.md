@@ -82,6 +82,8 @@ Wählst du ein zu kleines Stichwort, fordern die Kräfte vor Ort nach. Lagen kö
 | Echte Landkreise (Kreisgrenze per Klick aus OSM), echte Adressen und Einsatzorte nach Ortstyp | ✅ benötigt Internet beim Anlegen |
 | Einsatzlebenszyklus inkl. Patienten, Transport, Klinikübergabe, Nachforderung, Eskalation, Entlassen, Abschluss, Archiv | ✅ |
 | Einsatzmittelvorschlag (AAO, Verfügbarkeit, ETA, Zuständigkeit), freie Auswahl, Schutz vor Doppelbindung | ✅ |
+| Alarmgruppen der Freiwilligen Feuerwehren: Alarmierung je Wehr, die Wehr rückt nach Lage (AAO-Bedarf) mit passenden Fahrzeugen aus, Ausrückzeit nach Tageszeit, Funkrückmeldung | ✅ |
+| Standardisierte Notrufabfrage (DIAS): eigener Export lokal importierbar, Abfrage beim Annehmen, Ergebnis mit Stichwort/Meldebild/Infotext übernehmen ([docs/DIAS.md](docs/DIAS.md)) | ✅ Inhalte werden nicht mitgeliefert |
 | Karte (Leaflet + OSM): Gebiete, Wachen, Kliniken, Nachbarleitstellen, Einsätze, bewegte Fahrzeuge, Routen | ✅ (Straßenrouting mit lokalem OSRM, sonst Luftlinien-Näherung; keine Verkehrsdaten) |
 | Konfigurierbare Statuscodes, Bezeichnungen und Farben; Ereignisprotokoll; Funkmeldungen | ✅ |
 | Signaltöne (Web Audio) und Sprachausgabe (Web Speech API des Browsers) | ✅ optional, ohne externe Dienste |

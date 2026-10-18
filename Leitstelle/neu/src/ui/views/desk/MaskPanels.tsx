@@ -5,6 +5,7 @@ import { CATEGORY_LABELS } from '../../../data/keywords';
 import { questionsFor } from '../../../data/questions';
 import { capLabel, prefetchRoutes, reqText, statusDef } from '../../../sim/engine';
 import { aaoRequirements, openRequirements, suggestForIncident } from '../../../sim/dispatch';
+import { groupName, isGroupVehicle, proposalWithGroups, turnoutFactor } from '../../../sim/alarmGroups';
 import { formatDuration, formatKm } from '../../../sim/geo';
 import { radioGroupOf } from '../../../model/radio';
 import { store } from '../../../store/gameStore';
@@ -100,7 +101,10 @@ export function DispoListe({ game, inc, onSelectVehicle }: { game: GameState; in
 /** Maßnahmen: Einsatzmittelvorschlag, freie Auswahl und Alarmierung */
 export function Massnahmen({ game, inc, alarmRequest }: { game: GameState; inc: Incident; alarmRequest: number }) {
   const sug = useMemo(() => suggestForIncident(game, inc), [game, inc]);
+  const plan = useMemo(() => proposalWithGroups(game, inc, sug), [game, inc, sug]);
+  // Auswahl: Fahrzeuge (hauptamtlich, RD, Polizei …) und Alarmgruppen (Freiwillige Feuerwehren, je Wache)
   const [sel, setSel] = useState<Set<string>>(new Set());
+  const [selGroups, setSelGroups] = useState<Set<string>>(new Set());
   const [showAll, setShowAll] = useState(false);
   const [backupCap, setBackupCap] = useState('loeschen');
   const [backupCount, setBackupCount] = useState(1);
@@ -109,15 +113,21 @@ export function Massnahmen({ game, inc, alarmRequest }: { game: GameState; inc: 
     prefetchRoutes(sug.candidates.filter((c) => c.available && !c.type?.airborne).slice(0, 15).map((c) => [c.vehicle.rt.position, inc.position]));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inc.id, inc.position[0], inc.position[1]]);
+  const applyProposal = () => {
+    setSel(new Set(plan.vehicleIds));
+    setSelGroups(new Set(plan.groups.map((g) => g.station.id)));
+  };
   useEffect(() => {
-    setSel(new Set(sug.proposal.map((p) => p.vehicleId)));
+    applyProposal();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inc.id, inc.activeVehicleIds.length, inc.backupRequests.length, inc.keywordId]);
 
   const alarm = () => {
     const ids = [...sel].filter((id) => sug.candidates.find((c) => c.vehicle.id === id)?.available);
-    if (ids.length === 0) return store.toast('fehler', 'Keine verfügbaren Fahrzeuge ausgewählt.');
-    store.cmd('alarmVehicles', inc.id, ids);
+    const groups = [...selGroups];
+    if (ids.length === 0 && groups.length === 0) return store.toast('fehler', 'Keine verfügbaren Fahrzeuge oder Alarmgruppen ausgewählt.');
+    if (groups.length) store.cmd('alarmGroups', inc.id, groups);
+    if (ids.length) store.cmd('alarmVehicles', inc.id, ids);
   };
   useEffect(() => {
     if (alarmRequest > 0) alarm();
@@ -129,10 +139,39 @@ export function Massnahmen({ game, inc, alarmRequest }: { game: GameState; inc: 
   const open = openRequirements(game, required, bound);
   const reasons = new Map(sug.proposal.map((p) => [p.vehicleId, p.reasons]));
   const rank = (c: (typeof sug.candidates)[number]) => (reasons.has(c.vehicle.id) ? 0 : sel.has(c.vehicle.id) ? 1 : c.matches.length ? 2 : 3);
-  const candidates = sug.candidates
+  const vehicleCands = sug.candidates.filter((c) => !isGroupVehicle(game, c.vehicle));
+  const candidates = vehicleCands
     .filter((c) => showAll || c.available)
     .sort((a, b) => rank(a) - rank(b) || a.etaMs - b.etaMs)
     .slice(0, showAll ? 300 : 40);
+
+  // Alarmgruppen: je Wache einer Freiwilligen Feuerwehr
+  const planned = new Map(plan.groups.map((g) => [g.station.id, g]));
+  const groupRows = useMemo(() => {
+    const byStation = new Map<string, (typeof sug.candidates)[number][]>();
+    for (const c of sug.candidates) {
+      if (!isGroupVehicle(game, c.vehicle)) continue;
+      byStation.set(c.vehicle.stationId, [...(byStation.get(c.vehicle.stationId) ?? []), c]);
+    }
+    return [...byStation.entries()]
+      .map(([sid, cs]) => {
+        const avail = cs.filter((c) => c.available);
+        return {
+          station: game.center.stations.find((s) => s.id === sid)!,
+          available: avail,
+          etaMs: avail.length ? Math.min(...avail.map((c) => c.etaMs)) : Infinity,
+          distanceM: Math.min(...cs.map((c) => c.distanceM)),
+          matches: [...new Set(avail.flatMap((c) => c.matches))],
+          inArea: cs.some((c) => c.inArea),
+        };
+      })
+      .filter((g) => g.station && (showAll || g.available.length));
+  }, [sug, game, showAll]);
+  const groupRank = (g: (typeof groupRows)[number]) => (planned.has(g.station.id) ? 0 : selGroups.has(g.station.id) ? 1 : g.matches.length ? 2 : 3);
+  const sortedGroups = [...groupRows].sort((a, b) => groupRank(a) - groupRank(b) || a.etaMs - b.etaMs);
+  // ohne "auch nicht verfügbare": vorgeschlagene/gewählte Gruppen und die 5 nächsten weiteren
+  const groups = showAll ? sortedGroups : [...sortedGroups.filter((g) => groupRank(g) < 2), ...sortedGroups.filter((g) => groupRank(g) >= 2).slice(0, 5)];
+  const tf = turnoutFactor(game.runtime.clock.now);
 
   if (inc.state === 'abarbeitung_beendet') return <div className="mask-box"><div className="mask-title">Maßnahmen</div><div className="hint small">Einsatzmaßnahmen beendet – Kräfte entlassen und Einsatz abschließen.</div></div>;
 
@@ -151,20 +190,68 @@ export function Massnahmen({ game, inc, alarmRequest }: { game: GameState; inc: 
         </div>
       )}
       <div className="row wrap">
-        <button className="btn alarm" onClick={alarm} disabled={sel.size === 0} data-testid="alarm-button">
-          Alarmieren ({sel.size}) <kbd>A</kbd>
+        <button className="btn alarm" onClick={alarm} disabled={sel.size + selGroups.size === 0} data-testid="alarm-button">
+          Alarmieren ({selGroups.size ? `${selGroups.size} AG` : ''}{selGroups.size && sel.size ? ' + ' : ''}{sel.size ? `${sel.size} Fzg` : ''}{!sel.size && !selGroups.size ? '0' : ''}) <kbd>A</kbd>
         </button>
-        <button className="btn small" onClick={() => setSel(new Set(sug.proposal.map((p) => p.vehicleId)))}>Vorschlag</button>
-        <button className="btn small" onClick={() => setSel(new Set())}>Leeren</button>
+        <button className="btn small" onClick={applyProposal}>Vorschlag</button>
+        <button
+          className="btn small"
+          onClick={() => {
+            setSel(new Set());
+            setSelGroups(new Set());
+          }}
+        >
+          Leeren
+        </button>
         <span className="spacer" />
         <label className="check small"><input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} /> auch nicht verfügbare</label>
       </div>
-      <div style={{ maxHeight: 260, overflow: 'auto', border: '1px solid var(--line)', borderRadius: 4 }}>
+      <div style={{ maxHeight: 320, overflow: 'auto', border: '1px solid var(--line)', borderRadius: 4 }}>
         <table className="grid mask-table">
           <thead>
-            <tr><th></th><th>Fahrzeug</th><th>Typ</th><th>St</th><th>ETA</th><th>Entf.</th><th>Hinweis</th></tr>
+            <tr><th></th><th>Alarmgruppe / Fahrzeug</th><th>Typ</th><th>St</th><th>ETA</th><th>Entf.</th><th>Hinweis</th></tr>
           </thead>
           <tbody>
+            {groups.length > 0 && (
+              <tr className="group-head">
+                <td colSpan={7} className="small muted">Freiwillige Feuerwehren – Alarmierung über Alarmgruppe, die Wehr rückt nach Lage aus (Ausrückzeit {tf.label}{tf.factor > 1 ? ' verlängert' : ''})</td>
+              </tr>
+            )}
+            {groups.map((g) => {
+              const pl = planned.get(g.station.id);
+              const usable = g.available.length > 0;
+              return (
+                <tr key={g.station.id} className={usable ? (selGroups.has(g.station.id) ? 'selected' : '') : 'unavailable'} data-testid="group-row">
+                  <td>
+                    <input
+                      type="checkbox"
+                      aria-label={`Alarmgruppe ${groupName(g.station)} auswählen`}
+                      disabled={!usable}
+                      checked={selGroups.has(g.station.id)}
+                      onChange={(e) => {
+                        const n = new Set(selGroups);
+                        if (e.target.checked) n.add(g.station.id);
+                        else n.delete(g.station.id);
+                        setSelGroups(n);
+                      }}
+                    />
+                  </td>
+                  <td className="nowrap"><span className="chip small">AG</span> {groupName(g.station)}</td>
+                  <td className="small">{g.available.map((c) => c.type?.code ?? c.vehicle.typeId).join(', ') || '–'}</td>
+                  <td />
+                  <td className="mono nowrap">{Number.isFinite(g.etaMs) ? `${Math.round((g.etaMs + (tf.factor - 1) * g.station.turnoutSeconds * 1000) / 60000)} min` : '–'}</td>
+                  <td className="mono small nowrap">{formatKm(g.distanceM)}</td>
+                  <td className="small">
+                    {!usable ? <span className="field-error">keine Fahrzeuge einsatzbereit</span> : pl ? <span style={{ color: 'var(--ok)' }}>Vorschlag: {pl.reasons.join(' · ')}</span> : g.matches.length ? `passt: ${g.matches.map(capLabel).join(', ')}` : <span className="dim">kein offener Bedarf</span>}
+                  </td>
+                </tr>
+              );
+            })}
+            {groups.length > 0 && candidates.length > 0 && (
+              <tr className="group-head">
+                <td colSpan={7} className="small muted">Fahrzeuge</td>
+              </tr>
+            )}
             {candidates.map((c) => (
               <tr key={c.vehicle.id} className={c.available ? (sel.has(c.vehicle.id) ? 'selected' : '') : 'unavailable'}>
                 <td>
@@ -194,7 +281,7 @@ export function Massnahmen({ game, inc, alarmRequest }: { game: GameState; inc: 
           </tbody>
         </table>
       </div>
-      <div className="dim small">ETA = Ausrückzeit + Fahrzeit über Straßenroute (OSRM, Sonderrechte-Faktor 0,75). * = Näherung, Route noch nicht verfügbar.</div>
+      <div className="dim small">ETA = Ausrückzeit + Fahrzeit über Straßenroute (OSRM, Sonderrechte-Faktor 0,75). * = Näherung, Route noch nicht verfügbar. Bei Alarmgruppen entscheidet die Wehr selbst, welche Fahrzeuge ausrücken.</div>
       <div className="row wrap">
         <span className="small muted">Nachalarmieren nach Bedarf:</span>
         <select value={backupCap} onChange={(e) => setBackupCap(e.target.value)} aria-label="Fähigkeit">
