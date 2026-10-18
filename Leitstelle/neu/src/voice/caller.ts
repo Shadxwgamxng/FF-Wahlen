@@ -3,6 +3,7 @@ import type { Facts } from '../data/questions';
 import { findQuestion } from '../data/questions';
 import type { GeneratedLocation } from '../sim/callgen';
 import { matchIntents, normalize, type ConversationIntent } from './intents';
+import { answerDetail, findDetail } from './details';
 
 /**
  * Simulierter Anrufer für den Sprachtest – rein regelbasiert, ohne KI und ohne Netzwerk.
@@ -125,9 +126,15 @@ export class CallerSim {
 
     const answers: string[] = [];
     for (const qid of m.questions.slice(0, MAX_ANSWERS_PER_TURN)) {
-      const q = findQuestion(this.call.category, qid);
-      if (!q) continue;
-      const a = q.answer(this.call.facts);
+      let a: string;
+      if (findDetail(qid)) {
+        // Detail ohne Szenariofakt: wird beim ersten Mal passend festgelegt und gemerkt
+        a = answerDetail({ scenarioId: this.call.scenarioId, category: this.call.category, facts: this.call.facts, relation: this.call.caller.relation }, qid);
+      } else {
+        const q = findQuestion(this.call.category, qid);
+        if (!q) continue;
+        a = q.answer(this.call.facts);
+      }
       answers.push(this.asked.has(qid) ? `Das habe ich doch schon gesagt: ${a}` : a);
       this.asked.add(qid);
     }

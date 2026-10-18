@@ -1,4 +1,5 @@
 import type { KeywordCategory } from '../model/types';
+import { matchDetails, type SpanHit } from './details';
 
 /**
  * Regelbasierte Erkennung, was der Disponent gefragt oder gesagt hat.
@@ -10,7 +11,7 @@ import type { KeywordCategory } from '../model/types';
 export type ConversationIntent = 'name' | 'beruhigen' | 'wiederholen' | 'buchstabieren' | 'anweisung' | 'ende' | 'begruessung';
 
 export interface IntentMatch {
-  /** Frage-IDs in der Reihenfolge, in der sie im Satz vorkommen */
+  /** Frage-IDs in der Reihenfolge, in der sie im Satz vorkommen (Detailthemen beginnen mit "x_") */
   questions: string[];
   /** Gesprächsabsichten ohne Faktenbezug */
   intents: ConversationIntent[];
@@ -186,33 +187,40 @@ const IMPERATIVE = /^ (?:gehen|verlassen|schliessen|bleiben|legen|machen|oeffnen
 const QUESTION_PART = / (?:wo|wie|was|wer|wann|welche\w*|wohin|wieviel\w*|ist|sind|hat|haben|gibt|kann|koennen|atmet|blutet) \w/;
 const FILLERS = /^ (?:(?:ok|okay|so|aeh|aehm|gut|also|bitte|dann|jetzt|und) )*/;
 
-function firstIndex(text: string, patterns: RegExp[]): number {
-  let best = -1;
+function firstMatch(text: string, patterns: RegExp[]): { at: number; end: number } | null {
+  let best: { at: number; end: number } | null = null;
   for (const re of patterns) {
     const m = re.exec(text);
-    if (m && (best < 0 || m.index < best)) best = m.index;
+    if (m && (!best || m.index < best.at)) best = { at: m.index, end: m.index + m[0].length };
   }
   return best;
+}
+const firstIndex = (text: string, patterns: RegExp[]) => firstMatch(text, patterns)?.at ?? -1;
+
+/** Treffer, die vollständig in einem längeren Treffer liegen, fallen weg ("wie viele Etagen" schlägt "Etage") */
+function dropContained(hits: SpanHit[]): SpanHit[] {
+  return hits.filter((h) => !hits.some((o) => o !== h && o.at <= h.at && o.end >= h.end && o.end - o.at > h.end - h.at));
 }
 
 /** Erkennt Fragen und Gesprächsabsichten in einer Äußerung des Disponenten */
 export function matchIntents(utterance: string, category: KeywordCategory): IntentMatch {
   const text = normalize(utterance);
   const rules = [...COMMON, ...CATEGORY[category]];
-  const strongHits: { id: string; at: number }[] = [];
+  const strongHits: SpanHit[] = [];
   for (const r of rules) {
-    const at = firstIndex(text, r.strong);
-    if (at >= 0 && !strongHits.some((h) => h.id === r.id)) strongHits.push({ id: r.id, at });
+    const m = firstMatch(text, r.strong);
+    if (m && !strongHits.some((h) => h.id === r.id)) strongHits.push({ id: r.id, ...m });
   }
+  strongHits.push(...matchDetails(text, category));
   const intents: ConversationIntent[] = [];
   for (const c of CONVERSATION) if (firstIndex(text, c.patterns) >= 0) intents.push(c.id);
-  let hits = [...strongHits];
+  let hits = dropContained(strongHits);
   // Schwache Muster ("wo", "Straße" …) nur, wenn nichts anderes erkannt wurde
   if (!strongHits.length && !intents.some((i) => i !== 'begruessung')) {
     for (const r of rules) {
       if (!r.weak) continue;
-      const at = firstIndex(text, r.weak);
-      if (at >= 0 && !hits.some((h) => h.id === r.id)) hits.push({ id: r.id, at });
+      const m = firstMatch(text, r.weak);
+      if (m && !hits.some((h) => h.id === r.id)) hits.push({ id: r.id, ...m });
     }
   }
   const lead = text.replace(FILLERS, ' ');
