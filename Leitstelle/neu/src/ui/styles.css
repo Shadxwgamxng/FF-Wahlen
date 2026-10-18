@@ -238,3 +238,18 @@ table.grid tr.unavailable td { color: var(--text-3); }
 .menu > summary::-webkit-details-marker { display: none; }
 .menu-list { position: absolute; right: 0; top: 110%; z-index: 3000; background: var(--panel-2); border: 1px solid var(--line-2); border-radius: 6px; padding: 6px; display: flex; flex-direction: column; gap: 2px; min-width: 240px; box-shadow: 0 8px 24px #000a; }
 .menu-list .btn { justify-content: flex-start; }
+
+/* ------------------------------------------------------------------ Sprachtest */
+.voice-grid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 14px; align-items: start; }
+.voice-history { grid-column: 1 / -1; }
+.sim-badge { background: #4a3510; border: 1px solid var(--warn); color: #ffd98a; padding: 2px 8px; border-radius: 4px; font-weight: 700; font-size: 11px; letter-spacing: .08em; }
+.voice-log { min-height: 260px; max-height: 50vh; overflow-y: auto; background: var(--bg-2); border: 1px solid var(--line); border-radius: 6px; padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+.voice-line { display: grid; grid-template-columns: 64px 1fr; gap: 8px; line-height: 1.4; }
+.voice-line .who { font-weight: 700; color: var(--muted, #9aa4b2); font-size: 12px; padding-top: 2px; }
+.voice-line.anrufer .who { color: var(--warn); }
+.voice-line.disponent .who { color: var(--accent); }
+.voice-line.system { color: var(--muted, #9aa4b2); font-size: 12px; font-style: italic; }
+.voice-line.interim { opacity: .6; }
+.voice-error { background: #4a1418; border: 1px solid var(--alarm); color: #ffc9cb; padding: 6px 8px; border-radius: 4px; }
+.voice-pre { white-space: pre-wrap; background: var(--bg-2); border: 1px solid var(--line); border-radius: 6px; padding: 8px; max-height: 40vh; overflow-y: auto; }
+@media (max-width: 900px) { .voice-grid { grid-template-columns: 1fr; } }

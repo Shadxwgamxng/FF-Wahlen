@@ -295,7 +295,7 @@ export function Maske(p: Props) {
 }
 
 /** Meldebild-Auswahl mit Suche (CEDUS-Code oder Bezeichnung) */
-function MeldebildSelect({ game, value, onChange, disabled }: { game: GameState; value: string | null; onChange: (id: string | null) => void; disabled?: boolean }) {
+export function MeldebildSelect({ game, value, onChange, disabled }: { game: GameState; value: string | null; onChange: (id: string | null) => void; disabled?: boolean }) {
   const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
   const current = game.center.meldebilder.find((m) => m.id === value);
@@ -347,7 +347,7 @@ function MeldebildSelect({ game, value, onChange, disabled }: { game: GameState;
 }
 
 /** Straßeneingabe mit Vorschlägen aus den echten OSM-Straßen */
-function StreetInput({ game, value, onChange }: { game: GameState; value: string; onChange: (street: string, extra?: Partial<EinsatzMask>) => void }) {
+export function StreetInput({ game, value, onChange }: { game: GameState; value: string; onChange: (street: string, extra?: Partial<EinsatzMask>) => void }) {
   const [open, setOpen] = useState(false);
   const ix = game.center.places;
   const list = useMemo(() => (ix && open ? searchStreets(ix, value, 12) : []), [ix, value, open]);

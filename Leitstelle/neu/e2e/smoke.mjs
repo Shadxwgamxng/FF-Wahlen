@@ -285,6 +285,60 @@ async function main() {
   log('Zweitfenster „Notrufe & Einsätze“: Klick öffnet die Einsatzmaske im Hauptfenster');
   void vid;
 
+  // ------------------------------------------------------------------ Sprachtest (ohne Mikrofon: Texteingabe)
+  await nav(page, 'Sprachtest');
+  const vt = page.getByTestId('voice-test');
+  await vt.getByTestId('voice-consent').waitFor();
+  assert(await vt.getByTestId('voice-consent-ok').isDisabled(), 'Sprachtest erst nach Einwilligung');
+  await vt.getByLabel(/Nur Texteingabe/).check();
+  await vt.getByTestId('voice-consent-check').check();
+  await vt.getByTestId('voice-consent-ok').click();
+  await vt.getByTestId('voice-start').click();
+  await vt.getByLabel('Anrufer vorlesen').uncheck();
+  const say = async (t) => {
+    const before = await vt.locator('.voice-line.anrufer').count();
+    await vt.getByTestId('voice-input').fill(t);
+    await vt.getByTestId('voice-send').click();
+    await vt.locator('.voice-line.anrufer').nth(before).waitFor();
+    return vt.locator('.voice-line.anrufer').nth(before).innerText();
+  };
+  const r1 = await say('Notruf Feuerwehr und Rettungsdienst, wo genau ist der Notfallort?');
+  const am = /([^!?.]*?\S) (\S+), (\d{5}) ([^–.]+?)(?: – |\.|$)/.exec(r1.replace(/^Anrufer\s*/, ''));
+  assert(am, `Anrufer nennt die Adresse (${r1})`);
+  const r2 = await say('Sind noch Personen in der Wohnung?');
+  assert(/drin|draußen/.test(r2), `Anrufer antwortet auf Personenfrage (${r2})`);
+  await say('In welchem Stockwerk?');
+  await say('Ist jemand verletzt?');
+  log(`Sprachtest: simulierter Anrufer antwortet aus den Fakten (${am[2] ? `${am[1].split(' ').slice(-3).join(' ')} ${am[2]}` : ''})`);
+  // Disponent trägt selbst ein – nichts wird automatisch übernommen
+  assert((await vt.getByTestId('street-input').inputValue()) === '', 'Keine automatische Übernahme in die Maske');
+  const street = am[1].replace(/^.*(?:brennt es!|Rauch!|Küche!)\s*/, '').trim();
+  await vt.getByTestId('street-input').fill(street);
+  await vt.getByLabel('Hausnummer').fill(am[2]);
+  await vt.getByLabel('Ort', { exact: true }).fill(am[4].trim());
+  await vt.getByLabel('Personen in Gefahr').selectOption('ja');
+  await vt.getByLabel('Verletzte').fill('1');
+  const kwId = await page.evaluate(() => window.leitwarte.state.center.keywords.find((k) => k.code === 'FEU 00 Y').id);
+  await vt.getByTestId('keyword-select').selectOption(kwId);
+  await vt.getByTestId('voice-end').click();
+  const evalText = await vt.getByTestId('voice-evaluation').innerText();
+  assert(/Straße\s*\n?\s*\S/.test(evalText) && /Auswertung: \d+ von \d+/.test(evalText), 'Auswertung angezeigt');
+  const score = /Auswertung: (\d+) von (\d+)/.exec(evalText);
+  await page.screenshot({ path: `${shots}05-sprachtest.png` });
+  log(`Sprachtest: Auswertung ${score[1]} von ${score[2]} Punkten, Transkript gespeichert`);
+  if (score[1] !== score[2]) console.log(evalText);
+  assert(Number(score[1]) >= Number(score[2]) - 1, `Auswertung fast vollständig richtig (${evalText})`);
+  await vt.getByTestId('voice-history').waitFor();
+  const stored = await page.evaluate(() => localStorage.getItem('leitwarte.sprachtest.transkripte'));
+  assert(stored && stored.includes('Notfallort'), 'Transkript liegt im localStorage');
+  await vt.getByTestId('voice-delete').first().click();
+  await vt.getByText('Keine Transkripte gespeichert.').waitFor();
+  await vt.getByTestId('voice-withdraw').click();
+  await page.getByRole('button', { name: 'Widerrufen', exact: true }).click();
+  await vt.getByTestId('voice-consent').waitFor();
+  assert((await page.evaluate(() => localStorage.getItem('leitwarte.sprachtest.einwilligung'))) === null, 'Einwilligung widerrufen');
+  log('Sprachtest: Transkript gelöscht, Einwilligung widerrufen');
+
   assert(errors.length === 0, `Keine JavaScript-Fehler im Browser: ${errors.join(' | ')}`);
   log('Keine JavaScript-Fehler in der Konsole');
   await browser.close();

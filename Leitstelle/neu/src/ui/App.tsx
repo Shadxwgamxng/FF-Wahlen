@@ -13,11 +13,12 @@ import { EditorView } from './views/EditorView';
 import { SimulationView } from './views/SimulationView';
 import { MultiplayerView } from './views/MultiplayerView';
 import { DataView } from './views/DataView';
+import { VoiceTestView } from './views/VoiceTestView';
 import { installAudio } from './audio';
 import { openPopout, POPOUTS } from './PopoutApp';
 import { installRouting, useRoutingState } from './routingService';
 
-export type ViewId = 'leitstand' | 'wachen' | 'fahrzeuge' | 'aao' | 'kliniken' | 'statistik' | 'editor' | 'simulation' | 'mehrspieler' | 'daten';
+export type ViewId = 'leitstand' | 'wachen' | 'fahrzeuge' | 'aao' | 'kliniken' | 'statistik' | 'editor' | 'simulation' | 'mehrspieler' | 'daten' | 'sprachtest';
 
 const NAV: [ViewId, string][] = [
   ['leitstand', 'Leitstand'],
@@ -30,6 +31,7 @@ const NAV: [ViewId, string][] = [
   ['simulation', 'Simulation'],
   ['mehrspieler', 'Mehrspieler'],
   ['daten', 'Daten & Einstellungen'],
+  ['sprachtest', 'Sprachtest'],
 ];
 
 export const SPEEDS = [1, 2, 5, 10, 30, 60];
@@ -112,7 +114,7 @@ export function App() {
       <TopBar onHelp={() => setHelp(true)} />
       <nav className="nav" style={{ padding: '0 8px', background: 'var(--bg-2)', borderBottom: '1px solid var(--line)' }} aria-label="Bereiche">
         {NAV.map(([id, label], i) => (
-          <button key={id} className={view === id ? 'active' : ''} onClick={() => setView(id)} title={`Alt+${(i + 1) % 10}`}>
+          <button key={id} className={view === id ? 'active' : ''} onClick={() => setView(id)} title={i < 10 ? `Alt+${(i + 1) % 10}` : undefined}>
             {label}
           </button>
         ))}
@@ -128,6 +130,7 @@ export function App() {
         {view === 'simulation' && <SimulationView game={game} />}
         {view === 'mehrspieler' && <MultiplayerView />}
         {view === 'daten' && <DataView game={game} />}
+        {view === 'sprachtest' && <VoiceTestView game={game} />}
       </main>
       {help && <HelpModal onClose={() => setHelp(false)} />}
       <Toasts />

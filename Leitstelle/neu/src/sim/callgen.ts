@@ -58,7 +58,7 @@ const DETAILS: Record<LocationKind, string[]> = {
   klinik: ['Station 4b', 'Pflegeheim Sonnenhof, Wohnbereich 2', 'Dialysezentrum', 'Notaufnahme'],
 };
 
-const CALLER_NAMES = ['Meier', 'Schulze', 'Öztürk', 'Lehmann', 'Krüger', 'Haas', 'Peters', 'Jung', 'Wolf', 'Nowak', 'Graf', 'Simon', 'Berg', 'Hahn'];
+export const CALLER_NAMES = ['Meier', 'Schulze', 'Öztürk', 'Lehmann', 'Krüger', 'Haas', 'Peters', 'Jung', 'Wolf', 'Nowak', 'Graf', 'Simon', 'Berg', 'Hahn'];
 const RELATIONS: Record<KeywordCategory, string[]> = {
   brand: ['Nachbar/-in', 'Passant/-in', 'Bewohner/-in'],
   th: ['Bewohner/-in', 'Passant/-in', 'Hausmeister/-in'],
