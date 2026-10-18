@@ -42,71 +42,109 @@ const p = (s: string) => new RegExp(s);
 const COMMON: Rule[] = [
   {
     id: 'ort',
-    strong: [p(' adresse'), w('strasse|hausnummer|notfallort|einsatzort|postleitzahl'), p(' wo (genau )?(ist|sind|befinde|wohn|steh)'), p(' (in )?welche[mnr]? (ort|stadt|gemeinde|dorf|ortsteil)'), p(' wo (genau )?(ist|liegt) (der|die|das) (notfall|unfall|brand|einsatz)'), p(' von wo (aus )?rufen')],
-    weak: [w('wo genau|wo'), w('ort')],
+    strong: [
+      p(' adresse'),
+      w('hausnummer|notfallort|einsatzort|postleitzahl'),
+      p(' (welche[rnm]?|wie heisst die|wie lautet die) strasse'),
+      p(' wo (genau )?(ist|sind|befinde|wohn|steh)(?! (der |die |das )?(tier|hund|katze|pferd|kuh|reh) )'),
+      p(' (in )?welche[mnr]? (ort|stadt|gemeinde|dorf|ortsteil)'),
+      p(' wo (genau )?(ist|liegt) (der|die|das) (notfall|unfall|brand|einsatz)'),
+      p(' von wo (aus )?rufen'),
+    ],
+    weak: [p('(?<! weiss| wissen| klar) wo '), p('(?<! vor) ort '), w('strasse')],
   },
-  { id: 'was', strong: [p(' was (genau )?(ist|wurde|hat sich) (denn )?(genau )?(passiert|los|geschehen|ereignet)'), p(' was (genau )?(passiert|los) '), p(' (erzaehlen|schildern|beschreiben) sie'), p(' worum geht'), p(' was (kann ich|koennen wir) (fuer sie )?tun')] },
+  {
+    id: 'was',
+    strong: [
+      p(' was (genau )?(ist|wurde|hat sich) (denn |da |dort |bei ihnen )*(genau )?(passiert|los|geschehen|ereignet)'),
+      p(' was (genau )?(passiert|los) '),
+      p(' (erzaehlen|schildern|beschreiben) sie'),
+      p(' worum geht'),
+      p(' was (kann ich|koennen wir) (fuer sie )?tun'),
+    ],
+  },
   { id: 'rueckruf', strong: [p(' (telefon|rueckruf|handy)?nummer'), w('erreichbar|zurueckrufen|rueckruf')] },
 ];
 
 const INJURED: Rule = {
   id: 'verletzt',
-  strong: [p(' verletz'), w('blutet|blut|wunde'), p(' (jemand|wer|personen?) (zu schaden|getroffen)')],
+  strong: [p(' verletz'), w('blutet|blut|wunde|rauchvergiftung'), p(' eingeatmet'), p(' (jemand|wer|personen?|leute|menschen) (\\w+ ){0,2}(zu schaden|getroffen|betroffen|beschwerden)')],
 };
+
+const STUCK = p(' steck\\w* (\\w+ ){0,3}fest ');
 
 const CATEGORY: Record<KeywordCategory, Rule[]> = {
   brand: [
-    { id: 'b_objekt', strong: [p(' was (genau )?brennt'), p(' welche[snrm]? (gebaeude|objekt|raum|zimmer)'), p(' brennt (es|das) (im|in|auf) ')], weak: [w('brennt')] },
-    { id: 'b_rauch', strong: [w('rauch|qualm|qualmt|flammen|flamme|feuerschein|rauchentwicklung'), p(' sehen sie (das )?feuer')] },
+    {
+      id: 'b_objekt',
+      strong: [p(' was (genau )?brennt'), p(' welche[snrm]? (gebaeude|objekt|raum|zimmer)'), p(' brennt (es|das) (im|in|auf) '), p(' was fuer ein (gebaeude|objekt|haus)'), w('wohnhaus|einfamilienhaus|mehrfamilienhaus|scheune|lagerhalle|gartenhaus|garage')],
+      weak: [w('brennt')],
+    },
+    { id: 'b_rauch', strong: [p(' rauch (?!eingeatmet )'), w('qualm|qualmt|flammen|flamme|feuerschein|rauchentwicklung'), p(' sehen sie (das )?feuer')] },
     {
       id: 'b_personen',
-      strong: [p(' (noch )?(jemand|personen?|menschen|leute|bewohner|kinder) (im|in|drin|drinnen|in der|in dem|eingeschlossen|vermisst)'), w('eingeschlossen|vermisst|alle draussen|alle raus|noch drin|noch drinnen|in gefahr'), p(' (sind|ist) (noch )?(alle|jemand) (draussen|raus|drin)')],
+      strong: [
+        p(' (noch )?(jemand|personen?|menschen|leute|bewohner|kinder) (im|in|drin|drinnen|in der|in dem|eingeschlossen|vermisst)'),
+        w('eingeschlossen|vermisst|alle draussen|alle raus|noch drin|noch drinnen|in gefahr'),
+        p(' (sind|ist) (noch )?(alle|jemand) (draussen|raus|drin)'),
+        p(' (noch )?(wer|irgendwer|irgendjemand|jemand|bewohner|leute|personen?|alle) (\\w+ ){0,3}(drin|drinnen|draussen|raus) '),
+        p(' wohnt (da|dort|hier|darueber|drueber) (noch )?(jemand|wer)'),
+      ],
     },
     INJURED,
     { id: 'b_stock', strong: [p(' stock'), w('etage|geschoss|obergeschoss|erdgeschoss|dachgeschoss|keller|gebaeudeteil'), p(' welche[rnm]? wohnung')] },
-    { id: 'b_ausbreitung', strong: [p(' (aus)?breit'), p(' uebergreif'), w('groesser|schlimmer|ausdehnen|nachbarwohnung|nachbarhaus')] },
+    { id: 'b_ausbreitung', strong: [p(' (aus)?breit'), p(' uebergreif'), w('groesser|schlimmer|ausdehnen|nachbarwohnung|nachbarhaus'), p(' wie gross'), p(' brennt (es|das) (immer )?noch')] },
   ],
   th: [
     { id: 'th_hilfe', strong: [p(' welche hilfe'), p(' (was|wobei) (genau )?(brauchen|benoetigen) sie'), p(' wobei (sollen|koennen) wir')] },
-    { id: 'th_personen', strong: [w('eingeklemmt|eingeschlossen|gefangen|kommt nicht raus|in gefahr'), p(' (jemand|personen?) (in gefahr|eingeschlossen|gefangen)')] },
-    { id: 'th_gefahr', strong: [w('gefahr|strom|gas|einsturz|einsturzgefahr|stromleitung|wasser')] },
+    { id: 'th_personen', strong: [w('eingeklemmt|eingeschlossen|gefangen|kommt nicht raus|in gefahr'), p(' (jemand|personen?) (in gefahr|eingeschlossen|gefangen)'), STUCK] },
+    { id: 'th_gefahr', strong: [p('(?<! in) gefahr '), w('strom|gas|einsturz|einsturzgefahr|stromleitung|wasser')] },
     INJURED,
   ],
   vu: [
-    { id: 'vu_fzg', strong: [p(' wie viele (autos|fahrzeuge|wagen|pkw|lkw)'), w('fahrzeuge|fahrzeug|autos|auto|pkw|lkw|motorrad|beteiligt')] },
-    { id: 'vu_eingeklemmt', strong: [w('eingeklemmt|eingeschlossen'), p(' (aus dem|aus den) (auto|fahrzeug|wagen)'), p(' (raus|heraus)kommen'), p(' kommt (noch )?(jemand )?nicht raus')] },
+    { id: 'vu_fzg', strong: [p(' wie viele (autos|fahrzeuge|wagen|pkw|lkw)'), p(' welche (art von )?(autos|fahrzeuge)'), w('beteiligt')], weak: [w('fahrzeuge|fahrzeug|autos|auto|pkw|lkw|motorrad')] },
+    {
+      id: 'vu_eingeklemmt',
+      strong: [
+        w('eingeklemmt|eingeschlossen'),
+        p(' (aus dem|aus den) (auto|fahrzeug|wagen)'),
+        p(' (raus|heraus)kommen'),
+        p(' kommt (noch )?(jemand )?nicht raus'),
+        p(' (jemand|wer|leute|personen?|insassen|fahrer) (\\w+ ){0,2}(im|in dem|in den) (auto|autos|fahrzeug|fahrzeugen|wagen)'),
+      ],
+    },
     INJURED,
-    { id: 'vu_auslauf', strong: [p(' laeuft (etwas |was )?aus'), w('benzin|oel|diesel|betriebsstoffe|auslaufen|raucht|brennt|qualmt')] },
+    { id: 'vu_auslauf', strong: [p(' (laeuft|laufen|tritt|treten) (\\w+ ){0,2}aus '), w('benzin|oel|diesel|betriebsstoffe|auslaufen|raucht|brennt|qualmt')] },
     { id: 'vu_strasse', strong: [w('fahrtrichtung|richtung|autobahn|bundesstrasse|landstrasse|kilometer|abfahrt|ausfahrt'), p(' (auf )?welche[rnm]? strasse')] },
   ],
   rd: [
     { id: 'rd_alter', strong: [p(' wie alt'), w('alter|jahre alt|geburtsjahr')] },
     { id: 'rd_bewusst', strong: [w('wach|ansprechbar|bewusstlos|bewusstsein|reagiert|reagieren|antwortet|bei sich')] },
-    { id: 'rd_atmung', strong: [p(' atm'), w('atem|luft|luftnot|atemnot|schnappt')] },
-    { id: 'rd_beschwerden', strong: [w('beschwerden|schmerzen|schmerz|symptome|was fehlt|tut weh|wo tut')] },
-    { id: 'rd_vorerkrankung', strong: [p(' vorerkrank'), w('medikamente|tabletten|krankheiten|erkrankungen|vorgeschichte|diabetes|herzkrank')] },
+    { id: 'rd_atmung', strong: [p(' atm'), w('atem|luft|luftnot|atemnot|schnappt|brustkorb')] },
+    { id: 'rd_beschwerden', strong: [w('beschwerden|schmerzen|schmerz|symptome|was fehlt|tut weh|wo tut|blutet|blutung'), p(' verletz')] },
+    { id: 'rd_vorerkrankung', strong: [p(' vorerkrank'), w('medikamente|tabletten|krankheiten|erkrankungen|vorgeschichte|diabetes|herzkrank|zucker|zuckerkrank|asthma|epilepsie|allergien|blutverduenner')] },
   ],
   ktp: [
-    { id: 'ktp_ziel', strong: [w('wohin|von wo|nach wo|zielklinik|ziel|abholen|abholort')] },
+    { id: 'ktp_ziel', strong: [w('wohin|nach wo|zielklinik|ziel|abholen|abholort|klinik|krankenhaus|station'), p(' von wo(?! (aus )?rufen)'), p(' wo soll (er|sie|der patient|die patientin) (denn )?hin')] },
     { id: 'ktp_mobil', strong: [w('sitzen|sitzend|liegen|liegend|gehfaehig|rollstuhl|trage|laufen')] },
     { id: 'ktp_infekt', strong: [p(' infekt'), w('keime|mrsa|ansteckend|corona|covid|isolation|isoliert')] },
     { id: 'ktp_zeit', strong: [w('wann|uhrzeit|termin|zeitpunkt|abholzeit')] },
     { id: 'ktp_intensiv', strong: [w('beatmet|intensiv|intensivpflichtig|perfusor|perfusoren|ueberwachung')] },
   ],
   abc: [
-    { id: 'abc_stoff', strong: [w('stoff|warntafel|warntafeln|kennzeichnung|gefahrstoff|chemikalie|chemikalien|un nummer|gefahrzettel')] },
-    { id: 'abc_menge', strong: [p(' wie ?viel'), w('menge|liter')] },
+    { id: 'abc_stoff', strong: [w('stoff|warntafel|warntafeln|kennzeichnung|gefahrstoff|chemikalie|chemikalien|un nummer|gefahrzettel|fass|behaelter|kanister|aufschrift|etikett')] },
+    { id: 'abc_menge', strong: [p(' wie ?viel '), w('menge|liter')] },
     { id: 'abc_wolke', strong: [w('geruch|riecht|riechen|wolke|nebel|daempfe|dampf')] },
     INJURED,
   ],
   wasser: [
-    { id: 'w_sicht', strong: [p(' (noch )?(zu )?sehen'), w('sichtbar|untergegangen|oberflaeche|treibt')] },
+    { id: 'w_sicht', strong: [p(' (noch )?(zu )?sehen(?! sie zu)'), w('sichtbar|untergegangen|oberflaeche|treibt')] },
     { id: 'w_gewaesser', strong: [w('gewaesser|see|fluss|kanal|ufer|strand|hafen|ostsee|meer|wo genau im wasser')] },
     INJURED,
   ],
   tier: [
     { id: 't_tier', strong: [p(' (welches|was fuer ein) tier'), w('tierart|hund|katze|pferd|kuh|reh')] },
-    { id: 't_lage', strong: [p(' wo (ist|befindet sich) (das tier|es)'), w('verletzt|feststecken|steckt fest|eingeklemmt')] },
+    { id: 't_lage', strong: [p(' wo (ist|befindet sich) (das tier|es)'), w('verletzt|feststecken|steckt fest|eingeklemmt'), STUCK] },
   ],
   pol: [
     { id: 'p_beteiligte', strong: [w('beteiligt|beteiligte|wie viele personen|wer ist'), p(' wie viele (leute|menschen)')] },
@@ -121,20 +159,32 @@ const CONVERSATION: { id: ConversationIntent; patterns: RegExp[] }[] = [
   { id: 'name', patterns: [p(' wie (heissen|ist ihr name)'), w('ihr name|ihren namen|mit wem spreche')] },
   {
     id: 'beruhigen',
-    patterns: [w('ruhig|beruhigen|keine sorge|keine angst|alles gut'), p(' (hilfe|feuerwehr|rettungsdienst|rettungswagen|polizei|notarzt) ist (schon )?(unterwegs|alarmiert|auf dem weg)'), p(' (ich )?(schicke|habe .* alarmiert)'), p(' (wir|die kollegen) (kommen|sind unterwegs)')],
+    patterns: [
+      w('ruhig|beruhigen|keine sorge|keine angst|alles gut'),
+      p(' ich schicke '),
+      p(' (ich )?hab(e)? (\\w+ ){0,4}(alarmiert|verstaendigt|informiert|losgeschickt) '),
+      p(' (feuerwehr|rettungsdienst|rettungswagen|krankenwagen|notarzt|polizei|hilfe|kollegen) (ist|sind|kommt|kommen) (schon |gleich |sofort )*(unterwegs|alarmiert|informiert|verstaendigt|auf dem weg|gleich|sofort)'),
+      p(' (ist|es ist) (schon )?(jemand|hilfe) unterwegs'),
+      p(' (wir|die kollegen) (kommen|sind unterwegs|sind gleich)'),
+    ],
   },
-  { id: 'wiederholen', patterns: [w('wie bitte|nochmal|noch einmal|wiederholen|nicht verstanden|langsamer|etwas lauter')] },
-  { id: 'buchstabieren', patterns: [p(' buchstabier'), p(' wie schreibt man'), p(' wie (wird|schreibt sich) (das|die strasse)')] },
+  { id: 'wiederholen', patterns: [w('wie bitte|nochmal|noch mal|noch einmal|wiederholen|nicht verstanden|langsamer|etwas lauter')] },
+  { id: 'buchstabieren', patterns: [p(' buchstabier'), p(' wie schreibt man'), p(' wie (wird|schreibt sich) (das|die strasse|der name|der ort)')] },
   {
     id: 'anweisung',
     patterns: [
-      p(' (gehen|verlassen|schliessen|bleiben|legen|machen|oeffnen|halten|warten|druecken|stellen|bringen|holen|schicken) sie'),
+      p(' (gehen|verlassen|schliessen|bleiben|legen|machen|oeffnen|halten|warten|druecken|stellen|bringen|holen|schicken|loeschen) sie'),
       p(' (tueren?|fenster) (zu|schliessen)'),
       p(' (beginnen|fangen) sie (mit|an)'),
     ],
   },
   { id: 'ende', patterns: [w('auf wiederhoeren|wiederhoeren|tschuess|ich lege (jetzt )?auf|sie koennen (jetzt )?auflegen')] },
 ];
+
+/** Satz beginnt mit einer Anweisung ("Gehen Sie …") – Stichwörter darin sind keine Fragen */
+const IMPERATIVE = /^ (?:gehen|verlassen|schliessen|bleiben|legen|machen|oeffnen|halten|warten|druecken|stellen|bringen|holen|schicken|beginnen|fangen|loeschen) sie /;
+const QUESTION_PART = / (?:wo|wie|was|wer|wann|welche\w*|wohin|wieviel\w*|ist|sind|hat|haben|gibt|kann|koennen|atmet|blutet) \w/;
+const FILLERS = /^ (?:(?:ok|okay|so|aeh|aehm|gut|also|bitte|dann|jetzt|und) )*/;
 
 function firstIndex(text: string, patterns: RegExp[]): number {
   let best = -1;
@@ -154,15 +204,19 @@ export function matchIntents(utterance: string, category: KeywordCategory): Inte
     const at = firstIndex(text, r.strong);
     if (at >= 0 && !strongHits.some((h) => h.id === r.id)) strongHits.push({ id: r.id, at });
   }
-  const hits = [...strongHits];
-  if (!strongHits.length) {
+  const intents: ConversationIntent[] = [];
+  for (const c of CONVERSATION) if (firstIndex(text, c.patterns) >= 0) intents.push(c.id);
+  let hits = [...strongHits];
+  // Schwache Muster ("wo", "Straße" …) nur, wenn nichts anderes erkannt wurde
+  if (!strongHits.length && !intents.some((i) => i !== 'begruessung')) {
     for (const r of rules) {
       if (!r.weak) continue;
       const at = firstIndex(text, r.weak);
       if (at >= 0 && !hits.some((h) => h.id === r.id)) hits.push({ id: r.id, at });
     }
   }
-  const intents: ConversationIntent[] = [];
-  for (const c of CONVERSATION) if (firstIndex(text, c.patterns) >= 0) intents.push(c.id);
+  const lead = text.replace(FILLERS, ' ');
+  const imp = IMPERATIVE.exec(lead);
+  if (imp && !QUESTION_PART.test(lead.slice(imp[0].length - 1))) hits = [];
   return { questions: hits.sort((a, b) => a.at - b.at).map((h) => h.id), intents };
 }

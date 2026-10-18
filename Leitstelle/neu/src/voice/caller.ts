@@ -2,7 +2,7 @@ import type { KeywordCategory } from '../model/types';
 import type { Facts } from '../data/questions';
 import { findQuestion } from '../data/questions';
 import type { GeneratedLocation } from '../sim/callgen';
-import { matchIntents, type ConversationIntent } from './intents';
+import { matchIntents, normalize, type ConversationIntent } from './intents';
 
 /**
  * Simulierter Anrufer für den Sprachtest – rein regelbasiert, ohne KI und ohne Netzwerk.
@@ -107,11 +107,18 @@ export class CallerSim {
       parts.push(`Ich habe gesagt: ${this.lastAnswer}`);
       content = true;
     }
-    if (m.intents.includes('buchstabieren') && this.call.location.street) {
-      parts.push(`${this.call.location.street}: ${spellWord(this.call.location.street)}.`);
-      content = true;
+    let nameSpelled = false;
+    if (m.intents.includes('buchstabieren')) {
+      // Was soll buchstabiert werden? Name, Ort oder (Standard) die Straße
+      const n = normalize(said);
+      nameSpelled = / (name|namen|nachname)/.test(n);
+      const target = nameSpelled ? this.call.caller.name : / (ort|stadt|gemeinde)/.test(n) ? this.call.location.city : this.call.location.street;
+      if (target) {
+        parts.push(`${target}: ${spellWord(target)}.`);
+        content = true;
+      }
     }
-    if (m.intents.includes('name')) {
+    if (m.intents.includes('name') && !nameSpelled) {
       parts.push(`Mein Name ist ${this.call.caller.name}.`);
       content = true;
     }
@@ -137,7 +144,8 @@ export class CallerSim {
       content = true;
     }
     if (m.intents.includes('anweisung') && !answers.length) {
-      parts.push('Okay, mache ich.');
+      // reine Verständnisquittung – der Anrufer sagt keine Handlung zu, die die Simulation nicht abbildet
+      parts.push('Verstanden.');
       content = true;
     }
     if (m.intents.includes('ende')) {

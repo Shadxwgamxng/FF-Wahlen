@@ -47,12 +47,12 @@ export function VoiceTestView({ game }: { game: GameState }) {
   const [support, setSupport] = useState<SpeechSupport>(() => detectSupport());
   const [checking, setChecking] = useState(false);
   const mounted = useRef(true);
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
       mounted.current = false;
-    },
-    [],
-  );
+    };
+  }, []);
   // Nur auf Klick: die Abfrage kann in manchen Browsern hängen (siehe voice/speech.ts)
   const check = async () => {
     setChecking(true);
@@ -128,7 +128,10 @@ function ConsentCard({ support, onConsent }: { support: SpeechSupport; onConsent
           <b>Spracherkennung:</b> Chrome und Edge schicken deine Sprache normalerweise an den Spracherkennungsdienst des Herstellers (z. B. Google), um sie in Text umzuwandeln. Nur wenn der
           Browser Deutsch <b>auf dem Gerät</b> erkennen kann, bleibt das Audio auf deinem Rechner. Diese Wahl triffst du unten.
         </li>
-        <li>Das Mikrofon ist nur aktiv, solange du auf „Sprechen" drückst (bzw. im Freisprechmodus während des Gesprächs). Audio wird nicht gespeichert.</li>
+        <li>
+          Das Mikrofon wird erst durch einen Klick auf „Sprechen" (oder Taste M) eingeschaltet und schaltet sich nach deiner Sprechpause, nach einigen Sekunden Stille oder mit „Fertig" wieder
+          aus. Im Freisprechmodus schaltet es sich nach jeder Antwort des Anrufers wieder ein, bis das Gespräch endet. Audio wird nicht gespeichert.
+        </li>
         <li>
           <b>Sprachausgabe:</b> Der Anrufer spricht über die Stimmen deines Browsers. Manche Stimmen (in Chrome z. B. „Google Deutsch") sind Online-Stimmen; dabei wird nur der Antworttext des
           simulierten Anrufers übertragen. Lokale Stimmen kannst du in der Stimmauswahl wählen.
@@ -193,6 +196,8 @@ function VoiceSession({ game, consent, support }: { game: GameState; consent: Vo
   const linesRef = useRef(lines);
   linesRef.current = lines;
   const handleRef = useRef<(t: string) => void>(() => undefined);
+  /** Zähler der Gesprächsrunden – veraltete Rückrufe der Sprachausgabe erkennen sich daran */
+  const turnSeq = useRef(0);
 
   const micAllowed = consent.mode !== 'text' && Boolean(support.recognition);
   const onDeviceOnly = consent.mode === 'geraet';
@@ -224,7 +229,12 @@ function VoiceSession({ game, consent, support }: { game: GameState; consent: Vo
       const l = live.current;
       if (!l) return;
       live.current = null;
-      recognizer.current?.abort();
+      turnSeq.current++; // ausstehende Rückrufe der Sprachausgabe ungültig machen
+      stopSpeaking();
+      setSpeaking(false);
+      const rec = recognizer.current;
+      recognizer.current = null;
+      rec?.abort();
       setListening(false);
       setInterim('');
       setActive(false);
@@ -240,21 +250,33 @@ function VoiceSession({ game, consent, support }: { game: GameState; consent: Vo
 
   const listen = useCallback(() => {
     if (!micAllowed || !live.current) return;
+    turnSeq.current++; // eine laufende Antwort gilt als unterbrochen
     stopSpeaking();
     setSpeaking(false);
     setError('');
-    const r = createRecognizer({
+    // nie zwei Erkenner gleichzeitig
+    const old = recognizer.current;
+    recognizer.current = null;
+    old?.abort();
+    // true, solange dieser Erkenner der aktuelle ist (bleibt nach dem regulären Ende für die Textlieferung gesetzt)
+    let mine = true;
+    const r: Recognizer | null = createRecognizer({
       onDeviceOnly,
-      onInterim: (t) => mounted.current && setInterim(t),
-      onFinal: (t) => mounted.current && handleRef.current(t),
+      onInterim: (t) => mounted.current && recognizer.current === r && setInterim(t),
+      onFinal: (t) => mounted.current && mine && live.current && handleRef.current(t),
       onError: (code, msg) => {
-        if (!mounted.current || code === 'aborted') return;
+        if (!mounted.current || recognizer.current !== r || code === 'aborted') return;
         if (code === 'no-speech' && handsFreeRef.current) return;
         setError(msg);
         if (code === 'not-allowed' || code === 'service-not-allowed' || code === 'audio-capture' || code === 'language-not-supported') setHandsFree(false);
       },
       onEnd: () => {
-        if (!mounted.current) return;
+        // spätes Ende eines alten Erkenners ignorieren
+        if (!mounted.current || recognizer.current !== r) {
+          mine = false;
+          return;
+        }
+        recognizer.current = null;
         setListening(false);
         setInterim('');
       },
@@ -275,15 +297,27 @@ function VoiceSession({ game, consent, support }: { game: GameState; consent: Vo
   const handleUtterance = (text: string) => {
     const l = live.current;
     if (!l) return;
+    // Eine (getippte) Äußerung beendet das Zuhören und unterbricht den Anrufer
+    const rec = recognizer.current;
+    recognizer.current = null;
+    rec?.abort();
+    setListening(false);
+    setInterim('');
+    stopSpeaking();
+    const my = ++turnSeq.current;
     push('disponent', text);
     const turn = l.sim.respond(text);
     if (!turn.text) return;
     push('anrufer', turn.text);
     const after = () => {
-      if (!mounted.current) return;
+      if (!mounted.current || live.current !== l) return;
+      if (turn.ended) {
+        finish('Anrufer hat aufgelegt.');
+        return;
+      }
+      if (turnSeq.current !== my) return; // unterbrochen oder durch eine neuere Antwort ersetzt
       setSpeaking(false);
-      if (turn.ended) finish('Anrufer hat aufgelegt.');
-      else if (handsFreeRef.current && live.current) listen();
+      if (handsFreeRef.current) listen();
     };
     if (ttsOn && support.synthesis) {
       setSpeaking(true);
@@ -371,9 +405,9 @@ function VoiceSession({ game, consent, support }: { game: GameState; consent: Vo
             </select>
           )}
         </div>
-        {consent.mode === 'geraet' && support.onDevice === 'herunterladbar' && (
+        {consent.mode === 'geraet' && support.onDevice !== 'verfuegbar' && support.onDevice !== 'nicht-verfuegbar' && (
           <div className="row small">
-            <span className="dim grow">Für die Erkennung auf dem Gerät muss der Browser einmalig das deutsche Sprachpaket laden.</span>
+            <span className="dim grow">Für die Erkennung auf dem Gerät muss der Browser einmalig das deutsche Sprachpaket laden (falls noch nicht geschehen).</span>
             <button
               className="btn small"
               disabled={installing}

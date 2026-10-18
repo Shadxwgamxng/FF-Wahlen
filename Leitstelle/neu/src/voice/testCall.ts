@@ -19,7 +19,12 @@ export function buildVoiceTestCall(state: GameState, seed: number): VoiceCall {
   const rng = new Rng(seed);
   const facts: Facts = {};
   for (const [k, spec] of Object.entries({ ...sc.facts, ...(variant?.facts ?? {}) })) facts[k] = resolveFact(spec, rng);
-  const location = randomLocation(state, rng, sc.location);
+  // Der Eröffnungssatz ("In der Wohnung über mir …") setzt ein Obergeschoss in einem Mehrfamilienhaus voraus
+  const UPPER = ['1. Obergeschoss.', '2. Obergeschoss.', '3. Obergeschoss.'];
+  if (!UPPER.includes(String(facts.floor))) facts.floor = rng.pick(UPPER);
+  const location = { ...randomLocation(state, rng, sc.location) };
+  const MULTI = ['Mehrfamilienhaus, Eingang links', 'Wohnblock, Klingel unten rechts', 'Mehrfamilienhaus, Hinterhaus über den Hof'];
+  if (!MULTI.includes(location.detail)) location.detail = rng.pick(MULTI);
   const phone = `0${rng.int(1500, 1799)} ${rng.int(100000, 999999)}`;
   facts._address = location.address;
   facts._detail = location.detail;
@@ -69,8 +74,11 @@ const norm = (s: string) =>
   s
     .toLowerCase()
     .replace(/ß/g, 'ss')
-    .replace(/str\.(?=\s|$)/g, 'strasse')
-    .replace(/[^a-z0-9äöü]+/g, '');
+    .replace(/ä/g, 'ae')
+    .replace(/ö/g, 'oe')
+    .replace(/ü/g, 'ue')
+    .replace(/str\.?(?=[\s\d,]|$)/g, 'strasse')
+    .replace(/[^a-z0-9]+/g, '');
 
 /** Vergleicht die Eingaben des Disponenten mit der Spielwahrheit – erst nach Gesprächsende */
 export function evaluateVoiceTest(state: GameState, call: VoiceCall, entry: VoiceEntry, askedQuestions: Iterable<string>, durationSeconds: number): VoiceEvaluation {

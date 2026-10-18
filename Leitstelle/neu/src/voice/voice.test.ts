@@ -33,6 +33,39 @@ describe('Absichtserkennung', () => {
       expect(matchIntents(text, cat).questions).toEqual(expected);
     });
 
+  // Fälle aus dem Review (gesprochene Sprache, ohne Satzzeichen)
+  const review: [string, Parameters<typeof matchIntents>[1], string[]][] = [
+    ['gehen sie nicht zurück in die wohnung wenn noch jemand drin ist', 'brand', []],
+    ['verlassen sie die wohnung sind noch personen drin', 'brand', ['b_personen']],
+    ['ist noch wer drin', 'brand', ['b_personen']],
+    ['sind alle aus dem haus raus', 'brand', ['b_personen']],
+    ['wohnt da jemand drüber', 'brand', ['b_personen']],
+    ['können sie die straße buchstabieren', 'brand', []],
+    ['ist der täter noch vor ort', 'pol', []],
+    ['alles klar ich weiß wo das ist', 'brand', []],
+    ['ist noch jemand im auto', 'vu', ['vu_eingeklemmt']],
+    ['läuft da was aus', 'vu', ['vu_auslauf']],
+    ['wie viele personen sind betroffen', 'abc', ['verletzt']],
+    ['was ist da los', 'abc', ['was']],
+    ['wie groß ist das feuer', 'brand', ['b_ausbreitung']],
+    ['steckt jemand im aufzug fest', 'th', ['th_personen']],
+    ['in welche klinik soll er', 'ktp', ['ktp_ziel']],
+    ['ist er zuckerkrank', 'rd', ['rd_vorerkrankung']],
+    ['blutet er stark', 'rd', ['rd_beschwerden']],
+    ['hat jemand rauch eingeatmet', 'brand', ['verletzt']],
+  ];
+  for (const [text, cat, expected] of review)
+    it(`Review: "${text}" → ${expected.join(', ') || 'keine Frage'}`, () => {
+      expect(matchIntents(text, cat).questions).toEqual(expected);
+    });
+
+  it('erkennt Beruhigung in üblichen Formulierungen, aber nicht "schicken Sie jemanden"', () => {
+    for (const t of ['die feuerwehr kommt gleich', 'der rettungsdienst kommt sofort', 'es ist schon jemand unterwegs', 'die polizei ist informiert', 'wir sind gleich da', 'ich hab die feuerwehr alarmiert'])
+      expect(matchIntents(t, 'brand').intents, t).toContain('beruhigen');
+    expect(matchIntents('schicken sie jemanden', 'brand').intents).not.toContain('beruhigen');
+    expect(matchIntents('sagen sie das noch mal', 'brand').intents).toContain('wiederholen');
+  });
+
   it('erkennt Gesprächsabsichten ohne Faktenbezug', () => {
     expect(matchIntents('Bleiben Sie ruhig, die Feuerwehr ist unterwegs.', 'brand').intents).toContain('beruhigen');
     expect(matchIntents('Können Sie die Straße buchstabieren?', 'brand').intents).toContain('buchstabieren');
@@ -116,6 +149,25 @@ describe('Simulierter Anrufer', () => {
     const s1 = new CallerSim(a);
     const s2 = new CallerSim(b);
     for (const t of ['Notruf', 'Wo?', 'Was brennt?', 'Xyz', 'Xyz']) expect(s1.respond(t)).toEqual(s2.respond(t));
+  });
+
+  it('buchstabiert, was gefragt ist, und sagt bei Anweisungen nichts zu', () => {
+    const call = buildVoiceTestCall(game(), 4);
+    const sim = new CallerSim(call);
+    sim.respond('Notruf');
+    const name = sim.respond('Buchstabieren Sie bitte Ihren Namen.').text;
+    expect(name).toContain(spellWord(call.caller.name));
+    expect(name).not.toContain(spellWord(call.location.street));
+    expect(sim.respond('Gehen Sie in die Wohnung und holen Sie die Person raus.').text).toMatch(/^Verstanden\.( Bitte beeilen Sie sich!)?$/);
+  });
+
+  it('Eröffnung "Wohnung über mir" passt zu den Fakten (Obergeschoss, Mehrfamilienhaus)', () => {
+    const g = game();
+    for (let seed = 1; seed <= 20; seed++) {
+      const c = buildVoiceTestCall(g, seed);
+      expect(String(c.facts.floor), `Fall ${seed}`).toMatch(/Obergeschoss/);
+      expect(String(c.facts._detail), `Fall ${seed}`).toMatch(/Mehrfamilienhaus|Wohnblock/);
+    }
   });
 
   it('buchstabiert nach DIN 5009', () => {

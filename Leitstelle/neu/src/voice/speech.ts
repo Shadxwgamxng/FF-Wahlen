@@ -171,12 +171,21 @@ export function createRecognizer(o: RecognizerOptions): Recognizer | null {
     }
     o.onInterim((final + interim).trim());
   };
-  r.onerror = (e) => o.onError(e.error, RECOGNITION_ERRORS[e.error] ?? `Fehler der Spracherkennung (${e.error}).`);
+  r.onerror = (e) => {
+    const local = o.onDeviceOnly && (e.error === 'language-not-supported' || e.error === 'service-not-allowed');
+    o.onError(
+      e.error,
+      local
+        ? 'Die Erkennung auf dem Gerät ist für Deutsch noch nicht bereit (Sprachpaket fehlt oder wird nicht unterstützt). Es wurde nichts gesendet.'
+        : (RECOGNITION_ERRORS[e.error] ?? `Fehler der Spracherkennung (${e.error}).`),
+    );
+  };
+  // erst das Ende melden, dann den Text liefern – die Antwort darauf darf sofort wieder zuhören
   r.onend = () => {
     const text = final.trim();
     final = '';
-    if (text) o.onFinal(text);
     o.onEnd();
+    if (text) o.onFinal(text);
   };
   return {
     start: () => r.start(),
