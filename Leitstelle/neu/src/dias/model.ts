@@ -9,6 +9,8 @@
 export interface DiasOption {
   code: string;
   label: string;
+  /** Antwort-ID im Mitschnitt (für den Wegvergleich) */
+  answerId?: string;
   /** Folgeknoten; null, wenn der Mitschnitt hier endet */
   to: string | null;
 }
@@ -44,6 +46,12 @@ export interface DiasNode {
   /** Zusatztext (Dialoge, Eingabemasken) – nur Text */
   dialog: string | null;
   result: DiasResult | null;
+  /**
+   * Weg, auf dem diese Seite im Mitschnitt aufgezeichnet wurde (Antwort-IDs und Beschriftungen).
+   * Der Mitschnitt fasst gleich aussehende Teilbäume zusammen – eine Ergebnisseite kann deshalb
+   * über andere Wege erreicht werden, als auf dem sie aufgezeichnet wurde.
+   */
+  recorded?: { answerIds: string[]; labels: string[] };
 }
 
 export interface DiasTree {
@@ -59,11 +67,13 @@ export interface DiasTree {
 
 interface RawOption {
   answerId?: string;
-  code?: string;
-  label?: string;
+  code?: string | null;
+  label?: string | null;
+  text?: string | null;
 }
 interface RawNode {
   id: string;
+  samplePath?: { from?: string; answerId?: string; label?: string | null }[];
   question?: string | null;
   questionHtml?: string | null;
   options?: RawOption[];
@@ -73,8 +83,8 @@ interface RawNode {
 interface RawEdge {
   from: string;
   answerId?: string;
-  code?: string;
-  label?: string;
+  code?: string | null;
+  label?: string | null;
   to: string;
 }
 
@@ -153,7 +163,9 @@ export function parseDiasExport(raw: unknown, importedAt = Date.now()): DiasTree
     const rawOptions = n.options?.length ? n.options : out.map((e) => ({ answerId: e.answerId, code: e.code, label: e.label }));
     const options: DiasOption[] = rawOptions.map((o) => {
       const e = out.find((x) => (o.answerId && x.answerId === o.answerId) || (!o.answerId && x.code === o.code && x.label === o.label));
-      return { code: String(o.code ?? ''), label: clean(String(o.label ?? '')), to: e && ids.has(e.to) ? e.to : null };
+      // Manche Antworten (z. B. Personenzahl "1", "2") haben nur einen Text und kein Label
+      const label = clean(String(o.label || ('text' in o ? o.text : '') || o.code || ''));
+      return { code: String(o.code ?? ''), label, answerId: o.answerId ? String(o.answerId) : undefined, to: e && ids.has(e.to) ? e.to : null };
     });
     const dialog = n.dialogText ? String(n.dialogText) : null;
     const result = dialog ? parseResult(dialog) : null;
@@ -170,6 +182,10 @@ export function parseDiasExport(raw: unknown, importedAt = Date.now()): DiasTree
       options,
       dialog: kind === 'ergebnis' ? null : dialog,
       result,
+      recorded:
+        kind === 'ergebnis' && Array.isArray(n.samplePath)
+          ? { answerIds: n.samplePath.map((x) => String(x.answerId ?? '')), labels: n.samplePath.map((x) => clean(String(x.label ?? ''))) }
+          : undefined,
     };
   }
   const root = nodes.q00001 ? 'q00001' : r.nodes[0].id;
@@ -189,4 +205,18 @@ export function parseDiasExport(raw: unknown, importedAt = Date.now()): DiasTree
 /** Das in der Maske zu übernehmende Alarmstichwort (erstes vergebenes, sonst null) */
 export function primaryKeyword(res: DiasResult): string | null {
   return res.sections.find((s) => s.stichwort)?.stichwort ?? null;
+}
+
+/**
+ * Vergleicht den geklickten Weg mit dem Aufzeichnungsweg einer Ergebnisseite.
+ * Liefert null, wenn sie übereinstimmen (oder nichts aufgezeichnet ist), sonst die erste Abweichung.
+ */
+export function pathMismatch(node: DiasNode, chosenAnswerIds: string[], chosenLabels: string[]): { step: number; recorded: string; chosen: string } | null {
+  const rec = node.recorded;
+  if (!rec || !rec.answerIds.length) return null;
+  const n = Math.max(rec.answerIds.length, chosenAnswerIds.length);
+  for (let i = 0; i < n; i++) {
+    if (rec.answerIds[i] !== chosenAnswerIds[i]) return { step: i + 1, recorded: rec.labels[i] ?? '–', chosen: chosenLabels[i] ?? '–' };
+  }
+  return null;
 }

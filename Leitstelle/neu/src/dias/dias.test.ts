@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { SH_KEYWORD_SEEDS } from '../data/sh/keywords';
 import { mapDiasKeyword } from './keywordMap';
-import { parseDiasExport, parseResult, primaryKeyword, sanitizeHtml } from './model';
+import { parseDiasExport, parseResult, pathMismatch, primaryKeyword, sanitizeHtml } from './model';
 
 /** Kleiner, selbst geschriebener Abfragebaum im Format des DIAS-Mitschnitts (keine Originaltexte) */
 const FIXTURE = {
@@ -15,6 +15,7 @@ const FIXTURE = {
       options: [],
       inputs: [],
       kind: 'result',
+      samplePath: [{ from: 'q00001', answerId: 'a1', label: 'Medizin' }, { from: 'q00002', answerId: 'b2', label: 'Nein' }],
       dialogText:
         'Notrufabfrageergebnis\nmedizinischer Notruf,\nPerson atmet nicht,\nMedizinischer Notfall\nAbfrageergebnis : 4711\nAtemstillstand Erw.\n \nRegionales Alarmstichwort / AAO\nNOTF 11 REA NAIK\nInfo intern\nSuche\n«\n(aa) *Hinweis eins\n»\nInfo extern\n«\n(xa) *Hinweis extern\n»\nZurück zur Abfrage\nÜbergabe an Einsatzleitsystem',
     },
@@ -61,6 +62,14 @@ describe('DIAS-Import', () => {
     expect(r.sections.map((s) => s.stichwort)).toEqual([null, 'FEU Y']);
     expect(primaryKeyword(r)).toBe('FEU Y');
     expect(parseResult('keine Ergebnisseite')).toBeNull();
+  });
+
+  it('erkennt, ob der gewählte Weg dem Aufzeichnungsweg der Ergebnisseite entspricht', () => {
+    const n = tree.nodes.q00003;
+    expect(n.recorded?.answerIds).toEqual(['a1', 'b2']);
+    expect(pathMismatch(n, ['a1', 'b2'], ['Medizin', 'Nein'])).toBeNull();
+    expect(pathMismatch(n, ['a2', 'b2'], ['Feuer', 'Nein'])).toEqual({ step: 1, recorded: 'Medizin', chosen: 'Feuer' });
+    expect(pathMismatch(tree.nodes.q00005, ['a2'], ['Feuer'])).toBeNull(); // ohne Aufzeichnungsweg keine Warnung
   });
 
   it('lässt nur einfache Hervorhebungen im HTML zu', () => {

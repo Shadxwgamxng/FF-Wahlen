@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Call, GameState } from '../../../model/types';
 import { useDias } from '../../../dias/store';
-import type { DiasNode, DiasTree } from '../../../dias/model';
+import { pathMismatch, type DiasNode, type DiasTree } from '../../../dias/model';
 import { mapDiasKeyword } from '../../../dias/keywordMap';
 import { store } from '../../../store/gameStore';
 
@@ -128,7 +128,7 @@ function DiasBody({ game, call, tree, steps, setSteps }: { game: GameState; call
       {!node ? (
         <div className="field-error small">Folgeschritt fehlt im Mitschnitt – bitte Stichwort selbst wählen.</div>
       ) : node.kind === 'ergebnis' ? (
-        <DiasResultView game={game} call={call} node={node} pathText={pathText(tree, steps)} />
+        <DiasResultView game={game} call={call} node={node} pathText={pathText(tree, steps)} mismatch={pathMismatch(node, steps.map((x) => tree.nodes[x.nodeId]?.options[x.option]?.answerId ?? ''), steps.map((x) => tree.nodes[x.nodeId]?.options[x.option]?.label ?? ''))} />
       ) : node.kind === 'frage' ? (
         <div className="dias-current" data-testid="dias-question">
           <div className="dias-q" dangerouslySetInnerHTML={{ __html: node.html }} />
@@ -153,7 +153,7 @@ function DiasBody({ game, call, tree, steps, setSteps }: { game: GameState; call
   );
 }
 
-function DiasResultView({ game, call, node, pathText }: { game: GameState; call: Call; node: DiasNode; pathText: string }) {
+function DiasResultView({ game, call, node, pathText, mismatch }: { game: GameState; call: Call; node: DiasNode; pathText: string; mismatch: ReturnType<typeof pathMismatch> }) {
   const res = node.result!;
   const [infos, setInfos] = useState<Set<string>>(new Set());
   const codes = useMemo(() => game.center.keywords.map((k) => k.code), [game.center.keywords]);
@@ -178,6 +178,12 @@ function DiasResultView({ game, call, node, pathText }: { game: GameState; call:
         <b>Notrufabfrageergebnis</b>
         <div className="small" data-testid="dias-summary">{pathText}</div>
       </div>
+      {mismatch && (
+        <div className="warnbox small" data-testid="dias-mismatch">
+          <b>Achtung, Ergebnis ungesichert:</b> Diese Ergebnisseite wurde im Mitschnitt über einen anderen Abfrageweg aufgezeichnet (Schritt {mismatch.step}: aufgezeichnet „{mismatch.recorded}“, gewählt „{mismatch.chosen}“).
+          Meldebild und Stichwort können deshalb von deinem Fall abweichen – bitte prüfen und ggf. selbst wählen.
+        </div>
+      )}
       {res.sections.map((s, i) => (
         <div key={i} className="dias-section">
           <div className="small muted">{s.fach}</div>
@@ -220,7 +226,7 @@ function DiasResultView({ game, call, node, pathText }: { game: GameState; call:
       )}
       {res.infoExtern.length > 0 && <div className="small muted">Info extern: {res.infoExtern.join(', ')}</div>}
       <button className="btn primary" onClick={apply} data-testid="dias-apply">
-        In Einsatzmaske übernehmen{targetKw ? ` (${targetKw.code})` : ''}
+        {mismatch ? 'Trotzdem übernehmen' : 'In Einsatzmaske übernehmen'}{targetKw ? ` (${targetKw.code})` : ''}
       </button>
     </div>
   );
