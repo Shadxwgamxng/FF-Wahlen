@@ -17,8 +17,10 @@ const RD_KTP: DetailTopic['categories'] = ['rd', 'ktp'];
 
 const str = (v: FactValue | undefined) => (typeof v === 'string' ? v : '');
 const lc = (v: FactValue | undefined) => str(v).toLowerCase();
-const symptoms = (c: DetailContext) => lc(c.facts.symptoms);
-const history = (c: DetailContext) => lc(c.facts.history);
+/** Verneinte Angaben entfernen ("kein Fieber", "bisher keine Blutungen", "war nicht bewusstlos") */
+const pos = (s: string) => s.replace(/(^|[^a-zäöüß])(kein|keine|keinen|keinem|keiner|nicht|ohne)\s+[a-zäöüß-]+/g, '$1');
+const symptoms = (c: DetailContext) => pos(lc(c.facts.symptoms));
+const history = (c: DetailContext) => pos(lc(c.facts.history));
 /** Fakten-Text des Szenarios (ohne Vorgeschichte) */
 const scText = (c: DetailContext) => `${lc(c.facts.what)} ${symptoms(c)} ${(findScenario(c.scenarioId)?.name ?? '').toLowerCase()}`;
 
@@ -86,11 +88,14 @@ const PASSANT_UNKNOWN = 'Das weiß ich nicht, ich kenne die Person nicht – ich
 const MALE = /\b(mann|vater|sohn|bruder|opa|großvater|lebensgefährte|kollege|jugendlicher|landwirt|herr|junge|ehemann|fahrer)\b/;
 const FEMALE = /\b(frau|mutter|tochter|schwester|oma|großmutter|freundin|patientin|dame|mädchen|ehefrau|lebensgefährtin|mama)\b/;
 
-function genderHint(text: string): 'm' | 'w' | null {
-  const m = MALE.test(text);
-  const f = FEMALE.test(text);
+function genderHint(text: string, pronouns = ''): 'm' | 'w' | null {
+  const m = MALE.test(text) || /\b(er (ist|kann|hat|wird|muss|liegt|soll)|ihn)\b/.test(pronouns);
+  const f = FEMALE.test(text) || /\bsie (ist|kann|hat|wird|muss|liegt|soll)\b/.test(pronouns);
   return m && !f ? 'm' : f && !m ? 'w' : null;
 }
+
+/** Krankentransport: Angaben aus Transportziel, Mobilität und Zeit */
+const ktpText = (c: DetailContext) => `${lc(c.facts.what)} ${lc(c.facts.target)} ${lc(c.facts.mobility)} ${lc(c.facts.when)}`;
 
 const NAMES_M_OLD = ['Klaus', 'Jürgen', 'Hans-Werner', 'Uwe', 'Peter', 'Manfred', 'Dieter', 'Horst', 'Rolf', 'Günter'];
 const NAMES_W_OLD = ['Ingrid', 'Helga', 'Karin', 'Monika', 'Renate', 'Gisela', 'Brigitte', 'Ursula', 'Elke', 'Heike'];
@@ -112,12 +117,12 @@ export const MEDICAL_TOPICS: DetailTopic[] = [
     id: 'x_geschlecht',
     label: 'Geschlecht des Patienten',
     categories: RD_KTP,
-    patterns: [p(' (ein )?(mann|junge|herr) oder (eine? )?(frau|maedchen|dame) '), p(' (eine )?(frau|maedchen|dame) oder (ein )?(mann|junge|herr) '), w('geschlecht|maennlich oder weiblich|weiblich oder maennlich')],
+    patterns: [p(' (ein )?(mann|junge|herr) oder (eine? )?(frau|maedchen|dame) '), p(' (eine )?(frau|maedchen|dame) oder (ein )?(mann|junge|herr) '), w('geschlecht|maennlich oder weiblich|weiblich oder maennlich'), p(' (ist|sind) (er|sie|es|der patient|die patientin|die person|das kind) (maennlich|weiblich) ')],
     examples: ['Ist es ein Mann oder eine Frau?', 'männlich oder weiblich', 'Welches Geschlecht hat der Patient?', 'äh is das ein junge oder ein mädchen', 'so mann oder frau'],
     applies: (c) => !isMulti(c),
     generate: (c) => {
       if (c.scenarioId === 'rd_geburt' || /schwanger|geburt hat|wehen/.test(scText(c))) return 'w';
-      const fromFacts = genderHint(`${lc(c.facts.what)} ${symptoms(c)} ${lc(c.facts.target)}`);
+      const fromFacts = genderHint(`${lc(c.facts.what)} ${symptoms(c)} ${lc(c.facts.target)} ${lc(c.facts.mobility)}`, `${lc(c.facts.target)} ${lc(c.facts.mobility)} ${lc(c.facts.when)}`);
       if (fromFacts) return fromFacts;
       const sc = findScenario(c.scenarioId);
       const hints = [...(sc?.openings ?? []), ...(sc?.variants ?? []).flatMap((v) => v.openings ?? [])].map((o) => genderHint(o.toLowerCase())).filter((h): h is 'm' | 'w' => h !== null);
@@ -130,7 +135,7 @@ export const MEDICAL_TOPICS: DetailTopic[] = [
       if (isSelf(c)) return f ? 'Ich bin eine Frau.' : 'Ich bin ein Mann.';
       if (a !== null && a < 1) return f ? 'Ein Mädchen.' : 'Ein Junge.';
       if (a !== null && a < 14) return f ? 'Ein Mädchen.' : 'Ein Junge.';
-      if (c.category === 'ktp') return f ? 'Eine Patientin.' : 'Ein Patient, männlich.';
+      if (c.category === 'ktp') return f ? 'Eine Patientin.' : 'Ein Patient.';
       return f ? 'Eine Frau.' : 'Ein Mann.';
     },
     unknown: () => 'Das sind mehrere Verletzte, Männer wie Frauen.',
@@ -139,18 +144,20 @@ export const MEDICAL_TOPICS: DetailTopic[] = [
     id: 'x_patientenalter',
     label: 'Alter des Patienten (Krankentransport)',
     categories: KTP,
-    patterns: [p(' wie alt '), w('alter|geburtsdatum|geburtsjahr|jahrgang|geboren')],
-    examples: ['Wie alt ist der Patient?', 'wie alt ist die patientin denn', 'Welches Geburtsdatum hat der Patient?', 'äh wie alt is er so ungefähr', 'Welcher Jahrgang?'],
+    patterns: [p(' wie alt '), w('alter|geburtsdatum|geburtsjahr|jahrgang|geboren'), p(' wann ist (er|sie|es|der patient|die patientin|das kind) geboren ')],
+    examples: ['Wie alt ist der Patient?', 'wie alt ist die patientin denn', 'Welches Geburtsdatum hat der Patient?', 'äh wie alt is er so ungefähr', 'Welcher Jahrgang?', 'wann ist die patientin geboren'],
     generate: (c) => {
       if (typeof c.facts.age === 'number') return c.facts.age;
       if (/kind/.test(`${lc(c.facts.what)} ${lc(c.facts.target)}`)) return c.rng.int(2, 12);
+      if (/dame|bettlägerig|pflegeheim|palliativ|hospiz/.test(ktpText(c))) return c.rng.int(72, 94);
       if (c.facts.intensive === true) return c.rng.int(38, 82);
       return c.rng.int(56, 94);
     },
     answer: (v, c) => {
       const n = Number(v);
-      if (/^angehörig/i.test(c.relation)) return `${pr(c).Er} ist ${n} Jahre alt.`;
-      return `${pr(c).Patient} ist ${n} Jahre alt.`;
+      const f = c.get('x_geschlecht') === 'w';
+      if (/^angehörig/i.test(c.relation)) return `${f ? 'Sie' : 'Er'} ist ${n} Jahre alt.`;
+      return `${n < 14 ? 'Das Kind' : f ? 'Die Patientin' : 'Der Patient'} ist ${n} Jahre alt.`;
     },
   },
   {
@@ -162,6 +169,7 @@ export const MEDICAL_TOPICS: DetailTopic[] = [
       p(' (wie heisst|wie heissen) (denn )?(die )?betroffene person '),
       p(' namen? (des|der|vom|von der) (patienten|patientin|betroffenen|verletzten|person) '),
       p(' (vor|nach)namen? (des|der) (patienten|patientin) '),
+      p(' wie (der patient|die patientin|die person|der mann|die frau|das kind|er|sie) heisst '),
     ],
     examples: ['Wie heißt der Patient?', 'wie heisst die patientin', 'Den Namen des Patienten bitte.', 'äh wie heißt denn die betroffene person', 'Wissen Sie den Namen der Patientin?'],
     applies: (c) => !isMulti(c) && !isPassant(c) && !isSelf(c),
@@ -179,7 +187,7 @@ export const MEDICAL_TOPICS: DetailTopic[] = [
       if (isClinic(c)) return `${pr(c).Patient} heißt ${name}.`;
       return `${pr(c).Er} heißt ${name}.`;
     },
-    unknown: (c) => (isMulti(c) ? 'Das sind mehrere Verletzte, die Namen kenne ich nicht.' : isSelf(c) ? 'Das bin ich doch selbst, mir geht es so schlecht!' : 'Keine Ahnung, ich kenne die Person nicht.'),
+    unknown: (c) => (isMulti(c) ? 'Das sind mehrere Verletzte, die Namen kenne ich nicht.' : isSelf(c) ? 'Na, ich bin das doch selbst – um mich geht es!' : 'Keine Ahnung, ich kenne die Person nicht.'),
   },
   {
     id: 'x_gewicht',
@@ -191,11 +199,18 @@ export const MEDICAL_TOPICS: DetailTopic[] = [
     generate: (c) => {
       if (typeof c.facts.weight === 'string' && c.facts.weight) return c.facts.weight;
       if (typeof c.facts.weight === 'number') return c.facts.weight;
+      const kilo = /(\d+) kilo/.exec(`${ktpText(c)} ${symptoms(c)}`);
+      if (kilo) return `Etwa ${kilo[1]} Kilo.`;
+      if (/schwergewichtig|stark übergewichtig|adipös/.test(`${ktpText(c)} ${symptoms(c)}`)) return `Etwa ${c.rng.int(16, 23) * 10} Kilo.`;
       const a = ageOf(c);
       if (a === 0) {
-        const cap = /unter (\d+) gramm/.exec(scText(c));
-        const max = cap ? Math.floor(Number(cap[1]) / 100) - 1 : 24;
-        return `${c.rng.int(Math.min(10, max), max) * 100} Gramm`;
+        const cap = /unter (\d+) gramm/.exec(`${scText(c)} ${lc(c.facts.age)}`);
+        const woche = /(\d+)\.\s*(schwangerschafts)?woche/.exec(lc(c.facts.age));
+        const mitte = woche ? Math.min(34, Math.max(6, 34 - (40 - Number(woche[1])) * 2)) : 33;
+        let max = mitte + 3;
+        if (cap) max = Math.min(max, Math.floor(Number(cap[1]) / 100) - 1);
+        const min = Math.max(5, Math.min(mitte - 3, max));
+        return `${c.rng.int(min, max) * 100} Gramm`;
       }
       if (a !== null && a < 14) return Math.round(a * 2.6 + 8 + c.rng.int(-2, 3));
       if (a !== null && a < 18) return c.rng.int(48, 72);
@@ -223,7 +238,7 @@ export const MEDICAL_TOPICS: DetailTopic[] = [
     id: 'x_gestuerzt',
     label: 'Gestürzt oder zusammengebrochen',
     categories: RD,
-    patterns: [w('gestuerzt|hingefallen|umgefallen|gefallen|sturz|gestolpert|ausgerutscht|zusammengesackt|zusammengebrochen|umgekippt')],
+    patterns: [w('gestuerzt|hingestuerzt|abgestuerzt|hingefallen|umgefallen|gefallen|runtergefallen|heruntergefallen|hinuntergefallen|sturz|gestolpert|ausgerutscht|zusammengesackt|zusammengebrochen|umgekippt')],
     examples: ['Ist er gestürzt?', 'ist die person hingefallen', 'Gab es einen Sturz?', 'äh ist sie umgefallen oder hat sie sich hingesetzt', 'Ist er einfach zusammengebrochen?'],
     generate: (c) => {
       const t = scText(c);
@@ -248,6 +263,8 @@ export const MEDICAL_TOPICS: DetailTopic[] = [
       p(' (\\w+ ){0,3}(am|den|an den|an dem|mit dem) kopf (\\w+ ){0,2}(verletzt|angeschlagen|angestossen|gestossen|aufgeschlagen|getroffen) '),
       p(' kopf (\\w+ ){0,2}(angeschlagen|angestossen|gestossen|aufgeschlagen) '),
       w('kopfverletzung|kopfverletzungen|platzwunde|platzwunde am kopf|beule|kopfwunde'),
+      p(' (wunde|verletzung|blut|beule) (am|an dem) kopf '),
+      p(' blutet (er|sie|es|der patient|die patientin|das kind) (am|aus dem) kopf '),
     ],
     examples: ['Hat er sich am Kopf verletzt?', 'hat sie sich den kopf angeschlagen', 'Ist eine Kopfverletzung zu sehen?', 'äh hat der patient ne platzwunde am kopf', 'Hat er eine Beule?'],
     applies: (c) => !isMulti(c),
@@ -256,7 +273,7 @@ export const MEDICAL_TOPICS: DetailTopic[] = [
       if (/blut aus dem ohr/.test(s)) return 'ohr';
       if (/platzwunde/.test(s)) return 'platzwunde';
       if (/beule|hinterkopf/.test(s)) return 'beule';
-      if (/kopf|stirn|schädel/.test(s)) return 'beule';
+      if (/kopfverletzung|kopfwunde|stirn|schädel/.test(s)) return 'beule';
       const st = c.get('x_gestuerzt');
       if (st === 'ja') return c.rng.pick(['nein', 'nein', 'beule']);
       if (st === 'umgekippt') return c.rng.pick(['nein', 'unklar']);
@@ -290,6 +307,7 @@ export const MEDICAL_TOPICS: DetailTopic[] = [
       p(' (die |der |eine )?blutung (\\w+ ){0,3}(stoppen|stillen|gestillt|gestoppt|aufgehoert|steht|auf|unter kontrolle) '),
       p(' (hoert|hat) (die )?blutung (\\w+ ){0,2}auf '),
       p(' wie ?viel blut (\\w+ ){0,3}'),
+      p(' blutet (es|er|sie|das|die wunde) (immer )?noch '),
     ],
     examples: ['Wie stark blutet es?', 'spritzt das blut', 'Konnten Sie die Blutung stoppen?', 'äh hört die blutung auf wenn sie draufdrücken', 'Wie viel Blut hat er verloren?'],
     applies: (c) => !isMulti(c),
@@ -299,7 +317,8 @@ export const MEDICAL_TOPICS: DetailTopic[] = [
       if (/erbrechen mit blut/.test(s)) return 'erbrochen';
       if (/blut aus dem ohr/.test(s)) return 'ohr';
       if (/blutet stark/.test(s)) return 'stark';
-      if (/abgedrückt|druckverband|tuch/.test(s)) return 'gestillt';
+      if (/druckverband/.test(s)) return 'verband';
+      if (/abgedrückt|tuch/.test(s)) return 'gestillt';
       if (/schnitt|wunde an der hand|aufgerissen|blutet|blutung/.test(s)) return 'maessig';
       const k = c.get('x_kopf');
       if (k === 'platzwunde') return 'platzwunde';
@@ -312,6 +331,8 @@ export const MEDICAL_TOPICS: DetailTopic[] = [
           return 'Es blutet richtig stark, das hört gar nicht auf!';
         case 'gestillt':
           return 'Wir drücken ein Tuch drauf, jetzt blutet es kaum noch.';
+        case 'verband':
+          return 'Der Druckverband hält, es blutet kaum noch durch.';
         case 'maessig':
           return 'Es blutet schon ordentlich, aber es spritzt nicht.';
         case 'platzwunde':
@@ -333,7 +354,7 @@ export const MEDICAL_TOPICS: DetailTopic[] = [
     label: 'Hautfarbe (blass, bläulich)',
     categories: RD,
     patterns: [
-      w('hautfarbe|gesichtsfarbe|blass|bleich|blau angelaufen|blaeulich|blaue lippen|lila lippen|grau im gesicht|rot im gesicht'),
+      w('hautfarbe|gesichtsfarbe|blass|bleich|blau|blau angelaufen|blau im gesicht|blaeulich|blaue lippen|lila lippen|grau im gesicht|rot im gesicht'),
       p(' (wie )?sieht (er|sie|es|der patient|die patientin|die person|das kind) (denn |so )?(im gesicht |von der farbe )?aus '),
       p(' farbe (im gesicht|der haut|der lippen) '),
     ],
@@ -341,9 +362,10 @@ export const MEDICAL_TOPICS: DetailTopic[] = [
     applies: (c) => !isMulti(c),
     generate: (c) => {
       const s = symptoms(c);
-      if (/blau|bläulich/.test(s) || c.facts.breathing === 'nein') return 'blau';
-      if (/heiße trockene|fieber|rot mit blasen/.test(s)) return 'rot';
-      if (/kaltschweißig|schwitzig|druck|kollab|kreislauf|sättigung|schwach|apathisch|blutet stark/.test(s) || c.facts.conscious === false) return 'blass';
+      if (c.facts.breathing === 'nein' || /gesicht (ganz )?blau|blau angelaufen/.test(s)) return 'blau';
+      if (/bläulich|sättigung/.test(s)) return 'lippen';
+      if (/heiße trockene|fieber|überwärmt/.test(s)) return 'rot';
+      if (/kaltschweißig|schwitzig|brust|kollab|kreislauf|schwach|apathisch|blutet stark/.test(s) || c.facts.conscious === false) return 'blass';
       if (c.facts.breathing === 'schwer') return c.rng.pick(['blass', 'lippen']);
       return c.rng.chance(0.7) ? 'normal' : 'leicht';
     },
@@ -354,7 +376,7 @@ export const MEDICAL_TOPICS: DetailTopic[] = [
         case 'blau':
           return `${p0.Er} ist ganz blau im Gesicht, die Lippen sind lila!`;
         case 'lippen':
-          return self ? 'Meine Lippen sind etwas bläulich, sagt meine Frau.' : 'Die Lippen sind etwas bläulich.';
+          return self ? 'Meine Lippen sind wohl etwas bläulich.' : 'Die Lippen sind etwas bläulich.';
         case 'blass':
           return self ? 'Ich glaube, ich bin ziemlich blass.' : `${p0.Er} ist kreidebleich.`;
         case 'leicht':
@@ -371,7 +393,7 @@ export const MEDICAL_TOPICS: DetailTopic[] = [
     id: 'x_schweiss',
     label: 'Kaltschweißig',
     categories: RD,
-    patterns: [w('kaltschweissig|schweissig|schwitzt|schwitzen|schweiss|geschwitzt|nass geschwitzt|kalt und feucht|feuchte haut'), p(' kalte?n? schweiss ')],
+    patterns: [w('kaltschweissig|schweissig|schwitzt|schwitzen|schweiss|geschwitzt|verschwitzt|nass geschwitzt|kalt und feucht|feuchte haut'), p(' kalte?n? schweiss '), p(' haut (\\w+ ){0,2}(feucht|nass) ')],
     examples: ['Ist er kaltschweißig?', 'schwitzt die patientin', 'Ist die Haut kalt und feucht?', 'äh hat er so kalten schweiss auf der stirn', 'Hat sie geschwitzt?'],
     applies: (c) => !isMulti(c),
     generate: (c) => {
@@ -398,7 +420,7 @@ export const MEDICAL_TOPICS: DetailTopic[] = [
     id: 'x_ausstrahlung',
     label: 'Ausstrahlung des Schmerzes',
     categories: RD,
-    patterns: [p(' (strahlt|strahlen|strahlte) (\\w+ ){0,5}aus '), p(' ausstrahl\\w* '), p(' zieht (es|das|der schmerz|die schmerzen) (\\w+ ){0,3}(arm|kiefer|ruecken|schulter|hals|bauch) ')],
+    patterns: [p(' (strahlt|strahlen|strahlte) (\\w+ ){0,5}aus '), p(' ausstrahl\\w* '), p(' (wohin|wo hin) (strahlt|strahlen|zieht) (\\w+ ){0,3}'), p(' (strahlt|strahlen) (es|das|der schmerz|die schmerzen) (\\w+ ){0,2}(in|bis) (den|die|das) \\w+ '), p(' zieht (es|das|der schmerz|die schmerzen) (\\w+ ){0,3}(arm|kiefer|ruecken|schulter|hals|bauch) ')],
     examples: ['Strahlt der Schmerz aus?', 'strahlen die schmerzen in den arm aus', 'Zieht es in den linken Arm?', 'äh strahlt das irgendwo hin aus', 'Gibt es eine Ausstrahlung?'],
     applies: (c) => !isMulti(c),
     generate: (c) => {
@@ -409,6 +431,7 @@ export const MEDICAL_TOPICS: DetailTopic[] = [
       if (/ausstrahlung in den arm|arm kribbelt/.test(s)) return 'arm';
       if (/stechend.*bewegung/.test(s)) return 'bewegung';
       if (/brust|herz/.test(s)) return c.rng.pick(['arm', 'arm', 'kiefer', 'ruecken', 'nein']);
+      if (!/schmerz|weh|stech|druck|spannt|sonnenbrand|wunde|schnitt|verbrenn|verbrüh|sturz|bruch|prellung|platzwunde|gelenk|bein|hüfte|arm/.test(`${s} ${scText(c)}`)) return 'keinschmerz';
       return 'lokal';
     },
     answer: (v, c) => {
@@ -429,6 +452,8 @@ export const MEDICAL_TOPICS: DetailTopic[] = [
           return `Das kann ${p0.er} mir nicht sagen, ${p0.er} reagiert ja nicht.`;
         case 'baby':
           return 'Das Kind ist noch so klein, das kann es nicht sagen.';
+        case 'keinschmerz':
+          return self ? 'Schmerzen hab ich eigentlich keine.' : `Schmerzen hat ${p0.er} eigentlich keine.`;
         default:
           return 'Nein, da strahlt nichts aus.';
       }
@@ -446,6 +471,7 @@ export const MEDICAL_TOPICS: DetailTopic[] = [
       p(' (hatte|hat) (er|sie|der patient|die patientin|ihr mann|ihre frau|ihr vater|ihre mutter) das (\\w+ ){0,2}(schon )?(mal|einmal|oefter|frueher) '),
       p(' kennt (er|sie|der patient|die patientin) das (schon|von frueher) '),
       w('das erste mal|zum ersten mal|erstmalig|erstmals'),
+      p(' (so ?was|so etwas|sowas) (\\w+ ){0,2}(schon )?(mal|einmal|oefter|frueher) '),
     ],
     examples: ['Ist das schon einmal passiert?', 'hatte sie das schon mal', 'Ist das zum ersten Mal?', 'äh kennt er das schon von früher', 'Hatte er das früher schon mal gehabt?'],
     applies: (c) => !isMulti(c),
@@ -453,7 +479,18 @@ export const MEDICAL_TOPICS: DetailTopic[] = [
       if (isPassant(c)) return 'unbekannt';
       const h = history(c);
       if (/zweites kind/.test(h)) return 'geburt';
-      if (/schon mal|herzinfarkt|epilepsie|asthma|copd|herzschwäche|stents|psychiatrische|depression|allergie bekannt|diabetes|herzkrank|herzprobleme/.test(h)) return 'ja';
+      const t = scText(c);
+      // Vorgeschichte zählt nur, wenn sie zum jetzigen Notfall passt
+      const passt: [RegExp, RegExp][] = [
+        [/schon mal/, /./],
+        [/epilepsie/, /krampf|zuckt/],
+        [/asthma|copd|herzschwäche/, /atem|luft/],
+        [/herzinfarkt|stents|herzkrank|herzprobleme/, /brust|herz/],
+        [/diabetes|insulin/, /zucker|verwirrt|zittrig/],
+        [/psychiatrische|depression/, /psych|stimmen|intox|vergiftung/],
+        [/allergie bekannt/, /allerg/],
+      ];
+      if (passt.some(([hr, tr]) => hr.test(h) && tr.test(t))) return 'ja';
       const a = ageOf(c);
       if (a === 0) return 'nein';
       if (c.get('x_gestuerzt') === 'ja' && a !== null && a >= 75 && c.rng.chance(0.4)) return 'gestuerzt';
@@ -493,6 +530,7 @@ export const MEDICAL_TOPICS: DetailTopic[] = [
       if (a !== null && a < 12) return 'kind';
       if (c.category === 'ktp') return isClinic(c) ? 'station' : 'ja';
       const h = history(c);
+      if (/ausgegangen|aufgebraucht|alle sind/.test(symptoms(c))) return 'ausgegangen';
       if (c.scenarioId === 'rd_intox') return c.facts.conscious === false ? 'zuviel' : 'unklar';
       if (/insulin/.test(h) && /verwirrt|zittrig/.test(symptoms(c))) return 'insulin';
       if (/blutverdünner|tabletten|medikament|herz|bluthochdruck|vorhofflimmern|diabetes|epilepsie|copd|asthma|wassertabletten|demenz|niere/.test(h)) return c.rng.chance(0.75) ? 'ja' : 'vergessen';
@@ -514,6 +552,8 @@ export const MEDICAL_TOPICS: DetailTopic[] = [
           return 'Ob da Tabletten im Spiel sind, weiß ich nicht genau.';
         case 'kind':
           return 'Nein, das Kind bekommt sonst keine Medikamente.';
+        case 'ausgegangen':
+          return self ? 'Nein, die sind mir ja ausgegangen, deswegen rufe ich an.' : `Nein, die sind ${p0.ihm} ausgegangen.`;
         case 'station':
           return `Die Medikamente hat ${p0.er} heute nach Plan bekommen, das steht alles im Bogen.`;
         case 'unbekannt':
@@ -536,6 +576,7 @@ export const MEDICAL_TOPICS: DetailTopic[] = [
       if (a !== null && a < 14) return 'kind';
       if (c.scenarioId === 'rd_intox') return 'ja';
       if (isPassant(c)) return c.rng.chance(0.2) ? 'geruch' : 'unbekannt';
+      if ((a !== null && a < 18) || /schwanger|wehen|geburt/.test(scText(c))) return 'nein';
       return c.rng.chance(0.1) ? 'bisschen' : 'nein';
     },
     answer: (v, c) => {
@@ -565,7 +606,7 @@ export const MEDICAL_TOPICS: DetailTopic[] = [
     id: 'x_blutzucker',
     label: 'Blutzucker gemessen',
     categories: RD_KTP,
-    patterns: [w('blutzucker|zuckerwert|blutzuckerwert|zuckermessgeraet|blutzuckermessgeraet|messgeraet'), p(' (der |den )?zucker (\\w+ ){0,3}(gemessen|messen|gecheckt|geprueft) ')],
+    patterns: [w('blutzucker|zuckerwert|blutzuckerwert|zuckermessgeraet|blutzuckermessgeraet|messgeraet'), p(' (der |den )?zucker (\\w+ ){0,3}(gemessen|messen|gecheckt|geprueft) '), p(' (wie hoch|wie viel|wieviel|was) (ist|war|hat|sagt) (der|sein|ihr|denn der) zucker ')],
     examples: ['Wurde der Blutzucker gemessen?', 'haben sie den zucker gemessen', 'Wie ist der Blutzucker?', 'äh gibt es ein zuckermessgerät', 'Kennen Sie den Zuckerwert?'],
     applies: (c) => !isMulti(c),
     generate: (c) => {
@@ -667,7 +708,7 @@ export const MEDICAL_TOPICS: DetailTopic[] = [
     id: 'x_hausarzt',
     label: 'Hausarzt',
     categories: RD_KTP,
-    patterns: [w('hausarzt|hausaerztin|hausarztes|hausarztpraxis|behandelnde arzt|behandelnden arzt|behandelnde aerztin')],
+    patterns: [w('hausarzt|hausaerztin|hausarztes|hausarztpraxis|behandelnde arzt|behandelnden arzt|behandelnde aerztin'), p(' welche[rnm]? (arzt|aerztin) (\\w+ ){0,2}(behandelt|betreut) ')],
     examples: ['Wer ist der Hausarzt?', 'haben sie einen hausarzt', 'Wie heißt die Hausärztin?', 'äh welcher hausarzt behandelt ihn denn', 'Wer ist der behandelnde Arzt?'],
     applies: (c) => !isMulti(c) && !isPassant(c),
     generate: (c) => {
@@ -696,10 +737,12 @@ export const MEDICAL_TOPICS: DetailTopic[] = [
     id: 'x_pflege',
     label: 'Pflegegrad und Pflegedienst',
     categories: RD_KTP,
-    patterns: [w('pflegegrad|pflegestufe|pflegedienst|pflegedienstes|pflegebeduerftig|pflegefall|ambulante pflege|ambulanten pflegedienst|betreut')],
+    patterns: [w('pflegegrad|pflegestufe|pflegedienst|pflegedienstes|pflegebeduerftig|pflegefall|ambulante pflege|ambulanten pflegedienst|gepflegt')],
     examples: ['Hat er einen Pflegegrad?', 'kommt ein pflegedienst', 'Ist die Patientin pflegebedürftig?', 'äh wird sie von einem pflegedienst betreut', 'Welche Pflegestufe hat er?'],
     applies: (c) => !isMulti(c),
     generate: (c) => {
+      const a0 = ageOf(c);
+      if (a0 !== null && a0 < 14) return 'kind';
       if (/pflegeheim/.test(lc(c.facts._detail)) || /pflegeheim/.test(lc(c.facts.target))) return 'heim';
       if (/pflegedienst/.test(history(c))) return 'dienst';
       if (isPassant(c)) return 'unbekannt';
@@ -777,7 +820,7 @@ export const MEDICAL_TOPICS: DetailTopic[] = [
     id: 'x_aed',
     label: 'Defibrillator in der Nähe',
     categories: RD,
-    patterns: [w('defi|defis|defibrillator|aed|laiendefi|laiendefibrillator|schockgeraet')],
+    patterns: [w('defi|defis|defibrillator|aed|laiendefi|laiendefibrillator|schockgeraet'), p(' (gibt es|ist|sind|haengt|haben sie) (\\w+ ){0,5}(defi|defis|defibrillator|aed|laiendefi|laiendefibrillator) ')],
     examples: ['Gibt es einen Defibrillator in der Nähe?', 'ist ein aed vor ort', 'Haben Sie einen Defi da?', 'äh gibt es da irgendwo so einen laiendefi'],
     generate: (c) => {
       const d = lc(c.facts._detail);
@@ -826,6 +869,7 @@ export const MEDICAL_TOPICS: DetailTopic[] = [
       p(' bewegt (er|sie|es|der patient|die patientin|die person|der mann|die frau|das kind)? ?sich '),
       p(' (arme|beine|arm|bein|haende|finger|fuesse|zehen) (\\w+ ){0,2}bewegen '),
       p(' (ruehrt|regt) (er|sie|es|der patient|die patientin|die person|das kind)? ?sich '),
+      p(' (kann|koennen) (er|sie|es|der patient|die patientin|die person|das kind) (sich )?(\\w+ ){0,3}bewegen '),
       w('bewegungen'),
     ],
     examples: ['Bewegt er sich?', 'bewegt sich die person noch', 'Kann sie Arme und Beine bewegen?', 'äh rührt sie sich noch', 'Macht er irgendwelche Bewegungen?'],
@@ -876,6 +920,7 @@ export const MEDICAL_TOPICS: DetailTopic[] = [
       p(' (kann|koennen) (er|sie|es|der patient|die patientin|die person|der mann|die frau|das kind)? ?(normal |noch |deutlich |richtig |ganz )*(sprechen|reden) '),
       p(' (spricht|redet) (er|sie|es|der patient|die patientin|die person|das kind)? ?(normal|noch|deutlich|klar|verwaschen|komisch|undeutlich) '),
       w('verwaschen|lallt|lallen|ganze saetze|ganzen saetzen|sprachstoerung|sprachstoerungen'),
+      p(' (spricht|redet) (er|sie|es|der patient|die patientin|die person|das kind) (noch |mit ihnen |mit ihm |mit ihr )?$'),
     ],
     examples: ['Kann er normal sprechen?', 'redet sie noch', 'Spricht der Patient deutlich?', 'äh kann sie in ganzen sätzen sprechen', 'Lallt er?'],
     applies: (c) => !isMulti(c),
@@ -889,6 +934,7 @@ export const MEDICAL_TOPICS: DetailTopic[] = [
       if (c.facts.breathing === 'schwer') return 'kurz';
       if (/verwirrt|stimmen|unruhig|durcheinander/.test(s)) return 'wirr';
       if (/benommen|schläfrig/.test(s)) return 'lallt';
+      if (/apathisch|sehr schwach/.test(s)) return 'leise';
       return 'ja';
     },
     answer: (v, c) => {
@@ -908,6 +954,8 @@ export const MEDICAL_TOPICS: DetailTopic[] = [
           return `${p0.Er} redet, aber ziemlich wirres Zeug.`;
         case 'lallt':
           return `${p0.Er} lallt nur noch.`;
+        case 'leise':
+          return `${p0.Er} sagt kaum was, nur ganz leise.`;
         default:
           return isSelf(c) ? 'Ja, reden kann ich.' : `Ja, ${p0.er} redet ganz normal.`;
       }
@@ -918,7 +966,11 @@ export const MEDICAL_TOPICS: DetailTopic[] = [
     id: 'x_erbrechen',
     label: 'Übelkeit und Erbrechen',
     categories: RD_KTP,
-    patterns: [w('erbrochen|erbricht|erbrechen|uebergeben|uebergibt|gekotzt|kotzt|uebelkeit|uebel|gespuckt|spuckt')],
+    patterns: [
+      w('erbrochen|erbricht|erbrechen|uebergeben|uebergibt|gekotzt|kotzt|uebelkeit|uebel|gespuckt|spuckt'),
+      p(' (musste|muss) (er|sie|es|der patient|die patientin|das kind) (sich )?(\\w+ )?(brechen|spucken) '),
+      p(' ist (ihm|ihr|dem patienten|der patientin|dem kind) (\\w+ )?(schlecht|uebel) '),
+    ],
     examples: ['Hat er erbrochen?', 'musste sie sich übergeben', 'Ist ihm übel?', 'äh hat das kind gespuckt', 'Hat die Patientin Übelkeit?'],
     applies: (c) => !isMulti(c),
     generate: (c) => {
@@ -926,7 +978,7 @@ export const MEDICAL_TOPICS: DetailTopic[] = [
       if (/erbrechen mit blut/.test(s)) return 'blut';
       if (/erbricht|übergeben|erbrechen/.test(s)) return 'ja';
       if (/durchfall/.test(s)) return 'durchfall';
-      if (c.category === 'rd' && /brust|druck/.test(s)) return c.rng.chance(0.35) ? 'uebel' : 'nein';
+      if (c.category === 'rd' && /brust/.test(s)) return c.rng.chance(0.35) ? 'uebel' : 'nein';
       return 'nein';
     },
     answer: (v, c) => {
@@ -951,12 +1003,12 @@ export const MEDICAL_TOPICS: DetailTopic[] = [
     id: 'x_fieber',
     label: 'Fieber',
     categories: RD_KTP,
-    patterns: [w('fieber|fiebrig|fieber gemessen|koerpertemperatur|fieberthermometer'), p(' (fuehlt|fuehlen) (er|sie|es|das kind|der patient|die patientin) sich (\\w+ )?(heiss|warm) ')],
+    patterns: [w('fieber|fiebrig|fieber gemessen|koerpertemperatur|temperatur|erhoehte temperatur|fieberthermometer'), p(' (fuehlt|fuehlen) (er|sie|es|das kind|der patient|die patientin) sich (\\w+ )?(heiss|warm) ')],
     examples: ['Hat er Fieber?', 'wurde fieber gemessen', 'Wie hoch ist die Körpertemperatur?', 'äh fühlt sie sich heiß an', 'Ist sie fiebrig?'],
     applies: (c) => !isMulti(c),
     generate: (c) => {
-      const s = `${symptoms(c)} ${history(c)}`;
-      const m = /fieber (\d+(?:[.,]\d)?) grad/.exec(s);
+      const s = `${symptoms(c)} ${history(c)} ${c.category === 'ktp' ? pos(ktpText(c)) : ''}`;
+      const m = /fieber (?:von )?(\d{2}(?:[.,]\d)?)(?: grad)?/.exec(s);
       if (m) return Number(m[1].replace(',', '.'));
       if (/fieber über 40/.test(s)) return 40.4;
       if (/leichte[mn]? fieber/.test(s)) return 38.2;
@@ -978,22 +1030,25 @@ export const MEDICAL_TOPICS: DetailTopic[] = [
     id: 'x_seit_wann',
     label: 'Seit wann die Beschwerden bestehen',
     categories: RD_KTP,
-    patterns: [p(' seit wann( \\w+){0,5} '), p(' wie lange (schon |geht das|hat (er|sie) )(\\w+ ){0,4}'), p(' wann (hat|haben) (das|es|die beschwerden|die schmerzen) (\\w+ ){0,2}(angefangen|begonnen) ')],
+    patterns: [p(' seit wann(?! (wohn|arbeit|kenn|leb))( \\w+){0,5} '), p(' wann (fing|ging|begann) (das|es|der schmerz|die schmerzen|die beschwerden) (\\w+ ){0,2}(an|los) '), p(' wie lange (schon |geht das|hat (er|sie) )(\\w+ ){0,4}'), p(' wann (hat|haben) (das|es|die beschwerden|die schmerzen) (\\w+ ){0,2}(angefangen|begonnen) ')],
     examples: ['Seit wann hat er die Schmerzen?', 'seit wann geht das so', 'Wann hat das angefangen?', 'äh wie lange schon hat sie die beschwerden', 'Seit wann besteht das?'],
     generate: (c) => {
       const s = `${symptoms(c)} ${history(c)}`;
       const m = /seit (?:etwa |ungefähr )?(\d+) minuten/.exec(s);
       if (m) return `min:${m[1]}`;
-      if (/seit tagen/.test(s)) return 'tage';
+      const t = scText(c);
+      if (c.category === 'rd' && ageOf(c) !== 0 && (c.facts.breathing === 'nein' || /krampf|zuckt|sturz|gestürzt|schnitt|verbrenn|verbrüh|strom|wespe|allergisch|unfall|tribüne|gefallen/.test(t))) return `akut:${c.rng.int(3, 12)}`;
+      if (/seit (ein paar |einigen |mehreren |wenigen )?tagen|vor (ein paar |einigen |wenigen )?tagen|vorgestern|letzte woche/.test(s)) return 'tage';
+      if (/sonnenbrand/.test(s)) return 'heute';
+      if (/ausgegangen/.test(s)) return 'gestern';
       if (/seit gestern/.test(s)) return 'gestern';
       if (/seit stunden/.test(s)) return 'stunden';
       if (c.category === 'ktp') return c.facts.intensive === true ? 'tage' : 'ktp';
       if (ageOf(c) === 0) return 'geboren';
-      const t = scText(c);
       if (/wehen|geburt/.test(t)) return `wehen:${c.rng.pick(['einer halben Stunde', 'einer Stunde', 'zwei Stunden'])}`;
-      if (c.facts.breathing === 'nein' || /krampf|sturz|gestürzt|schnitt|verbrenn|verbrüh|strom|wespe|allergisch|unfall|tribüne|gefallen/.test(t)) return `akut:${c.rng.int(3, 12)}`;
       if (isPassant(c)) return 'unbekannt';
       if (/zustand|schwach|trinkt kaum|durchfall|harnweg/.test(t)) return 'tage';
+      if (/infekt|husten|grippe|gliederschmerz|fieber/.test(t)) return c.rng.chance(0.5) ? 'gestern' : 'tage';
       return c.rng.chance(0.6) ? `min:${c.rng.pick([20, 30, 45])}` : 'stunde';
     },
     answer: (v, c) => {
@@ -1013,12 +1068,14 @@ export const MEDICAL_TOPICS: DetailTopic[] = [
           return 'Das geht jetzt schon ein paar Tage so.';
         case 'gestern':
           return 'Seit gestern.';
+        case 'heute':
+          return 'Seit heute Nachmittag.';
         case 'geboren':
           return 'Seit der Geburt.';
         case 'wehen':
           return `Die Wehen gingen vor ${n} los, jetzt kommen sie ganz schnell hintereinander.`;
         case 'ktp':
-          return `Das besteht schon länger, deswegen ist ${p0.er} ja bei uns in Behandlung.`;
+          return /^angehörig/i.test(c.relation) ? `Das besteht schon länger, deswegen ist ${p0.er} ja in Behandlung.` : `Das besteht schon länger, deswegen ist ${p0.er} ja bei uns in Behandlung.`;
         default:
           return 'Das weiß ich nicht, ich bin gerade erst dazugekommen.';
       }
@@ -1038,6 +1095,7 @@ export const MEDICAL_TOPICS: DetailTopic[] = [
       const s = symptoms(c);
       const h = history(c);
       if (/sauerstoff/.test(s)) return 'bekommt';
+      if (atClinic(c) && (/sättigung/.test(s) || c.facts.breathing === 'schwer')) return 'bekommt';
       if (/sauerstoff zuhause/.test(h)) return 'heim';
       if (/maske|schlafapnoe/.test(h)) return 'cpap';
       if (c.category === 'ktp') return c.rng.chance(0.25) ? 'liter' : 'nein';
@@ -1069,13 +1127,13 @@ export const MEDICAL_TOPICS: DetailTopic[] = [
     patterns: [w('begleitperson|begleitung|mitfahren|mitfahrt|mitkommen|begleiten|begleitet'), p(' (kommt|faehrt|fahren) (\\w+ ){0,2}mit ')],
     examples: ['Fährt eine Begleitperson mit?', 'kommt jemand mit', 'Gibt es eine Begleitung?', 'äh will die tochter mitfahren', 'Wird der Patient begleitet?'],
     generate: (c) => {
-      if (c.facts.intensive === true) return 'arzt';
+      if (c.facts.intensive === true || /ärztliche[rn]? begleitung|notarzt/.test(lc(c.facts.what))) return 'arzt';
       if (/kind/.test(`${lc(c.facts.what)} ${lc(c.facts.target)}`)) return 'mutter';
       if (c.facts.infection === true) return 'nein';
       if (/^angehörig/i.test(c.relation)) return 'ich';
       return c.rng.chance(0.3) ? 'angehoerig' : 'nein';
     },
-    answer: (v) => {
+    answer: (v, c) => {
       switch (v) {
         case 'arzt':
           return 'Unser Arzt fährt mit, Angehörige kommen selbst nach.';
@@ -1084,7 +1142,7 @@ export const MEDICAL_TOPICS: DetailTopic[] = [
         case 'ich':
           return 'Ja, ich würde gerne mitfahren.';
         case 'angehoerig':
-          return 'Ja, die Ehefrau möchte mitfahren.';
+          return c.get('x_geschlecht') === 'w' ? 'Ja, der Ehemann möchte mitfahren.' : 'Ja, die Ehefrau möchte mitfahren.';
         default:
           return 'Nein, eine Begleitperson fährt nicht mit.';
       }
@@ -1120,9 +1178,14 @@ export const MEDICAL_TOPICS: DetailTopic[] = [
     categories: KTP,
     patterns: [p(' (auf |in |von )?welche[rnm]? (station|zimmer|wohnbereich|bereich) '), w('zimmer|zimmernummer|stationsnummer|bettnummer|wohnbereich')],
     examples: ['Auf welcher Station liegt der Patient?', 'welches zimmer', 'Welche Zimmernummer?', 'äh in welchem zimmer liegt sie denn', 'Von welcher Station kommt der Patient?'],
-    applies: (c) => !/von zu ?hause/.test(lc(c.facts.target)),
+    applies: (c) => {
+      const t = lc(c.facts.target);
+      if (/von zu ?hause|aus der (dach)?wohnung|von der wohnung/.test(t)) return false;
+      return c.location === 'klinik' || /^(vom|von der|aus dem) (pflegeheim|heim|station|klinik)/.test(t);
+    },
     generate: (c) => {
       const d = lc(c.facts._detail);
+      if (/pflegeheim/.test(lc(c.facts.target)) && !/station|wohnbereich/.test(d)) return `Wohnbereich ${c.rng.int(1, 4)}|${c.rng.int(1, 38)}`;
       const zimmer = c.rng.int(1, 38);
       const st = /station (\w+)/.exec(d);
       if (st) return `Station ${st[1]}|${zimmer}`;
@@ -1138,6 +1201,6 @@ export const MEDICAL_TOPICS: DetailTopic[] = [
       if (/^\d+$/.test(platz)) return `${bereich}, Zimmer ${platz}.`;
       return `${bereich}, ${platz}.`;
     },
-    unknown: () => 'Der Patient wird bei sich zu Hause abgeholt, nicht auf einer Station.',
+    unknown: (c) => `${pr(c).Patient} wird zu Hause abgeholt, nicht auf einer Station.`,
   },
 ];
