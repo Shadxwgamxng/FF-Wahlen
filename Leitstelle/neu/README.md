@@ -94,7 +94,7 @@ Wählst du ein zu kleines Stichwort, fordern die Kräfte vor Ort nach. Lagen kö
 | Mehrspieler, Benutzerkonten, Server | ❌ noch nicht – Architektur dokumentiert |
 | Community-Bibliothek | ❌ nur Datenfelder vorbereitet |
 | Karrieremodus | ❌ noch nicht |
-| Sprachmodul (Anrufer per Sprache) | ❌ noch nicht |
+| Sprachtest: Notrufabfrage per Sprache mit simuliertem, regelbasiertem Anrufer, Live-Transkript, Einwilligung, Daten nur lokal ([docs/SPRACHMODUL.md](docs/SPRACHMODUL.md)) | ✅ Prototyp mit festem Testfall, noch nicht in der laufenden Simulation |
 | Personalverwaltung | entfernt (bewusst nicht Teil des Spiels) |
 
 ## Dokumentation
@@ -103,6 +103,7 @@ Wählst du ein zu kleines Stichwort, fordern die Kräfte vor Ort nach. Lagen kö
 - [docs/DATENFORMAT.md](docs/DATENFORMAT.md): JSON-Austauschformat und CSV-Formate
 - [docs/MULTIPLAYER.md](docs/MULTIPLAYER.md): geplante Mehrspieler-Architektur
 - [docs/ROUTING.md](docs/ROUTING.md): lokalen OSRM-Server einrichten
+- [docs/SPRACHMODUL.md](docs/SPRACHMODUL.md): Sprachtest, Datenschutz und Grenzen
 - [docs/SH-KATALOG-VORSCHLAG.md](docs/SH-KATALOG-VORSCHLAG.md): Aufbau des SH-Katalogs und Fahrzeugzuordnung
 
 ## Externe Abhängigkeiten und Lizenzen
