@@ -82,6 +82,12 @@ async function main() {
     overpassCalls++;
     r.fulfill({ status: 200, contentType: 'application/json', body: overpassFixture });
   });
+  // Hauptserver fällt aus ("Failed to fetch" im Browser) – das Spiel muss auf einen anderen Server ausweichen
+  let overpassMainFailed = 0;
+  await page.route('https://overpass-api.de/**', (r) => {
+    overpassMainFailed++;
+    return r.abort('failed');
+  });
   await page.route('**/nominatim.openstreetmap.org/**', (r) =>
     r.fulfill({
       status: 200,
@@ -132,6 +138,8 @@ async function main() {
   assert(g.center.stations.length > 10 && g.center.hospitals.length >= 1, 'reale Wachen/Kliniken übernommen');
   assert(g.center.places.places.length > 1000, 'OSM-Einsatzorte gespeichert');
   assert(g.center.organizations.every((o) => o.radioGroup.code), 'Funkrufgruppen gesetzt');
+  assert(overpassMainFailed > 0, 'Ausfall des Overpass-Hauptservers simuliert');
+  log(`Overpass-Hauptserver nicht erreichbar – Daten über Ausweichserver geladen (${overpassMainFailed} Fehlversuche)`);
   log(`Eigene Leitstelle erstellt: ${g.center.stations.length} reale Standorte, ${g.center.places.places.length} Einsatzorte`);
   await page.getByRole('button', { name: 'Beenden' }).click();
   await page.getByTestId('start-screen').waitFor();

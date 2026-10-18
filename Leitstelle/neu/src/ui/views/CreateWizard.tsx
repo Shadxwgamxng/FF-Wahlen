@@ -46,8 +46,9 @@ export function CreateWizard({ onCancel }: { onCancel: () => void }) {
     try {
       const qs = overpassQueries(counties.map((c) => c.osmRelationId));
       for (let i = 0; i < qs.length; i++) {
-        setLoading(`Lade ${qs[i].label} (${i + 1}/${qs.length}) … das kann bei großen Kreisen 1–2 Minuten dauern.`);
-        all.push(...(await runOverpass(qs[i].query)));
+        const label = `Lade ${qs[i].label} (${i + 1}/${qs.length})`;
+        setLoading(`${label} … das kann bei großen Kreisen 1–2 Minuten dauern.`);
+        all.push(...(await runOverpass(qs[i].query, { onStatus: (t) => setLoading(`${label} – ${t}`) })));
       }
       setLoading('Werte Daten aus …');
       await new Promise((r) => setTimeout(r, 20));

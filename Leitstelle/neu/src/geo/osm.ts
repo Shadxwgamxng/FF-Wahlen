@@ -11,7 +11,13 @@ import type { OverpassElement } from './places';
  */
 
 export const NOMINATIM_URL = 'https://nominatim.openstreetmap.org';
-export const OVERPASS_URLS = ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter'];
+/** Kostenlose öffentliche Overpass-Server – werden der Reihe nach probiert */
+export const OVERPASS_URLS = [
+  'https://overpass-api.de/api/interpreter',
+  'https://overpass.private.coffee/api/interpreter',
+  'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
+  'https://overpass.kumi.systems/api/interpreter',
+];
 
 export interface County {
   osmRelationId: number;
@@ -67,20 +73,71 @@ export function overpassQueries(relationIds: number[]): { label: string; query: 
   ];
 }
 
-export async function runOverpass(query: string, fetchFn: typeof fetch = fetch): Promise<OverpassElement[]> {
-  let lastErr: unknown = null;
-  for (const url of OVERPASS_URLS) {
-    try {
-      const res = await fetchFn(url, { method: 'POST', body: new URLSearchParams({ data: query }), headers: { Accept: 'application/json' } });
-      if (res.status === 429) throw new Error('Overpass ist ausgelastet (zu viele Anfragen). Bitte in einer Minute erneut versuchen.');
-      if (!res.ok) throw new Error(`Overpass antwortet mit Fehler ${res.status}.`);
-      const j = await res.json();
-      return j.elements as OverpassElement[];
-    } catch (e) {
-      lastErr = e;
+export interface OverpassOptions {
+  fetchFn?: typeof fetch;
+  /** Fortschritt für die Anzeige, z. B. "Server 2 von 4 …" */
+  onStatus?: (text: string) => void;
+  /** Anzahl Durchgänge über alle Server */
+  rounds?: number;
+  /** Wartezeit vor dem 2., 3. … Durchgang in ms */
+  backoffMs?: number[];
+  /** Abbruch einer einzelnen Anfrage nach ms */
+  requestTimeoutMs?: number;
+  sleep?: (ms: number) => Promise<void>;
+}
+
+/** Bereits geladene Abfragen (nur im Speicher): Ein erneuter Versuch lädt nur, was noch fehlt */
+const overpassCache = new Map<string, OverpassElement[]>();
+export const clearOverpassCache = () => overpassCache.clear();
+
+const hostOf = (url: string) => new URL(url).host;
+
+/**
+ * Führt eine Overpass-Abfrage aus. Überlastete oder nicht erreichbare Server (im Browser oft nur als
+ * "Failed to fetch" sichtbar) werden übersprungen; nach einem erfolglosen Durchgang wird gewartet
+ * und erneut versucht.
+ */
+export async function runOverpass(query: string, options: OverpassOptions | typeof fetch = {}): Promise<OverpassElement[]> {
+  const o: OverpassOptions = typeof options === 'function' ? { fetchFn: options } : options;
+  const cached = overpassCache.get(query);
+  if (cached) return cached;
+  const fetchFn = o.fetchFn ?? fetch;
+  const rounds = o.rounds ?? 3;
+  const backoff = o.backoffMs ?? [10_000, 30_000];
+  const sleep = o.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+  const timeoutMs = o.requestTimeoutMs ?? 300_000;
+  const problems: string[] = [];
+  for (let round = 0; round < rounds; round++) {
+    if (round > 0) {
+      const wait = backoff[Math.min(round - 1, backoff.length - 1)] ?? 0;
+      o.onStatus?.(`Alle Kartendaten-Server ausgelastet – neuer Versuch in ${Math.round(wait / 1000)} s (Durchgang ${round + 1}/${rounds}) …`);
+      await sleep(wait);
+    }
+    for (let i = 0; i < OVERPASS_URLS.length; i++) {
+      const url = OVERPASS_URLS[i];
+      o.onStatus?.(`Server ${i + 1}/${OVERPASS_URLS.length} (${hostOf(url)}) …`);
+      const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+      const timer = ctrl ? setTimeout(() => ctrl.abort(), timeoutMs) : null;
+      try {
+        const res = await fetchFn(url, { method: 'POST', body: new URLSearchParams({ data: query }), headers: { Accept: 'application/json' }, signal: ctrl?.signal });
+        if (!res.ok) throw new Error(res.status === 429 ? 'zu viele Anfragen (429)' : `Fehler ${res.status}`);
+        const j = await res.json();
+        if (!Array.isArray(j.elements)) throw new Error('unerwartete Antwort');
+        // Overpass meldet Zeitüberschreitungen teils im Text bei leerem Ergebnis
+        if (typeof j.remark === 'string' && /runtime error|timed out|out of memory/i.test(j.remark)) throw new Error('Abfrage abgebrochen (Server ausgelastet)');
+        overpassCache.set(query, j.elements);
+        return j.elements as OverpassElement[];
+      } catch (e) {
+        const msg = (e as Error).name === 'AbortError' ? 'Zeitüberschreitung' : (e as Error).message === 'Failed to fetch' ? 'keine Antwort' : (e as Error).message;
+        problems.push(`${hostOf(url)}: ${msg}`);
+      } finally {
+        if (timer) clearTimeout(timer);
+      }
     }
   }
-  throw lastErr instanceof Error ? lastErr : new Error('Overpass nicht erreichbar.');
+  throw new Error(
+    `Die kostenlosen OpenStreetMap-Server (Overpass) sind gerade nicht erreichbar oder überlastet. Bitte in ein paar Minuten erneut versuchen – bereits geladene Teile bleiben erhalten. (${problems.slice(-OVERPASS_URLS.length).join('; ')})`,
+  );
 }
 
 export interface Facility {

@@ -21,13 +21,14 @@ export function StartScreen() {
       const all: OverpassElement[] = [];
       const qs = overpassQueries([OSTHOLSTEIN.osmRelationId]);
       for (let i = 0; i < qs.length; i++) {
-        setSampleState(`Lade OpenStreetMap-Daten: ${qs[i].label} (${i + 1}/${qs.length}) …`);
-        all.push(...(await runOverpass(qs[i].query)));
+        const label = `Lade OpenStreetMap-Daten: ${qs[i].label} (${i + 1}/${qs.length})`;
+        setSampleState(`${label} …`);
+        all.push(...(await runOverpass(qs[i].query, { onStatus: (t) => setSampleState(`${label} – ${t}`) })));
       }
       setSampleState('Baue Leitstelle auf …');
       await store.newProject(createOstholsteinCenter(all));
     } catch (e) {
-      setSampleState(`Fehler: ${(e as Error).message} – Internetverbindung prüfen und erneut versuchen.`);
+      setSampleState(`Fehler: ${(e as Error).message}`);
     }
   };
   const [report, setReport] = useState<{ title: string; lines: string[] } | null>(null);
