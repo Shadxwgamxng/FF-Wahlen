@@ -12,6 +12,7 @@ import { store } from '../../../store/gameStore';
 import { confirmDialog, fmtAgo, fmtClock } from '../../components/common';
 import { KeywordSelect } from './KeywordSelect';
 import { DispoListe, Gespraech, Massnahmen, Rueckmeldungen } from './MaskPanels';
+import { DiasPanel } from './DiasPanel';
 
 /**
  * Einsatzmaske (Einsatzbearbeitung). Öffnet sich beim Annehmen eines Notrufs und bleibt für den
@@ -273,6 +274,7 @@ export function Maske(p: Props) {
 
           {/* ------------------------------------------------ rechte Spalte */}
           <div className="mask-right">
+            {mode === 'notruf' && call && call.state === 'in_abfrage' && <DiasPanel game={game} call={call} />}
             {mode === 'notruf' && call && <Gespraech game={game} call={call} />}
             {mode === 'einsatz' && inc && (
               <>

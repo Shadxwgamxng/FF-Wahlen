@@ -253,3 +253,22 @@ table.grid tr.unavailable td { color: var(--text-3); }
 .voice-error { background: #4a1418; border: 1px solid var(--alarm); color: #ffc9cb; padding: 6px 8px; border-radius: 4px; }
 .voice-pre { white-space: pre-wrap; background: var(--bg-2); border: 1px solid var(--line); border-radius: 6px; padding: 8px; max-height: 40vh; overflow-y: auto; }
 @media (max-width: 900px) { .voice-grid { grid-template-columns: 1fr; } }
+
+/* ------------------------------------------------------------------ DIAS (Notrufabfrage) */
+.dias { border: 1px solid var(--line-2); border-radius: var(--radius); background: var(--panel); display: flex; flex-direction: column; min-height: 0; flex-shrink: 0; max-height: 62%; }
+.dias-head { display: flex; align-items: center; gap: 6px; padding: 5px 8px; background: #16243a; border-bottom: 1px solid var(--line-2); border-radius: var(--radius) var(--radius) 0 0; font-size: 12px; letter-spacing: .03em; }
+.dias-body { padding: 8px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; outline: none; }
+.dias-body:focus-visible { box-shadow: inset 0 0 0 2px var(--accent); }
+.dias-path { margin: 0; padding-left: 18px; font-size: 12px; display: flex; flex-direction: column; gap: 2px; }
+.linklike { background: none; border: 0; padding: 0; color: inherit; text-align: left; cursor: pointer; font: inherit; }
+.linklike:hover b { text-decoration: underline; }
+.dias-q { font-size: 14px; font-weight: 600; line-height: 1.35; }
+.dias-q i { color: var(--warn); font-weight: 400; }
+.dias-options { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 6px; margin-top: 6px; }
+.dias-opt { display: flex; gap: 8px; align-items: flex-start; text-align: left; white-space: pre-line; padding: 6px 8px; }
+.dias-code { display: inline-block; min-width: 18px; text-align: center; background: #1d3557; border-radius: 3px; padding: 0 3px; font-weight: 700; }
+.dias-result { display: flex; flex-direction: column; gap: 6px; }
+.dias-summary { padding: 6px 8px; background: #12301d; border: 1px solid #2c6b3f; border-radius: var(--radius); }
+.dias-section { padding: 6px 8px; border: 1px solid var(--line-2); border-radius: var(--radius); }
+.dias-infos { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 2px 8px; margin-top: 4px; }
+.warn-text { color: var(--warn); }

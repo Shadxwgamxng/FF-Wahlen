@@ -1,0 +1,18 @@
+{
+  "metadata": { "source": "LEITWARTE-Testdaten (frei erfunden)", "capturedAt": "2026-10-18T00:00:00Z", "scope": "test" },
+  "nodes": [
+    { "id": "q00001", "question": "Weshalb rufen Sie an?", "questionHtml": "Weshalb rufen Sie <b>an</b>?", "options": [ { "answerId": "1", "code": "0", "label": "Medizinischer Notfall" }, { "answerId": "2", "code": "5", "label": "Feuer / Technische Hilfe" } ], "inputs": [], "dialogText": null },
+    { "id": "q00002", "question": "Was genau brennt?", "questionHtml": "Was genau <b>brennt</b>?", "options": [ { "answerId": "3", "code": "0", "label": "Wohnung" }, { "answerId": "4", "code": "1", "label": "Mülltonne" } ], "inputs": [], "dialogText": null },
+    { "id": "q00003", "question": "Sind noch Menschen in Gefahr?", "questionHtml": "Sind noch Menschen in Gefahr?", "options": [ { "answerId": "5", "code": "0", "label": "Ja" }, { "answerId": "6", "code": "1", "label": "Nein" } ], "inputs": [], "dialogText": null },
+    { "id": "q00004", "question": "Ergebnis übergeben", "options": [], "inputs": [], "kind": "result", "dialogText": "Notrufabfrageergebnis\nFeuer,\nWohnung,\nMenschen in Gefahr,\nBrandschutz / Technische Hilfeleistung\nAbfrageergebnis : 9001\nWohnungsbrand mit Menschen in Gefahr\n \nRegionales Alarmstichwort / AAO\nFEU Y\nInfo intern\nSuche\n«\n(t1) *Testhinweis Treppenhaus\n»\nInfo extern\nZurück zur Abfrage\nÜbergabe an Einsatzleitsystem" },
+    { "id": "q00005", "question": "Ergebnis übergeben", "options": [], "inputs": [], "kind": "result", "dialogText": "Notrufabfrageergebnis\nFeuer,\nWohnung,\nkeine Menschen in Gefahr,\nBrandschutz / Technische Hilfeleistung\nAbfrageergebnis : 9002\nWohnungsbrand\n \nRegionales Alarmstichwort / AAO\nFEU\nInfo intern\nZurück zur Abfrage" },
+    { "id": "q00006", "question": "Freitext Eingabe", "options": [], "inputs": [ { "tag": "TEXTAREA" } ], "kind": "skipped-free-text", "dialogText": "Freitext Eingabe" }
+  ],
+  "edges": [
+    { "from": "q00001", "answerId": "1", "code": "0", "label": "Medizinischer Notfall", "to": "q00006" },
+    { "from": "q00001", "answerId": "2", "code": "5", "label": "Feuer / Technische Hilfe", "to": "q00002" },
+    { "from": "q00002", "answerId": "3", "code": "0", "label": "Wohnung", "to": "q00003" },
+    { "from": "q00003", "answerId": "5", "code": "0", "label": "Ja", "to": "q00004" },
+    { "from": "q00003", "answerId": "6", "code": "1", "label": "Nein", "to": "q00005" }
+  ]
+}

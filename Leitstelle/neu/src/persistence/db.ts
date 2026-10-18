@@ -4,6 +4,7 @@ import type { GameState } from '../model/types';
  * Lokale Persistenz in IndexedDB.
  *  - "projects":  eine Leitstelle mit aktuellem Spielzustand (Autosave überschreibt diesen Eintrag)
  *  - "snapshots": manuelle und automatische Spielstände je Leitstelle
+ *  - "kv":        sonstige lokale Daten (z. B. importierte Notrufabfrage), Schlüssel → Wert
  */
 
 export interface ProjectRecord {
@@ -25,7 +26,7 @@ export interface SnapshotRecord {
 }
 
 const DB_NAME = 'leitwarte';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -41,6 +42,7 @@ export function openDb(factory: IDBFactory = globalThis.indexedDB): Promise<IDBD
         const s = db.createObjectStore('snapshots', { keyPath: 'id' });
         s.createIndex('projectId', 'projectId');
       }
+      if (!db.objectStoreNames.contains('kv')) db.createObjectStore('kv');
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => {
@@ -96,4 +98,10 @@ export const snapshots = {
     const autos = (await snapshots.listFor(projectId)).filter((s) => s.kind === 'auto');
     for (const s of autos.slice(keep)) await snapshots.delete(s.id);
   },
+};
+
+export const kvStore = {
+  get: <T>(key: string) => tx<T | undefined>('kv', 'readonly', (s) => s.get(key)),
+  put: (key: string, value: unknown) => tx<IDBValidKey>('kv', 'readwrite', (s) => s.put(plain(value), key)),
+  delete: (key: string) => tx<undefined>('kv', 'readwrite', (s) => s.delete(key)),
 };

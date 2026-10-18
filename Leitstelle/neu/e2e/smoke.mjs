@@ -347,6 +347,57 @@ async function main() {
   assert((await page.evaluate(() => localStorage.getItem('leitwarte.sprachtest.einwilligung'))) === null, 'Einwilligung widerrufen');
   log('Sprachtest: Transkript gelöscht, Einwilligung widerrufen');
 
+  // ------------------------------------------------------------------ DIAS-Notrufabfrage (lokal importiert)
+  const diasFile = process.env.DIAS_FILE ?? new URL('./fixtures/dias-test.json', import.meta.url).pathname;
+  await nav(page, 'Daten & Einstellungen');
+  await page.getByTestId('dias-file').setInputFiles(diasFile);
+  await page.getByTestId('dias-status').waitFor({ timeout: 30000 });
+  log(`DIAS importiert: ${(await page.getByTestId('dias-status').innerText()).split('·')[0].trim()}`);
+  await nav(page, 'Simulation');
+  await page.getByRole('tab', { name: /Szenariokatalog/ }).click();
+  await page.getByPlaceholder('Szenarien suchen …').fill('Küchenbrand');
+  await page.getByRole('row', { name: /Küchenbrand/ }).first().getByRole('button', { name: 'Auslösen' }).click();
+  await nav(page, 'Leitstand');
+  await page.getByTestId('call-item').first().waitFor();
+  await page.getByTestId('call-item').first().click();
+  const cw = page.getByTestId('call-window');
+  await cw.waitFor();
+  if (await cw.getByRole('button', { name: /Notruf annehmen/ }).count()) await cw.getByRole('button', { name: /Notruf annehmen/ }).click();
+  await cw.getByTestId('dias-question').waitFor();
+  if (process.env.DIAS_FILE) {
+    // echter Export: Fachrichtung Brand, dann jeweils die erste mögliche Antwort
+    await cw.getByTestId('dias-option').filter({ hasText: /Brandschutz/ }).first().click();
+    for (let i = 0; i < 40 && !(await cw.getByTestId('dias-result').count()); i++) {
+      if (!(await cw.getByTestId('dias-question').count())) break;
+      await cw.locator('[data-testid="dias-option"]:not([disabled])').first().click();
+    }
+  } else {
+    await cw.getByTestId('dias-option').filter({ hasText: 'Feuer' }).click();
+    // Tastatur: Antwortcode 0 = Wohnung
+    await cw.locator('.dias-body').focus();
+    await page.keyboard.press('0');
+    await cw.getByText('Sind noch Menschen in Gefahr?').waitFor();
+    await cw.getByTestId('dias-option').filter({ hasText: 'Ja' }).click();
+  }
+  const diasRes = cw.getByTestId('dias-result');
+  if (await diasRes.count()) {
+    await page.screenshot({ path: `${shots}06-dias.png` });
+    await cw.getByTestId('dias-apply').click();
+    const callState = await page.evaluate(() => {
+      const s = window.leitwarte.state;
+      const c = s.runtime.calls.find((x) => x.state === 'in_abfrage');
+      return { kw: s.center.keywords.find((k) => k.id === c.keywordId)?.code ?? null, info: c.mask.info, remarks: c.mask.remarks };
+    });
+    if (!process.env.DIAS_FILE) {
+      assert(callState.kw === 'FEU 00 Y', `DIAS-Stichwort FEU Y → FEU 00 Y übernommen (${callState.kw})`);
+      assert(callState.info === 'Wohnungsbrand mit Menschen in Gefahr' && /Notrufabfrage: Feuer \/ Technische Hilfe, Wohnung, Ja/.test(callState.remarks), 'Meldebild und Infotext übernommen');
+    }
+    log(`DIAS durchgeklickt: Ergebnis „${callState.info}“ → Stichwort ${callState.kw ?? '(selbst wählen)'}`);
+  } else {
+    await page.screenshot({ path: `${shots}06-dias.png` });
+    log('DIAS durchgeklickt: Pfad endet an einem im Mitschnitt unvollständigen Schritt');
+  }
+
   assert(errors.length === 0, `Keine JavaScript-Fehler im Browser: ${errors.join(' | ')}`);
   log('Keine JavaScript-Fehler in der Konsole');
   await browser.close();

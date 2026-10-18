@@ -10,6 +10,7 @@ import { setPrefs, usePrefs } from '../prefs';
 import { sounds, speak, ttsAvailable } from '../audio';
 import { HelpModal } from '../App';
 import { testRouting } from '../routingService';
+import { importDias, removeDias, useDias } from '../../dias/store';
 
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9äöüß]+/gi, '-').replace(/^-|-$/g, '');
 
@@ -142,6 +143,8 @@ Stichwörter:  code;bezeichnung;kategorie;prioritaet;bedarf   (bedarf z. B. loes
         </pre>
       </div>
 
+      <DiasCard />
+
       <div className="card col">
         <h3>Persönliche Einstellungen (dieser Browser)</h3>
         <label className="check"><input type="checkbox" checked={prefs.sound} onChange={(e) => setPrefs({ sound: e.target.checked })} /> Signaltöne (Notruf, Alarm, Funk)</label>
@@ -191,6 +194,62 @@ Stichwörter:  code;bezeichnung;kategorie;prioritaet;bedarf   (bedarf z. B. loes
           )}
         </Modal>
       )}
+    </div>
+  );
+}
+
+/** Import der standardisierten Notrufabfrage (DIAS-Export) – bleibt nur in diesem Browser */
+function DiasCard() {
+  const { tree, ready } = useDias();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const onFile = async (f: File | undefined) => {
+    if (!f) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const t = await importDias(await f.text());
+      store.toast('ok', `Notrufabfrage importiert: ${t.stats.nodes} Schritte, ${t.stats.results} Ergebnisse.`);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="card col" data-testid="dias-card">
+      <h3>Notrufabfrage (DIAS)</h3>
+      <div className="small muted">
+        Lade hier deinen Export der standardisierten Notrufabfrage (JSON). Er wird nur in diesem Browser gespeichert und ist nicht Teil von LEITWARTE. Beim Annehmen eines Notrufs
+        zeigt die Einsatzmaske dann die Abfrage: Du stellst die Fragen selbst, klickst die Antworten an und übernimmst am Ende Stichwort, Meldebild und Infotext.
+      </div>
+      {!ready ? (
+        <div className="small muted">Lade …</div>
+      ) : tree ? (
+        <div className="small" data-testid="dias-status">
+          Importiert: <b>{tree.stats.nodes}</b> Abfrageschritte, <b>{tree.stats.results}</b> Ergebnisse
+          {tree.stats.incomplete > 0 && <> ({tree.stats.incomplete} Schritte im Mitschnitt unvollständig)</>} · Quelle {tree.source} · Stand {tree.capturedAt.slice(0, 10) || 'unbekannt'}
+        </div>
+      ) : (
+        <div className="small muted">Noch keine Notrufabfrage importiert.</div>
+      )}
+      <div className="row wrap">
+        <label className="btn">
+          {busy ? 'Importiere …' : tree ? 'Neue Datei importieren …' : 'DIAS-Datei importieren …'}
+          <input type="file" accept=".json,application/json" hidden disabled={busy} data-testid="dias-file" onChange={(e) => void onFile(e.target.files?.[0])} />
+        </label>
+        {tree && (
+          <button
+            className="btn danger"
+            onClick={async () => {
+              if (await confirmDialog('Importierte Notrufabfrage aus diesem Browser löschen?', { confirmLabel: 'Löschen', danger: true })) await removeDias();
+            }}
+          >
+            Löschen
+          </button>
+        )}
+      </div>
+      {error && <div className="field-error small">{error}</div>}
     </div>
   );
 }
