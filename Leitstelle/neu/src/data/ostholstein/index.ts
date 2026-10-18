@@ -20,6 +20,7 @@ export const OSTHOLSTEIN: County = boundary as County;
 
 /** Größere Orte bekommen eine stärkere Feuerwehr-Ausstattung */
 const LARGE_TOWNS = ['Eutin', 'Neustadt', 'Bad Schwartau', 'Oldenburg', 'Heiligenhafen', 'Fehmarn', 'Burg', 'Timmendorfer Strand', 'Scharbeutz', 'Ratekau', 'Stockelsdorf', 'Malente', 'Lensahn'];
+const COAST = ['Neustadt', 'Heiligenhafen', 'Fehmarn', 'Burg', 'Grömitz', 'Timmendorfer', 'Scharbeutz', 'Dahme', 'Kellenhusen'];
 const NEF_TOWNS = ['Eutin', 'Neustadt', 'Oldenburg', 'Bad Schwartau', 'Fehmarn', 'Burg'];
 
 const shortPlace = (name: string) =>
@@ -47,7 +48,7 @@ export function createOstholsteinCenter(elements: OverpassElement[]): CenterConf
 
   const places = buildPlaceIndex(elements, { areas: [OSTHOLSTEIN], maxPerKind: { w: 20000, g: 5000, o: 3000, k: 1200, s: 6000, b: 1500, l: 3000, x: 2500 } });
   const facilities = extractFacilities(elements).filter((f) => pointInArea(f.position, OSTHOLSTEIN));
-  const c = buildCenter({ name: 'IRLS Süd – Kreis Ostholstein (Beispiel)', operator: 'Beispiel (nicht offiziell)', counties: [OSTHOLSTEIN], organizations: orgs, places, facilities });
+  const c = buildCenter({ catalogId: 'sh', name: 'IRLS Süd – Kreis Ostholstein (Beispiel)', operator: 'Beispiel (nicht offiziell)', counties: [OSTHOLSTEIN], organizations: orgs, places, facilities });
   c.description =
     'Beispielleitstelle auf dem echten Kreis Ostholstein: echte Kreisgrenze, echte Adressen und reale Standorte aus OpenStreetMap. Die Fahrzeuge sind von LEITWARTE verteilt und entsprechen nicht der realen Ausstattung.';
   c.state = 'Schleswig-Holstein';
@@ -93,8 +94,22 @@ export function createOstholsteinCenter(elements: OverpassElement[]): CenterConf
         add(st, 'lf20', `Florian Ostholstein ${nr}/44-1`);
         add(st, 'dlk', `Florian Ostholstein ${nr}/33-1`);
         add(st, 'tlf', `Florian Ostholstein ${nr}/23-1`);
+        add(st, 'rw', `Florian Ostholstein ${nr}/52-1`);
+        if (COAST.some((t) => st.name.includes(t))) add(st, 'gww', `Florian Ostholstein ${nr}/69-1`);
+        if (st.name.includes('Eutin') || st.name.includes('Neustadt')) {
+          add(st, 'gwg', `Florian Ostholstein ${nr}/58-1`);
+          add(st, 'gwa', `Florian Ostholstein ${nr}/59-1`);
+          add(st, 'gwl', `Florian Ostholstein ${nr}/56-1`);
+        }
+        if (st.name.includes('Eutin')) {
+          add(st, 'elw2', `Florian Ostholstein ${nr}/12-1`);
+          add(st, 'gwh', `Florian Ostholstein ${nr}/68-1`);
+        }
+      } else if (ffNr % 6 === 0) {
+        // Helfer vor Ort in ländlichen Wehren
+        add(st, 'fr', `Florian Ostholstein ${nr}/48-1`);
       }
-      st.capacity = large ? 8 : 4;
+      st.capacity = large ? 14 : 4;
     } else if (st.kind === 'rettungswache') {
       rwNr++;
       const nr = String(rwNr).padStart(2, '0');
@@ -113,8 +128,32 @@ export function createOstholsteinCenter(elements: OverpassElement[]): CenterConf
   if (firstRw) {
     add(firstRw, 'elrd', 'Rettung Ostholstein 01/01-1');
     add(firstRw, 'itw', 'Rettung Ostholstein 01/84-1', DAY);
-    firstRw.capacity += 2;
+    add(firstRw, 'iktw', 'Rettung Ostholstein 01/88-1', KTP_TIME);
+    add(firstRw, 'srtw', 'Rettung Ostholstein 01/83-9');
+    add(firstRw, 'sktw', 'Rettung Ostholstein 01/85-9', KTP_TIME);
+    add(firstRw, 'psnv', 'Rettung Ostholstein 01/90-1');
+    firstRw.capacity += 6;
   }
+  // Polizeiführung und Einsatzgruppe für Großlagen (AMOK, Geisellage, Lebensbedrohliche Einsatzlage)
+  const firstPol = c.stations.find((s) => s.kind === 'polizei');
+  if (firstPol) {
+    add(firstPol, 'pol_fueh', 'Heros Ostholstein 1/1 (Führung)');
+    add(firstPol, 'pol_grukw', 'Heros Ostholstein 1/40 (Einsatzgruppe)');
+    firstPol.capacity += 2;
+  }
+  // Einheiten des Katastrophenschutzes und des THW (Standort: Kreisfeuerwehrzentrale, angenommen in Eutin)
+  const ktzPos: [number, number] = [54.1263, 10.6253];
+  const kats: Station = { id: 'st_kats', name: 'Katastrophenschutzzentrum (Beispiel)', kind: 'kats', organizationId: 'org_kats', position: ktzPos, address: 'Eutin', capacity: 6, turnoutSeconds: 600 };
+  const thw: Station = { id: 'st_thw', name: 'THW-Ortsverband (Beispiel)', kind: 'thw', organizationId: 'org_thw', position: [ktzPos[0] + 0.004, ktzPos[1] + 0.006], address: 'Eutin', capacity: 6, turnoutSeconds: 900 };
+  c.stations.push(kats, thw);
+  add(kats, 'gwsan', 'Rotkreuz Ostholstein 90/91-1');
+  add(kats, 'gwsan', 'Rotkreuz Ostholstein 90/91-2');
+  add(kats, 'orgl', 'Rotkreuz Ostholstein 90/02-1');
+  add(thw, 'thw_gkw', 'Heros Ostholstein 23/52');
+  add(thw, 'thw_mzkw', 'Heros Ostholstein 23/53');
+  add(thw, 'thw_ntw', 'Heros Ostholstein 23/55');
+  add(thw, 'thw_mtw', 'Heros Ostholstein 23/10');
+  for (const a of c.areas) a.responsibleStationIds.push(kats.id, thw.id);
   add(rthStation, 'rth', 'Christoph 12', [{ fromHour: 7, toHour: 20, weekdays: [] }], { neighborId: 'nb_luft', requestDelaySeconds: 120 });
   c.vehicles = vehicles;
   c.settings.seed = 20261019;

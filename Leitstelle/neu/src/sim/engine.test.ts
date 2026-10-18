@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createSampleCenter } from '../data/sampleCenter';
-import { findScenario, SCENARIOS } from '../data/scenarios';
+import { findScenario, SCENARIOS, scenariosForCatalog } from '../data/scenarios';
 import { KEYWORD_SEEDS } from '../data/keywords';
 import { CATEGORY_QUESTIONS } from '../data/questions';
 import { CAPABILITIES } from '../data/vehicleTypes';
@@ -101,7 +101,7 @@ describe('Katalog', () => {
   it('enthält mindestens 50 Szenarien mit gültigen Stichwörtern und Fragen', () => {
     expect(SCENARIOS.length).toBeGreaterThanOrEqual(50);
     const codes = new Set(KEYWORD_SEEDS.map((k) => k.code));
-    for (const sc of SCENARIOS) {
+    for (const sc of scenariosForCatalog('standard')) {
       const kws = [sc.keyword, ...(sc.variants ?? []).map((v) => v.keyword).filter(Boolean)];
       for (const k of kws) expect(k === '-' || codes.has(k!), `${sc.id}: ${k}`).toBe(true);
       const qids = new Set(['ort', 'was', 'rueckruf', ...CATEGORY_QUESTIONS[sc.category].map((q) => q.id)]);

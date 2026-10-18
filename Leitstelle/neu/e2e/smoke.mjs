@@ -230,12 +230,19 @@ async function main() {
     if (await target.count()) await target.first().click();
     const ack = im.getByRole('button', { name: 'Quittieren' });
     if (await ack.count()) await ack.first().click();
+    // Nachforderungen der Kräfte vor Ort disponieren (Vorschlag übernehmen und alarmieren)
+    if (i % 20 === 10 && cur.state !== 'abarbeitung_beendet') {
+      await im.getByRole('button', { name: 'Vorschlag', exact: true }).click();
+      const alarm = im.getByTestId('alarm-button');
+      if (await alarm.isEnabled()) await alarm.click();
+    }
     if (cur.state === 'abarbeitung_beendet') {
       const releasable = cur.active.some((st) => !['transport', 'am_ziel'].includes(st));
       if (releasable) await im.getByRole('button', { name: 'Alle entlassen' }).click();
       else if (cur.active.length === 0) await page.getByTestId('close-incident').click();
     }
   }
+  if (!closed) console.log('Einsatzzustand:', JSON.stringify(await page.evaluate((iid) => { const s = window.leitwarte.state; const i = s.runtime.incidents.find((x) => x.id === iid); return i && { state: i.state, kw: s.center.keywords.find((k) => k.id === i.keywordId)?.code, needs: i.needs, work: [i.workDoneMs, i.workTotalMs], pats: i.patients.map((p) => p.state), active: i.activeVehicleIds.map((v) => s.center.vehicles.find((x) => x.id === v).rt.status), log: i.log.slice(-5).map((l) => l.text) }; }, inc.id)));
   assert(closed, 'Einsatz abgeschlossen');
   g = await game();
   const arch = g.runtime.archive.find((a) => a.id === inc.id);

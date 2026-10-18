@@ -1,5 +1,8 @@
 import type { AaoRequirement, KeywordCategory, Weather } from '../model/types';
 import type { FactValue } from './questions';
+import { oneOf, range, need } from './scenarioHelpers';
+import { SH_SCENARIO_MAP } from './sh/scenarioMap';
+import { SH_SCENARIOS } from './sh/scenarios';
 
 /**
  * Szenariokatalog. Jedes Szenario beschreibt einen Einsatzgrundtyp mit
@@ -31,10 +34,17 @@ export interface EscalationSpec {
   extraPatients?: number;
 }
 
+/** Lösung im Katalog Schleswig-Holstein: Stichwort-Code und passendes Meldebild (Bezeichnung) */
+export interface ShTruth {
+  keyword: string;
+  meldebild?: string;
+}
+
 export interface VariantDef {
   label: string;
   weight?: number;
   keyword?: string;
+  sh?: ShTruth;
   openings?: string[];
   facts?: Record<string, FactSpec>;
   patients?: PatientSpec | null;
@@ -49,6 +59,10 @@ export interface ScenarioDef {
   name: string;
   category: KeywordCategory;
   keyword: string;
+  /** Lösung im SH-Katalog (aus data/sh/scenarioMap.ts ergänzt) */
+  sh?: ShTruth;
+  /** Nur in diesen Katalogen verwenden (leer = alle) */
+  catalogs?: string[];
   weight: number;
   location: LocationKind;
   openings: string[];
@@ -64,13 +78,11 @@ export interface ScenarioDef {
   weather?: Partial<Record<Weather, number>>;
 }
 
-const oneOf = (...v: FactValue[]) => ({ oneOf: v });
-const range = (a: number, b: number) => ({ range: [a, b] as [number, number] });
-const need = (capability: string, count = 1): AaoRequirement => ({ capability, count });
+export { oneOf, range, need };
 
 const PAT_LIGHT: PatientSpec = { count: 'injured', doctorProb: 0.1, departments: ['unfallchirurgie'], noTransportProb: 0.3 };
 
-export const SCENARIOS: ScenarioDef[] = [
+const BASE_SCENARIOS: ScenarioDef[] = [
   // ------------------------------------------------------------------ BRAND
   {
     id: 'brand_muell', name: 'Mülltonnenbrand', category: 'brand', keyword: 'B 1', weight: 6, location: 'wohn',
@@ -600,6 +612,26 @@ export const SCENARIOS: ScenarioDef[] = [
 /** Stichwort-Code "-" bedeutet: Kein Einsatz erforderlich (Notruf ohne Einsatz beenden). */
 export const NO_INCIDENT_KEYWORD = '-';
 
+/** Basisszenarien mit SH-Lösung ergänzt, plus SH-spezifische Szenarien */
+export const SCENARIOS: ScenarioDef[] = [
+  ...BASE_SCENARIOS.map((sc) => {
+    const m = SH_SCENARIO_MAP[sc.id];
+    if (!m) return sc;
+    return {
+      ...sc,
+      sh: { keyword: m.keyword, meldebild: m.meldebild },
+      variants: sc.variants?.map((v, i) => (m.variants?.[i] ? { ...v, sh: m.variants[i] } : v)),
+    };
+  }),
+  ...SH_SCENARIOS.map((sc) => ({ ...sc, catalogs: sc.catalogs ?? ['sh'] })),
+];
+
+const byId = new Map(SCENARIOS.map((s) => [s.id, s]));
+
+export function scenariosForCatalog(catalogId: string): ScenarioDef[] {
+  return SCENARIOS.filter((s) => (!s.catalogs || s.catalogs.includes(catalogId)) && (catalogId !== 'sh' || s.sh));
+}
+
 export function findScenario(id: string): ScenarioDef | undefined {
-  return SCENARIOS.find((s) => s.id === id);
+  return byId.get(id);
 }

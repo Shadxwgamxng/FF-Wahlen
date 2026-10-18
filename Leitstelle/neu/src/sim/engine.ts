@@ -17,7 +17,7 @@ import { SCHEMA_VERSION } from '../model/types';
 import { Rng } from './rng';
 import { generateCall } from './callgen';
 import { findScenario, NO_INCIDENT_KEYWORD } from '../data/scenarios';
-import { keywordNeeds } from '../data/keywords';
+import { catalogNeeds } from '../data/catalogs';
 import { findQuestion } from '../data/questions';
 import { hourOf, outOfServiceReason, vehicleAvailability } from './availability';
 import { DIFFICULTY, HOURLY_PROFILE } from './difficulty';
@@ -139,6 +139,13 @@ function radio(state: GameState, msg: Omit<RadioMessage, 'id' | 'at' | 'handled'
 }
 
 const vehicle = (state: GameState, id: string) => state.center.vehicles.find((v) => v.id === id);
+/** Fahrt mit Sondersignal? (Stichwort-Eigenschaft, Standard ja) */
+const incEmergency = (state: GameState, inc: Incident) => state.center.keywords.find((k) => k.id === inc.keywordId)?.emergency !== false;
+/** Zeitfaktor für Versorgung/Übergabe bei Infektionsschutz */
+const infectionFactor = (state: GameState, inc: Incident | undefined) => {
+  const inf = inc ? state.center.keywords.find((k) => k.id === inc.keywordId)?.infection : undefined;
+  return inf === 'hoch' ? 2 : inf === 'covid' ? 1.4 : 1;
+};
 const incident = (state: GameState, id: string) => state.runtime.incidents.find((i) => i.id === id);
 const stationPos = (state: GameState, v: Vehicle): LatLng =>
   state.center.stations.find((s) => s.id === v.stationId)?.position ?? state.center.mapCenter;
@@ -394,7 +401,7 @@ function updateVehicles(state: GameState) {
       v.rt.phaseUntil = null;
       const inc = v.rt.incidentId ? incident(state, v.rt.incidentId) : undefined;
       if (inc) {
-        startMove(state, v, inc.position, 'einsatz', true);
+        startMove(state, v, inc.position, 'einsatz', incEmergency(state, inc));
         setStatus(state, v, 'anfahrt');
       }
     }
@@ -437,7 +444,8 @@ function arrive(state: GameState, v: Vehicle) {
     }
   } else if (m.purpose === 'transport') {
     setStatus(state, v, 'am_ziel');
-    withRng(state, (rng) => (v.rt.phaseUntil = now + rng.range(8, 15) * MIN));
+    const tinc = v.rt.incidentId ? incident(state, v.rt.incidentId) : undefined;
+    withRng(state, (rng) => (v.rt.phaseUntil = now + rng.range(8, 15) * MIN * infectionFactor(state, tinc)));
   } else {
     // Rückfahrt beendet
     const reason = outOfServiceReason(v, now);
@@ -577,7 +585,7 @@ function handlePatients(state: GameState, inc: Incident, present: Vehicle[]) {
     if (!p) break;
     p.vehicleId = v.id;
     v.rt.patientId = p.id;
-    withRng(state, (rng) => (p.readyAt = now + rng.range(8, 18) * MIN * DIFFICULTY[state.center.settings.difficulty].workTime));
+    withRng(state, (rng) => (p.readyAt = now + rng.range(8, 18) * MIN * DIFFICULTY[state.center.settings.difficulty].workTime * infectionFactor(state, inc)));
   }
   for (const p of inc.patients) {
     if (p.state !== 'wartet' || !p.vehicleId || p.readyAt === null || now < p.readyAt) continue;
@@ -705,6 +713,22 @@ export function updateCallNotes(state: GameState, callId: string, notes: string)
   return ok();
 }
 
+/** Meldebild wählen – übernimmt das vorgeschlagene Stichwort (der Disponent kann es danach ändern) */
+export function setCallMeldebild(state: GameState, callId: string, meldebildId: string | null): CommandResult {
+  const c = state.runtime.calls.find((x) => x.id === callId);
+  if (!c || c.state !== 'in_abfrage') return fail('Kein Notruf in Abfrage.');
+  if (!meldebildId) {
+    c.meldebildId = null;
+    return ok();
+  }
+  const mb = state.center.meldebilder.find((m) => m.id === meldebildId);
+  if (!mb) return fail('Unbekanntes Meldebild.');
+  c.meldebildId = mb.id;
+  const kw = mb.keywordCode ? state.center.keywords.find((k) => k.code === mb.keywordCode) : undefined;
+  if (kw) c.keywordId = kw.id;
+  return ok();
+}
+
 export function setCallKeyword(state: GameState, callId: string, keywordId: string | null): CommandResult {
   const c = state.runtime.calls.find((x) => x.id === callId);
   if (!c || c.state !== 'in_abfrage') return fail('Kein Notruf in Abfrage.');
@@ -714,21 +738,34 @@ export function setCallKeyword(state: GameState, callId: string, keywordId: stri
 }
 
 /** Abfragehilfe: schlägt das Stichwort vor, sobald die Schlüsselfragen gestellt wurden (nur leicht/normal) */
-export function keywordHint(state: GameState, callId: string): { keywordId: string | null; noIncident: boolean } | null {
+export function keywordHint(state: GameState, callId: string): { keywordId: string | null; noIncident: boolean; meldebildId: string | null } | null {
   const c = state.runtime.calls.find((x) => x.id === callId);
   if (!c || !DIFFICULTY[state.center.settings.difficulty].keywordHint) return null;
   const sc = findScenario(c.scenarioId);
   if (!sc) return null;
   if (!sc.keyQuestions.every((q) => c.dialog.some((d) => d.questionId === q))) return null;
-  const code = truthKeywordCode(c.scenarioId, c.variantIdx);
-  if (code === NO_INCIDENT_KEYWORD) return { keywordId: null, noIncident: true };
-  return { keywordId: state.center.keywords.find((k) => k.code === code)?.id ?? null, noIncident: false };
+  const code = truthKeywordCode(c.scenarioId, c.variantIdx, state.center.catalogId);
+  const mb = truthMeldebild(c.scenarioId, c.variantIdx, state.center.catalogId);
+  const meldebildId = mb ? (state.center.meldebilder.find((m) => m.label === mb)?.id ?? null) : null;
+  if (code === NO_INCIDENT_KEYWORD) return { keywordId: null, noIncident: true, meldebildId };
+  return { keywordId: state.center.keywords.find((k) => k.code === code)?.id ?? null, noIncident: false, meldebildId };
 }
 
-export function truthKeywordCode(scenarioId: string, variantIdx: number): string {
+/** Richtiges Stichwort eines Szenarios im Katalog der Leitstelle */
+export function truthKeywordCode(scenarioId: string, variantIdx: number, catalogId = 'standard'): string {
   const sc = findScenario(scenarioId);
   if (!sc) return '';
-  return (variantIdx >= 0 ? sc.variants?.[variantIdx]?.keyword : undefined) ?? sc.keyword;
+  const v = variantIdx >= 0 ? sc.variants?.[variantIdx] : undefined;
+  if (catalogId === 'sh') return v?.sh?.keyword ?? sc.sh?.keyword ?? (sc.catalogs?.includes('sh') ? (v?.keyword ?? sc.keyword) : '');
+  return v?.keyword ?? sc.keyword;
+}
+
+/** Passendes Meldebild (Bezeichnung) eines Szenarios – nur im zweistufigen SH-Katalog */
+export function truthMeldebild(scenarioId: string, variantIdx: number, catalogId = 'standard'): string | null {
+  if (catalogId !== 'sh') return null;
+  const sc = findScenario(scenarioId);
+  const v = variantIdx >= 0 ? sc?.variants?.[variantIdx] : undefined;
+  return v?.sh?.meldebild ?? sc?.sh?.meldebild ?? null;
 }
 
 /**
@@ -838,7 +875,7 @@ export function correctIncidentLocation(state: GameState, incidentId: string, pa
   inc.locationWrongReported = false;
   for (const v of state.center.vehicles) {
     if (v.rt.incidentId !== inc.id || v.rt.status === 'transport' || v.rt.status === 'am_ziel' || v.rt.status === 'alarmiert') continue;
-    startMove(state, v, inc.position, 'einsatz', true);
+    startMove(state, v, inc.position, 'einsatz', incEmergency(state, inc));
     setStatus(state, v, 'anfahrt', 'neue Adresse');
   }
   log(state, 'einsatz', `Einsatzadresse korrigiert: ${r.address}`, { incidentId });
@@ -849,6 +886,8 @@ export function createIncidentFromCall(state: GameState, callId: string, mask?: 
   const rt = state.runtime;
   const c = rt.calls.find((x) => x.id === callId);
   if (!c || c.state !== 'in_abfrage') return fail('Kein Notruf in Abfrage.');
+  const selected = c.keywordId ? state.center.keywords.find((k) => k.id === c.keywordId) : undefined;
+  if (selected?.forward) return forwardCall(state, c.id, selected.id);
   // Ohne Einsatzmaske (Tests, automatischer Spieler): Ort muss abgefragt sein und wird übernommen
   let loc: { position: LatLng; address: string } = { position: c.location.position, address: c.location.address };
   if (mask) {
@@ -861,7 +900,7 @@ export function createIncidentFromCall(state: GameState, callId: string, mask?: 
   if (!kw) return fail('Unbekanntes Stichwort.');
   const sc = findScenario(c.scenarioId);
   const variant = sc && c.variantIdx >= 0 ? sc.variants?.[c.variantIdx] : undefined;
-  const truthCode = truthKeywordCode(c.scenarioId, c.variantIdx);
+  const truthCode = truthKeywordCode(c.scenarioId, c.variantIdx, state.center.catalogId);
   const diff = DIFFICULTY[state.center.settings.difficulty];
 
   rt.counters.incident++;
@@ -876,7 +915,8 @@ export function createIncidentFromCall(state: GameState, callId: string, mask?: 
         pCount = typeof v === 'number' ? v : 0;
       } else pCount = rng.int(pSpec.count[0], pSpec.count[1]);
     }
-    const esc = variant?.escalation === null ? undefined : (variant?.escalation ?? sc?.escalation);
+    if (kw.exercise) pCount = 0;
+    const esc = kw.exercise || variant?.escalation === null ? undefined : (variant?.escalation ?? sc?.escalation);
     const escalate = esc && rng.chance(Math.min(0.95, esc.prob * diff.escalation));
     const created: Incident = {
       id,
@@ -900,7 +940,7 @@ export function createIncidentFromCall(state: GameState, callId: string, mask?: 
       areaId: state.center.areas.find((a) => pointInArea(loc.position, a))?.id ?? c.location.areaId,
       description: mask?.info || c.notes || c.opening,
       priority: kw.priority,
-      needs: truthCode === NO_INCIDENT_KEYWORD ? [] : keywordNeeds(truthCode),
+      needs: truthCode === NO_INCIDENT_KEYWORD ? [] : catalogNeeds(state.center.catalogId, truthCode),
       workTotalMs: Math.round(rng.range(work[0], work[1]) * MIN * diff.workTime),
       workDoneMs: 0,
       patients: [],
@@ -912,6 +952,7 @@ export function createIncidentFromCall(state: GameState, callId: string, mask?: 
         : null,
       log: [],
       keywordCorrect: truthCode === kw.code,
+      meldebildId: c.meldebildId ?? null,
       lastNeedCheckAt: null,
     };
     for (let i = 0; i < pCount; i++) created.patients.push(newPatient(state, rng, c.scenarioId, i + 1));
@@ -925,13 +966,35 @@ export function createIncidentFromCall(state: GameState, callId: string, mask?: 
   return ok('Einsatz angelegt.', id);
 }
 
+/** Weiterleitung an eine andere Stelle (Stichwort mit forward = true) – es entsteht kein Einsatz */
+export function forwardCall(state: GameState, callId: string, keywordId: string): CommandResult {
+  const c = state.runtime.calls.find((x) => x.id === callId);
+  const kw = state.center.keywords.find((k) => k.id === keywordId);
+  if (!c || c.state !== 'in_abfrage') return fail('Kein Notruf in Abfrage.');
+  if (!kw?.forward) return fail('Dieses Stichwort ist keine Weiterleitung.');
+  c.state = 'abgeschlossen';
+  c.closedAt = state.runtime.clock.now;
+  c.keywordId = kw.id;
+  const real = truthKeywordCode(c.scenarioId, c.variantIdx, state.center.catalogId);
+  const isEmergency = real && real !== NO_INCIDENT_KEYWORD && !state.center.keywords.find((k) => k.code === real)?.forward;
+  const correct = real === kw.code;
+  log(
+    state,
+    isEmergency ? 'warnung' : 'notruf',
+    `Notruf weitergeleitet: ${kw.label}${correct ? '' : isEmergency ? ' – ACHTUNG: Es lag ein echter Notfall vor!' : real && real !== NO_INCIDENT_KEYWORD ? ` – besser wäre gewesen: ${state.center.keywords.find((k) => k.code === real)?.label ?? real}` : ''}`,
+    { callId },
+  );
+  return ok(`Weitergeleitet: ${kw.label}`);
+}
+
 export function closeCallWithoutIncident(state: GameState, callId: string, reason: string): CommandResult {
   const c = state.runtime.calls.find((x) => x.id === callId);
   if (!c || c.state !== 'in_abfrage') return fail('Kein Notruf in Abfrage.');
   c.state = 'abgeschlossen';
   c.closedAt = state.runtime.clock.now;
-  const real = truthKeywordCode(c.scenarioId, c.variantIdx);
-  log(state, real === NO_INCIDENT_KEYWORD || c.duplicateOfIncidentId ? 'notruf' : 'warnung', `Notruf ohne Einsatz beendet: ${reason || 'kein Grund angegeben'}${real !== NO_INCIDENT_KEYWORD && !c.duplicateOfIncidentId ? ' – ACHTUNG: Es lag ein echter Notfall vor!' : ''}`, { callId });
+  const real = truthKeywordCode(c.scenarioId, c.variantIdx, state.center.catalogId);
+  const noEmergency = real === NO_INCIDENT_KEYWORD || Boolean(state.center.keywords.find((k) => k.code === real)?.forward) || Boolean(c.duplicateOfIncidentId);
+  log(state, noEmergency ? 'notruf' : 'warnung', `Notruf ohne Einsatz beendet: ${reason || 'kein Grund angegeben'}${noEmergency ? '' : ' – ACHTUNG: Es lag ein echter Notfall vor!'}`, { callId });
   return ok();
 }
 
@@ -978,7 +1041,7 @@ export function createManualIncident(state: GameState, keywordId: string, positi
     areaId: state.center.areas.find((a) => pointInArea(position, a))?.id ?? null,
     description,
     priority: kw.priority,
-    needs: nonMedical(rule?.requirements ?? keywordNeeds(kw.code)),
+    needs: nonMedical(rule?.requirements ?? catalogNeeds(state.center.catalogId, kw.code)),
     workTotalMs: 20 * MIN,
     workDoneMs: 0,
     patients: [],
@@ -1036,7 +1099,7 @@ export function alarmVehicles(state: GameState, incidentId: string, vehicleIds: 
     const st = state.center.stations.find((s) => s.id === v.stationId);
     if (v.rt.status === 'frei_funk') {
       log(state, 'alarm', `${v.callsign} alarmiert (über Funk, unterwegs)`, { incidentId: inc.id, vehicleId: v.id });
-      startMove(state, v, inc.position, 'einsatz', true);
+      startMove(state, v, inc.position, 'einsatz', incEmergency(state, inc));
       setStatus(state, v, 'anfahrt');
     } else {
       const base = (st?.turnoutSeconds ?? 60) * 1000 + (v.external?.requestDelaySeconds ?? 0) * 1000;

@@ -234,6 +234,27 @@ export interface Keyword {
   category: KeywordCategory;
   /** 1 = höchste Priorität */
   priority: 1 | 2 | 3;
+  /** Anfahrt mit Sondersignal (Standard: ja) */
+  emergency?: boolean;
+  /** Weiterleitung an andere Stelle (kein Einsatz, z. B. ärztlicher Bereitschaftsdienst) */
+  forward?: boolean;
+  /** Übungseinsatz */
+  exercise?: boolean;
+  /** Infektionsschutz: verlängert Versorgung und Bindungszeit */
+  infection?: 'covid' | 'hoch';
+  note?: string;
+}
+
+/** Meldebild / Verdachtsdiagnose: schlägt ein Einsatzstichwort vor */
+export interface Meldebild {
+  id: ID;
+  label: string;
+  /** CEDUS-Code (dreistellig) – nur bei medizinischen Meldebildern */
+  cedus?: string;
+  category: KeywordCategory;
+  /** Code des vorgeschlagenen Einsatzstichworts */
+  keywordCode: string;
+  note?: string;
 }
 
 export interface AaoRequirement {
@@ -307,7 +328,10 @@ export interface CenterConfig {
   stations: Station[];
   vehicles: Vehicle[];
   statusDefs: StatusDef[];
+  /** Stichwortkatalog, mit dem die Leitstelle angelegt wurde (z. B. "standard", "sh") */
+  catalogId: string;
   keywords: Keyword[];
+  meldebilder: Meldebild[];
   aao: AaoRule[];
   hospitals: Hospital[];
   neighbors: NeighborCenter[];
@@ -361,6 +385,8 @@ export interface Call {
   notes: string;
   /** Vom Disponenten gewähltes Stichwort */
   keywordId: ID | null;
+  /** Vom Disponenten gewähltes Meldebild */
+  meldebildId?: ID | null;
   incidentId: ID | null;
   /** Zeitpunkt, an dem der Anrufer ohne Annahme auflegt */
   hangupAt: number;
@@ -471,6 +497,8 @@ export interface Incident {
   times: Record<ID, VehicleTimes>;
   /** Daten aus der Einsatzmaske */
   mask: EinsatzMask | null;
+  /** Gewähltes Meldebild (zweistufige Kataloge) */
+  meldebildId?: ID | null;
 }
 
 export interface VehicleTimes {

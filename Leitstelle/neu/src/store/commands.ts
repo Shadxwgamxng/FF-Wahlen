@@ -28,6 +28,8 @@ export const COMMANDS = {
   requestBackup: E.requestBackup,
   restartSimulation: E.restartSimulation,
   setCallKeyword: E.setCallKeyword,
+  setCallMeldebild: E.setCallMeldebild,
+  forwardCall: E.forwardCall,
   setRunning: E.setRunning,
   setSpeed: E.setSpeed,
   setVehicleServiceStatus: E.setVehicleServiceStatus,

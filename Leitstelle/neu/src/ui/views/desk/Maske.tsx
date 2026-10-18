@@ -154,6 +154,17 @@ export function Maske(p: Props) {
 
             <fieldset className="mask-box">
               <legend>Ereignis</legend>
+              {game.center.meldebilder.length > 0 && (
+                <label className="mask-grid1">
+                  Meldebild (Verdachtsdiagnose)
+                  <MeldebildSelect
+                    game={game}
+                    value={inc ? (inc.meldebildId ?? null) : (call?.meldebildId ?? null)}
+                    disabled={mode === 'einsatz'}
+                    onChange={(id) => call && store.cmd('setCallMeldebild', call.id, id)}
+                  />
+                </label>
+              )}
               <label className="mask-grid1 req">
                 Stichwort
                 <KeywordSelect
@@ -172,8 +183,17 @@ export function Maske(p: Props) {
                     <b>Kein Einsatz erforderlich.</b>
                   ) : hint.keywordId ? (
                     <>
-                      passt zu <b>{game.center.keywords.find((k) => k.id === hint.keywordId)?.code}</b>{' '}
-                      <button className="btn small" onClick={() => store.cmd('setCallKeyword', call!.id, hint.keywordId)}>übernehmen</button>
+                      passt zu <b>{game.center.keywords.find((k) => k.id === hint.keywordId)?.code}</b>
+                      {hint.meldebildId && <> (Meldebild „{game.center.meldebilder.find((m) => m.id === hint.meldebildId)?.label}“)</>}{' '}
+                      <button
+                        className="btn small"
+                        onClick={() => {
+                          if (hint.meldebildId) store.cmd('setCallMeldebild', call!.id, hint.meldebildId);
+                          store.cmd('setCallKeyword', call!.id, hint.keywordId);
+                        }}
+                      >
+                        übernehmen
+                      </button>
                     </>
                   ) : (
                     'kein passendes Stichwort konfiguriert'
@@ -181,7 +201,15 @@ export function Maske(p: Props) {
                 </div>
               )}
               <label className="mask-grid1">Alarmierungstext / Info<input type="text" value={mask.info} onChange={(e) => setMask({ info: e.target.value })} disabled={mode === 'einsatz'} placeholder="Kurzinfo für die Kräfte" /></label>
-              {kw && <div className="small muted">Sondersignal: {kw.priority <= 2 ? 'ja' : 'nein'}</div>}
+              {kw && (
+                <div className="small muted">
+                  Sondersignal: {kw.emergency === false ? 'nein' : 'ja'}
+                  {kw.forward && ' · Weiterleitung – es entsteht kein Einsatz'}
+                  {kw.exercise && ' · Übungseinsatz'}
+                  {kw.infection && ` · Infektionsschutz (${kw.infection === 'hoch' ? 'hochinfektiös' : 'COVID'})`}
+                  {kw.note && ` · ${kw.note}`}
+                </div>
+              )}
             </fieldset>
 
             <fieldset className="mask-box">
@@ -219,9 +247,15 @@ export function Maske(p: Props) {
                   </div>
                 )}
                 <div className="row wrap">
-                  <button className="btn alarm" onClick={create} disabled={!call.keywordId || !resolved || 'error' in resolved} data-testid="create-incident">
-                    Einsatz anlegen <kbd>Strg+Enter</kbd>
-                  </button>
+                  {kw?.forward ? (
+                    <button className="btn primary" onClick={create} data-testid="create-incident">
+                      Weiterleiten <kbd>Strg+Enter</kbd>
+                    </button>
+                  ) : (
+                    <button className="btn alarm" onClick={create} disabled={!call.keywordId || !resolved || 'error' in resolved} data-testid="create-incident">
+                      Einsatz anlegen <kbd>Strg+Enter</kbd>
+                    </button>
+                  )}
                   <span className="spacer" />
                   <input type="text" placeholder="Grund" value={reason} onChange={(e) => setReason(e.target.value)} style={{ width: 140 }} aria-label="Grund für Beenden ohne Einsatz" />
                   <button className="btn" onClick={() => store.cmd('closeCallWithoutIncident', call.id, reason)}>Ohne Einsatz beenden</button>
@@ -254,6 +288,58 @@ export function Maske(p: Props) {
               </>
             )}
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Meldebild-Auswahl mit Suche (CEDUS-Code oder Bezeichnung) */
+function MeldebildSelect({ game, value, onChange, disabled }: { game: GameState; value: string | null; onChange: (id: string | null) => void; disabled?: boolean }) {
+  const [q, setQ] = useState('');
+  const [open, setOpen] = useState(false);
+  const current = game.center.meldebilder.find((m) => m.id === value);
+  const list = useMemo(() => {
+    const s = q.trim().toLowerCase();
+    return game.center.meldebilder.filter((m) => !s || m.label.toLowerCase().includes(s) || m.cedus?.startsWith(s)).slice(0, 40);
+  }, [game.center.meldebilder, q]);
+  if (disabled) return <input type="text" value={current ? `${current.cedus ? `${current.cedus} · ` : ''}${current.label}` : '–'} disabled />;
+  return (
+    <div style={{ position: 'relative' }}>
+      <input
+        type="text"
+        value={open ? q : current ? `${current.cedus ? `${current.cedus} · ` : ''}${current.label}` : q}
+        placeholder="Meldebild suchen (Text oder CEDUS) …"
+        onFocus={() => {
+          setOpen(true);
+          setQ('');
+        }}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        onChange={(e) => setQ(e.target.value)}
+        aria-label="Meldebild"
+        data-testid="meldebild-input"
+        autoComplete="off"
+        style={{ width: '100%' }}
+      />
+      {open && (
+        <div className="suggest" role="listbox">
+          {list.map((m) => (
+            <div
+              key={m.id}
+              role="option"
+              aria-selected={m.id === value}
+              className="suggest-item"
+              onMouseDown={(ev) => {
+                ev.preventDefault();
+                onChange(m.id);
+                setOpen(false);
+              }}
+            >
+              {m.cedus && <span className="mono dim">{m.cedus} </span>}
+              {m.label} <span className="dim">→ {m.keywordCode || 'kein Vorschlag'}</span>
+            </div>
+          ))}
+          {list.length === 0 && <div className="suggest-item dim">Kein Meldebild gefunden.</div>}
         </div>
       )}
     </div>

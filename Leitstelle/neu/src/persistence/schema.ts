@@ -91,7 +91,19 @@ export const schemas = {
     rt: z.any().optional(),
   }),
   statusDef: z.object({ meaning, code: z.string().min(1), label: z.string().min(1), color: z.string() }),
-  keyword: z.object({ id, code: z.string().min(1), label: z.string().min(1), category, priority: z.union([z.literal(1), z.literal(2), z.literal(3)]) }),
+  keyword: z.object({
+    id,
+    code: z.string().min(1),
+    label: z.string().min(1),
+    category,
+    priority: z.union([z.literal(1), z.literal(2), z.literal(3)]),
+    emergency: z.boolean().optional(),
+    forward: z.boolean().optional(),
+    exercise: z.boolean().optional(),
+    infection: z.enum(['covid', 'hoch']).optional(),
+    note: z.string().optional(),
+  }),
+  meldebild: z.object({ id, label: z.string().min(1), cedus: z.string().optional(), category, keywordCode: z.string(), note: z.string().optional() }),
   aao: z.object({ id, keywordId: z.string(), requirements: z.array(z.object({ capability: z.string(), count: z.number().int().min(1) })), note: z.string().default('') }),
   hospital: z.object({ id, name: z.string().min(1), position: latLng, departments: z.array(z.string()), capacity: z.number().int().min(0), occupied: z.number().int().min(0).default(0), available: z.boolean().default(true) }),
   neighbor: z.object({ id, name: z.string().min(1), position: latLng, note: z.string().default('') }),
@@ -123,6 +135,7 @@ const COLLECTIONS = [
   ['vehicles', 'vehicle'],
   ['statusDefs', 'statusDef'],
   ['keywords', 'keyword'],
+  ['meldebilder', 'meldebild'],
   ['aao', 'aao'],
   ['hospitals', 'hospital'],
   ['neighbors', 'neighbor'],
@@ -145,6 +158,8 @@ export function parseCenterLenient(raw: unknown): { center: CenterConfig | null;
   if (mc.success) out.mapCenter = mc.data;
   if (typeof r.mapZoom === 'number') out.mapZoom = r.mapZoom;
   if (Array.isArray(r.streetNames)) out.streetNames = r.streetNames.filter((s): s is string => typeof s === 'string');
+  out.catalogId = typeof r.catalogId === 'string' ? r.catalogId : 'standard';
+  if (!Array.isArray(r.meldebilder)) out.meldebilder = [];
   out.places = null;
   if (r.places) {
     const pp = placeIndexSchema.safeParse(r.places);

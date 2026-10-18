@@ -1,5 +1,4 @@
 import type {
-  AaoRule,
   Area,
   CenterConfig,
   Hospital,
@@ -9,7 +8,7 @@ import type {
   Station,
   Vehicle,
 } from '../model/types';
-import { DEFAULT_KEYWORDS, KEYWORD_SEEDS, keywordIdFromCode } from './keywords';
+import { catalogAao, catalogById, catalogKeywords } from './catalogs';
 import { DEFAULT_ORGANIZATIONS, DEFAULT_STATUS_DEFS, DEFAULT_VEHICLE_TYPES } from './vehicleTypes';
 
 /**
@@ -204,12 +203,7 @@ export function createSampleCenter(): CenterConfig {
   const gwt = vehicles.find((v) => v.typeId === 'gwt');
   if (gwt) gwt.maintenance.push({ id: 'mw_1', from: Date.UTC(2026, 9, 19, 9), to: Date.UTC(2026, 9, 19, 13), reason: 'TÜV-Prüfung' });
 
-  const aao: AaoRule[] = KEYWORD_SEEDS.map((k) => ({
-    id: `aao_${keywordIdFromCode(k.code).slice(3)}`,
-    keywordId: keywordIdFromCode(k.code),
-    requirements: k.needs.map(([capability, count]) => ({ capability, count })),
-    note: '',
-  }));
+  const cat = catalogById('standard');
 
   return {
     id: 'center_hessenwald',
@@ -228,8 +222,10 @@ export function createSampleCenter(): CenterConfig {
     stations: STATIONS.map((s) => ({ ...s })),
     vehicles,
     statusDefs: DEFAULT_STATUS_DEFS.map((s) => ({ ...s })),
-    keywords: DEFAULT_KEYWORDS.map((k) => ({ ...k })),
-    aao,
+    catalogId: cat.id,
+    keywords: catalogKeywords(cat),
+    meldebilder: structuredClone(cat.meldebilder),
+    aao: catalogAao(cat),
     hospitals: HOSPITALS.map((h) => ({ ...h })),
     neighbors: NEIGHBORS.map((n) => ({ ...n })),
     streetNames: [...STREET_NAMES],

@@ -1,6 +1,6 @@
-import type { AaoRequirement, Keyword, KeywordCategory } from '../model/types';
+import type { KeywordCategory } from '../model/types';
 
-interface KeywordSeed {
+export interface StdKeywordSeed {
   code: string;
   label: string;
   category: KeywordCategory;
@@ -14,7 +14,7 @@ interface KeywordSeed {
  *  1. als Ausgangswert für die AAO der Beispielleitstelle (im Editor frei änderbar),
  *  2. als "tatsächlicher Bedarf" eines Szenarios mit diesem Stichwort (Spielwahrheit).
  */
-export const KEYWORD_SEEDS: KeywordSeed[] = [
+export const KEYWORD_SEEDS: StdKeywordSeed[] = [
   { code: 'B 1', label: 'Kleinbrand (Mülltonne, PKW, Container)', category: 'brand', priority: 2, needs: [['loeschen', 1]] },
   { code: 'B 2', label: 'Mittelbrand (LKW, Balkon, Elektroverteiler)', category: 'brand', priority: 2, needs: [['loeschen', 2], ['fuehrung_1', 1]] },
   { code: 'B 3', label: 'Gebäudebrand', category: 'brand', priority: 1, needs: [['fuehrung_1', 1], ['loeschen', 2], ['hoehenrettung', 1], ['rtw', 1]] },
@@ -56,21 +56,6 @@ export const KEYWORD_SEEDS: KeywordSeed[] = [
   { code: 'POL RD', label: 'Gewalttat mit Verletzten', category: 'pol', priority: 1, needs: [['polizei', 2], ['rtw', 1]] },
   { code: 'POL SUI', label: 'Person droht zu springen', category: 'pol', priority: 1, needs: [['polizei', 2], ['hoehenrettung', 1], ['rtw', 1], ['notarzt', 1]] },
 ];
-
-export const keywordIdFromCode = (code: string) => 'kw_' + code.toLowerCase().replace(/[^a-z0-9]+/g, '_');
-
-export const DEFAULT_KEYWORDS: Keyword[] = KEYWORD_SEEDS.map((k) => ({
-  id: keywordIdFromCode(k.code),
-  code: k.code,
-  label: k.label,
-  category: k.category,
-  priority: k.priority,
-}));
-
-export function keywordNeeds(code: string): AaoRequirement[] {
-  const seed = KEYWORD_SEEDS.find((k) => k.code === code);
-  return seed ? seed.needs.map(([capability, count]) => ({ capability, count })) : [];
-}
 
 export const CATEGORY_LABELS: Record<KeywordCategory, string> = {
   brand: 'Brand',

@@ -4,6 +4,7 @@ import type { Organization, PlaceIndex } from '../../model/types';
 import { extractFacilities, fetchCountyAt, overpassQueries, runOverpass, type County, type Facility } from '../../geo/osm';
 import { buildPlaceIndex, type OverpassElement } from '../../geo/places';
 import { buildCenter, defaultOrganizations, validateWizard } from '../../data/centerFactory';
+import { CATALOGS } from '../../data/catalogs';
 import { pointInArea } from '../../sim/geo';
 import { store } from '../../store/gameStore';
 import { safeRemoveMap, TILE_ATTRIBUTION, TILE_URL } from '../components/mapConfig';
@@ -24,6 +25,7 @@ export function CreateWizard({ onCancel }: { onCancel: () => void }) {
   const [step, setStep] = useState<Step>('grund');
   const [name, setName] = useState('');
   const [operator, setOperator] = useState('');
+  const [catalogId, setCatalogId] = useState('sh');
   const [counties, setCounties] = useState<County[]>([]);
   const [orgs, setOrgs] = useState<Organization[]>(defaultOrganizations());
   const [orgOn, setOrgOn] = useState<Record<string, boolean>>(Object.fromEntries(defaultOrganizations().map((o) => [o.id, true])));
@@ -35,7 +37,7 @@ export function CreateWizard({ onCancel }: { onCancel: () => void }) {
   const [skipData, setSkipData] = useState(false);
 
   const activeOrgs = orgs.filter((o) => orgOn[o.id]);
-  const input = { name, operator, counties, organizations: activeOrgs, places, facilities: facilities.filter((f) => facOn[f.osmId]) };
+  const input = { catalogId, name, operator, counties, organizations: activeOrgs, places, facilities: facilities.filter((f) => facOn[f.osmId]) };
   const errors = validateWizard(input);
 
   const loadData = async () => {
@@ -99,6 +101,20 @@ export function CreateWizard({ onCancel }: { onCancel: () => void }) {
             <span>Betreiber / Träger</span>
             <input type="text" value={operator} onChange={(e) => setOperator(e.target.value)} placeholder="z. B. Kreis Ostholstein" />
           </label>
+          <div className="field">
+            <span>Stichwörter (Katalog)</span>
+            {CATALOGS.map((c) => (
+              <label key={c.id} className="check" style={{ alignItems: 'flex-start' }}>
+                <input type="radio" name="catalog" checked={catalogId === c.id} onChange={() => setCatalogId(c.id)} data-testid={`catalog-${c.id}`} />
+                <span>
+                  <b>{c.label}</b> <span className="dim small">({c.keywords.length} Stichwörter{c.meldebilder.length ? `, ${c.meldebilder.length} Meldebilder` : ''})</span>
+                  <br />
+                  <span className="small muted">{c.description}</span>
+                </span>
+              </label>
+            ))}
+            <span className="dim small">Stichwörter, AAO und Meldebilder lassen sich später im Bereich „Stichwörter & AAO“ anpassen.</span>
+          </div>
         </div>
       )}
 
@@ -179,6 +195,7 @@ export function CreateWizard({ onCancel }: { onCancel: () => void }) {
       {step === 'fertig' && (
         <div className="card col" style={{ maxWidth: 760 }}>
           <div><b>{name}</b> {operator && <span className="muted">({operator})</span>}</div>
+          <div>Stichwortkatalog: {CATALOGS.find((c) => c.id === catalogId)?.label}</div>
           <div>Landkreise: {counties.map((c) => c.name).join(', ')}</div>
           <div>Organisationen: {activeOrgs.map((o) => `${o.name} [${o.radioGroup.code}]`).join(', ')}</div>
           <div>Einsatzorte aus OSM: {places ? places.places.length.toLocaleString('de-DE') : 'keine'}</div>

@@ -33,6 +33,15 @@ export const CAPABILITIES: Record<string, string> = {
   thw_bergung: 'THW-Bergung',
   thw_pumpen: 'THW-Pumpen / Wasserschaden',
   tier: 'Tierrettung',
+  first_responder: 'First Responder / Helfer vor Ort',
+  rtw_schwerlast: 'Schwerlast-RTW (über 180 kg)',
+  ktw_schwerlast: 'Schwerlast-KTW (über 180 kg)',
+  ktw_infekt: 'Infektions-KTW',
+  hoehenretter: 'Höhenrettungsgruppe (SRHT)',
+  thw_notstrom: 'THW-Notstrom / Beleuchtung',
+  thw_fuehrung: 'THW-Führung / Fachberatung',
+  inkubator: 'Inkubator-Transport',
+  psnv: 'Psychosoziale Notfallversorgung',
 };
 
 const ff = (
@@ -71,6 +80,7 @@ export const DEFAULT_VEHICLE_TYPES: VehicleType[] = [
   ff('gwa', 'GW-A', 'Gerätewagen Atemschutz', ['atemschutz'], 3, 55),
   ff('gwl', 'GW-L2', 'Gerätewagen Logistik', ['logistik', 'oel'], 3, 55),
   ff('gww', 'GW-Wasserrettung', 'Gerätewagen Wasserrettung', ['wasserrettung'], 6, 55),
+  ff('gwh', 'GW-Höhenrettung', 'Gerätewagen Höhenrettung', ['hoehenretter'], 6, 60),
   ff('gwt', 'GW-Tier', 'Gerätewagen Tierrettung', ['tier'], 3, 55),
   // Rettungsdienst
   {
@@ -87,13 +97,23 @@ export const DEFAULT_VEHICLE_TYPES: VehicleType[] = [
     canTransport: true,
   },
   {
-    ...ff('itw', 'ITW', 'Intensivtransportwagen', ['intensiv', 'rtw'], 3, 60, 'rettungsdienst'),
+    ...ff('itw', 'ITW', 'Intensivtransportwagen', ['intensiv', 'rtw', 'inkubator'], 3, 60, 'rettungsdienst'),
     canTransport: true,
   },
   {
-    ...ff('iktw', 'I-KTW', 'Infektions-Krankentransportwagen', ['ktw'], 2, 60, 'krankentransport'),
+    ...ff('iktw', 'I-KTW', 'Infektions-Krankentransportwagen', ['ktw', 'ktw_infekt'], 2, 60, 'krankentransport'),
     canTransport: true,
   },
+  {
+    ...ff('srtw', 'S-RTW', 'Schwerlast-Rettungswagen', ['rtw', 'rtw_schwerlast'], 2, 55, 'rettungsdienst'),
+    canTransport: true,
+  },
+  {
+    ...ff('sktw', 'S-KTW', 'Schwerlast-Krankentransportwagen', ['ktw', 'ktw_schwerlast'], 2, 55, 'krankentransport'),
+    canTransport: true,
+  },
+  ff('fr', 'FR', 'First Responder (Helfer vor Ort)', ['first_responder'], 2, 65, 'sonstige'),
+  ff('psnv', 'KIT', 'Fahrzeug Krisenintervention / PSNV', ['psnv'], 4, 60, 'sonstige'),
   ff('gwsan', 'GW-San', 'Gerätewagen Sanität', ['san_gross'], 4, 55, 'katastrophenschutz'),
   ff('elrd', 'ELRD', 'Einsatzleiter Rettungsdienst', ['rd_fuehrung'], 2, 75, 'rettungsdienst'),
   ff('orgl', 'OrgL RD', 'Organisatorischer Leiter Rettungsdienst', ['rd_fuehrung'], 2, 70, 'rettungsdienst'),
@@ -109,6 +129,8 @@ export const DEFAULT_VEHICLE_TYPES: VehicleType[] = [
   // THW
   ff('thw_gkw', 'GKW', 'Gerätekraftwagen THW', ['thw_bergung', 'th_schwer'], 9, 50, 'thw'),
   ff('thw_mzkw', 'MzKW', 'Mehrzweckkraftwagen THW', ['thw_pumpen', 'logistik'], 6, 50, 'thw'),
+  ff('thw_ntw', 'MLW N', 'Mannschaftslastwagen Notversorgung THW', ['thw_notstrom'], 6, 50, 'thw'),
+  ff('thw_mtw', 'MTW TZ', 'Mannschaftstransportwagen Technischer Zug THW', ['thw_fuehrung'], 4, 60, 'thw'),
 ];
 
 export const DEFAULT_ORGANIZATIONS: Organization[] = [

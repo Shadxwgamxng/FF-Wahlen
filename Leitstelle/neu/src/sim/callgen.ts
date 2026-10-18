@@ -1,5 +1,5 @@
 import type { Call, GameState, KeywordCategory, LatLng, PlaceKind, Weather } from '../model/types';
-import { SCENARIOS, type FactSpec, type LocationKind, type ScenarioDef, type VariantDef } from '../data/scenarios';
+import { scenariosForCatalog, type FactSpec, type LocationKind, type ScenarioDef, type VariantDef } from '../data/scenarios';
 import type { Facts, FactValue } from '../data/questions';
 import { Rng } from './rng';
 import { areaBounds, pointInArea } from './geo';
@@ -14,7 +14,7 @@ export function pickScenario(state: GameState, rng: Rng): ScenarioDef | undefine
   const now = state.runtime.clock.now;
   const night = isNight(hourOf(now));
   const weather = state.runtime.weather;
-  const pool = SCENARIOS.filter((sc) => !s.disabledScenarioIds.includes(sc.id));
+  const pool = scenariosForCatalog(state.center.catalogId).filter((sc) => !s.disabledScenarioIds.includes(sc.id));
   return rng.weighted(pool, (sc) => scenarioWeight(sc, s.categoryWeights, night, weather, s.useTimeOfDay, s.useWeather));
 }
 

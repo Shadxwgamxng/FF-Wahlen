@@ -1,6 +1,6 @@
-import type { AaoRule, Area, CenterConfig, Hospital, LatLng, Organization, PlaceIndex, Station } from '../model/types';
+import type { Area, CenterConfig, Hospital, LatLng, Organization, PlaceIndex, Station } from '../model/types';
 import type { County, Facility } from '../geo/osm';
-import { DEFAULT_KEYWORDS, KEYWORD_SEEDS, keywordIdFromCode } from './keywords';
+import { catalogAao, catalogById, catalogKeywords } from './catalogs';
 import { DEFAULT_STATUS_DEFS, DEFAULT_VEHICLE_TYPES } from './vehicleTypes';
 import { STREET_NAMES } from './sampleCenter';
 import { newId } from '../model/ids';
@@ -36,17 +36,10 @@ export function defaultOrganizations(): Organization[] {
   ];
 }
 
-export function defaultAao(): AaoRule[] {
-  return KEYWORD_SEEDS.map((k) => ({
-    id: `aao_${keywordIdFromCode(k.code).slice(3)}`,
-    keywordId: keywordIdFromCode(k.code),
-    requirements: k.needs.map(([capability, count]) => ({ capability, count })),
-    note: '',
-  }));
-}
-
 export interface WizardInput {
   name: string;
+  /** Stichwortkatalog (z. B. 'standard', 'sh') */
+  catalogId?: string;
   operator: string;
   counties: County[];
   organizations: Organization[];
@@ -82,6 +75,7 @@ export function validateWizard(i: WizardInput): string[] {
 }
 
 export function buildCenter(i: WizardInput): CenterConfig {
+  const cat = catalogById(i.catalogId);
   const { center, zoom } = centerBounds(i.counties);
   const orgByKind = (...kinds: Organization['kind'][]) => i.organizations.find((o) => kinds.includes(o.kind));
   const areas: Area[] = i.counties.map((c) => ({
@@ -153,8 +147,10 @@ export function buildCenter(i: WizardInput): CenterConfig {
     stations,
     vehicles: [],
     statusDefs: DEFAULT_STATUS_DEFS.map((s) => ({ ...s })),
-    keywords: DEFAULT_KEYWORDS.map((k) => ({ ...k })),
-    aao: defaultAao(),
+    catalogId: cat.id,
+    keywords: catalogKeywords(cat),
+    meldebilder: structuredClone(cat.meldebilder),
+    aao: catalogAao(cat),
     hospitals,
     neighbors: [],
     streetNames: [...STREET_NAMES],
