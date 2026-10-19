@@ -30,6 +30,7 @@ import { aaoRequirements, capsOf, coverage, hospitalOptions, MEDICAL_CAPS, merge
 import { SIM_START, emptyVehicleRuntime } from '../data/sampleCenter';
 import { groupDeployment, groupName, isGroupStation, isGroupVehicle, turnoutFactor } from './alarmGroups';
 import { emptyMask, maskAddress } from '../model/mask';
+import { arrivalReport } from './lagemeldung';
 import { geocode, reverseGeocode, describePlace } from '../geo/places';
 
 /**
@@ -443,6 +444,12 @@ function arrive(state: GameState, v: Vehicle) {
         if (inc.state === 'disponiert' || inc.state === 'neu') inc.state = 'vor_ort';
         log(state, 'einsatz', `Erstes Fahrzeug an der Einsatzstelle ${inc.address}.`, { incidentId: inc.id });
         if (inc.escalation && !inc.escalation.triggered) inc.escalation.at = now + (inc.escalation.at - inc.createdAt);
+        // Erste Lagemeldung: das erste Fahrzeug drückt Status 5 und meldet nach dem Ansprechen die Lage
+        const bound = state.center.vehicles.filter((x) => inc.activeVehicleIds.includes(x.id));
+        const missing = openRequirements(state, nonMedical(inc.needs), bound).length > 0;
+        v.rt.statusBeforeSpeak = 'einsatzort';
+        setStatus(state, v, 'sprechwunsch');
+        radio(state, { vehicleId: v.id, incidentId: inc.id, kind: 'lage', text: arrivalReport(state, inc, missing) });
       }
       if (inc.state === 'abarbeitung_beendet') {
         radio(state, { vehicleId: v.id, incidentId: inc.id, kind: 'lage', text: 'Eingetroffen, Einsatzstelle bereits abgearbeitet – erbitten Entlassung.' });
@@ -582,7 +589,8 @@ function updateIncidents(state: GameState, dtMs: number) {
 
 function handlePatients(state: GameState, inc: Incident, present: Vehicle[]) {
   const now = state.runtime.clock.now;
-  const transporters = present.filter((v) => typeOf(state, v)?.canTransport && v.rt.status === 'einsatzort');
+  // auch während eines Sprechwunschs (Status 5) vor Ort wird der Patient weiter versorgt
+  const transporters = present.filter((v) => typeOf(state, v)?.canTransport);
   const doctorPresent = present.some((v) => capsOf(state, v).includes('notarzt'));
   // Fahrzeuge Patienten zuweisen
   for (const v of transporters) {

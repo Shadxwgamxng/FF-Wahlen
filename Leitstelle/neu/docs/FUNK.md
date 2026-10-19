@@ -22,7 +22,9 @@ Drückt ein Fahrzeug Status 5, ist zunächst nur der Sprechwunsch zu sehen. Was 
 > **Fahrzeug:** Hier Florian Ostholstein 61-48-01, Nachforderung: Polizei zur Einsatzstelle, kommen.
 > **Leitstelle:** Verstanden, Polizei wird alarmiert, Ende.
 
-Mit „Verstanden …“ ist die Meldung quittiert. Die nachgeforderten Kräfte alarmierst du wie gewohnt in der Einsatzmaske.
+Mit „Verstanden …“ ist die Meldung quittiert.
+
+**Erste Lagemeldung:** Das erste Fahrzeug an der Einsatzstelle drückt Status 5. Nach dem Ansprechen meldet es die tatsächliche Lage aus dem Szenario, z. B. „Hier Rettung Ostholstein 61-83-01, eingetroffen. Leblose Person. Patient ohne Atmung, Reanimation eingeleitet. Patient etwa 80 Jahre. Weitere Rückmeldung folgt, kommen.“ Passt dein Stichwort nicht zur Lage, merkst du es hier. Reichen die Kräfte nicht, kündigt es die Nachforderung an. Auch „Lagemeldung“ auf Nachfrage beschreibt vor Ort die tatsächliche Lage. Die nachgeforderten Kräfte alarmierst du wie gewohnt in der Einsatzmaske.
 
 ## Aufträge an Fahrzeuge
 

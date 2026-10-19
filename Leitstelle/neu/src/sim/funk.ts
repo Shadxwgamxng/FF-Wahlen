@@ -1,5 +1,6 @@
 import type { FunkLine, FunkState, GameState, Hospital, Incident, RadioMessage, Vehicle } from '../model/types';
 import { radioGroupOf } from '../model/radio';
+import { sceneSummary } from './lagemeldung';
 import { acknowledgeRadio, alarmVehicles, assignHospital, capLabel, log, releaseVehicle, statusDef, type CommandResult } from './engine';
 
 /**
@@ -320,7 +321,9 @@ export function crewReport(msg: RadioMessage): string {
     const what = msg.requirements.map((r) => spokenCount(r.count, SPOKEN_CAP[r.capability] ?? capLabel(r.capability))).join(', ');
     return `Nachforderung: ${what} zur Einsatzstelle`;
   }
-  return msg.text.replace(/[.!]\s*$/, '');
+  const t = msg.text.replace(/[.!]\s*$/, '');
+  // "Hier Florian …, eingetroffen. …"
+  return t.startsWith('Eingetroffen') ? `e${t.slice(1)}` : t;
 }
 
 function lagemeldung(state: GameState, v: Vehicle): string {
@@ -335,8 +338,7 @@ function lagemeldung(state: GameState, v: Vehicle): string {
   } else if (v.rt.status === 'am_ziel') parts.push('am Krankenhaus, Patientenübergabe läuft');
   else if (inc.state === 'abarbeitung_beendet') parts.push('Einsatzstelle abgearbeitet, Kräfte können einrücken');
   else {
-    const kw = state.center.keywords.find((k) => k.id === inc.keywordId);
-    parts.push(`Lage an der Einsatzstelle ${inc.address}${kw ? `, ${kw.label}` : ''}`);
+    parts.push(...sceneSummary(state, inc));
     const pts = inc.patients.filter((p) => p.state !== 'kein_transport');
     if (pts.length) {
       const waiting = pts.filter((p) => p.state === 'wartet').length;

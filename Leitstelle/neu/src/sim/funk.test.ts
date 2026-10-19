@@ -209,3 +209,31 @@ describe('Funk: Lagemitteilung an ein Fahrzeug', () => {
     expect(inc.log.some((l) => /Leitstelle an Rettung Ostholstein 61-82-01: Zur Info: Patient ist jetzt wieder ansprechbar/.test(l.text))).toBe(true);
   });
 });
+
+describe('Erste Lagemeldung beim Eintreffen', () => {
+  it('erstes Fahrzeug drückt Status 5 und meldet nach dem Ansprechen die tatsächliche Lage', async () => {
+    const E = await import('./engine');
+    const { suggestForIncident } = await import('./dispatch');
+    const g = game();
+    E.injectScenarioCall(g, 'rd_rea');
+    const c = g.runtime.calls.at(-1)!;
+    E.acceptCall(g, c.id);
+    E.askQuestion(g, c.id, 'ort');
+    // absichtlich falsches Stichwort (Brand) – die Lagemeldung beschreibt trotzdem die echte Lage
+    E.setCallKeyword(g, c.id, g.center.keywords.find((k) => k.category === 'brand')!.id);
+    E.createIncidentFromCall(g, c.id);
+    const inc = g.runtime.incidents[0];
+    E.alarmVehicles(g, inc.id, suggestForIncident(g, inc).proposal.map((p) => p.vehicleId));
+    for (let i = 0; i < 300 && !inc.firstArrivalAt; i++) E.tick(g, 10_000);
+    const m = g.runtime.radio.find((r) => r.incidentId === inc.id && r.kind === 'lage')!;
+    expect(m.revealed).toBe(false);
+    const v = g.center.vehicles.find((x) => x.id === m.vehicleId)!;
+    expect(v.rt.status).toBe('sprechwunsch');
+    radioCall(g, v.id);
+    expect(last(g).text).toMatch(/^Hier .*, eingetroffen\. .*Reanimation eingeleitet/);
+    expect(last(g).text).not.toMatch(/\b(ich|mein)\b/i);
+    radioTalk(g, 'Verstanden, Ende');
+    expect(m.handled).toBe(true);
+    expect(v.rt.status).toBe('einsatzort');
+  });
+});

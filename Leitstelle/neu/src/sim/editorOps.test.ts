@@ -56,7 +56,8 @@ describe('Leitstellen-Editor: eigene Leitstelle von Grund auf', () => {
     expect(sug.proposal.map((p) => p.vehicleId)).toEqual(['v_x']);
     expect(alarmVehicles(g, inc.id, ['v_x']).ok).toBe(true);
     for (let i = 0; i < 200; i++) tick(g, 10_000);
-    expect(['anfahrt', 'einsatzort']).toContain(v.rt.status);
+    // vor Ort ggf. mit Status 5 (erste Lagemeldung)
+    expect(['anfahrt', 'einsatzort', 'sprechwunsch']).toContain(v.rt.status);
   });
 });
 

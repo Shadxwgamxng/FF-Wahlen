@@ -244,7 +244,10 @@ describe('Disposition und Einsatzlebenszyklus', () => {
       if (m) assignHospital(g, m.id, 'kh_klinikum');
       return rtw.rt.status === 'frei_wache';
     });
-    expect(seen).toEqual(['alarmiert', 'anfahrt', 'einsatzort', 'sprechwunsch', 'transport', 'am_ziel', 'frei_funk', 'frei_wache']);
+    // Status 4 und im selben Takt Status 5 (erste Lagemeldung), dann Transportziel, 7, 8, 1, 2
+    expect(seen).toEqual(['alarmiert', 'anfahrt', 'sprechwunsch', 'transport', 'am_ziel', 'frei_funk', 'frei_wache']);
+    expect(g.runtime.incidents.find((i) => i.id === id)!.firstArrivalAt).toBeTruthy();
+    expect(g.runtime.radio.some((m) => m.incidentId === id && m.kind === 'lage' && m.text.startsWith('Eingetroffen'))).toBe(true);
     // Rein medizinischer Einsatz ist nach Übergabe abgearbeitet und abschließbar
     expect(g.runtime.incidents.find((i) => i.id === id)!.state).toBe('abarbeitung_beendet');
     expect(closeIncident(g, id).ok).toBe(true);

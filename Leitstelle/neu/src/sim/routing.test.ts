@@ -41,7 +41,8 @@ describe('Straßenrouting', () => {
     expect(v.rt.position[1]).toBeCloseTo(m.from[1], 6);
     expect(v.rt.position[0]).toBeGreaterThan(m.from[0]);
     tick(g, 400_000);
-    expect(v.rt.status).toBe('einsatzort');
+    // eingetroffen (Status 4, als erstes Fahrzeug gleich Status 5 für die Lagemeldung)
+    expect(['einsatzort', 'sprechwunsch']).toContain(v.rt.status);
   });
 
   it('nutzt eine vorhandene Route bereits beim Losfahren und für die Eintreffzeit', () => {
