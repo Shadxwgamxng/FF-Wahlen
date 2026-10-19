@@ -4,8 +4,9 @@ import { extractFacilities } from '../../geo/osm';
 import { buildPlaceIndex, type OverpassElement } from '../../geo/places';
 import { buildCenter, defaultOrganizations } from '../centerFactory';
 import { emptyVehicleRuntime } from '../sampleCenter';
-import { pointInArea } from '../../sim/geo';
+import { distanceMeters, pointInArea } from '../../sim/geo';
 import boundary from './boundary.json';
+import gemeindenData from './gemeinden.json';
 
 /**
  * Beispielleitstelle "Kreis Ostholstein" auf Basis echter OpenStreetMap-Daten.
@@ -13,7 +14,10 @@ import boundary from './boundary.json';
  *  - Adressen, Feuerwehren, Rettungswachen, Polizei, Kliniken: werden beim ersten Start
  *    live über die Overpass-API geladen (kostenlos, Daten © OpenStreetMap-Mitwirkende, ODbL)
  *  - Fahrzeuge: von LEITWARTE nach einfachen Regeln auf die realen Standorte verteilt.
- *    Fahrzeugausstattung und Funkrufnamen sind NICHT die realen Verhältnisse.
+ *    Die Fahrzeugausstattung entspricht NICHT den realen Verhältnissen.
+ *  - Funkrufnamen Feuerwehr und Rettungsdienst nach dem Schema "Florian Ostholstein 61-48-01"
+ *    (Ortskennziffer – Fahrzeugkenner – laufende Nummer). Die Ortskennziffer hängt an der Gemeinde,
+ *    in der die Wache liegt (Gemeindegrenzen aus OpenStreetMap, vereinfacht, in gemeinden.json).
  */
 
 export const OSTHOLSTEIN: County = boundary as County;
@@ -28,6 +32,69 @@ const shortPlace = (name: string) =>
     .replace(/^(Freiwillige Feuerwehr|Feuerwehr|FF|Feuerwache|Feuerwehrhaus|Rettungswache|RW|DRK[- ]Rettungswache|Polizeistation|Polizeirevier|Polizei)\s*/i, '')
     .replace(/\s*\(.*\)$/, '')
     .trim() || name;
+
+interface Gemeinde {
+  name: string;
+  /** Ortskennziffer im Funkrufnamen */
+  okz: string;
+  polygons: [number, number][][][];
+}
+const GEMEINDEN = gemeindenData as Gemeinde[];
+
+/** Fahrzeugkenner (zweiter Teil des Funkrufnamens) je Fahrzeugtyp */
+const KENNER: Record<string, string> = {
+  kdow: '10',
+  elw1: '11',
+  elw2: '12',
+  mtf: '19',
+  tlf: '23',
+  dlk: '30',
+  lf20: '44',
+  hlf10: '48',
+  rw: '52',
+  gwl: '56',
+  gwg: '58',
+  gwa: '59',
+  gwh: '64',
+  gww: '69',
+  fr: '79',
+  elrd: '01',
+  nef: '82',
+  rtw: '83',
+  srtw: '83',
+  itw: '84',
+  ktw: '85',
+  sktw: '85',
+  iktw: '88',
+  psnv: '90',
+};
+
+/** Wachen, die es als eigene Wehr nicht gibt (in OpenStreetMap trotzdem eingetragen) */
+const NOT_A_UNIT = [/Altratjensdorf/];
+
+/** Gemeinde einer Wache; liegt sie knapp außerhalb aller (vereinfachten) Grenzen, die nächstgelegene */
+export function gemeindeOf(p: [number, number]): Gemeinde | undefined {
+  const hit = GEMEINDEN.find((g) => pointInArea(p, g));
+  if (hit) return hit;
+  let best: Gemeinde | undefined;
+  let bestD = 3000;
+  for (const g of GEMEINDEN)
+    for (const rings of g.polygons)
+      for (const q of rings[0] ?? []) {
+        const d = distanceMeters(p, q);
+        if (d < bestD) [best, bestD] = [g, d];
+      }
+  return best;
+}
+
+/** Ortskennziffer einer Wache */
+export function okzOf(st: Pick<Station, 'name' | 'position'>): string {
+  if (/Kreisfeuerwehrverband|Feuerwehrtechnische Zentrale|\bFTZ\b/i.test(st.name)) return '01';
+  const g = gemeindeOf(st.position);
+  // Fehmarn: alle Wehren 30, nur Burg auf Fehmarn 33
+  if (g?.name === 'Fehmarn' && /\bBurg\b/.test(st.name)) return '33';
+  return g?.okz ?? '00';
+}
 
 const DAY: ServiceWindow[] = [{ fromHour: 7, toHour: 19, weekdays: [] }];
 const KTP_TIME: ServiceWindow[] = [{ fromHour: 7, toHour: 19, weekdays: [1, 2, 3, 4, 5] }];
@@ -49,6 +116,11 @@ export function createOstholsteinCenter(elements: OverpassElement[]): CenterConf
   const places = buildPlaceIndex(elements, { areas: [OSTHOLSTEIN], maxPerKind: { w: 20000, g: 5000, o: 3000, k: 1200, s: 6000, b: 1500, l: 3000, x: 2500 } });
   const facilities = extractFacilities(elements).filter((f) => pointInArea(f.position, OSTHOLSTEIN));
   const c = buildCenter({ catalogId: 'sh', name: 'IRLS Süd – Kreis Ostholstein (Beispiel)', operator: 'Beispiel (nicht offiziell)', counties: [OSTHOLSTEIN], organizations: orgs, places, facilities });
+  const dropped = new Set(c.stations.filter((s) => NOT_A_UNIT.some((r) => r.test(s.name))).map((s) => s.id));
+  if (dropped.size) {
+    c.stations = c.stations.filter((s) => !dropped.has(s.id));
+    for (const a of c.areas) a.responsibleStationIds = a.responsibleStationIds.filter((id) => !dropped.has(id));
+  }
   c.description =
     'Beispielleitstelle auf dem echten Kreis Ostholstein: echte Kreisgrenze, echte Adressen und reale Standorte aus OpenStreetMap. Die Fahrzeuge sind von LEITWARTE verteilt und entsprechen nicht der realen Ausstattung.';
   c.state = 'Schleswig-Holstein';
@@ -78,60 +150,91 @@ export function createOstholsteinCenter(elements: OverpassElement[]): CenterConf
     });
   };
 
+  // Funkrufname: "<Präfix> Ostholstein OKZ-Kenner-NN", NN läuft je Ortskennziffer und Kenner hoch.
+  // Die Wehr des Hauptortes einer Gemeinde wird zuerst nummeriert (bekommt also die 01).
+  const okz = new Map(c.stations.map((s) => [s.id, okzOf(s)]));
+  const used = new Map<string, number>();
+  const callsign = (prefix: string, st: Station, typeId: string) => {
+    const key = `${prefix}|${okz.get(st.id)}-${KENNER[typeId] ?? '00'}`;
+    const nr = (used.get(key) ?? 0) + 1;
+    used.set(key, nr);
+    return `${prefix} Ostholstein ${okz.get(st.id)}-${KENNER[typeId] ?? '00'}-${String(nr).padStart(2, '0')}`;
+  };
+  const isMainPlace = (st: Station) => {
+    const g = gemeindeOf(st.position)?.name.replace(/ (in|am) .*$/, '');
+    return !!g && shortPlace(st.name).startsWith(g);
+  };
+  const numbered = [...c.stations].sort((a, b) => Number(isMainPlace(b)) - Number(isMainPlace(a)));
+  const order = new Map(numbered.map((s, i) => [s.id, i]));
+  const ff = (st: Station, typeId: string) => add(st, typeId, callsign('Florian', st, typeId));
+  const rd = (st: Station, typeId: string, windows: ServiceWindow[] = []) => add(st, typeId, callsign('Rettung', st, typeId), windows);
+
   let ffNr = 0;
   let rwNr = 0;
   let polNr = 0;
+  const pending: [number, () => void][] = [];
   for (const st of c.stations) {
     const place = shortPlace(st.name);
     const large = LARGE_TOWNS.some((t) => st.name.includes(t));
     if (st.kind === 'feuerwehrhaus' || st.kind === 'feuerwache') {
       ffNr++;
-      const nr = String(ffNr).padStart(2, '0');
-      add(st, 'hlf10', `Florian Ostholstein ${nr}/40-1`);
-      add(st, 'mtf', `Florian Ostholstein ${nr}/19-1`);
-      if (large) {
-        add(st, 'elw1', `Florian Ostholstein ${nr}/11-1`);
-        add(st, 'lf20', `Florian Ostholstein ${nr}/44-1`);
-        add(st, 'dlk', `Florian Ostholstein ${nr}/33-1`);
-        add(st, 'tlf', `Florian Ostholstein ${nr}/23-1`);
-        add(st, 'rw', `Florian Ostholstein ${nr}/52-1`);
-        if (COAST.some((t) => st.name.includes(t))) add(st, 'gww', `Florian Ostholstein ${nr}/69-1`);
-        if (st.name.includes('Eutin') || st.name.includes('Neustadt')) {
-          add(st, 'gwg', `Florian Ostholstein ${nr}/58-1`);
-          add(st, 'gwa', `Florian Ostholstein ${nr}/59-1`);
-          add(st, 'gwl', `Florian Ostholstein ${nr}/56-1`);
-        }
-        if (st.name.includes('Eutin')) {
-          add(st, 'elw2', `Florian Ostholstein ${nr}/12-1`);
-          add(st, 'gwh', `Florian Ostholstein ${nr}/68-1`);
-        }
-      } else if (ffNr % 6 === 0) {
-        // Helfer vor Ort in ländlichen Wehren
-        add(st, 'fr', `Florian Ostholstein ${nr}/48-1`);
-      }
+      const rural = ffNr % 6 === 0;
+      pending.push([
+        order.get(st.id)!,
+        () => {
+          ff(st, 'hlf10');
+          ff(st, 'mtf');
+          if (large) {
+            ff(st, 'elw1');
+            ff(st, 'lf20');
+            ff(st, 'dlk');
+            ff(st, 'tlf');
+            ff(st, 'rw');
+            if (COAST.some((t) => st.name.includes(t))) ff(st, 'gww');
+            if (st.name.includes('Eutin') || st.name.includes('Neustadt')) {
+              ff(st, 'gwg');
+              ff(st, 'gwa');
+              ff(st, 'gwl');
+            }
+            if (st.name.includes('Eutin')) {
+              ff(st, 'elw2');
+              ff(st, 'gwh');
+            }
+          } else if (rural) {
+            // Helfer vor Ort in ländlichen Wehren
+            ff(st, 'fr');
+          }
+        },
+      ]);
       st.capacity = large ? 14 : 4;
     } else if (st.kind === 'rettungswache') {
       rwNr++;
-      const nr = String(rwNr).padStart(2, '0');
-      add(st, 'rtw', `Rettung Ostholstein ${nr}/83-1`);
-      add(st, 'rtw', `Rettung Ostholstein ${nr}/83-2`, DAY);
-      if (NEF_TOWNS.some((t) => st.name.includes(t))) add(st, 'nef', `Rettung Ostholstein ${nr}/82-1`);
-      if (rwNr <= 3) add(st, 'ktw', `Rettung Ostholstein ${nr}/85-1`, KTP_TIME);
+      const withKtw = rwNr <= 3;
+      pending.push([
+        order.get(st.id)!,
+        () => {
+          rd(st, 'rtw');
+          rd(st, 'rtw', DAY);
+          if (NEF_TOWNS.some((t) => st.name.includes(t))) rd(st, 'nef');
+          if (withKtw) rd(st, 'ktw', KTP_TIME);
+        },
+      ]);
       st.capacity = 6;
     } else if (st.kind === 'polizei') {
       polNr++;
       add(st, 'fustw', `Heros Ostholstein ${polNr}/11 (${place})`);
     }
   }
+  for (const [, run] of pending.sort((a, b) => a[0] - b[0])) run();
   // Eine Rettungswache mit Führungsdienst und Sonderfahrzeugen
   const firstRw = c.stations.find((s) => s.kind === 'rettungswache');
   if (firstRw) {
-    add(firstRw, 'elrd', 'Rettung Ostholstein 01/01-1');
-    add(firstRw, 'itw', 'Rettung Ostholstein 01/84-1', DAY);
-    add(firstRw, 'iktw', 'Rettung Ostholstein 01/88-1', KTP_TIME);
-    add(firstRw, 'srtw', 'Rettung Ostholstein 01/83-9');
-    add(firstRw, 'sktw', 'Rettung Ostholstein 01/85-9', KTP_TIME);
-    add(firstRw, 'psnv', 'Rettung Ostholstein 01/90-1');
+    rd(firstRw, 'elrd');
+    rd(firstRw, 'itw', DAY);
+    rd(firstRw, 'iktw', KTP_TIME);
+    rd(firstRw, 'srtw');
+    rd(firstRw, 'sktw', KTP_TIME);
+    rd(firstRw, 'psnv');
     firstRw.capacity += 6;
   }
   // Polizeiführung und Einsatzgruppe für Großlagen (AMOK, Geisellage, Lebensbedrohliche Einsatzlage)
