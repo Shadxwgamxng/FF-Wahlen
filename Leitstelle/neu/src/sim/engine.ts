@@ -444,6 +444,8 @@ function arrive(state: GameState, v: Vehicle) {
         if (inc.state === 'disponiert' || inc.state === 'neu') inc.state = 'vor_ort';
         log(state, 'einsatz', `Erstes Fahrzeug an der Einsatzstelle ${inc.address}.`, { incidentId: inc.id });
         if (inc.escalation && !inc.escalation.triggered) inc.escalation.at = now + (inc.escalation.at - inc.createdAt);
+        // Ungehörte Ausrückmeldungen der Wehren sind mit dem Eintreffen überholt
+        for (const r of state.runtime.radio) if (r.incidentId === inc.id && !r.handled && r.revealed === false && r.kind === 'lage' && r.text.includes('rückt aus mit')) r.handled = true;
         // Erste Lagemeldung: das erste Fahrzeug drückt Status 5 und meldet nach dem Ansprechen die Lage
         const bound = state.center.vehicles.filter((x) => inc.activeVehicleIds.includes(x.id));
         const missing = openRequirements(state, nonMedical(inc.needs), bound).length > 0;

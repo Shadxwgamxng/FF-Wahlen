@@ -410,7 +410,8 @@ export function radioTalk(state: GameState, text: string, group: string | null =
   const parts: string[] = [];
   let close: 'kommen' | 'Ende' | null = 'kommen';
 
-  if (pending) parts.push(reveal(state, v, pending));
+  // alle offenen Anliegen des Fahrzeugs, ältestes zuerst
+  if (pending) for (const m of state.runtime.radio.filter((r) => r.vehicleId === v.id && !r.handled && r.revealed === false)) parts.push(reveal(state, v, m));
 
   const content = messageContent(said);
   if (order?.k === 'info' || (!order && contentWords(content).length >= 3)) {
