@@ -160,13 +160,14 @@ export class CallerVoice {
   }
 
   /** Antwortsatz natürlich klingen lassen – Inhalt bleibt erhalten */
-  naturalize(text: string, emotion: Emotion): string {
+  /** keepStart: Satz beginnt mit einem Namen (Adresse) – Anfang nie verändern oder kleinschreiben */
+  naturalize(text: string, emotion: Emotion, keepStart = false): string {
     let t = text.trim();
     if (!t) return t;
     const fillers = FILLERS[this.personality][emotion];
     const rng = this.rng;
     // Panik: Satzanfang stottern ("Da – da ist noch jemand drin!")
-    if (emotion === 2 && this.personality !== 'knapp' && !t.includes('…') && rng.chance(0.35)) {
+    if (emotion === 2 && this.personality !== 'knapp' && !t.includes('…') && rng.chance(0.35) && !keepStart) {
       const m = /^([A-ZÄÖÜa-zäöüß]+)(\s)/.exec(t);
       if (m && m[1].length <= 6) t = `${m[1]} – ${lowerFirst(t)}`;
     }
@@ -174,7 +175,7 @@ export class CallerVoice {
     if ((emotion >= 1 || this.personality === 'aelter') && this.personality !== 'knapp' && rng.chance(0.4)) t = t.replace(/, /, ' … ');
     if (fillers.length && rng.chance(P_FILLER[this.personality] + emotion * 0.1)) {
       const f = this.pick(fillers);
-      t = `${f} ${lowerFirst(t)}`;
+      t = keepStart ? `${f.replace(/,$/, ' …')} ${t}` : `${f} ${lowerFirst(t)}`;
     }
     if (emotion === 2 && rng.chance(0.4)) t = t.replace(/\.$/, '!');
     const tails = TAILS[this.personality][emotion];

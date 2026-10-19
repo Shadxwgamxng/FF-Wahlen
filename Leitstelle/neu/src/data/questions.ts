@@ -90,7 +90,7 @@ export const CATEGORY_QUESTIONS: Record<KeywordCategory, QuestionDef[]> = {
       id: 'vu_eingeklemmt',
       text: 'Ist jemand eingeklemmt oder kommt nicht aus dem Fahrzeug?',
       answer: (f, pick = firstPick) =>
-        yesNo(f.trapped, pick, ['Ja, der Fahrer ist eingeklemmt, die Tür geht nicht auf!', 'Ja! Der Fahrer ist eingeklemmt, wir kriegen die Tür nicht auf!', 'Der Fahrer … der ist eingeklemmt, ja, die Tür geht nicht auf!'], ['Nein, alle sind ausgestiegen.', 'Nein, die sind alle raus aus den Autos.', 'Nee, ausgestiegen sind alle.']),
+        yesNo(f.trapped, pick, ['Ja, der Fahrer ist eingeklemmt, die Tür geht nicht auf!', 'Ja! Der Fahrer ist eingeklemmt, wir kriegen die Tür nicht auf!', 'Der Fahrer … der ist eingeklemmt, ja, die Tür geht nicht auf!'], ['Nein, alle sind ausgestiegen.', 'Nein, eingeklemmt ist keiner, die sind alle raus.', 'Nee, ausgestiegen sind alle.']),
     },
     injured,
     { id: 'vu_auslauf', text: 'Laufen Betriebsstoffe aus, raucht oder brennt etwas?', answer: (f, pick = firstPick) => text(f.leak, pick, ['Nein, nichts zu sehen.', 'Nee, da sehe ich nichts.', 'Nein, da läuft nichts aus, soweit ich sehe.']) },

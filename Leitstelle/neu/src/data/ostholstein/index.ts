@@ -69,6 +69,12 @@ const KENNER: Record<string, string> = {
   psnv: '90',
 };
 
+/**
+ * Mehrere Gemeinden mit derselben Ortskennziffer (Amt): Diese Gemeinde bekommt die 01.
+ * Annahme nach Amtssitz; ohne Eintrag gilt die alphabetisch erste Gemeinde.
+ */
+const LEAD_GEMEINDE: Record<string, string> = { '47': 'Lensahn', '50': 'Grube' };
+
 /** Wachen, die es als eigene Wehr nicht gibt (in OpenStreetMap trotzdem eingetragen) */
 const NOT_A_UNIT = [/Altratjensdorf/];
 
@@ -160,11 +166,22 @@ export function createOstholsteinCenter(elements: OverpassElement[]): CenterConf
     used.set(key, nr);
     return `${prefix} Ostholstein ${okz.get(st.id)}-${KENNER[typeId] ?? '00'}-${String(nr).padStart(2, '0')}`;
   };
-  const isMainPlace = (st: Station) => {
-    const g = gemeindeOf(st.position)?.name.replace(/ (in|am) .*$/, '');
-    return !!g && shortPlace(st.name).startsWith(g);
+  // Rang: 0 = Hauptort der führenden Gemeinde einer gemeinsamen OKZ, 1 = Hauptort einer Gemeinde,
+  // 2 = Ortsteil mit Bindestrich ("Eutin-Neudorf"), 3 = alle anderen Wachen
+  const rank = (st: Station) => {
+    const gem = gemeindeOf(st.position);
+    if (!gem) return 3;
+    const g = gem.name.replace(/ (in|am) .*$/, '');
+    const place = shortPlace(st.name).replace(/^(Stadt|Gemeinde)\s+/, '');
+    const esc = g.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    if (new RegExp(`^${esc}(?![\\p{L}-])`, 'u').test(place)) return LEAD_GEMEINDE[gem.okz] === gem.name ? 0 : 1;
+    if (new RegExp(`^${esc}-`, 'u').test(place)) return 2;
+    return 3;
   };
-  const numbered = [...c.stations].sort((a, b) => Number(isMainPlace(b)) - Number(isMainPlace(a)));
+  const numbered = c.stations
+    .map((st, i) => ({ st, i, r: rank(st), g: gemeindeOf(st.position)?.name ?? '' }))
+    .sort((a, b) => a.r - b.r || a.g.localeCompare(b.g, 'de') || a.i - b.i)
+    .map((x) => x.st);
   const order = new Map(numbered.map((s, i) => [s.id, i]));
   const ff = (st: Station, typeId: string) => add(st, typeId, callsign('Florian', st, typeId));
   const rd = (st: Station, typeId: string, windows: ServiceWindow[] = []) => add(st, typeId, callsign('Rettung', st, typeId), windows);

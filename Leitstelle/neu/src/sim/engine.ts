@@ -710,7 +710,7 @@ export function askQuestion(state: GameState, callId: string, questionId: string
   // natürliche Sprechweise: Persönlichkeit je Anrufer, Formulierung je Frage (deterministisch)
   const personality = personalityFor(`${c.id}|${c.scenarioId}`, c.facts);
   const voice = new CallerVoice(personality, hashSeed(`${c.id}|${questionId}`));
-  const answer = voice.naturalize(q.answer(c.facts, voice.pick), initialEmotion(c.facts, personality));
+  const answer = voice.naturalize(q.answer(c.facts, voice.pick), initialEmotion(c.facts, personality), questionId === 'ort');
   c.dialog.push({ questionId, question: q.text, answer, askedAt: state.runtime.clock.now });
   return ok();
 }

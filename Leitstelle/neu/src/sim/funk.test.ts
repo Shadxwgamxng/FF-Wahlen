@@ -5,7 +5,7 @@ import type { OverpassElement } from '../geo/places';
 import type { GameState, RadioMessage, Vehicle } from '../model/types';
 import { radioGroupOf } from '../model/radio';
 import { createGame, createManualIncident } from './engine';
-import { detectOrder, findCallsign, radioCall, radioTalk, spokenNumbers, toSpeech } from './funk';
+import { detectOrder, findCallsign, matchHospital, normalizeFunk, radioCall, radioTalk, spokenNumbers, toSpeech } from './funk';
 
 const ELEMENTS: OverpassElement[] = JSON.parse(readFileSync(new URL('../../e2e/fixtures/overpass-ostholstein-sued.json', import.meta.url), 'utf8')).elements;
 
@@ -120,3 +120,36 @@ describe('Funk: Aufträge der Leitstelle', () => {
     expect(last(g).text).toMatch(/rücken ein, Ende\.$/);
   });
 });
+
+describe('Funk: keine Aufträge an das falsche Fahrzeug', () => {
+  it('unbekannter oder unklarer Rufname fällt nicht auf das letzte Fahrzeug zurück', () => {
+    const g = game();
+    const v = hlf(g);
+    const kw = g.center.keywords.find((k) => k.category === 'brand')!;
+    createManualIncident(g, kw.id, v.rt.position, 'Kirchhofsallee 10, 23730 Neustadt in Holstein', 'Test');
+    radioTalk(g, 'Florian Ostholstein 61-48-01, übernehmen Sie den Einsatz in der Kirchhofsallee', 'FW_OH');
+    expect(v.rt.incidentId).not.toBeNull();
+    radioTalk(g, 'Florian Ostholstein 7148 01, rücken Sie ein', 'FW_OH');
+    expect(v.rt.incidentId).not.toBeNull();
+    expect(last(g).from).toBe('system');
+    expect(last(g).text).toMatch(/Rufname nicht erkannt/);
+  });
+
+  it('Fragen nach Verfügbarkeit oder Lage entlassen nicht', () => {
+    const g = game();
+    expect(detectOrder(g, 'Florian 61-48-01, sind Sie frei für einen neuen Einsatz?')?.k).not.toBe('einruecken');
+    expect(detectOrder(g, 'Florian 61-48-01, wie ist die Lage am Einsatz Kirchhofsallee?')?.k).toBe('lage');
+    expect(detectOrder(g, 'Sie sind entlassen, rücken Sie ein')?.k).toBe('einruecken');
+  });
+
+  it('Ortsname allein ist kein Transportziel', () => {
+    const g = game();
+    const h = g.center.hospitals[0];
+    const town = h.name.split(/\s+/).pop()!;
+    expect(detectOrder(g, `Fahren Sie zur Einsatzstelle nach ${town}`)?.k).not.toBe('transport');
+    // mit wartendem Patienten oder Klinikwort schon
+    expect(detectOrder(g, `Fahren Sie ${h.name} an`, true)).toEqual({ k: 'transport', hospital: h });
+    expect(matchHospital(g, normalizeFunk(`Transportziel ${h.name}`)).hospital?.id).toBe(h.id);
+  });
+});
+

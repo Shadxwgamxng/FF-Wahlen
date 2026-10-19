@@ -292,6 +292,7 @@ const runtimeSchema = z.object({
   calls: z.array(z.any()),
   incidents: z.array(z.any()),
   radio: z.array(z.any()),
+  funk: z.any().optional(),
   events: z.array(z.any()),
   archive: z.array(z.any()),
   hospitalBeds: z.array(z.object({ hospitalId: z.string(), until: z.number() })).default([]),

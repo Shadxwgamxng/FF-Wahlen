@@ -97,8 +97,16 @@ function containsSeq(hay: number[], needle: number[]): boolean {
   return false;
 }
 
-/** Fahrzeuge, deren Rufname im Text vorkommt (bei Gleichstand mit Organisationswort bevorzugt) */
+/** Fahrzeug, dessen Rufname im Text vorkommt (bei Gleichstand mit Organisationswort bevorzugt); null = keins oder mehrdeutig */
 export function findCallsign(state: GameState, text: string): Vehicle | null {
+  return matchCallsign(state, text).vehicle;
+}
+
+/**
+ * Rufnamensuche mit Auskunft, ob überhaupt ein Rufname versucht wurde (Organisationswort oder Zahlenfolge).
+ * Nur ohne Rufnamenversuch darf ein Folgesatz dem zuletzt angesprochenen Fahrzeug gelten.
+ */
+export function matchCallsign(state: GameState, text: string): { vehicle: Vehicle | null; attempted: boolean; ambiguous: boolean } {
   const nums = spokenNumbers(text);
   const norm = normalizeFunk(text);
   const hits: { v: Vehicle; score: number }[] = [];
@@ -113,9 +121,11 @@ export function findCallsign(state: GameState, text: string): Vehicle | null {
     } else if (!seq.length && norm.includes(` ${v.callsign.toLowerCase()} `)) hits.push({ v, score: 50 });
   }
   hits.sort((a, b) => b.score - a.score);
-  if (!hits.length) return null;
-  if (hits.length > 1 && hits[0].score === hits[1].score) return null; // mehrdeutig
-  return hits[0].v;
+  const words = new Set(state.center.vehicles.map((v) => callsignWord(v.callsign)));
+  const attempted = hits.length > 0 || [...words].some((w) => w.length >= 4 && norm.includes(` ${w} `)) || nums.filter((n) => n >= 10).length >= 2;
+  if (!hits.length) return { vehicle: null, attempted, ambiguous: false };
+  if (hits.length > 1 && hits[0].score === hits[1].score) return { vehicle: null, attempted: true, ambiguous: true };
+  return { vehicle: hits[0].v, attempted: true, ambiguous: false };
 }
 
 /** Text für die Sprachausgabe: Rufnamen ziffernweise ("61 48 null 1"), ohne Bindestriche */
@@ -137,17 +147,44 @@ const tokenize = (s: string) =>
     .split(/[^a-zäöüß0-9]+/)
     .filter((t) => t.length >= 3);
 
-function matchHospital(state: GameState, norm: string): Hospital | null {
-  let best: Hospital | null = null;
-  let bestScore = 0;
+/** Ortsnamen zählen bei Kliniken nur wenig (sonst wäre "nach Eutin" ein Transportziel) */
+function placeTokens(state: GameState): Set<string> {
+  const out = new Set<string>();
+  for (const i of state.runtime.incidents) for (const t of tokenize(i.address.split(',').slice(1).join(' '))) out.add(t);
+  for (const a of state.center.areas ?? []) for (const t of tokenize(a.name)) out.add(t);
+  for (const s of state.center.stations) for (const t of tokenize(s.address ?? '')) if (!/\d/.test(t)) out.add(t);
+  return out;
+}
+
+export function matchHospital(state: GameState, norm: string): { hospital: Hospital | null; distinctive: boolean } {
+  const places = placeTokens(state);
+  let best: { h: Hospital; score: number; share: number; distinctive: boolean } | null = null;
   let tie = false;
   for (const h of state.center.hospitals) {
+    const tokens = [...new Set(tokenize(h.name))];
     let score = 0;
-    for (const t of new Set(tokenize(h.name))) if (norm.includes(` ${t} `) || norm.includes(` ${t}`)) score += GENERIC_HOSPITAL.has(t) ? 0.1 : 1;
-    if (score > bestScore) [best, bestScore, tie] = [h, score, false];
-    else if (score === bestScore && score > 0) tie = true;
+    let distinctive = false;
+    let own = 0;
+    let ownHit = 0;
+    for (const t of tokens) {
+      const generic = GENERIC_HOSPITAL.has(t);
+      const place = places.has(t);
+      if (!generic) own++;
+      if (!norm.includes(` ${t} `)) continue;
+      if (generic) score += 0.1;
+      else if (place) score += 0.5;
+      else {
+        score += 1;
+        distinctive = true;
+      }
+      if (!generic) ownHit++;
+    }
+    const share = own ? ownHit / own : 0;
+    if (score <= 0) continue;
+    if (!best || score > best.score || (score === best.score && share > best.share)) [best, tie] = [{ h, score, share, distinctive }, false];
+    else if (score === best.score && share === best.share) tie = true;
   }
-  return bestScore >= 1 && !tie ? best : null;
+  return best && best.score >= 0.5 && !tie ? { hospital: best.h, distinctive: best.distinctive } : { hospital: null, distinctive: false };
 }
 
 const streetOf = (address: string) => address.split(',')[0].replace(/\s+\d+\s*[a-z]?$/i, '').trim();
@@ -176,14 +213,23 @@ type Order =
   | { k: 'status' }
   | { k: 'quittung' };
 
-export function detectOrder(state: GameState, text: string): Order | null {
+/**
+ * Auftrag im Funkspruch. transportWanted: Fahrzeug wartet auf ein Transportziel – dann genügt ein Klinikname,
+ * sonst braucht es ein Klinikwort ("Krankenhaus", "Klinikum", "Transportziel") oder einen eindeutigen Kliniknamen.
+ */
+export function detectOrder(state: GameState, text: string, transportWanted = false): Order | null {
   const n = normalizeFunk(text);
-  const hospital = matchHospital(state, n);
-  if (hospital && has(n, / (krankenhaus|klinik|klinikum|transportziel|ziel|fahren sie|bringen sie|nach|ins|in die|anfahren) /)) return { k: 'transport', hospital };
-  if (has(n, / (einrücken|einruecken|rücken sie ein|ruecken sie ein|rückt ein|rueckt ein|können einrücken|koennen einruecken|zur wache|zurück zur wache|sind entlassen|sie sind frei|frei für|entlassen) /)) return { k: 'einruecken' };
-  const incident = has(n, / (einsatz|einsatzstelle|übernehmen|uebernehmen|übernehmen sie|alarm|fahren sie|anfahren) /) ? matchIncident(state, n) : null;
-  if (incident) return { k: 'einsatz', incident };
+  const question = /\?\s*$/.test(text.trim());
+  // Lagemeldung zuerst – "wie ist die Lage am Einsatz Kirchhofsallee?" ist keine Zuteilung
   if (has(n, / (lage|lagemeldung|rückmeldung|rueckmeldung|wie sieht es aus|wie ist die lage|was ist los|situation) /)) return { k: 'lage' };
+  const { hospital, distinctive } = matchHospital(state, n);
+  const hospitalWord = has(n, / (krankenhaus|klinik|klinikum|transportziel|zielklinik) /);
+  if (hospital && (transportWanted || hospitalWord || distinctive) && has(n, / (krankenhaus|klinik|klinikum|transportziel|ziel|fahren sie|bringen sie|nach|ins|in die|anfahren|zum|zur) /))
+    return { k: 'transport', hospital };
+  const incident = has(n, / (einsatz|einsatzstelle|übernehmen|uebernehmen|alarm|fahren sie|anfahren) /) ? matchIncident(state, n) : null;
+  if (incident && has(n, / (übernehmen|uebernehmen|alarm|fahren sie|anfahren|einsatz \d|einsatznummer|zur einsatzstelle) /)) return { k: 'einsatz', incident };
+  if (!question && has(n, / (einrücken|einruecken|rücken sie ein|ruecken sie ein|rückt ein|rueckt ein|können einrücken|koennen einruecken|zur wache|zurück zur wache|sind entlassen|sie sind frei) /)) return { k: 'einruecken' };
+  if (incident) return { k: 'einsatz', incident };
   if (has(n, / status /) && !has(n, / status (\d|eins|zwei|drei|vier|fünf|fuenf|sechs|sieben|acht) /)) return { k: 'status' };
   if (has(n, / (verstanden|quittiert|veranlasst|wird alarmiert|werden alarmiert|kommt|kommen sofort|ist unterwegs|sind unterwegs|wird erledigt|in ordnung|okay|ok|roger|wird geschickt) /)) return { k: 'quittung' };
   return null;
@@ -258,11 +304,22 @@ export function radioTalk(state: GameState, text: string, group: string | null =
   const f = funkOf(state);
   addLine(state, { from: 'leitstelle', group: group ?? undefined, text: said });
 
-  const named = findCallsign(state, said);
+  const cs = matchCallsign(state, said);
+  const named = cs.vehicle;
   let v: Vehicle | null = named;
-  if (!v && f.lastVehicleId && f.lastAt !== undefined && f.counter - f.lastAt <= CONTEXT_LINES) v = state.center.vehicles.find((x) => x.id === f.lastVehicleId) ?? null;
+  // Folgesatz ohne Rufnamen gilt dem zuletzt angesprochenen Fahrzeug – nie, wenn ein (unklarer) Rufname gesagt wurde
+  if (!v && !cs.attempted && f.lastVehicleId && f.lastAt !== undefined && f.counter - f.lastAt <= CONTEXT_LINES) v = state.center.vehicles.find((x) => x.id === f.lastVehicleId) ?? null;
   if (!v) {
-    addLine(state, { from: 'system', group: group ?? undefined, text: 'Kein Rufname erkannt – bitte das Fahrzeug mit Rufnamen ansprechen, z. B. „Florian Ostholstein 61-48-01 von Leitstelle, kommen“.' });
+    addLine(state, {
+      from: 'system',
+      group: group ?? undefined,
+      text: cs.ambiguous
+        ? 'Rufname nicht eindeutig – bitte den vollständigen Rufnamen nennen.'
+        : cs.attempted
+          ? 'Rufname nicht erkannt – kein Fahrzeug mit diesem Rufnamen. Bitte wiederholen.'
+          : 'Kein Rufname erkannt – bitte das Fahrzeug mit Rufnamen ansprechen, z. B. „Florian Ostholstein 61-48-01 von Leitstelle, kommen“.',
+    });
+    f.lastVehicleId = undefined;
     return ok();
   }
   const vg = radioGroupOf(state.center, v)?.code;
@@ -272,7 +329,8 @@ export function radioTalk(state: GameState, text: string, group: string | null =
   }
   f.lastVehicleId = v.id;
 
-  const order = detectOrder(state, said);
+  const transportWanted = state.runtime.radio.some((r) => r.vehicleId === v.id && !r.handled && r.kind === 'transportziel');
+  const order = detectOrder(state, said, transportWanted);
   const pending = unrevealed(state, v);
   const parts: string[] = [];
   let close: 'kommen' | 'Ende' | null = 'kommen';
@@ -295,6 +353,8 @@ export function radioTalk(state: GameState, text: string, group: string | null =
     vehicleLine(state, v, group, `${prefix}${body}${close ? `, ${close}.` : '.'}`);
   }
   f.lastAt = f.counter;
+  // nach "Ende" ist das Gespräch vorbei
+  if (close === 'Ende' || (order?.k === 'quittung' && close === null)) f.lastVehicleId = undefined;
   return ok();
 }
 

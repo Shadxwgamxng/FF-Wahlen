@@ -160,7 +160,7 @@ export class CallerSim {
         a = q.answer(this.call.facts, v.pick);
       }
       spoken.push(a);
-      answers.push(this.asked.has(qid) ? `${v.phrase('schonGesagt')} ${a}` : v.naturalize(a, this.emotion));
+      answers.push(this.asked.has(qid) ? `${v.phrase('schonGesagt')} ${a}` : v.naturalize(a, this.emotion, qid === 'ort'));
       this.asked.add(qid);
     }
     if (answers.length) {

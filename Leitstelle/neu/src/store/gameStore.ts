@@ -107,6 +107,7 @@ export class GameStore {
       if (m.t === 'hello') {
         this.broadcastNow();
         this.sendPlaces();
+        this.channel?.post({ t: 'funkStatus', status: this.funkStatus } satisfies SyncMsg);
       } else if (m.t === 'needPlaces') this.sendPlaces();
       else if (m.t === 'cmd') {
         const r = this.cmdLocal(m.name as CommandName, m.args, !m.quiet);

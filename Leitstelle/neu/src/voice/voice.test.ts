@@ -204,6 +204,12 @@ describe('Simulierter Anrufer', () => {
       }
   });
 
+  it('Adressen am Satzanfang bleiben unverändert (z. B. "Am Markt")', () => {
+    for (const p of ['ruhig', 'aufgeregt', 'aelter', 'knapp', 'redselig'] as Personality[])
+      for (let seed = 1; seed <= 30; seed++)
+        for (const e of [0, 1, 2] as Emotion[]) expect(new CallerVoice(p, seed).naturalize('Am Markt 5, Eutin.', e, true)).toMatch(/Am Markt 5/);
+  });
+
   it('buchstabiert nach DIN 5009', () => {
     expect(spellWord('Haß-Weg 3')).toBe('H wie Hamburg, A wie Aachen, ß wie Eszett, Bindestrich, W wie Wuppertal, E wie Essen, G wie Goslar, Leerzeichen, 3');
   });

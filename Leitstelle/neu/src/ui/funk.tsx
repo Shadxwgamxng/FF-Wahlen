@@ -57,24 +57,31 @@ export function useSavedGroup(key: string): [string, (c: string) => void] {
 export function FunkController() {
   useEffect(() => {
     let rec: Recognizer | null = null;
-    let group: string | null = null;
     let timer: ReturnType<typeof setTimeout> | null = null;
-    let finalText = '';
+    /** Taste erneut gedrückt, während die vorige Sendung noch ausgewertet wird */
+    let pending: { group: string | null } | null = null;
 
-    const stop = () => {
+    const clearTimer = () => {
       if (timer) clearTimeout(timer);
       timer = null;
+    };
+    const stop = () => {
+      pending = null;
+      clearTimer();
       rec?.stop();
     };
     const start = (g: string | null) => {
-      if (rec) return;
-      group = g;
+      if (rec) {
+        pending = { group: g };
+        return;
+      }
+      const group = g;
+      let finalText = '';
       const consent = getConsent();
       if (!consent || consent.mode === 'text') {
         store.setFunkStatus({ error: 'Mikrofon für den Funk noch nicht freigegeben – bitte am PC im Funkpanel freigeben.', sending: false });
         return;
       }
-      finalText = '';
       const r = createRecognizer({
         onDeviceOnly: consent.mode === 'geraet',
         continuous: true,
@@ -86,12 +93,17 @@ export function FunkController() {
           if (code !== 'no-speech' && code !== 'aborted') store.setFunkStatus({ error: message });
         },
         onEnd: () => {
-          rec = null;
+          if (rec === r) rec = null;
+          clearTimer();
           // onFinal folgt direkt nach onEnd
           queueMicrotask(() => {
             const text = finalText.trim();
             store.setFunkStatus({ sending: false, interim: '' });
             if (text && store.state) store.cmd('radioTalk', text, group);
+            // Taste inzwischen wieder gedrückt? Dann gleich weiter senden
+            const again = pending;
+            pending = null;
+            if (again) start(again.group);
           });
         },
       });
@@ -109,7 +121,11 @@ export function FunkController() {
         store.setFunkStatus({ sending: false, error: 'Die Spracherkennung konnte nicht gestartet werden.' });
         return;
       }
-      timer = setTimeout(stop, MAX_SEND_MS);
+      clearTimer();
+      const t = setTimeout(() => {
+        if (timer === t) stop();
+      }, MAX_SEND_MS);
+      timer = t;
     };
     const off = store.onPtt((on, g) => (on ? start(g) : stop()));
 
@@ -133,9 +149,11 @@ export function FunkController() {
     };
     const unsub = store.subscribe(() => {
       const f = store.state?.runtime.funk;
-      if (store.project?.id !== lastProject) {
+      // anderes Projekt oder zurückgesetzter Spielstand: nichts Altes mehr sprechen
+      if (store.project?.id !== lastProject || (f?.counter ?? 0) < lastSpoken) {
         lastProject = store.project?.id;
         lastSpoken = f?.counter ?? 0;
+        queue.length = 0;
         return;
       }
       if (!f || f.counter <= lastSpoken) return;
@@ -273,21 +291,32 @@ export function FunkBar({ game }: { game: GameState }) {
   const groupRef = useRef(group);
   groupRef.current = group;
   useEffect(() => {
+    let held = false;
     const down = (e: KeyboardEvent) => {
       if (e.key !== PTT_KEY || e.repeat) return;
       e.preventDefault();
+      held = true;
       store.sendPtt(true, groupRef.current);
+    };
+    const release = () => {
+      if (!held) return;
+      held = false;
+      store.sendPtt(false, groupRef.current);
     };
     const up = (e: KeyboardEvent) => {
       if (e.key !== PTT_KEY) return;
       e.preventDefault();
-      store.sendPtt(false, groupRef.current);
+      release();
     };
+    // Fenster verliert den Fokus (Alt+Tab, anderer Bildschirm): Taste gilt als losgelassen
     window.addEventListener('keydown', down);
     window.addEventListener('keyup', up);
+    window.addEventListener('blur', release);
     return () => {
       window.removeEventListener('keydown', down);
       window.removeEventListener('keyup', up);
+      window.removeEventListener('blur', release);
+      release();
     };
   }, []);
   const send = () => {
