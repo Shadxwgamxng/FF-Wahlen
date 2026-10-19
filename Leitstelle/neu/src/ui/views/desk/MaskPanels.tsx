@@ -3,7 +3,7 @@ import type { Call, GameState, Incident } from '../../../model/types';
 import { CAPABILITIES } from '../../../data/vehicleTypes';
 import { CATEGORY_LABELS } from '../../../data/keywords';
 import { questionsFor } from '../../../data/questions';
-import { capLabel, prefetchRoutes, reqText, statusDef } from '../../../sim/engine';
+import { askedQuestions, capLabel, prefetchRoutes, reqText, statusDef } from '../../../sim/engine';
 import { aaoRequirements, openRequirements, suggestForIncident } from '../../../sim/dispatch';
 import { groupName, isGroupVehicle, proposalWithGroups, turnoutFactor } from '../../../sim/alarmGroups';
 import { formatDuration, formatKm } from '../../../sim/geo';
@@ -11,10 +11,12 @@ import { radioGroupOf } from '../../../model/radio';
 import { store } from '../../../store/gameStore';
 import { fmtClock, StatusBadge } from '../../components/common';
 import { RadioActions, radioText } from './RadioPanel';
+import { setCallVoiceMuted, useCallVoiceStatus } from '../../callVoice';
+import { FunkConsent } from '../../funk';
 
 /** Gesprächsleiste: Dialog mit dem Anrufer und Fragen */
 export function Gespraech({ game, call }: { game: GameState; call: Call }) {
-  const asked = new Set(call.dialog.map((d) => d.questionId));
+  const asked = askedQuestions(call);
   const questions = questionsFor(call.category);
   return (
     <div className="mask-box col" style={{ flex: 1, minHeight: 0 }}>
@@ -29,6 +31,7 @@ export function Gespraech({ game, call }: { game: GameState; call: Call }) {
           </div>
         ))}
       </div>
+      {call.state === 'in_abfrage' && <Freisprechen callId={call.id} />}
       {call.state === 'in_abfrage' && (
         <div>
           <div className="small muted" style={{ margin: '4px 0' }}>Fragen ({CATEGORY_LABELS[call.category]}):</div>
@@ -42,6 +45,34 @@ export function Gespraech({ game, call }: { game: GameState; call: Call }) {
         </div>
       )}
       {game.runtime.clock.now - call.receivedAt > 0 && <span className="dim small">Gesprächsbeginn {fmtClock(call.acceptedAt ?? call.receivedAt, true)}</span>}
+    </div>
+  );
+}
+
+const VOICE_LABEL: Record<string, string> = {
+  hoert: '🎙 Freisprechen – sprich einfach mit dem Anrufer',
+  spricht: '🔊 Anrufer spricht …',
+  pause: '📻 Pause – Funk-Sendetaste gedrückt',
+  stumm: '🔇 Mikrofon stumm',
+  aufgelegt: '☎ Anrufer hat aufgelegt',
+};
+
+/** Zustand des Freisprechens im laufenden Notruf (Mikrofon am Leitstand-PC) */
+function Freisprechen({ callId }: { callId: string }) {
+  const s = useCallVoiceStatus();
+  if (s.callId !== callId) return null;
+  return (
+    <div className="col" style={{ gap: 4, margin: '4px 0' }} data-testid="freisprechen">
+      <div className="row" style={{ alignItems: 'center' }}>
+        <span className={`small grow funk-status ${s.state === 'hoert' ? 'on' : s.state === 'spricht' ? 'rx' : s.state === 'fehler' ? 'err' : ''}`}>
+          {s.state === 'fehler' ? s.error : (VOICE_LABEL[s.state] ?? '')}
+          {s.state === 'hoert' && s.interim ? ` · „${s.interim}“` : ''}
+        </span>
+        <button className="btn small" onClick={() => setCallVoiceMuted(!s.muted)} data-testid="freisprechen-stumm">
+          {s.muted ? 'Mikrofon an' : 'Stumm'}
+        </button>
+      </div>
+      {s.state === 'fehler' && <FunkConsent />}
     </div>
   );
 }

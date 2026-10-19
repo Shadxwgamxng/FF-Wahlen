@@ -355,6 +355,8 @@ export interface CallQA {
   question: string;
   answer: string;
   askedAt: number;
+  /** Gesprochener Satz (Freisprechen): welche Abfragefragen er beantwortet hat */
+  covers?: string[];
 }
 
 export interface Call {

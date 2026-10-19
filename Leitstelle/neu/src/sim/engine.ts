@@ -1,5 +1,6 @@
 import type {
   AaoRequirement,
+  Call,
   CenterConfig,
   EventKind,
   GameState,
@@ -701,10 +702,15 @@ export function acceptCall(state: GameState, callId: string): CommandResult {
   return ok();
 }
 
+/** Bereits gestellte Abfragefragen eines Notrufs (geklickt oder im Freisprechen gesagt) */
+export function askedQuestions(c: Pick<Call, 'dialog'>): Set<string> {
+  return new Set(c.dialog.flatMap((d) => [d.questionId, ...(d.covers ?? [])]));
+}
+
 export function askQuestion(state: GameState, callId: string, questionId: string): CommandResult {
   const c = state.runtime.calls.find((x) => x.id === callId);
   if (!c || c.state !== 'in_abfrage') return fail('Kein Notruf in Abfrage.');
-  if (c.dialog.some((d) => d.questionId === questionId)) return fail('Frage wurde bereits gestellt.');
+  if (askedQuestions(c).has(questionId)) return fail('Frage wurde bereits gestellt.');
   const q = findQuestion(c.category, questionId);
   if (!q) return fail('Unbekannte Frage.');
   // natürliche Sprechweise: Persönlichkeit je Anrufer, Formulierung je Frage (deterministisch)
@@ -712,6 +718,20 @@ export function askQuestion(state: GameState, callId: string, questionId: string
   const voice = new CallerVoice(personality, hashSeed(`${c.id}|${questionId}`));
   const answer = voice.naturalize(q.answer(c.facts, voice.pick), initialEmotion(c.facts, personality), questionId === 'ort');
   c.dialog.push({ questionId, question: q.text, answer, askedAt: state.runtime.clock.now });
+  return ok();
+}
+
+/**
+ * Freisprechen: ein gesprochener Wortwechsel mit dem (simulierten) Anrufer.
+ * questionIds: erkannte Abfragefragen; facts: vom Anrufer neu festgelegte Detailangaben (nur x_…, nie überschreiben).
+ */
+export function voiceTurn(state: GameState, callId: string, said: string, reply: string, questionIds: string[], facts: Record<string, string | number | boolean> = {}): CommandResult {
+  const c = state.runtime.calls.find((x) => x.id === callId);
+  if (!c || c.state !== 'in_abfrage') return fail('Kein Notruf in Abfrage.');
+  if (!said.trim()) return fail('Nichts gesprochen.');
+  const n = c.dialog.filter((d) => d.questionId.startsWith('sprache_')).length + 1;
+  c.dialog.push({ questionId: `sprache_${n}`, question: said.trim(), answer: reply, askedAt: state.runtime.clock.now, covers: questionIds.filter(Boolean) });
+  for (const [k, v] of Object.entries(facts)) if (k.startsWith('x_') && c.facts[k] === undefined) c.facts[k] = v;
   return ok();
 }
 
@@ -785,7 +805,8 @@ export function keywordHint(state: GameState, callId: string): { keywordId: stri
   if (!c || !DIFFICULTY[state.center.settings.difficulty].keywordHint) return null;
   const sc = findScenario(c.scenarioId);
   if (!sc) return null;
-  if (!sc.keyQuestions.every((q) => c.dialog.some((d) => d.questionId === q))) return null;
+  const asked = askedQuestions(c);
+  if (!sc.keyQuestions.every((q) => asked.has(q))) return null;
   const code = truthKeywordCode(c.scenarioId, c.variantIdx, state.center.catalogId);
   const mb = truthMeldebild(c.scenarioId, c.variantIdx, state.center.catalogId);
   const meldebildId = mb ? (state.center.meldebilder.find((m) => m.label === mb)?.id ?? null) : null;
@@ -936,7 +957,7 @@ export function createIncidentFromCall(state: GameState, callId: string, mask?: 
     const r = resolveMaskLocation(state, mask, { street: c.location.street, position: c.location.position });
     if ('error' in r) return fail(r.error);
     loc = r;
-  } else if (!c.dialog.some((d) => d.questionId === 'ort')) return fail('Der Einsatzort wurde noch nicht abgefragt.');
+  } else if (!askedQuestions(c).has('ort')) return fail('Der Einsatzort wurde noch nicht abgefragt.');
   if (!c.keywordId) return fail('Bitte zuerst ein Einsatzstichwort wählen.');
   const kw = state.center.keywords.find((k) => k.id === c.keywordId);
   if (!kw) return fail('Unbekanntes Stichwort.');

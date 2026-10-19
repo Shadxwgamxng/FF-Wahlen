@@ -153,3 +153,19 @@ describe('Funk: keine Aufträge an das falsche Fahrzeug', () => {
   });
 });
 
+
+describe('Freisprechen beim Notruf', () => {
+  it('gesprochener Wortwechsel zählt als gestellte Frage und merkt neue Detailangaben', async () => {
+    const { acceptCall, askQuestion, askedQuestions, injectScenarioCall, voiceTurn } = await import('./engine');
+    const g = game();
+    injectScenarioCall(g, 'brand_kueche');
+    const c = g.runtime.calls[g.runtime.calls.length - 1];
+    acceptCall(g, c.id);
+    expect(voiceTurn(g, c.id, 'Wo genau ist das, wie viele Etagen hat das Haus?', 'Antwort', ['ort', 'x_etagen'], { x_etagen: 4, ort: 'x' }).ok).toBe(true);
+    expect(askedQuestions(c).has('ort')).toBe(true);
+    expect(askQuestion(g, c.id, 'ort').ok).toBe(false);
+    expect(c.facts.x_etagen).toBe(4);
+    expect(c.facts.ort).toBeUndefined();
+    expect(c.dialog[0].questionId).toBe('sprache_1');
+  });
+});

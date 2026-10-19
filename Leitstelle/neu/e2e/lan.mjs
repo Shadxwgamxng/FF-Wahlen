@@ -67,10 +67,13 @@ try {
     class FakeRecognition {
       start() {
         window.__srStarts = (window.__srStarts || 0) + 1;
+        // Funk (Sendetaste, continuous) hört __funkSpruch, Freisprechen beim Notruf __anruferSpruch (einmalig)
+        const text = this.continuous ? window.__funkSpruch || '' : window.__anruferSpruch || '';
+        if (!this.continuous) window.__anruferSpruch = '';
         setTimeout(() => {
-          const res = Object.assign([{ transcript: window.__funkSpruch || '', confidence: 1 }], { isFinal: true });
-          this.onresult?.({ resultIndex: 0, results: { length: 1, 0: res } });
-        }, 100);
+          if (text) this.onresult?.({ resultIndex: 0, results: { length: 1, 0: Object.assign([{ transcript: text, confidence: 1 }], { isFinal: true }) } });
+          if (!this.continuous) setTimeout(() => this.onend?.(), 50);
+        }, 150);
       }
       stop() {
         setTimeout(() => this.onend?.(), 50);
@@ -112,6 +115,18 @@ try {
   await pc.getByTestId('call-window').getByTestId('dias-question').waitFor();
   await tab.getByTestId('dias-question').waitFor({ timeout: 15000 });
   log('Notruf am PC angenommen → Notrufabfrage erscheint auf dem Tablet (Abfrage vom PC übertragen)');
+
+  // Freisprechen: Mikrofon am PC ist offen, der Anrufer antwortet auf das Gesagte
+  await pc.getByTestId('call-window').getByTestId('freisprechen').waitFor({ timeout: 10000 });
+  await pc.evaluate(() => (window.__anruferSpruch = 'Notruf Feuerwehr und Rettungsdienst, wo genau ist der Notfallort?'));
+  await pc.waitForFunction((id) => window.leitwarte.state.runtime.calls.find((c) => c.id === id).dialog.some((d) => d.covers?.includes('ort')), callId, { timeout: 10000 });
+  const spoken = await pc.evaluate((id) => {
+    const c = window.leitwarte.state.runtime.calls.find((x) => x.id === id);
+    return { answer: c.dialog.find((d) => d.covers?.includes('ort')).answer, street: c.location.street };
+  }, callId);
+  assert(spoken.answer.includes(spoken.street), `Anrufer nennt den Einsatzort (${spoken.answer})`);
+  await pc.getByTestId('call-window').getByText(spoken.answer.slice(0, 30)).first().waitFor({ timeout: 5000 });
+  log(`Freisprechen am PC: „Wo genau ist der Notfallort?“ → Anrufer: „${spoken.answer.slice(0, 90)}…“`);
 
   // Auf dem Tablet durchtippen
   await tab.getByTestId('dias-option').filter({ hasText: 'Feuer' }).tap();

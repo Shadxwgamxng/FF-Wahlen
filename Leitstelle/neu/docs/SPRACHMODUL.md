@@ -11,6 +11,16 @@ Der Bereich **Sprachtest** übt die Notrufabfrage per Sprache. Er ist bewusst vo
 - **Freisprechen**: Nach jeder Antwort des Anrufers hört die Erkennung automatisch wieder zu.
 - Unter „Nächster Testanruf“ wechseln Adresse, Stockwerk und Lage, das Szenario bleibt gleich.
 
+## Freisprechen bei echten Notrufen im Spiel
+
+Sobald du am Leitstand einen Notruf annimmst, ist das Mikrofon am Leitstand-PC offen (Freisprechen). Du sprichst einfach mit dem Anrufer, er antwortet über den Lautsprecher, in jedem Szenario.
+
+- Jeder Wortwechsel steht im Gesprächsverlauf der Einsatzmaske. Erkannte Abfragefragen (z. B. der Einsatzort) gelten als gestellt.
+- Halbduplex: Während der Anrufer spricht oder die Funk-Sendetaste gedrückt ist, hört das Mikrofon nicht zu.
+- „Stumm“ in der Maske schaltet das Mikrofon für den Notruf ab. Abfragen per Klick und DIAS gehen weiterhin.
+- Beim ersten Mal das Mikrofon in der Maske freigeben (gleiche Einwilligung wie Sprachtest und Funk).
+- Code: `src/ui/callVoice.tsx`, Befehl `voiceTurn` in `src/sim/engine.ts`.
+
 ## Der Anrufer ist eine Simulation
 
 - Er ist **regelbasiert**, ohne KI und ohne Netzwerkzugriff (`src/voice/intents.ts`, `src/voice/caller.ts`).

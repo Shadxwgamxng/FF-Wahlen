@@ -90,6 +90,7 @@ Wählst du ein zu kleines Stichwort, fordern die Kräfte vor Ort nach. Lagen kö
 | Standardisierte Notrufabfrage (DIAS): eigener Export lokal importierbar, Abfrage beim Annehmen, Ergebnis mit Stichwort/Meldebild/Infotext übernehmen ([docs/DIAS.md](docs/DIAS.md)) | ✅ Inhalte werden nicht mitgeliefert |
 | Karte (Leaflet + OSM): Gebiete, Wachen, Kliniken, Nachbarleitstellen, Einsätze, bewegte Fahrzeuge, Routen | ✅ (Straßenrouting mit lokalem OSRM, sonst Luftlinien-Näherung; keine Verkehrsdaten) |
 | Konfigurierbare Statuscodes, Bezeichnungen und Farben; Ereignisprotokoll; Funkmeldungen | ✅ |
+| Freisprechen bei Notrufen: nach der Annahme mit dem simulierten Anrufer sprechen (Mikrofon und Lautsprecher am PC), jedes Szenario | ✅ |
 | Sprechfunk: Rufgruppe schalten, Sendetaste (Tablet, PC, F8), Status 5 erst nach Ansprechen, Aufträge (Status, Lage, Einsatz, Transportziel, Einrücken), Antworten der Besatzung per Sprachausgabe | ✅ |
 | Signaltöne (Web Audio) und Sprachausgabe (Web Speech API des Browsers) | ✅ optional, ohne externe Dienste |
 | Editor: Leitstelle, Gebiete (Polygon), Organisationen mit Funkrufgruppen, Wachen, Fahrzeugtypen, Fahrzeuge, Wartung, Dienstzeiten, Stichwörter, AAO, Kliniken, Nachbarleitstellen/externe Kräfte, Straßennamen, Simulationseinstellungen | ✅ |

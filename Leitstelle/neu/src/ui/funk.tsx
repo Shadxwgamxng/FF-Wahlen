@@ -259,14 +259,19 @@ export function FunkLog({ game, group, max = 12 }: { game: GameState; group?: st
   );
 }
 
-/** Freigabe des Mikrofons für den Funk (gleiche Einwilligung wie im Sprachtest) */
+/** Freigabe des Mikrofons für Funk und Freisprechen (gleiche Einwilligung wie im Sprachtest) */
 export function FunkConsent() {
-  const [consent, setConsent] = useState(getConsent);
+  const [consent, setConsentState] = useState(getConsent);
+  const setConsent = (c: ReturnType<typeof getConsent>) => {
+    setConsentState(c);
+    // Freisprechen beim Notruf sofort mit dem Mikrofon starten
+    window.dispatchEvent(new Event('leitwarte-freisprechen'));
+  };
   if (consent && consent.mode !== 'text') return null;
   return (
     <div className="infobox small col" style={{ gap: 4 }} data-testid="funk-consent">
       <span>
-        Für Sprechfunk braucht LEITWARTE das Mikrofon dieses PCs. Die Spracherkennung des Browsers läuft je nach Wahl auf dem Gerät oder beim
+        Für Sprechfunk und Freisprechen bei Notrufen braucht LEITWARTE das Mikrofon dieses PCs. Die Spracherkennung des Browsers läuft je nach Wahl auf dem Gerät oder beim
         Browserhersteller (Chrome/Edge: Google bzw. Microsoft). LEITWARTE speichert keine Audiodaten.
       </span>
       <div className="row wrap">

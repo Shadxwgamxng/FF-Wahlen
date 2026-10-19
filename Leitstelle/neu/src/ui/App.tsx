@@ -18,6 +18,7 @@ import { installAudio } from './audio';
 import { openPopout, POPOUTS } from './PopoutApp';
 import { installRouting, useRoutingState } from './routingService';
 import { FunkController } from './funk';
+import { CallVoiceController } from './callVoice';
 
 export type ViewId = 'leitstand' | 'wachen' | 'fahrzeuge' | 'aao' | 'kliniken' | 'statistik' | 'editor' | 'simulation' | 'mehrspieler' | 'daten' | 'sprachtest';
 
@@ -135,6 +136,7 @@ export function App() {
       </main>
       {help && <HelpModal onClose={() => setHelp(false)} />}
       <FunkController />
+      <CallVoiceController />
       <Toasts />
       <ConfirmHost />
     </div>

@@ -41,6 +41,7 @@ export const COMMANDS = {
   setVehicleServiceStatus: E.setVehicleServiceStatus,
   startLocating: E.startLocating,
   updateCallMask: E.updateCallMask,
+  voiceTurn: E.voiceTurn,
   toggleRunning: (s: GameState): CommandResult => E.setRunning(s, !s.runtime.clock.running),
 } satisfies Record<string, (s: GameState, ...args: never[]) => CommandResult>;
 
