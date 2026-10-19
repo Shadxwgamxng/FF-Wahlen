@@ -91,6 +91,13 @@ export function spokenNumbers(text: string): number[] {
 const callsignNumbers = (callsign: string) => (callsign.replace(/\(.*\)/, '').match(/\d+/g) ?? []).map(Number);
 const callsignWord = (callsign: string) => callsign.trim().split(/\s+/)[0].toLowerCase();
 
+/** Ziffernfolgen aus 1–3 aufeinanderfolgenden Zahlen ohne Trenner: [6148, 1] → "6148", "61481", "1" */
+function joinedWindows(nums: number[]): Set<string> {
+  const out = new Set<string>();
+  for (let i = 0; i < nums.length; i++) for (let k = 1; k <= 3 && i + k <= nums.length; k++) out.add(nums.slice(i, i + k).join(''));
+  return out;
+}
+
 function containsSeq(hay: number[], needle: number[]): boolean {
   if (!needle.length || needle.length > hay.length) return false;
   for (let i = 0; i + needle.length <= hay.length; i++) if (needle.every((n, j) => hay[i + j] === n)) return true;
@@ -118,20 +125,23 @@ export function matchCallsign(state: GameState, text: string): { vehicle: Vehicl
       // kurze Rufnamen ("Christoph 12", "Heros 3/11") nur zusammen mit dem Organisationswort
       if (seq.length < 3 && !named) continue;
       hits.push({ v, score: seq.length * 10 + (named ? 5 : 0) });
+    } else if (seq.length === 3 && joinedWindows(nums).has(seq.join(''))) {
+      // Erkennung hat Zahlen zusammengezogen: "6148 1" oder "61481" = 61-48-1 (statt "null eins")
+      hits.push({ v, score: 29 + (named ? 5 : 0) });
     } else if (!seq.length && norm.includes(` ${v.callsign.toLowerCase()} `)) hits.push({ v, score: 50 });
   }
   hits.sort((a, b) => b.score - a.score);
   const words = new Set(state.center.vehicles.map((v) => callsignWord(v.callsign)));
-  const attempted = hits.length > 0 || [...words].some((w) => w.length >= 4 && norm.includes(` ${w} `)) || nums.filter((n) => n >= 10).length >= 2;
+  const attempted = hits.length > 0 || [...words].some((w) => w.length >= 4 && norm.includes(` ${w} `)) || nums.filter((n) => n >= 10).length >= 2 || nums.some((n) => n >= 1000);
   if (!hits.length) return { vehicle: null, attempted, ambiguous: false };
   if (hits.length > 1 && hits[0].score === hits[1].score) return { vehicle: null, attempted: true, ambiguous: true };
   return { vehicle: hits[0].v, attempted: true, ambiguous: false };
 }
 
-/** Text für die Sprachausgabe: Rufnamen ziffernweise ("61 48 null 1"), ohne Bindestriche */
+/** Text für die Sprachausgabe: Rufnamen in Zahlengruppen ("61 48 1" = einundsechzig achtundvierzig eins), ohne Bindestriche */
 export function toSpeech(text: string): string {
   return text
-    .replace(/(\d+)[-/](\d+)(?:-(\d+))?/g, (_, a: string, b: string, c?: string) => [a, b, c].filter(Boolean).map((x) => x!.replace(/^0(\d)$/, 'null $1')).join(' '))
+    .replace(/(\d+)[-/](\d+)(?:-(\d+))?/g, (_, a: string, b: string, c?: string) => [a, b, c].filter(Boolean).map((x) => x!.replace(/^0(\d)$/, '$1')).join(' '))
     .replace(/×/g, ' ')
     .replace(/–/g, ',');
 }

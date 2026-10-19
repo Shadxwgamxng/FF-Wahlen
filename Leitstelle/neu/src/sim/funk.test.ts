@@ -37,7 +37,20 @@ describe('Funk: Zahlen und Rufnamen', () => {
   it('erkennt den Rufnamen in verschiedenen Schreibweisen', () => {
     const g = game();
     const v = hlf(g);
-    for (const t of ['Florian Ostholstein 61-48-01 von Leitstelle, kommen', 'Florian 61 48 1', 'einundsechzig achtundvierzig null eins kommen', 'Florian Ostholstein 614801']) expect(findCallsign(g, t)?.id, t).toBe(v.id);
+    for (const t of [
+      'Florian Ostholstein 61-48-01 von Leitstelle, kommen',
+      'Florian 61 48 1',
+      'Florian Ostholstein 61 48 eins von Leitstelle kommen',
+      'einundsechzig achtundvierzig eins kommen',
+      'einundsechzig achtundvierzig null eins kommen',
+      'Florian Ostholstein 614801',
+      'Florian Ostholstein 6148 1 kommen',
+      'Florian Ostholstein 61481',
+      'Florian Ostholstein 61-48-1',
+    ])
+      expect(findCallsign(g, t)?.id, t).toBe(v.id);
+    // "61-48-11" ist ein anderes Fahrzeug als "61-48-1"
+    expect(findCallsign(g, 'Florian Ostholstein 6148 11')?.callsign ?? null).not.toBe(v.callsign);
     expect(findCallsign(g, 'Leitstelle an alle')).toBeNull();
     // kurze Rufnamen nur mit Organisationswort
     expect(findCallsign(g, 'zwölf')).toBeNull();
@@ -45,7 +58,7 @@ describe('Funk: Zahlen und Rufnamen', () => {
   });
 
   it('Sprachausgabe liest Rufnamen ziffernweise', () => {
-    expect(toSpeech('Hier Florian Ostholstein 61-48-01, hört, kommen.')).toBe('Hier Florian Ostholstein 61 48 null 1, hört, kommen.');
+    expect(toSpeech('Hier Florian Ostholstein 61-48-01, hört, kommen.')).toBe('Hier Florian Ostholstein 61 48 1, hört, kommen.');
   });
 });
 
@@ -59,7 +72,7 @@ describe('Funk: Sprechwunsch (Status 5)', () => {
     expect(m.revealed).toBe(true);
     expect(last(g).from).toBe('fahrzeug');
     expect(last(g).text).toBe('Hier Florian Ostholstein 61-48-01, Nachforderung: Polizei zur Einsatzstelle, kommen.');
-    expect(last(g).speech).toContain('61 48 null 1');
+    expect(last(g).speech).toContain('61 48 1,');
     radioTalk(g, 'Verstanden, Polizei wird alarmiert, Ende.', grp);
     expect(m.handled).toBe(true);
     // auf "Ende" antwortet das Fahrzeug nicht mehr
@@ -129,7 +142,7 @@ describe('Funk: keine Aufträge an das falsche Fahrzeug', () => {
     createManualIncident(g, kw.id, v.rt.position, 'Kirchhofsallee 10, 23730 Neustadt in Holstein', 'Test');
     radioTalk(g, 'Florian Ostholstein 61-48-01, übernehmen Sie den Einsatz in der Kirchhofsallee', 'FW_OH');
     expect(v.rt.incidentId).not.toBeNull();
-    radioTalk(g, 'Florian Ostholstein 7148 01, rücken Sie ein', 'FW_OH');
+    radioTalk(g, 'Florian Ostholstein 9948 01, rücken Sie ein', 'FW_OH');
     expect(v.rt.incidentId).not.toBeNull();
     expect(last(g).from).toBe('system');
     expect(last(g).text).toMatch(/Rufname nicht erkannt/);

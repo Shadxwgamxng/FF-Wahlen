@@ -38,7 +38,7 @@ Nach dem Rufnamen (oder als Folgesatz an das zuletzt angesprochene Fahrzeug):
 | „Verstanden, Ende“ | offene Meldung quittiert |
 | „Anrufer meldet Person aus Wasser geborgen, jetzt unter Reanimationsmaßnahmen“, „Zur Info: …“ | Lagemitteilung: Die Besatzung wiederholt sie sinngemäß und bestätigt („Person aus Wasser geborgen, wird nun reanimiert, das haben wir verstanden, kommen“). Auf Anfahrt nennt sie dazu die Ankunftszeit. Die Mitteilung steht im Einsatzprotokoll. |
 
-Rufnamen werden in vielen Schreibweisen erkannt: „61-48-01“, „61 48 1“, „einundsechzig achtundvierzig null eins“. Kurze Rufnamen („Christoph 12“) nur zusammen mit dem Organisationswort.
+Rufnamen werden in vielen Schreibweisen erkannt. Die führende Null musst du nicht sprechen: „61 48 eins“ reicht für 61-48-01. Ebenso „einundsechzig achtundvierzig eins“, „null eins“ oder zusammengezogene Zahlen der Erkennung („6148 1“, „61481“). Auch die Besatzungen sprechen ihren Rufnamen so: „einundsechzig achtundvierzig eins“. Kurze Rufnamen („Christoph 12“) nur zusammen mit dem Organisationswort.
 
 ## Grenzen
 
