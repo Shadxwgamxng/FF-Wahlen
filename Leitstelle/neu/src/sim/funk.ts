@@ -206,6 +206,7 @@ function matchIncident(state: GameState, norm: string): Incident | null {
 }
 
 type Order =
+  | { k: 'info' }
   | { k: 'transport'; hospital: Hospital }
   | { k: 'einsatz'; incident: Incident }
   | { k: 'einruecken' }
@@ -220,6 +221,8 @@ type Order =
 export function detectOrder(state: GameState, text: string, transportWanted = false): Order | null {
   const n = normalizeFunk(text);
   const question = /\?\s*$/.test(text.trim());
+  // Lagemitteilung an das Fahrzeug ("Anrufer meldet …", "Zur Info …") – wird zurückbestätigt
+  if (INFO_START.test(n)) return { k: 'info' };
   // Lagemeldung zuerst – "wie ist die Lage am Einsatz Kirchhofsallee?" ist keine Zuteilung
   if (has(n, / (lage|lagemeldung|rückmeldung|rueckmeldung|wie sieht es aus|wie ist die lage|was ist los|situation) /)) return { k: 'lage' };
   const { hospital, distinctive } = matchHospital(state, n);
@@ -233,6 +236,66 @@ export function detectOrder(state: GameState, text: string, transportWanted = fa
   if (has(n, / status /) && !has(n, / status (\d|eins|zwei|drei|vier|fünf|fuenf|sechs|sieben|acht) /)) return { k: 'status' };
   if (has(n, / (verstanden|quittiert|veranlasst|wird alarmiert|werden alarmiert|kommt|kommen sofort|ist unterwegs|sind unterwegs|wird erledigt|in ordnung|okay|ok|roger|wird geschickt) /)) return { k: 'quittung' };
   return null;
+}
+
+const INFO_START = / (anrufer|anruferin|melder|zeuge|zeugin) (meldet|sagt|berichtet|gibt an|teilt mit)| (zur info|zur information|information|nachtrag|nachmeldung|mitteilung|neue lage|lageänderung|lageaenderung|achtung|hinweis) /;
+
+/** Wörter, die zum Funkverkehr gehören, nicht zum Inhalt */
+const FRAME_WORDS = new Set(['von', 'für', 'fuer', 'hier', 'leitstelle', 'kommen', 'ende', 'ostholstein']);
+
+/**
+ * Inhalt eines Funkspruchs ohne Rufnamen und Funkfloskeln:
+ * "Florian Ostholstein 61-82-01 von Leitstelle, Anrufer meldet …, kommen" → "Anrufer meldet …"
+ */
+export function messageContent(text: string): string {
+  let t = text.trim().replace(/[.!]+\s*$/, '');
+  // Rufname vorn: alles bis zur letzten Zahl in den ersten Wörtern
+  const words = t.split(/\s+/);
+  let cut = -1;
+  for (let i = 0; i < Math.min(words.length, 8); i++) {
+    const w = words[i].toLowerCase().replace(/[^0-9a-zäöüß/-]/g, '');
+    if (/\d/.test(w) || numberWord(w) !== null) cut = i;
+  }
+  if (cut >= 0) t = words.slice(cut + 1).join(' ');
+  // "von Leitstelle," / ", kommen" / ", Ende"
+  t = t.replace(/^[,\s]*((von|für|fuer|hier)\s+)?(der\s+)?leitstelle[,\s]*/i, '');
+  t = t.replace(/[,\s]+(kommen|ende)\s*$/i, '').replace(/^[,\s]+|[,\s]+$/g, '');
+  return t;
+}
+
+const contentWords = (content: string) => normalizeFunk(content).trim().split(' ').filter((w) => w && !FRAME_WORDS.has(w));
+
+/** Sinngemäße Wiederholung einer Mitteilung durch die Besatzung */
+export function readBack(content: string): string {
+  let t = content.trim();
+  const RW: [RegExp, string][] = [
+    [/\b(der |die )?(anrufer|anruferin|melder|zeuge|zeugin)\s+(meldet|sagt|berichtet|gibt an|teilt mit)(,?\s*dass)?[:,]?\s*/gi, ''],
+    [/\b(zur info(rmation)?|information|nachtrag|nachmeldung|mitteilung|hinweis|achtung)[:,]?\s*/gi, ''],
+    [/\b(jetzt|derzeit|aktuell|nun)\s+unter\s+(laufender\s+|laufenden\s+)?reanimation(smaßnahmen|smassnahmen)?\b/gi, 'wird nun reanimiert'],
+    [/\bunter\s+(laufender\s+|laufenden\s+)?reanimation(smaßnahmen|smassnahmen)?\b/gi, 'wird reanimiert'],
+    [/\bwird jetzt\b/gi, 'wird nun'],
+    [/\bist jetzt\b/gi, 'ist nun'],
+    [/\bjetzt\b/gi, 'nun'],
+  ];
+  for (const [re, by] of RW) t = t.replace(re, by);
+  t = t.replace(/\s{2,}/g, ' ').replace(/^[,\s]+|[,\s.]+$/g, '');
+  return t ? t.charAt(0).toUpperCase() + t.slice(1) : t;
+}
+
+const ACKS = ['das haben wir verstanden', 'verstanden', 'haben wir mitgeschrieben', 'ist verstanden'];
+
+/** Lagemitteilung zurückbestätigen – je nach Lage des Fahrzeugs mit Ankunftszeit */
+function infoReply(state: GameState, v: Vehicle, content: string): string {
+  const f = funkOf(state);
+  const parts = [readBack(content), ACKS[f.counter % ACKS.length]].filter(Boolean);
+  const m = v.rt.move;
+  if (m && m.purpose === 'einsatz' && (v.rt.status === 'anfahrt' || v.rt.status === 'alarmiert')) {
+    const min = Math.max(1, Math.round((m.arriveAt - state.runtime.clock.now) / 60000));
+    parts.push(`sind in etwa ${min === 1 ? 'einer Minute' : `${min} Minuten`} vor Ort`);
+  } else if (v.rt.status === 'alarmiert') parts.push('rücken gleich aus');
+  const inc = v.rt.incidentId ? state.runtime.incidents.find((i) => i.id === v.rt.incidentId) : undefined;
+  if (inc) log(state, 'funk', `Leitstelle an ${v.callsign}: ${content}`, { vehicleId: v.id, incidentId: inc.id });
+  return parts.join(', ');
 }
 
 // ---------------------------------------------------------------- Antworten der Besatzung
@@ -337,7 +400,11 @@ export function radioTalk(state: GameState, text: string, group: string | null =
 
   if (pending) parts.push(reveal(state, v, pending));
 
-  if (order) {
+  const content = messageContent(said);
+  if (order?.k === 'info' || (!order && contentWords(content).length >= 3)) {
+    // Mitteilung der Leitstelle: sinngemäß wiederholen und bestätigen
+    parts.push(infoReply(state, v, content));
+  } else if (order) {
     const r = execOrder(state, v, order, !!pending);
     if (r.text) parts.push(r.text);
     if (r.error) addLine(state, { from: 'system', group: group ?? undefined, text: r.error });
@@ -360,6 +427,8 @@ export function radioTalk(state: GameState, text: string, group: string | null =
 
 function execOrder(state: GameState, v: Vehicle, order: Order, justRevealed: boolean): { text?: string; error?: string; close: 'kommen' | 'Ende' | null } {
   switch (order.k) {
+    case 'info':
+      return { close: 'kommen' };
     case 'status': {
       const st = statusDef(state, v.rt.status);
       return { text: `Status ${st.code}, ${st.label}`, close: 'kommen' };
@@ -387,7 +456,7 @@ function execOrder(state: GameState, v: Vehicle, order: Order, justRevealed: boo
       if (v.rt.incidentId === order.incident.id) return { text: 'sind bereits für diesen Einsatz alarmiert', close: 'kommen' };
       const r = alarmVehicles(state, order.incident.id, [v.id]);
       if (!r.ok) return { text: 'negativ, können nicht übernehmen', error: r.error, close: 'kommen' };
-      return { text: `verstanden, übernehmen Einsatz ${order.incident.address}`, close: 'Ende' };
+      return { text: `verstanden, übernehmen Einsatz ${order.incident.address.split(',')[0]}`, close: 'Ende' };
     }
     case 'einruecken': {
       if (!v.rt.incidentId) return { text: 'verstanden, sind bereits frei', close: 'Ende' };

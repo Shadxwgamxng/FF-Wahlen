@@ -36,6 +36,7 @@ Nach dem Rufnamen (oder als Folgesatz an das zuletzt angesprochene Fahrzeug):
 | „… fahren Sie Klinikum Neustadt an“, „Transportziel Sana Eutin“ | Transportziel für den wartenden Patienten |
 | „… rücken Sie ein“, „Sie sind entlassen“ | Fahrzeug wird entlassen und rückt ein |
 | „Verstanden, Ende“ | offene Meldung quittiert |
+| „Anrufer meldet Person aus Wasser geborgen, jetzt unter Reanimationsmaßnahmen“, „Zur Info: …“ | Lagemitteilung: Die Besatzung wiederholt sie sinngemäß und bestätigt („Person aus Wasser geborgen, wird nun reanimiert, das haben wir verstanden, kommen“). Auf Anfahrt nennt sie dazu die Ankunftszeit. Die Mitteilung steht im Einsatzprotokoll. |
 
 Rufnamen werden in vielen Schreibweisen erkannt: „61-48-01“, „61 48 1“, „einundsechzig achtundvierzig null eins“. Kurze Rufnamen („Christoph 12“) nur zusammen mit dem Organisationswort.
 

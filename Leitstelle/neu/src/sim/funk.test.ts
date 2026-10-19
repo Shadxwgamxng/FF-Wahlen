@@ -169,3 +169,30 @@ describe('Freisprechen beim Notruf', () => {
     expect(c.dialog[0].questionId).toBe('sprache_1');
   });
 });
+
+describe('Funk: Lagemitteilung an ein Fahrzeug', () => {
+  it('Besatzung wiederholt die Mitteilung sinngemäß und bestätigt', () => {
+    const g = game();
+    const nef = g.center.vehicles.find((v) => v.callsign === 'Rettung Ostholstein 61-82-01')!;
+    expect(nef).toBeDefined();
+    radioTalk(g, 'Rettung Ostholstein 61-82-01 von Leitstelle, Anrufer meldet Person aus Wasser geborgen, jetzt unter Reanimationsmaßnahmen, kommen', 'RD_OH');
+    expect(last(g).from).toBe('fahrzeug');
+    expect(last(g).text).toBe('Hier Rettung Ostholstein 61-82-01, Person aus Wasser geborgen, wird nun reanimiert, ' + last(g).text.split(', ').slice(-2).join(', '));
+    expect(last(g).text).toMatch(/wird nun reanimiert, (das haben wir verstanden|verstanden|haben wir mitgeschrieben|ist verstanden), kommen\.$/);
+  });
+
+  it('auch als Folgesatz nach dem Anruf; Ankunftszeit auf Anfahrt', () => {
+    const g = game();
+    const nef = g.center.vehicles.find((v) => v.callsign === 'Rettung Ostholstein 61-82-01')!;
+    const kw = g.center.keywords.find((k) => k.category === 'rd')!;
+    createManualIncident(g, kw.id, [nef.rt.position[0] + 0.03, nef.rt.position[1]], 'Kirchhofsallee 10, 23730 Neustadt in Holstein', 'Test');
+    radioTalk(g, 'Rettung Ostholstein 61-82-01, übernehmen Sie den Einsatz Kirchhofsallee', 'RD_OH');
+    expect(nef.rt.incidentId).not.toBeNull();
+    radioTalk(g, 'Rettung Ostholstein 61-82-01 von Leitstelle kommen', 'RD_OH');
+    expect(last(g).text).toMatch(/hört, kommen\.$/);
+    radioTalk(g, 'Zur Info: Patient ist jetzt wieder ansprechbar, kommen', 'RD_OH');
+    expect(last(g).text).toMatch(/^Patient ist nun wieder ansprechbar, .*(vor Ort|rücken gleich aus), kommen\.$/);
+    const inc = g.runtime.incidents[0];
+    expect(inc.log.some((l) => /Leitstelle an Rettung Ostholstein 61-82-01: Zur Info: Patient ist jetzt wieder ansprechbar/.test(l.text))).toBe(true);
+  });
+});
