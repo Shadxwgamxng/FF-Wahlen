@@ -42,7 +42,7 @@ Fahrzeuge fahren über echte Straßen, wenn ein lokaler OSRM-Server läuft (kost
 
 ## PC + Tablet im lokalen Netz
 
-`npm run lan` startet einen kleinen LAN-Server. Am PC öffnest du die angezeigte Adresse, am Tablet `…/tablet`. Das Tablet zeigt synchron die Notrufabfrage (DIAS) zum Durchtippen mit „Daten übernehmen“. Ohne laufende Abfrage ist es ein Funkbedienplatz mit Rufgruppenauswahl. Details: [docs/LAN.md](docs/LAN.md).
+`npm run lan` startet einen kleinen LAN-Server. Am PC öffnest du die angezeigte Adresse, am Tablet `…/tablet`. Das Tablet zeigt synchron die Notrufabfrage (DIAS) zum Durchtippen mit „Daten übernehmen“. Ohne laufende Abfrage ist es ein Funkbedienplatz mit Rufgruppenauswahl und Sendetaste: Gedrückt halten und sprechen, Erkennung und Antworten der Besatzung laufen am PC. Details: [docs/LAN.md](docs/LAN.md) und [docs/FUNK.md](docs/FUNK.md).
 
 ## Mehrere Bildschirme
 
@@ -54,7 +54,7 @@ Fahrzeuge fahren über echte Straßen, wenn ein lokaler OSRM-Server läuft (kost
 2. **Einsatzmaske ausfüllen:** Beim Annehmen öffnet sich die Einsatzmaske mit Gesprächsverlauf. Die Fragen hängen von der Lage ab. Den **Einsatzort trägst du selbst ein** (Straßenvorschläge aus OSM) oder lässt den Anrufer **orten** (Festnetz: Anschlussadresse nach wenigen Sekunden; Mobilfunk: ungenauer Bereich, kann fehlschlagen). Eine falsche Adresse führt die Kräfte an den falschen Ort, dann muss nachkorrigiert werden.
 3. **Meldebild und Stichwort wählen.** Im Katalog Schleswig-Holstein wählst du zuerst das Meldebild, das ein Stichwort vorschlägt. Auf „Leicht“ und „Normal“ hilft zusätzlich die Abfragehilfe. Weiterleitungen (z. B. an den ärztlichen Bereitschaftsdienst) beenden den Notruf ohne Einsatz. Bei einem Fehlanruf wählst du „Ohne Einsatz beenden“, eine Doppelmeldung verknüpfst du mit dem laufenden Einsatz.
 4. **Einsatz anlegen** (`Strg+Enter`). Der Einsatzmittelvorschlag kommt aus der AAO (Bedarf nach Fähigkeiten) und berücksichtigt Verfügbarkeit, Besatzung, Ausrück- und Fahrzeit sowie die Zuständigkeit. Du kannst die Auswahl frei ändern und dann **alarmieren** (`A`).
-5. **Status verfolgen:** Alarmiert → 3 (Anfahrt) → 4 (vor Ort). Sprechwünsche (5) erscheinen im Funkpanel: Transportziel zuweisen, Nachforderungen disponieren, Lagemeldungen quittieren.
+5. **Status verfolgen:** Alarmiert → 3 (Anfahrt) → 4 (vor Ort). Sprechwünsche (5) erscheinen im Funkpanel. Den Inhalt erfährst du erst, wenn du das Fahrzeug per Funk („Florian Ostholstein 61-48-01 von Leitstelle, kommen“) oder mit „Ansprechen“ ansprichst. Danach Transportziel zuweisen, Nachforderungen disponieren, Meldungen quittieren. Aufträge per Funk: siehe [docs/FUNK.md](docs/FUNK.md).
 6. Nach „Einsatzstelle abgearbeitet“ die **Kräfte entlassen** und den **Einsatz abschließen**. Danach steht er im Archiv und fließt in die Statistik ein.
 
 Wählst du ein zu kleines Stichwort, fordern die Kräfte vor Ort nach. Lagen können sich außerdem verschärfen (Eskalation).
@@ -90,6 +90,7 @@ Wählst du ein zu kleines Stichwort, fordern die Kräfte vor Ort nach. Lagen kö
 | Standardisierte Notrufabfrage (DIAS): eigener Export lokal importierbar, Abfrage beim Annehmen, Ergebnis mit Stichwort/Meldebild/Infotext übernehmen ([docs/DIAS.md](docs/DIAS.md)) | ✅ Inhalte werden nicht mitgeliefert |
 | Karte (Leaflet + OSM): Gebiete, Wachen, Kliniken, Nachbarleitstellen, Einsätze, bewegte Fahrzeuge, Routen | ✅ (Straßenrouting mit lokalem OSRM, sonst Luftlinien-Näherung; keine Verkehrsdaten) |
 | Konfigurierbare Statuscodes, Bezeichnungen und Farben; Ereignisprotokoll; Funkmeldungen | ✅ |
+| Sprechfunk: Rufgruppe schalten, Sendetaste (Tablet, PC, F8), Status 5 erst nach Ansprechen, Aufträge (Status, Lage, Einsatz, Transportziel, Einrücken), Antworten der Besatzung per Sprachausgabe | ✅ |
 | Signaltöne (Web Audio) und Sprachausgabe (Web Speech API des Browsers) | ✅ optional, ohne externe Dienste |
 | Editor: Leitstelle, Gebiete (Polygon), Organisationen mit Funkrufgruppen, Wachen, Fahrzeugtypen, Fahrzeuge, Wartung, Dienstzeiten, Stichwörter, AAO, Kliniken, Nachbarleitstellen/externe Kräfte, Straßennamen, Simulationseinstellungen | ✅ |
 | Speichern/Laden (IndexedDB), Autosave, manuelle und automatische Spielstände, Kopien | ✅ |

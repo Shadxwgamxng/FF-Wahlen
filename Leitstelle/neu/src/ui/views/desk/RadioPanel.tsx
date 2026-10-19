@@ -4,6 +4,7 @@ import { hospitalOptions } from '../../../sim/dispatch';
 import { formatDuration } from '../../../sim/geo';
 import { store } from '../../../store/gameStore';
 import { fmtClock } from '../../components/common';
+import { FunkBar } from '../../funk';
 
 const KIND_LABEL: Record<RadioMessage['kind'], string> = {
   transportziel: 'Transportziel',
@@ -14,6 +15,25 @@ const KIND_LABEL: Record<RadioMessage['kind'], string> = {
 
 /** Bedienelemente für eine Funkmeldung (Sprechwunsch) – im Funkpanel und im Einsatzfenster genutzt */
 export function RadioActions({ game, msg }: { game: GameState; msg: RadioMessage }) {
+  if (msg.revealed === false) return <UnrevealedActions msg={msg} />;
+  return <RevealedActions game={game} msg={msg} />;
+}
+
+/** Sprechwunsch, dessen Inhalt noch niemand gehört hat: erst ansprechen (Funk oder Knopf) */
+function UnrevealedActions({ msg }: { msg: RadioMessage }) {
+  return (
+    <div className="row wrap">
+      <button className="btn small primary" onClick={() => store.cmd('radioCall', msg.vehicleId)} data-testid="ansprechen">
+        Ansprechen
+      </button>
+    </div>
+  );
+}
+
+/** Text einer Funkmeldung – vor dem Ansprechen nur der Sprechwunsch */
+export const radioText = (msg: RadioMessage) => (msg.revealed === false ? 'Sprechwunsch – bitte ansprechen.' : msg.text);
+
+function RevealedActions({ game, msg }: { game: GameState; msg: RadioMessage }) {
   const v = game.center.vehicles.find((x) => x.id === msg.vehicleId);
   const inc = game.runtime.incidents.find((i) => i.id === msg.incidentId);
   const patient = inc?.patients.find((p) => p.id === msg.patientId);
@@ -59,6 +79,7 @@ export function RadioPanel({ game, onOpenIncident }: { game: GameState; onOpenIn
         <span className={`count ${msgs.length ? 'alarm' : ''}`}>{msgs.length}</span>
       </div>
       <div className="panel-body">
+        <FunkBar game={game} />
         {msgs.length === 0 && <div className="empty">Keine offenen Sprechwünsche.</div>}
         {msgs.map((m) => {
           const v = game.center.vehicles.find((x) => x.id === m.vehicleId);
@@ -67,10 +88,10 @@ export function RadioPanel({ game, onOpenIncident }: { game: GameState; onOpenIn
               <div className="row" style={{ width: '100%' }}>
                 <span className="status-badge" style={{ background: 'var(--radio)' }}>5</span>
                 <b className="grow ellipsis">{v?.callsign}</b>
-                <span className="chip small">{KIND_LABEL[m.kind]}</span>
+                <span className="chip small">{m.revealed === false ? 'Sprechwunsch' : KIND_LABEL[m.kind]}</span>
                 <span className="mono small dim">{fmtClock(m.at)} ({Math.round((now - m.at) / 60000)} min)</span>
               </div>
-              <div className="small">{m.text}</div>
+              <div className="small">{radioText(m)}</div>
               <div className="row" style={{ width: '100%' }}>
                 <RadioActions game={game} msg={m} />
                 <span className="spacer" />

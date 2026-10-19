@@ -308,3 +308,19 @@ table.grid tr.unavailable td { color: var(--text-3); }
 .dias-opt.lw-gap { border-style: dashed; }
 .dias-opt.active { background: #1d3557; border-color: var(--accent); }
 .lw-step .linklike { color: #e2d4ff; }
+
+/* Sprechfunk */
+.ptt { user-select: none; -webkit-user-select: none; touch-action: none; font-weight: 700; }
+.ptt.ptt-on { background: var(--alarm); border-color: var(--alarm); color: #fff; }
+.ptt.ptt-rx { outline: 2px solid var(--radio); }
+.ptt-big { font-size: 22px; padding: 22px 16px; width: 100%; border-radius: 14px; }
+.funk-status { padding: 2px 6px; border-radius: 6px; }
+.funk-status.on { background: rgba(220, 60, 60, 0.18); }
+.funk-status.rx { background: rgba(80, 140, 255, 0.18); }
+.funk-status.err { color: var(--alarm); }
+.funk-log { max-height: 180px; overflow: auto; display: flex; flex-direction: column; gap: 2px; border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; background: var(--bg-2); }
+.funk-line { font-size: 13px; line-height: 1.35; }
+.funk-line.leitstelle b { color: var(--accent, #6cf); }
+.funk-line.fahrzeug { color: var(--text); }
+.funk-line.system { color: var(--muted, #999); font-style: italic; }
+.funk-bar { padding-bottom: 8px; margin-bottom: 6px; border-bottom: 1px solid var(--line); }

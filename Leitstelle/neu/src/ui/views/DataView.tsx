@@ -150,7 +150,7 @@ Stichwörter:  code;bezeichnung;kategorie;prioritaet;bedarf   (bedarf z. B. loes
         <label className="check"><input type="checkbox" checked={prefs.sound} onChange={(e) => setPrefs({ sound: e.target.checked })} /> Signaltöne (Notruf, Alarm, Funk)</label>
         <label className="row small">Lautstärke <input type="range" min={0} max={1} step={0.05} value={prefs.volume} onChange={(e) => setPrefs({ volume: Number(e.target.value) })} /> <button className="btn small" onClick={() => sounds.ring()}>Test</button></label>
         <label className="check">
-          <input type="checkbox" checked={prefs.tts} disabled={!ttsAvailable()} onChange={(e) => setPrefs({ tts: e.target.checked })} /> Funkmeldungen vorlesen (Sprachausgabe des Browsers)
+          <input type="checkbox" checked={prefs.tts} disabled={!ttsAvailable()} onChange={(e) => setPrefs({ tts: e.target.checked })} /> Funksprüche der Fahrzeuge vorlesen (Sprachausgabe des Browsers, am Leitstand-PC)
           {!ttsAvailable() && <span className="dim small">– in diesem Browser nicht verfügbar</span>}
         </label>
         {prefs.tts && <button className="btn small" style={{ alignSelf: 'flex-start' }} onClick={() => speak('Florian Bergstadt eins sechsundvierzig eins, Status vier.')}>Sprachausgabe testen</button>}

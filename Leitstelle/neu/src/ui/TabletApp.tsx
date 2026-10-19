@@ -4,7 +4,8 @@ import { radioGroupOf } from '../model/radio';
 import { useStore } from '../store/gameStore';
 import { ConfirmHost, fmtClock, StatusBadge, Toasts } from './components/common';
 import { DiasPanel } from './views/desk/DiasPanel';
-import { RadioActions } from './views/desk/RadioPanel';
+import { RadioActions, radioText } from './views/desk/RadioPanel';
+import { FunkLog, FunkStatusLine, PttButton } from './funk';
 
 /**
  * Tablet-Ansicht (über den LAN-Server: http://<server>:<port>/tablet).
@@ -163,6 +164,12 @@ function Funkbedienplatz({ game }: { game: GameState }) {
         <div className="tablet-title">
           Geschaltet: <b>{active.group.code}</b> – {active.group.name}
         </div>
+        <div className="col tablet-ptt" style={{ gap: 6 }}>
+          <PttButton group={active.group.code} big />
+          <FunkStatusLine />
+          <div className="dim small">Gesprochen wird am Leitstand-PC (Mikrofon und Lautsprecher dort).</div>
+        </div>
+        <FunkLog game={game} group={active.group.code} max={8} />
         {others.length > 0 && (
           <div className="warnbox">
             Meldungen in anderen Gruppen:{' '}
@@ -180,7 +187,7 @@ function Funkbedienplatz({ game }: { game: GameState }) {
             return (
               <div key={r.id} className="warnbox col funk-msg" data-testid="funk-meldung">
                 <div>
-                  <span className="mono small">{fmtClock(r.at)}</span> <b>{v?.callsign}</b>: {r.text}
+                  <span className="mono small">{fmtClock(r.at)}</span> <b>{v?.callsign}</b>: {radioText(r)}
                 </div>
                 <RadioActions game={game} msg={r} />
               </div>

@@ -112,6 +112,7 @@ export class GameStore {
         const r = this.cmdLocal(m.name as CommandName, m.args, !m.quiet);
         this.channel?.post({ t: 'result', to: m.from, result: r } satisfies SyncMsg);
       } else if (m.t === 'ui') this.uiListeners.forEach((l) => l(m.action));
+      else if (m.t === 'ptt') this.pttListeners.forEach((l) => l(m.on, m.group));
     });
     window.addEventListener('beforeunload', () => this.channel?.post({ t: 'bye' } satisfies SyncMsg));
   }
@@ -191,6 +192,9 @@ export class GameStore {
         if (!r.ok) this.toast('fehler', r.error);
         else if (r.message) this.toast('ok', r.message);
         this.emit();
+      } else if (m.t === 'funkStatus') {
+        this.funkStatus = m.status;
+        this.emitLocal();
       } else if (m.t === 'bye') {
         this.mainAlive = false;
         this.emit();
@@ -220,6 +224,32 @@ export class GameStore {
     return () => {
       this.uiListeners.delete(l);
     };
+  }
+
+  // -------------------------------------------------------------- Funk (Sendetaste)
+
+  funkStatus: FunkStatus = { sending: false, group: null, interim: '', error: '', receiving: false };
+  private pttListeners = new Set<(on: boolean, group: string | null) => void>();
+
+  /** Sendetaste gedrückt/losgelassen – Mikrofon und Erkennung laufen immer am Hauptfenster (Leitstand-PC) */
+  sendPtt(on: boolean, group: string | null) {
+    if (this.role === 'remote') this.channel?.post({ t: 'ptt', on, group } satisfies SyncMsg);
+    else this.pttListeners.forEach((l) => l(on, group));
+  }
+
+  /** Hauptfenster: auf die Sendetaste reagieren */
+  onPtt(l: (on: boolean, group: string | null) => void): () => void {
+    this.pttListeners.add(l);
+    return () => {
+      this.pttListeners.delete(l);
+    };
+  }
+
+  /** Hauptfenster: Funkzustand setzen und an Tablet/Zweitfenster melden */
+  setFunkStatus(patch: Partial<FunkStatus>) {
+    this.funkStatus = { ...this.funkStatus, ...patch };
+    this.emitLocal();
+    if (this.role === 'main') this.channel?.post({ t: 'funkStatus', status: this.funkStatus } satisfies SyncMsg);
   }
 
   // -------------------------------------------------------------- Benannte Befehle
@@ -441,7 +471,23 @@ type SyncMsg =
   | { t: 'result'; to: string; result: CommandResult }
   | { t: 'ui'; action: UiAction }
   | { t: 'diasReq' }
-  | { t: 'dias'; tree: DiasTree | null };
+  | { t: 'dias'; tree: DiasTree | null }
+  | { t: 'ptt'; on: boolean; group: string | null }
+  | { t: 'funkStatus'; status: FunkStatus };
+
+/** Zustand des Funks am Leitstand-PC (Mikrofon, Erkennung) – wird an Tablet und Zweitfenster gemeldet */
+export interface FunkStatus {
+  /** Sendetaste gedrückt, Mikrofon offen */
+  sending: boolean;
+  /** geschaltete Rufgruppe beim Senden */
+  group: string | null;
+  /** bisher erkannter Text */
+  interim: string;
+  /** Fehler oder Hinweis */
+  error: string;
+  /** Fahrzeug spricht gerade (Sprachausgabe) */
+  receiving: boolean;
+}
 
 export const store = new GameStore();
 

@@ -245,6 +245,9 @@ async function main() {
       closed = true;
       break;
     }
+    // Sprechwünsche (Status 5) erst ansprechen – dann ist der Inhalt bekannt
+    const call = im.getByRole('button', { name: 'Ansprechen' });
+    if (await call.count()) await call.first().click();
     const target = im.getByRole('button', { name: 'Ziel zuweisen' });
     if (await target.count()) await target.first().click();
     const ack = im.getByRole('button', { name: 'Quittieren' });
@@ -331,7 +334,9 @@ async function main() {
   log(`Sprachtest: simulierter Anrufer antwortet aus den Fakten (${am[2] ? `${am[1].split(' ').slice(-3).join(' ')} ${am[2]}` : ''})`);
   // Disponent trägt selbst ein – nichts wird automatisch übernommen
   assert((await vt.getByTestId('street-input').inputValue()) === '', 'Keine automatische Übernahme in die Maske');
-  const street = am[1].replace(/^.*(?:brennt es!|Rauch!|Küche!)\s*/, '').trim();
+  // wie ein Disponent: nur den Straßennamen aus dem Satz nehmen (Füllwörter und Einleitung weglassen)
+  let street = am[1].split(/[,–!?.…]\s*/).pop().trim();
+  while (/^(das ist|wir sind hier|also|äh|ähm|ja|hier|meine güte|oh gott|ach gott)\s+/i.test(street)) street = street.replace(/^(das ist|wir sind hier|also|äh|ähm|ja|hier|meine güte|oh gott|ach gott)\s+/i, '');
   await vt.getByTestId('street-input').fill(street);
   await vt.getByLabel('Hausnummer').fill(am[2]);
   await vt.getByLabel('Ort', { exact: true }).fill(am[4].trim());

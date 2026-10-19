@@ -1,5 +1,6 @@
 import type { GameState } from '../model/types';
 import * as E from '../sim/engine';
+import { radioCall, radioTalk } from '../sim/funk';
 import type { CommandResult } from '../sim/engine';
 
 /**
@@ -26,6 +27,8 @@ export const COMMANDS = {
   createManualIncident: E.createManualIncident,
   injectScenarioCall: E.injectScenarioCall,
   linkCallToIncident: E.linkCallToIncident,
+  radioCall,
+  radioTalk,
   releaseAllOnScene: E.releaseAllOnScene,
   releaseVehicle: E.releaseVehicle,
   requestBackup: E.requestBackup,

@@ -10,7 +10,7 @@ import { formatDuration, formatKm } from '../../../sim/geo';
 import { radioGroupOf } from '../../../model/radio';
 import { store } from '../../../store/gameStore';
 import { fmtClock, StatusBadge } from '../../components/common';
-import { RadioActions } from './RadioPanel';
+import { RadioActions, radioText } from './RadioPanel';
 
 /** Gesprächsleiste: Dialog mit dem Anrufer und Fragen */
 export function Gespraech({ game, call }: { game: GameState; call: Call }) {
@@ -307,7 +307,7 @@ export function Rueckmeldungen({ game, inc }: { game: GameState; inc: Incident }
         return (
           <div key={r.id} className="warnbox col" style={{ gap: 4 }}>
             <span>
-              <span className="status-badge" style={{ background: statusDef(game, 'sprechwunsch').color }}>{statusDef(game, 'sprechwunsch').code}</span> <b>{v?.callsign}:</b> {r.text}
+              <span className="status-badge" style={{ background: statusDef(game, 'sprechwunsch').color }}>{statusDef(game, 'sprechwunsch').code}</span> <b>{v?.callsign}:</b> {radioText(r)}
             </span>
             <RadioActions game={game} msg={r} />
           </div>

@@ -136,6 +136,8 @@ export interface RecognizerOptions {
   onFinal: (text: string) => void;
   onError: (code: string, message: string) => void;
   onEnd: () => void;
+  /** Weiter zuhören bis stop() (Sendetaste gedrückt halten) statt bis zur ersten Sprechpause */
+  continuous?: boolean;
 }
 
 export interface Recognizer {
@@ -158,7 +160,7 @@ export function createRecognizer(o: RecognizerOptions): Recognizer | null {
     else return null;
   }
   r.lang = o.lang ?? 'de-DE';
-  r.continuous = false;
+  r.continuous = o.continuous ?? false;
   r.interimResults = true;
   r.maxAlternatives = 1;
   let final = '';

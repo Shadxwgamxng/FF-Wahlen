@@ -13,7 +13,7 @@ export interface Prefs {
 }
 
 const KEY = 'leitwarte.prefs';
-const DEFAULTS: Prefs = { sound: true, volume: 0.4, tts: false, ttsRate: 1.1, mapDark: true, routingUrl: 'http://localhost:5000', routingEnabled: true };
+const DEFAULTS: Prefs = { sound: true, volume: 0.4, tts: true, ttsRate: 1.1, mapDark: true, routingUrl: 'http://localhost:5000', routingEnabled: true };
 
 let prefs: Prefs = load();
 const listeners = new Set<() => void>();

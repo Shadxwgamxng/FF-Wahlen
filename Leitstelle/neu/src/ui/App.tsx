@@ -17,6 +17,7 @@ import { VoiceTestView } from './views/VoiceTestView';
 import { installAudio } from './audio';
 import { openPopout, POPOUTS } from './PopoutApp';
 import { installRouting, useRoutingState } from './routingService';
+import { FunkController } from './funk';
 
 export type ViewId = 'leitstand' | 'wachen' | 'fahrzeuge' | 'aao' | 'kliniken' | 'statistik' | 'editor' | 'simulation' | 'mehrspieler' | 'daten' | 'sprachtest';
 
@@ -133,6 +134,7 @@ export function App() {
         {view === 'sprachtest' && <VoiceTestView game={game} />}
       </main>
       {help && <HelpModal onClose={() => setHelp(false)} />}
+      <FunkController />
       <Toasts />
       <ConfirmHost />
     </div>

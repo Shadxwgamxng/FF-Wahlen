@@ -131,10 +131,11 @@ function setStatus(state: GameState, v: Vehicle, meaning: StatusMeaning, note?: 
 function radio(state: GameState, msg: Omit<RadioMessage, 'id' | 'at' | 'handled'>) {
   const rt = state.runtime;
   rt.counters.radio++;
-  const m: RadioMessage = { ...msg, id: `r_${rt.counters.radio}`, at: rt.clock.now, handled: false };
+  // Der Inhalt ist erst bekannt, wenn die Leitstelle das Fahrzeug anspricht (Funk oder "Ansprechen")
+  const m: RadioMessage = { ...msg, id: `r_${rt.counters.radio}`, at: rt.clock.now, handled: false, revealed: false };
   rt.radio.push(m);
   const v = state.center.vehicles.find((x) => x.id === msg.vehicleId);
-  log(state, msg.kind === 'nachforderung' ? 'nachforderung' : 'funk', `${v?.callsign ?? 'Funk'}: ${msg.text}`, {
+  log(state, msg.kind === 'nachforderung' ? 'nachforderung' : 'funk', `${v?.callsign ?? 'Funk'}: Sprechwunsch`, {
     vehicleId: msg.vehicleId,
     incidentId: msg.incidentId ?? undefined,
   });

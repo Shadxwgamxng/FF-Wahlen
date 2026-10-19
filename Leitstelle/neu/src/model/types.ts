@@ -544,6 +544,32 @@ export interface RadioMessage {
   /** Bei Nachforderung */
   requirements?: AaoRequirement[];
   patientId?: ID;
+  /**
+   * Inhalt schon gehört? false = nur "Status 5 – Sprechwunsch", bis die Leitstelle das Fahrzeug anspricht.
+   * Fehlt (ältere Spielstände) = bekannt.
+   */
+  revealed?: boolean;
+}
+
+/** Eine Zeile im Funkverkehr (Sprechfunk zwischen Leitstelle und Fahrzeugen) */
+export interface FunkLine {
+  id: number;
+  at: number;
+  from: 'leitstelle' | 'fahrzeug' | 'system';
+  vehicleId?: ID;
+  /** geschaltete Rufgruppe */
+  group?: string;
+  text: string;
+  /** Text für die Sprachausgabe (Ziffern einzeln, ohne Bindestriche) */
+  speech?: string;
+}
+
+export interface FunkState {
+  log: FunkLine[];
+  counter: number;
+  /** zuletzt angesprochenes Fahrzeug – Folgesätze ohne Rufnamen gelten ihm */
+  lastVehicleId?: ID;
+  lastAt?: number;
 }
 
 export type Weather = 'klar' | 'bewoelkt' | 'regen' | 'gewitter' | 'schnee' | 'hitze' | 'nebel';
@@ -577,6 +603,8 @@ export interface Runtime {
   calls: Call[];
   incidents: Incident[];
   radio: RadioMessage[];
+  /** Sprechfunkverkehr (fehlt in älteren Spielständen) */
+  funk?: FunkState;
   events: LogEvent[];
   archive: ArchivedIncident[];
   /** Belegte Klinikbetten mit Freigabezeitpunkt */

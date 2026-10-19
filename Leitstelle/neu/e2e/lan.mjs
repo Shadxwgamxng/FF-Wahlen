@@ -60,7 +60,28 @@ try {
   await pc.route('**/api/interpreter', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: overpassFixture }));
   await pc.route('**/tile.openstreetmap.org/**', (r) => r.abort());
   await tab.route('**/tile.openstreetmap.org/**', (r) => r.abort());
-  await pc.addInitScript(() => localStorage.setItem('leitwarte.prefs', JSON.stringify({ routingEnabled: false, sound: false })));
+  await pc.addInitScript(() => {
+    localStorage.setItem('leitwarte.prefs', JSON.stringify({ routingEnabled: false, sound: false }));
+    // Funk: Einwilligung und eine nachgebildete Spracherkennung (liefert window.__funkSpruch)
+    localStorage.setItem('leitwarte.sprachtest.einwilligung', JSON.stringify({ version: 1, at: 1, mode: 'browserdienst' }));
+    class FakeRecognition {
+      start() {
+        window.__srStarts = (window.__srStarts || 0) + 1;
+        setTimeout(() => {
+          const res = Object.assign([{ transcript: window.__funkSpruch || '', confidence: 1 }], { isFinal: true });
+          this.onresult?.({ resultIndex: 0, results: { length: 1, 0: res } });
+        }, 100);
+      }
+      stop() {
+        setTimeout(() => this.onend?.(), 50);
+      }
+      abort() {
+        this.onend?.();
+      }
+    }
+    window.SpeechRecognition = FakeRecognition;
+    window.webkitSpeechRecognition = FakeRecognition;
+  });
 
   await pc.goto(`${BASE}/`);
   await pc.getByTestId('start-screen').waitFor();
@@ -151,9 +172,33 @@ try {
     return (v.radioGroup?.code || st.center.organizations.find((o) => o.id === v.organizationId).radioGroup.code);
   }, incId);
   await tab.getByTestId('rufgruppe').filter({ hasText: group }).first().tap();
+  const wish = tab.getByTestId('funk-meldung').filter({ hasText: 'Sprechwunsch' });
+  await wish.first().waitFor({ timeout: 10000 });
+  assert((await tab.getByTestId('funk-meldung').filter({ hasText: 'rückt aus mit' }).count()) === 0, 'Inhalt erst nach dem Ansprechen');
+  log(`Rufgruppe ${group} geschaltet: Status 5 (Sprechwunsch) der Wehr erscheint am Tablet – Inhalt noch unbekannt`);
+
+  // Sendetaste am Tablet halten – Erkennung läuft am PC, die Antwort kommt als Funkspruch zurück
+  const callsign = await pc.evaluate((id) => {
+    const st = window.leitwarte.state;
+    const r = st.runtime.radio.find((x) => x.incidentId === id && x.text.includes('rückt aus mit'));
+    const v = st.center.vehicles.find((x) => x.id === r.vehicleId);
+    window.__funkSpruch = `${v.callsign} von Leitstelle, kommen`;
+    return v.callsign;
+  }, incId);
+  const ptt = tab.getByTestId('ptt');
+  const box = await ptt.boundingBox();
+  await tab.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await tab.mouse.down();
+  await pc.waitForFunction(() => window.leitwarte.funkStatus.sending, null, { timeout: 10000 });
+  await tab.waitForTimeout(400);
+  await tab.mouse.up();
+  const reply = tab.getByTestId('funk-line').filter({ hasText: `Hier ${callsign}` });
+  await reply.first().waitFor({ timeout: 10000 });
+  const replyText = await reply.first().innerText();
+  assert(/rückt aus mit/.test(replyText) && /kommen\.$/.test(replyText.trim()), `Antwort der Besatzung: ${replyText}`);
+  log(`Sendetaste am Tablet → PC erkennt „${callsign} von Leitstelle, kommen“ → Besatzung antwortet: „${replyText.replace(/^\S+\s+/, '').trim()}“`);
   const msg = tab.getByTestId('funk-meldung').filter({ hasText: 'rückt aus mit' });
   await msg.first().waitFor({ timeout: 10000 });
-  log(`Rufgruppe ${group} geschaltet: Funkrückmeldung der Wehr erscheint am Tablet`);
   await msg.first().getByRole('button', { name: 'Quittieren' }).tap();
   await pc.waitForFunction((id) => !window.leitwarte.state.runtime.radio.some((r) => r.incidentId === id && !r.handled && r.text.includes('rückt aus mit')), incId, { timeout: 10000 });
   log('Am Tablet quittiert → Meldung ist am PC erledigt');

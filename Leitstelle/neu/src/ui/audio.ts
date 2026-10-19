@@ -34,6 +34,26 @@ function tone(freqs: number[], dur: number, gap = 0.05, type: OscillatorType = '
   }
 }
 
+/** Funkrauschen: kurzer, gefilterter Rauschstoß (Taste auf/ab) */
+export function squelch(dur = 0.16) {
+  const c = ac();
+  if (!c) return;
+  const n = Math.floor(c.sampleRate * dur);
+  const buf = c.createBuffer(1, n, c.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n);
+  const src = c.createBufferSource();
+  src.buffer = buf;
+  const bp = c.createBiquadFilter();
+  bp.type = 'bandpass';
+  bp.frequency.value = 1800;
+  bp.Q.value = 0.8;
+  const g = c.createGain();
+  g.gain.value = getPrefs().volume * 0.5;
+  src.connect(bp).connect(g).connect(c.destination);
+  src.start();
+}
+
 export const sounds = {
   ring: () => tone([880, 660, 880, 660], 0.12, 0.03, 'square'),
   alarm: () => tone([523, 659, 784], 0.25, 0.02, 'triangle'),
@@ -76,6 +96,6 @@ export function installAudio() {
       else if (kinds.has('warnung')) sounds.warn();
       else if (kinds.has('nachforderung') || kinds.has('funk')) sounds.radio();
     }
-    for (const e of fresh) if ((e.kind === 'funk' || e.kind === 'nachforderung') && !e.text.startsWith('Meldung quittiert')) speak(e.text.replace(/\//g, ' '));
+    // Funksprüche der Fahrzeuge spricht der Funk selbst (ui/funk.tsx, Einstellung "Funksprüche vorlesen")
   });
 }
