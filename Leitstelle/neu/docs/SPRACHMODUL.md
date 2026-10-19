@@ -25,6 +25,11 @@ Der Bereich **Sprachtest** übt die Notrufabfrage per Sprache. Er ist bewusst vo
   - Anweisungen
   - Verabschiedung: Der Anrufer legt auf.
 - Ohne Zusage, dass Hilfe kommt, wird er mit der Zeit ungeduldiger. Seine Aufregung beeinflusst Sprechtempo und Tonhöhe.
+- Er spricht **natürlich statt künstlich** (`src/voice/style.ts`):
+  - Jeder Anrufer hat eine Persönlichkeit: ruhig, aufgeregt, älter, kurz angebunden oder redselig. Sie bestimmt Wortwahl, Sprechtempo und Tonhöhe.
+  - Jede Antwort gibt es in mehreren Formulierungen. Dazu kommen Füllwörter („Ähm“, „Also“, „Ach Gott“), Pausen, Satzabbrüche und Wiederholungen („Da – da ist noch jemand drin!“), je nach Aufregung.
+  - Das betrifft nur die Sprechweise: Die Fakten bleiben in jeder Variante gleich. Gleicher Anruf, gleiche Formulierungen.
+  - Auch die Antworten in der Einsatzmaske im Spiel nutzen diese Sprechweise.
 - Die Erkennung arbeitet mit Mustern. Ungewöhnliche Formulierungen versteht der Anrufer nicht und fragt nach. Auch Erkennungsfehler des Browsers („Stockwerk“ als „Stock Werk“) können zu Nachfragen führen.
 
 ## Datenschutz und Kosten

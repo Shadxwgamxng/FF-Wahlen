@@ -1,6 +1,8 @@
 import type { KeywordCategory } from '../model/types';
 import type { Facts } from '../data/questions';
 import { findQuestion } from '../data/questions';
+import { hashSeed } from './details/types';
+import { CallerVoice, initialEmotion, lowerFirst, personalityFor, voiceFor, type Emotion, type Personality, type VoicePersona } from './style';
 import type { GeneratedLocation } from '../sim/callgen';
 import { matchIntents, normalize, type ConversationIntent } from './intents';
 import { answerDetail, findDetail } from './details';
@@ -12,7 +14,14 @@ import { answerDetail, findDetail } from './details';
  * Antwortfunktionen in data/questions.ts, die nur die verdeckten Szenariofakten lesen
  * (fehlt ein Fakt, sagt der Anrufer, dass er es nicht weiß). Alles andere sind feste
  * Gesprächsfloskeln ohne Sachinhalt (Nachfragen, Bestätigen, Drängen).
+ *
+ * Damit es nicht künstlich klingt, hat jeder Anrufer eine Persönlichkeit (style.ts) und
+ * formuliert jede Antwort in einer von mehreren Varianten mit Füllwörtern, Abbrüchen und
+ * Wiederholungen – deterministisch je Anruf.
  */
+
+export type { Emotion, Personality, VoicePersona } from './style';
+export { initialEmotion } from './style';
 
 export interface VoiceCall {
   scenarioId: string;
@@ -25,9 +34,6 @@ export interface VoiceCall {
   location: GeneratedLocation;
 }
 
-/** 0 = ruhig, 1 = aufgeregt, 2 = panisch */
-export type Emotion = 0 | 1 | 2;
-
 export interface CallerTurn {
   text: string;
   /** erkannte Fragen (IDs aus data/questions.ts) */
@@ -38,11 +44,8 @@ export interface CallerTurn {
   emotion: Emotion;
   /** Anrufer hat sich verabschiedet */
   ended: boolean;
-}
-
-export interface VoicePersona {
-  rate: number;
-  pitch: number;
+  /** Inhaltliche Antworten ohne Füllwörter (für Prüfung und Auswertung) */
+  content: string[];
 }
 
 const MAX_ANSWERS_PER_TURN = 3;
@@ -64,18 +67,34 @@ export function spellWord(word: string): string {
   return parts.join(', ');
 }
 
-export function initialEmotion(facts: Facts): Emotion {
-  if (facts.trapped === true || facts.conscious === false || facts.breathing === 'nein' || facts.visible === false) return 2;
-  if ((typeof facts.injured === 'number' && facts.injured > 0) || facts.spreading === true || facts.weapon === true) return 1;
-  return 0;
+export function personaFor(emotion: Emotion, personality: Personality = 'ruhig'): VoicePersona {
+  return voiceFor(personality, emotion);
 }
 
-export function personaFor(emotion: Emotion): VoicePersona {
-  return { rate: 1 + emotion * 0.1, pitch: 1 + emotion * 0.08 };
-}
+/** Seed für Persönlichkeit und Formulierungen eines Anrufs */
+export const callSeed = (call: Pick<VoiceCall, 'scenarioId' | 'caller'>) => `${call.scenarioId}|${call.caller.phone}|${call.caller.name}`;
 
+/** Eröffnung je nach Persönlichkeit und Gefühlslage einleiten (der Eröffnungssatz selbst bleibt unverändert) */
+export function openingLine(opening: string, personality: Personality, emotion: Emotion, name: string, voice: CallerVoice): string {
+  const line = (intro: string) => (intro.endsWith('–') ? `${intro} ${lowerFirst(opening)}` : `${intro} ${opening}`.trim());
+  if (emotion === 2) return line(voice.pick(['Hallo?! Hallo, bitte –', 'Hallo? Hallo! Bitte, schnell –', 'Ja, hallo, bitte –']));
+  switch (personality) {
+    case 'aelter':
+      return line(voice.pick([`Ja, guten Tag, hier ist ${name}.`, `Ja, hallo, hier spricht ${name}.`, 'Ja, guten Tag …']));
+    case 'redselig':
+      return line(voice.pick([`Ja, hallo, hier ist ${name}, also –`, 'Ja, hallo, also passen Sie auf –', 'Hallo, ja, äh –']));
+    case 'aufgeregt':
+      return line(voice.pick(['Hallo? Ja –', 'Ja, hallo, äh –', 'Hallo!']));
+    case 'ruhig':
+      return line(voice.pick(['Ja, guten Tag.', 'Ja, hallo.', '']));
+    default:
+      return opening;
+  }
+}
 export class CallerSim {
   readonly asked = new Set<string>();
+  readonly personality: Personality;
+  readonly voice: CallerVoice;
   emotion: Emotion;
   ended = false;
   private openingSaid = false;
@@ -85,12 +104,16 @@ export class CallerSim {
   private reassured = false;
 
   constructor(readonly call: VoiceCall) {
-    this.emotion = initialEmotion(call.facts);
+    const seed = callSeed(call);
+    this.personality = personalityFor(seed, call.facts);
+    this.voice = new CallerVoice(this.personality, hashSeed(`${seed}|stimme`));
+    this.emotion = initialEmotion(call.facts, this.personality);
   }
 
   /** Reaktion auf eine Äußerung des Disponenten */
   respond(utterance: string): CallerTurn {
-    const base = { questions: [] as string[], intents: [] as ConversationIntent[], emotion: this.emotion };
+    const base = { questions: [] as string[], intents: [] as ConversationIntent[], emotion: this.emotion, content: [] as string[] };
+    const v = this.voice;
     if (this.ended) return { ...base, text: '', understood: false, ended: true };
     const said = utterance.trim();
     if (!said) return { ...base, text: '', understood: false, ended: false };
@@ -100,12 +123,12 @@ export class CallerSim {
     let content = false;
 
     if (!this.openingSaid) {
-      parts.push(this.call.opening);
+      parts.push(openingLine(this.call.opening, this.personality, this.emotion, this.call.caller.name, v));
       this.openingSaid = true;
     }
 
     if (m.intents.includes('wiederholen') && !m.questions.length && this.lastAnswer) {
-      parts.push(`Ich habe gesagt: ${this.lastAnswer}`);
+      parts.push(`${v.phrase('wiederholung')} ${this.lastAnswer}`);
       content = true;
     }
     let nameSpelled = false;
@@ -120,11 +143,12 @@ export class CallerSim {
       }
     }
     if (m.intents.includes('name') && !nameSpelled) {
-      parts.push(`Mein Name ist ${this.call.caller.name}.`);
+      parts.push(v.pick([`Mein Name ist ${this.call.caller.name}.`, `${this.call.caller.name}.`, `${this.call.caller.name}, ich heiße ${this.call.caller.name}.`, `Ich bin ${this.call.caller.name}.`]));
       content = true;
     }
 
     const answers: string[] = [];
+    const spoken: string[] = [];
     for (const qid of m.questions.slice(0, MAX_ANSWERS_PER_TURN)) {
       let a: string;
       if (findDetail(qid)) {
@@ -133,9 +157,10 @@ export class CallerSim {
       } else {
         const q = findQuestion(this.call.category, qid);
         if (!q) continue;
-        a = q.answer(this.call.facts);
+        a = q.answer(this.call.facts, v.pick);
       }
-      answers.push(this.asked.has(qid) ? `Das habe ich doch schon gesagt: ${a}` : a);
+      spoken.push(a);
+      answers.push(this.asked.has(qid) ? `${v.phrase('schonGesagt')} ${a}` : v.naturalize(a, this.emotion));
       this.asked.add(qid);
     }
     if (answers.length) {
@@ -144,19 +169,23 @@ export class CallerSim {
       content = true;
     }
 
+    let acknowledged = false;
     if (m.intents.includes('beruhigen')) {
       this.reassured = true;
       if (this.emotion > 0) this.emotion = (this.emotion - 1) as Emotion;
-      if (!answers.length) parts.push(this.emotion >= 1 ? 'Okay … okay. Bitte beeilen Sie sich.' : 'Okay, danke.');
+      if (!answers.length) {
+        parts.push(v.phrase(this.emotion >= 1 ? 'beruhigtNochAufgeregt' : 'beruhigt'));
+        acknowledged = true;
+      }
       content = true;
     }
-    if (m.intents.includes('anweisung') && !answers.length) {
+    if (m.intents.includes('anweisung') && !answers.length && !acknowledged) {
       // reine Verständnisquittung – der Anrufer sagt keine Handlung zu, die die Simulation nicht abbildet
-      parts.push('Verstanden.');
+      parts.push(v.phrase('verstanden'));
       content = true;
     }
     if (m.intents.includes('ende')) {
-      parts.push('Danke! Bitte kommen Sie schnell.');
+      parts.push(v.phrase('ende'));
       this.ended = true;
       content = true;
     }
@@ -165,11 +194,11 @@ export class CallerSim {
       if (m.intents.includes('begruessung') && parts.length) {
         // nur Begrüßung: der Anrufer hat mit seinem Eröffnungssatz geantwortet
       } else if (m.intents.includes('begruessung')) {
-        parts.push('Ja, hallo? Hören Sie mich?');
+        parts.push(v.phrase('hallo'));
       } else if (!parts.length) {
         this.misunderstood++;
         if (this.misunderstood >= 2 && this.emotion < 2) this.emotion = (this.emotion + 1) as Emotion;
-        parts.push(this.misunderstood >= 2 ? 'Wie bitte? Ich verstehe Sie nicht – schicken Sie doch bitte einfach jemanden!' : 'Wie bitte? Was meinen Sie?');
+        parts.push(v.phrase(this.misunderstood >= 2 ? 'nichtVerstanden2' : 'nichtVerstanden'));
       }
     } else {
       this.misunderstood = 0;
@@ -178,9 +207,9 @@ export class CallerSim {
     // Ohne Zusage, dass Hilfe kommt, wird der Anrufer mit der Zeit ungeduldiger
     if (!this.ended && !this.reassured && this.turns >= 5 && this.turns % 3 === 2) {
       if (this.emotion < 2) this.emotion = (this.emotion + 1) as Emotion;
-      parts.push('Kommt denn jetzt jemand?');
+      parts.push(v.phrase('ungeduldig'));
     } else if (!this.ended && this.emotion === 2 && this.turns % 3 === 0) {
-      parts.push('Bitte beeilen Sie sich!');
+      parts.push(v.phrase('beeilen'));
     }
 
     return {
@@ -190,6 +219,7 @@ export class CallerSim {
       understood: content || m.intents.length > 0,
       emotion: this.emotion,
       ended: this.ended,
+      content: spoken,
     };
   }
 }

@@ -1,13 +1,20 @@
 import { describe, expect, it, beforeEach } from 'vitest';
 import { createSampleCenter } from '../data/sampleCenter';
-import { questionsFor } from '../data/questions';
+import { questionsFor, type Facts, type QuestionDef } from '../data/questions';
 import { createGame } from '../sim/engine';
 import { matchIntents } from './intents';
 import { CallerSim, spellWord, initialEmotion } from './caller';
 import { buildVoiceTestCall, emptyVoiceEntry, evaluateVoiceTest } from './testCall';
+import { allPhrases, CallerVoice, type Emotion, type Personality } from './style';
 import { deleteAllTranscripts, deleteTranscript, getConsent, giveConsent, listTranscripts, MAX_TRANSCRIPTS, saveTranscript, setVoiceStorage, withdrawConsent } from './transcripts';
 
 const game = () => createGame(createSampleCenter());
+
+/** nur Buchstaben und Ziffern – Füllwörter, Pausen und Satzzeichen fallen weg */
+const bare = (s: string) => s.toLowerCase().replace(/[^a-z0-9äöüß]+/g, '');
+/** alle Formulierungen einer Antwort */
+const variants = (q: QuestionDef, f: Facts) => new Set([0, 1, 2, 3, 4, 5].map((i) => q.answer(f, (alts) => alts[i % alts.length])));
+const startsWithPhrase = (text: string, key: Parameters<typeof allPhrases>[0]) => allPhrases(key).some((p) => text.startsWith(p));
 
 describe('Absichtserkennung', () => {
   const cases: [string, Parameters<typeof matchIntents>[1], string[]][] = [
@@ -87,11 +94,12 @@ describe('Simulierter Anrufer', () => {
     const call = buildVoiceTestCall(g, 1);
     const sim = new CallerSim(call);
     const first = sim.respond('Notruf Feuerwehr und Rettungsdienst, wo genau ist der Notfallort?');
-    expect(first.text.startsWith(call.opening)).toBe(true);
-    expect(first.text).toContain(call.location.address);
+    expect(bare(first.text)).toContain(bare(call.opening));
+    expect(first.text).toContain(call.location.street);
     expect(first.questions).toEqual(['ort']);
     const pers = sim.respond('Sind noch Personen in der Wohnung?');
-    expect(pers.text).toContain(questionsFor('brand').find((q) => q.id === 'b_personen')!.answer(call.facts));
+    expect(variants(questionsFor('brand').find((q) => q.id === 'b_personen')!, call.facts)).toContain(pers.content[0]);
+    expect(bare(pers.text)).toContain(bare(pers.content[0]));
     expect([...sim.asked].sort()).toEqual(['b_personen', 'ort']);
   });
 
@@ -99,18 +107,14 @@ describe('Simulierter Anrufer', () => {
     const g = game();
     const call = buildVoiceTestCall(g, 7);
     const sim = new CallerSim(call);
-    const answers = new Set(questionsFor('brand').map((q) => q.answer(call.facts)));
+    const answers = new Set(questionsFor('brand').flatMap((q) => [...variants(q, call.facts)]));
     const turns = ['Notruf, was ist passiert?', 'Was brennt genau?', 'In welchem Stockwerk?', 'Breitet sich das aus?', 'Gibt es Verletzte?', 'Sehen Sie Rauch?'];
     for (const t of turns) {
       const r = sim.respond(t);
-      const rest = r.text
-        .replace(call.opening, '')
-        .split(/(?<=[.!?])\s+/)
-        .map((x) => x.trim())
-        .filter(Boolean);
-      for (const sentence of rest) {
-        const ok = [...answers].some((a) => a.includes(sentence) || sentence.includes(a)) || /^(Bitte beeilen Sie sich!|Kommt denn jetzt jemand\?)$/.test(sentence);
-        expect(ok, `"${sentence}" stammt nicht aus den Fakten`).toBe(true);
+      expect(r.content.length, t).toBeGreaterThan(0);
+      for (const c of r.content) {
+        expect(answers.has(c), `"${c}" stammt nicht aus den Fakten`).toBe(true);
+        expect(bare(r.text), 'Inhalt bleibt in der gesprochenen Fassung erhalten').toContain(bare(c));
       }
     }
   });
@@ -125,14 +129,14 @@ describe('Simulierter Anrufer', () => {
     expect(sim.respond('Wie heißen Sie?').text).toContain(call.caller.name);
     const unk = sim.respond('Blablabla');
     expect(unk.understood).toBe(false);
-    expect(unk.text).toMatch(/Wie bitte/);
-    expect(sim.respond('Wo genau ist das?').text).toMatch(/schon gesagt/);
+    expect(startsWithPhrase(unk.text, 'nichtVerstanden'), unk.text).toBe(true);
+    expect(startsWithPhrase(sim.respond('Wo genau ist das?').text, 'schonGesagt')).toBe(true);
   });
 
   it('beruhigt sich, wenn Hilfe zugesagt wird, und legt nach Verabschiedung auf', () => {
     const call = buildVoiceTestCall(game(), 1);
     const sim = new CallerSim(call);
-    expect(sim.emotion).toBe(initialEmotion(call.facts));
+    expect(sim.emotion).toBe(initialEmotion(call.facts, sim.personality));
     expect(sim.emotion).toBe(2); // Person in der Wohnung
     sim.respond('Notruf Feuerwehr.');
     sim.respond('Bleiben Sie ruhig, die Feuerwehr ist unterwegs.');
@@ -158,7 +162,9 @@ describe('Simulierter Anrufer', () => {
     const name = sim.respond('Buchstabieren Sie bitte Ihren Namen.').text;
     expect(name).toContain(spellWord(call.caller.name));
     expect(name).not.toContain(spellWord(call.location.street));
-    expect(sim.respond('Gehen Sie in die Wohnung und holen Sie die Person raus.').text).toMatch(/^Verstanden\.( Bitte beeilen Sie sich!)?$/);
+    const ack = sim.respond('Gehen Sie in die Wohnung und holen Sie die Person raus.');
+    expect(startsWithPhrase(ack.text, 'verstanden'), ack.text).toBe(true);
+    expect(ack.content).toEqual([]);
   });
 
   it('Eröffnung "Wohnung über mir" passt zu den Fakten (Obergeschoss, Mehrfamilienhaus)', () => {
@@ -168,6 +174,34 @@ describe('Simulierter Anrufer', () => {
       expect(String(c.facts.floor), `Fall ${seed}`).toMatch(/Obergeschoss/);
       expect(String(c.facts._detail), `Fall ${seed}`).toMatch(/Mehrfamilienhaus|Wohnblock/);
     }
+  });
+
+  it('klingt nicht künstlich: verschiedene Persönlichkeiten und Formulierungen', () => {
+    const g = game();
+    const personalities = new Set<string>();
+    const persAnswers = new Set<string>();
+    for (let seed = 1; seed <= 30; seed++) {
+      const sim = new CallerSim(buildVoiceTestCall(g, seed));
+      personalities.add(sim.personality);
+      sim.respond('Notruf Feuerwehr.');
+      persAnswers.add(sim.respond('Ist noch jemand in der Wohnung?').text);
+    }
+    expect(personalities.size).toBeGreaterThanOrEqual(4);
+    expect(persAnswers.size).toBeGreaterThanOrEqual(8);
+  });
+
+  it('natürliche Sprechweise verändert keine Fakten und schreibt "Sie" nie klein', () => {
+    const samples = ['Sie reagiert überhaupt nicht!', 'Etwa 45 Jahre.', 'Ja, da ist noch jemand drin, ich höre Rufe!', '2. Obergeschoss.', 'Der Fahrer ist eingeklemmt, die Tür geht nicht auf!'];
+    for (const p of ['ruhig', 'aufgeregt', 'aelter', 'knapp', 'redselig'] as Personality[])
+      for (let seed = 1; seed <= 40; seed++) {
+        const v = new CallerVoice(p, seed);
+        for (const e of [0, 1, 2] as Emotion[])
+          for (const t of samples) {
+            const out = v.naturalize(t, e);
+            expect(bare(out), `${p}/${e}: ${out}`).toContain(bare(t).slice(2));
+            expect(out).not.toMatch(/(^|[,–…] )sie reagiert/);
+          }
+      }
   });
 
   it('buchstabiert nach DIN 5009', () => {

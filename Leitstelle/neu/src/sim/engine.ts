@@ -19,6 +19,8 @@ import { generateCall } from './callgen';
 import { findScenario, NO_INCIDENT_KEYWORD } from '../data/scenarios';
 import { catalogNeeds } from '../data/catalogs';
 import { findQuestion } from '../data/questions';
+import { CallerVoice, initialEmotion, personalityFor } from '../voice/style';
+import { hashSeed } from '../voice/details/types';
 import { hourOf, outOfServiceReason, vehicleAvailability } from './availability';
 import { DIFFICULTY, HOURLY_PROFILE } from './difficulty';
 import { distanceMeters, interpolate, pointInArea, travelTimeMs } from './geo';
@@ -704,7 +706,11 @@ export function askQuestion(state: GameState, callId: string, questionId: string
   if (c.dialog.some((d) => d.questionId === questionId)) return fail('Frage wurde bereits gestellt.');
   const q = findQuestion(c.category, questionId);
   if (!q) return fail('Unbekannte Frage.');
-  c.dialog.push({ questionId, question: q.text, answer: q.answer(c.facts), askedAt: state.runtime.clock.now });
+  // natürliche Sprechweise: Persönlichkeit je Anrufer, Formulierung je Frage (deterministisch)
+  const personality = personalityFor(`${c.id}|${c.scenarioId}`, c.facts);
+  const voice = new CallerVoice(personality, hashSeed(`${c.id}|${questionId}`));
+  const answer = voice.naturalize(q.answer(c.facts, voice.pick), initialEmotion(c.facts, personality));
+  c.dialog.push({ questionId, question: q.text, answer, askedAt: state.runtime.clock.now });
   return ok();
 }
 

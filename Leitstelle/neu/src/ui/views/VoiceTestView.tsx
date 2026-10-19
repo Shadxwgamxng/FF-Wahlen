@@ -321,7 +321,7 @@ function VoiceSession({ game, consent, support }: { game: GameState; consent: Vo
     };
     if (ttsOn && support.synthesis) {
       setSpeaking(true);
-      void speakAs(turn.text, personaFor(turn.emotion), voiceURI || undefined).then(after);
+      void speakAs(turn.text, personaFor(turn.emotion, l.sim.personality), voiceURI || undefined).then(after);
     } else after();
   };
   handleRef.current = handleUtterance;
