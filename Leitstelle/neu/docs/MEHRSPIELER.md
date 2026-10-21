@@ -1,6 +1,6 @@
 # Mehrspieler mit Freunden (über das Internet)
 
-Ein PC ist **Gastgeber**: Dort läuft die Simulation. Bis zu vier Spieler (Gastgeber + drei Freunde) spielen im selben Leitstand. Jeder kann alles. Wer einen Notruf annimmt oder einen Einsatz anlegt, ist dafür zuständig, die anderen sehen „Wird von … bearbeitet“ und können ihn **übernehmen**. Zeit, Geschwindigkeit, Szenarien und Bearbeitung steuert nur der Gastgeber.
+Ein PC ist **Gastgeber**: Dort läuft die Simulation. Mehrere Spieler (getestet mit sechs: Gastgeber + fünf Freunde) spielen im selben Leitstand. Jeder kann alles. Wer einen Notruf annimmt oder einen Einsatz anlegt, ist dafür zuständig, die anderen sehen „Wird von … bearbeitet“ und können ihn **übernehmen**. Zeit, Geschwindigkeit, Szenarien und Bearbeitung steuert nur der Gastgeber.
 
 Jeder spricht an seinem eigenen PC: Freisprechen mit seinen Anrufern, Funk mit seiner geschalteten Rufgruppe (F8 bzw. „Senden“).
 
@@ -16,7 +16,9 @@ ZeroTier baut ein privates virtuelles Netz – für Windows, Android und iPad. S
 6. Die Freunde öffnen in **Chrome oder Edge**: `http://<ZeroTier-IP des Gastgebers>:8080/mitspielen`, Namen eingeben.
 7. **Tablets:** `http://<ZeroTier-IP des Gastgebers>:8080/tablet` öffnen und oben bei „Gehört zu“ den eigenen Namen wählen. Dann löst die Sendetaste am Tablet das Mikrofon am **eigenen** PC aus, und das Tablet zeigt nur die eigenen Notrufabfragen.
 
-Grenzen der kostenlosen Pläne ändern sich gelegentlich (Stand: ZeroTier etwa 10 Geräte, Tailscale 3 Nutzer). Für 4 PCs + 4 Tablets passt ZeroTier.
+Der kostenlose ZeroTier-Plan erlaubt **10 Geräte** pro Konto (ältere Konten teils 25). Gezählt wird jedes freigegebene Gerät, PCs und Tablets zusammen. Für 6 PCs sind also noch 4 Tablets frei.
+
+**Mehr Geräte (z. B. 6 PCs + 6 Tablets):** Die PCs verbinden sich über **Radmin VPN** (kostenlos, keine Gerätegrenze für diese Größe), ZeroTier nur für die Tablets und den Gastgeber-PC (1 + 6 = 7 Geräte). Die Tablets nutzen dann die ZeroTier-IP des Gastgebers, die PCs seine Radmin-IP.
 
 **Radmin VPN / Hamachi** funktionieren für die PCs genauso (statt ZeroTier-IP die Radmin-/Hamachi-IP), haben aber keine Tablet-App – Tablets gehen damit nur beim Gastgeber.
 
