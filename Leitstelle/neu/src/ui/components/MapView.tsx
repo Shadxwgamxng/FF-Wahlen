@@ -1,3 +1,4 @@
+import { useVehicleImages } from '../vehicleImages';
 import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -20,6 +21,7 @@ interface Props {
 const PRIO_COLOR = { 1: '#f2555a', 2: '#f5a524', 3: '#3d8bfd' } as const;
 
 export function MapView(p: Props) {
+  const vimg = useVehicleImages();
   const el = useRef<HTMLDivElement>(null);
   const map = useRef<L.Map | null>(null);
   const layers = useRef<Record<string, L.LayerGroup>>({});
@@ -133,10 +135,16 @@ export function MapView(p: Props) {
         const type = g.center.vehicleTypes.find((t) => t.id === v.typeId);
         const short = v.callsign.split(' ').slice(-1)[0];
         const sel = v.id === p.selectedVehicleId;
+        const img = vimg.urls[v.id];
+        const base = img?.normal ?? img?.blaulicht;
+        // mit Sondersignal unterwegs: Bild ohne/mit Blaulicht wechseln (Blinken)
+        const blink = !!(img?.normal && img?.blaulicht && v.rt.move?.emergency && v.rt.move.purpose !== 'rueckfahrt');
         upsert(
           `v:${v.id}`,
           v.rt.position,
-          `<div class="veh-marker" style="background:${d.color};${sel ? 'outline:2px solid #fff' : ''}">${esc(d.code)} ${esc(type?.code ?? '')} ${esc(short)}</div>`,
+          base
+            ? `<div class="veh-img ${blink ? 'blink' : ''} ${sel ? 'sel' : ''}"><img src="${base}" alt="">${blink ? `<img class="bl" src="${img!.blaulicht}" alt="">` : ''}<span class="veh-tag" style="background:${d.color}">${esc(d.code)} ${esc(short)}</span></div>`
+            : `<div class="veh-marker" style="background:${d.color};${sel ? 'outline:2px solid #fff' : ''}">${esc(d.code)} ${esc(type?.code ?? '')} ${esc(short)}</div>`,
           [0, 0],
           `<b>${esc(v.callsign)}</b><br>${esc(d.code)} – ${esc(d.label)}`,
           () => cbs.current.onSelectVehicle(v.id),

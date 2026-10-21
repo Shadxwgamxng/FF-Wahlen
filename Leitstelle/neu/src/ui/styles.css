@@ -324,3 +324,13 @@ table.grid tr.unavailable td { color: var(--text-3); }
 .funk-line.fahrzeug { color: var(--text); }
 .funk-line.system { color: var(--muted, #999); font-style: italic; }
 .funk-bar { padding-bottom: 8px; margin-bottom: 6px; border-bottom: 1px solid var(--line); }
+
+/* Fahrzeugbilder auf der Karte */
+.veh-img { position: relative; transform: translate(-50%, -60%); display: inline-block; filter: drop-shadow(0 1px 2px #000c); }
+.veh-img img { height: 30px; display: block; }
+.veh-img img.bl { position: absolute; top: 0; left: 0; opacity: 0; animation: veh-blink 0.7s steps(1, end) infinite; }
+.veh-img.sel img:first-child { outline: 2px solid #fff; }
+.veh-img .veh-tag { display: block; margin: 1px auto 0; width: max-content; font: 600 9px/1 var(--mono); padding: 1px 3px; border-radius: 3px; color: #0b0f14; }
+@keyframes veh-blink { 0% { opacity: 0; } 50% { opacity: 1; } }
+.veh-img-thumb { height: 22px; display: block; }
+.veh-img-slot .btn { padding: 1px 4px; min-height: 0; }

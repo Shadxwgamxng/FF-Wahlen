@@ -1,3 +1,4 @@
+import { useVehicleImagesLoader } from './vehicleImages';
 import { useEffect, useState } from 'react';
 import { store, useStore } from '../store/gameStore';
 import { WEATHER_LABEL } from '../sim/engine';
@@ -24,6 +25,7 @@ export function openPopout(kind: string) {
 }
 
 export function PopoutApp({ kind }: { kind: string }) {
+  useVehicleImagesLoader();
   const game = useStore((s) => s.state);
   const alive = useStore((s) => s.mainAlive);
   const [vehicleId, setVehicleId] = useState<string | null>(null);

@@ -1,3 +1,4 @@
+import { VehicleImageCell } from '../vehicleImages';
 import type { GameState, MaintenanceWindow, ServiceWindow, Station, Vehicle } from '../../model/types';
 import { EntityEditor } from '../components/EntityEditor';
 import { store } from '../../store/gameStore';
@@ -123,6 +124,7 @@ export function VehiclesView({ game }: { game: GameState }) {
         rowClass={(v) => (vehicleAvailability(game, v).available ? '' : 'unavailable')}
         columns={[
           { label: 'St.', render: (v) => <StatusBadge game={game} meaning={v.rt.status} /> },
+          { label: 'Bild (Karte)', render: (v) => <VehicleImageCell vehicleId={v.id} /> },
           { label: 'Funkrufname', render: (v) => <b>{v.callsign}</b> },
           { label: 'Typ', render: (v) => c.vehicleTypes.find((t) => t.id === v.typeId)?.code },
           { label: 'Wache', render: (v) => c.stations.find((s) => s.id === v.stationId)?.name },

@@ -1,3 +1,4 @@
+import { useVehicleImagesLoader } from './vehicleImages';
 import { useEffect, useRef, useState } from 'react';
 import { store, useStore } from '../store/gameStore';
 import { WEATHER_LABEL } from '../sim/engine';
@@ -39,6 +40,7 @@ const NAV: [ViewId, string][] = [
 export const SPEEDS = [1, 2, 5, 10, 30, 60];
 
 export function App() {
+  useVehicleImagesLoader();
   const game = useStore((s) => s.state);
   const [view, setView] = useState<ViewId>('leitstand');
   const [help, setHelp] = useState(false);
