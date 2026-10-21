@@ -19,7 +19,7 @@ export function CallList({ game, selectedId, onSelect }: { game: GameState; sele
         {calls.length === 0 && <div className="empty">Keine wartenden Notrufe.</div>}
         {calls.map((c) => (
           <div key={c.id} className={`list-item ${c.state === 'klingelt' ? 'ringing' : ''} ${selectedId === c.id ? 'selected' : ''}`} onClick={() => onSelect(c.id)} data-testid="call-item">
-            <span style={{ fontSize: 18 }}>{c.state === 'klingelt' ? '☎' : '🎧'}</span>
+            <span style={{ fontSize: 18 }}>{c.state === 'klingelt' ? '☎' : '◉'}</span>
             <div className="grow" style={{ minWidth: 0 }}>
               <div className="row">
                 <b className="grow">{c.state === 'klingelt' ? 'Eingehender Notruf' : `In Abfrage – ${c.caller.name}`}</b>
@@ -182,7 +182,7 @@ export function VehicleDetail({ game, vehicleId, onClose, onOpenIncident }: { ga
   );
 }
 
-const KIND_ICON: Record<EventKind, string> = { notruf: '☎', alarm: '🔔', status: '•', funk: '📻', nachforderung: '➕', einsatz: '▸', abschluss: '✓', system: 'ℹ', warnung: '⚠' };
+const KIND_ICON: Record<EventKind, string> = { notruf: '☎', alarm: '!', status: '•', funk: 'F', nachforderung: '+', einsatz: '▸', abschluss: '✓', system: 'ℹ', warnung: '⚠' };
 
 export function EventLog({ game }: { game: GameState }) {
   const [filter, setFilter] = useState<'alle' | 'ohne_status'>('ohne_status');

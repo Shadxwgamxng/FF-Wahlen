@@ -1,3 +1,4 @@
+import { StyleSwitch } from '../components/StyleSwitch';
 import { useEffect, useState } from 'react';
 import { projects, type ProjectRecord } from '../../persistence/db';
 import { importJson, validateStoredGame } from '../../persistence/schema';
@@ -86,7 +87,7 @@ export function StartScreen() {
   return (
     <div className="start" data-testid="start-screen">
       <div className="hero">
-        <h1>LEITWARTE</h1>
+        <div className="row"><h1 className="grow">LEITWARTE</h1><StyleSwitch /></div>
         <div className="muted">Leitstellen-Simulation für Feuerwehr, Rettungsdienst und Partnerorganisationen – Einzelspieler im Browser, Daten bleiben lokal.</div>
       </div>
       {error && <div className="errbox">{error}</div>}

@@ -233,8 +233,8 @@ export function useFunkStatus() {
 /** Zeile unter der Sendetaste: was der PC gerade hört bzw. Fehler */
 export function FunkStatusLine() {
   const s = useFunkStatus();
-  if (s.sending) return <div className="small funk-status on">🎙 {s.interim || 'Sprechen …'}</div>;
-  if (s.receiving) return <div className="small funk-status rx">🔊 Fahrzeug spricht …</div>;
+  if (s.sending) return <div className="small funk-status on">● {s.interim || 'Sprechen …'}</div>;
+  if (s.receiving) return <div className="small funk-status rx">Empfang: Fahrzeug spricht …</div>;
   if (s.error) return <div className="small funk-status err">{s.error}</div>;
   return null;
 }

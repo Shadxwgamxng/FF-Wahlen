@@ -376,7 +376,7 @@ function VoiceSession({ game, consent, support }: { game: GameState; consent: Vo
           ) : (
             <>
               <button className={`btn ${listening ? 'alarm' : 'primary'}`} disabled={!micAllowed || listening} onClick={listen} title={micAllowed ? 'Taste M' : 'Mikrofon laut Einwilligung nicht genutzt'} data-testid="voice-mic">
-                {listening ? '🎙 Hört zu …' : '🎙 Sprechen (M)'}
+                {listening ? '● Hört zu …' : 'Sprechen (M)'}
               </button>
               {listening && (
                 <button className="btn" onClick={() => recognizer.current?.stop()}>
@@ -525,7 +525,7 @@ function VoiceSession({ game, consent, support }: { game: GameState; consent: Vo
               <tbody>
                 {evaluation.items.map((it) => (
                   <tr key={it.label}>
-                    <td>{it.ok ? '✅' : '❌'}</td>
+                    <td>{it.ok ? '✓' : '✗'}</td>
                     <td>{it.label}</td>
                     <td>{it.expected}</td>
                     <td>{it.given}</td>

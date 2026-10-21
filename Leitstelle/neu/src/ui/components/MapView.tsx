@@ -206,7 +206,7 @@ export function MapView(p: Props) {
   const toggle = (k: keyof typeof show) => setShow((s) => ({ ...s, [k]: !s[k] }));
   return (
     <>
-      <div ref={el} className={`map ${prefs.mapDark ? 'map-dark' : ''}`} style={{ cursor: p.onMapClick ? 'crosshair' : undefined }} data-testid="map" />
+      <div ref={el} className={`map ${prefs.mapDark && prefs.uiStyle === 'modern' ? 'map-dark' : ''}`} style={{ cursor: p.onMapClick ? 'crosshair' : undefined }} data-testid="map" />
       <div className="map-tools">
         {(
           [

@@ -181,7 +181,7 @@ function WindowMenu() {
   const ref = useRef<HTMLDetailsElement>(null);
   return (
     <details className="menu" ref={ref}>
-      <summary className="btn small" title="Bereiche in eigene Fenster lösen – z. B. Karte auf dem zweiten Bildschirm">🖥 Fenster</summary>
+      <summary className="btn small" title="Bereiche in eigene Fenster lösen – z. B. Karte auf dem zweiten Bildschirm">Fenster</summary>
       <div className="menu-list">
         {POPOUTS.map(([k, l]) => (
           <button key={k} className="btn small ghost" onClick={() => {
@@ -207,7 +207,7 @@ function RoutingChip() {
       : r.state === 'ok'
         ? 'Fahrzeuge fahren echte Straßenrouten (OSRM).'
         : 'Routing-Status';
-  return <span className={`chip ${cls}`} title={title}>🛣 {label}</span>;
+  return <span className={`chip ${cls}`} title={title}>{label}</span>;
 }
 
 function TopBar({ onHelp }: { onHelp: () => void }) {
@@ -244,12 +244,12 @@ function TopBar({ onHelp }: { onHelp: () => void }) {
       <span className="chip" title="Wetterlage">{WEATHER_LABEL[rt.weather]}</span>
       <span className="chip">{DIFFICULTY[game.center.settings.difficulty].label}</span>
       <span className="spacer" />
-      <span className={`chip ${ringing ? 'alarm' : ''}`}>☎ {ringing}</span>
-      <span className={`chip ${undisp ? 'warn' : ''}`} title="Nicht disponierte Einsätze">⚠ {undisp}</span>
-      <span className={`chip ${radio ? 'warn' : ''}`} title="Offene Sprechwünsche">📻 {radio}</span>
+      <span className={`chip ${ringing ? 'alarm' : ''}`}>Notrufe {ringing}</span>
+      <span className={`chip ${undisp ? 'warn' : ''}`} title="Nicht disponierte Einsätze">Offen {undisp}</span>
+      <span className={`chip ${radio ? 'warn' : ''}`} title="Offene Sprechwünsche">Funk {radio}</span>
       <WindowMenu />
       <RoutingChip />
-      <span className="chip ok" title="Freie Fahrzeuge">🚒 {free}/{game.center.vehicles.length}</span>
+      <span className="chip ok" title="Freie Fahrzeuge">Fz frei {free}/{game.center.vehicles.length}</span>
       <span className="small dim" title="Automatisches Speichern in diesem Browser (IndexedDB)">
         {saveStatus === 'gespeichert' ? '✓ gespeichert' : saveStatus === 'speichert' ? 'speichert …' : saveStatus === 'fehler' ? '⚠ Speicherfehler' : '● ungespeichert'}
       </span>

@@ -91,6 +91,11 @@ Wählst du ein zu kleines Stichwort, fordern die Kräfte vor Ort nach. Lagen kö
 | Karte (Leaflet + OSM): Gebiete, Wachen, Kliniken, Nachbarleitstellen, Einsätze, bewegte Fahrzeuge, Routen | ✅ (Straßenrouting mit lokalem OSRM, sonst Luftlinien-Näherung; keine Verkehrsdaten) |
 | Konfigurierbare Statuscodes, Bezeichnungen und Farben; Ereignisprotokoll; Funkmeldungen | ✅ |
 | Freisprechen bei Notrufen: nach der Annahme mit dem simulierten Anrufer sprechen (Mikrofon und Lautsprecher am PC), jedes Szenario | ✅ |
+| Zwei Oberflächenstile: „Behörde“ (hell, nüchtern) und „Modern“ (dunkel) – Auswahl auf dem Startbildschirm und in den Einstellungen | ✅ |
+| Spiel- und Bearbeitungsmodus: Wachen, Fahrzeuge, AAO, Kliniken und Editor nur beim Erstellen oder über „Bearbeiten“ | ✅ |
+| Erstellen: Wachen, Krankenhäuser und POIs (Pflege & Medizin, Handel & Gastro, Öffentlich, Gewerbe & Freizeit) aus OpenStreetMap übernehmen, danach Fahrzeuge je Wache mit Pflichtangaben anlegen | ✅ |
+| Polizei wird nicht selbst disponiert: „Polizei anrufen“, Einsatz teilen, Anforderung sprechen oder tippen | ✅ |
+| Fahrzeugbilder auf der Karte (mit/ohne Blaulicht, blinkend bei Sondersignal) | ✅ |
 | Sprechfunk: Rufgruppe schalten, Sendetaste (Tablet, PC, F8), Status 5 erst nach Ansprechen, Aufträge (Status, Lage, Einsatz, Transportziel, Einrücken), Antworten der Besatzung per Sprachausgabe | ✅ |
 | Signaltöne (Web Audio) und Sprachausgabe (Web Speech API des Browsers) | ✅ optional, ohne externe Dienste |
 | Editor: Leitstelle, Gebiete (Polygon), Organisationen mit Funkrufgruppen, Wachen, Fahrzeugtypen, Fahrzeuge, Wartung, Dienstzeiten, Stichwörter, AAO, Kliniken, Nachbarleitstellen/externe Kräfte, Straßennamen, Simulationseinstellungen | ✅ |

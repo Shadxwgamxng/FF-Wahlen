@@ -1,3 +1,4 @@
+import { StyleSwitch } from '../components/StyleSwitch';
 import { useEffect, useState } from 'react';
 import type { GameState } from '../../model/types';
 import { projects, snapshots, type SnapshotRecord } from '../../persistence/db';
@@ -154,7 +155,8 @@ Stichwörter:  code;bezeichnung;kategorie;prioritaet;bedarf   (bedarf z. B. loes
           {!ttsAvailable() && <span className="dim small">– in diesem Browser nicht verfügbar</span>}
         </label>
         {prefs.tts && <button className="btn small" style={{ alignSelf: 'flex-start' }} onClick={() => speak('Florian Bergstadt eins sechsundvierzig eins, Status vier.')}>Sprachausgabe testen</button>}
-        <label className="check"><input type="checkbox" checked={prefs.mapDark} onChange={(e) => setPrefs({ mapDark: e.target.checked })} /> Dunkle Kartendarstellung</label>
+        <StyleSwitch />
+        <label className="check"><input type="checkbox" checked={prefs.mapDark} onChange={(e) => setPrefs({ mapDark: e.target.checked })} /> Dunkle Kartendarstellung (Stil „Modern“)</label>
         <h4 style={{ marginTop: 8 }}>Straßenrouting (OSRM)</h4>
         <label className="check"><input type="checkbox" checked={prefs.routingEnabled} onChange={(e) => setPrefs({ routingEnabled: e.target.checked })} /> Echte Straßenrouten verwenden (sonst Luftlinien-Näherung)</label>
         <div className="row wrap">

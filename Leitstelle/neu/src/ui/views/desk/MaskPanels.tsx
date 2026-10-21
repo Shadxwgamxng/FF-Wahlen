@@ -34,10 +34,10 @@ export function Gespraech({ game, call }: { game: GameState; call: Call }) {
 }
 
 const VOICE_LABEL: Record<string, string> = {
-  hoert: '🎙 Freisprechen – sprich einfach mit dem Anrufer',
-  spricht: '🔊 Anrufer spricht …',
-  pause: '📻 Pause – Funk-Sendetaste gedrückt',
-  stumm: '🔇 Mikrofon stumm',
+  hoert: '● Freisprechen – sprich einfach mit dem Anrufer',
+  spricht: 'Anrufer spricht …',
+  pause: 'Pause – Funk-Sendetaste gedrückt',
+  stumm: 'Mikrofon stumm',
   aufgelegt: '☎ Anrufer hat aufgelegt',
 };
 

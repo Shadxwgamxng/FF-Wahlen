@@ -5,6 +5,9 @@ import { PopoutApp } from './ui/PopoutApp';
 import { TabletApp } from './ui/TabletApp';
 import './ui/styles.css';
 import { store } from './store/gameStore';
+import { applyStyle } from './ui/prefs';
+
+applyStyle();
 
 // Für Konsolen-Diagnose und End-to-End-Tests
 (window as unknown as { leitwarte: typeof store }).leitwarte = store;
