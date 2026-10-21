@@ -24,13 +24,12 @@ export function HospitalsView({ game }: { game: GameState }) {
   const c = game.center;
   return (
     <div className="page">
-      <Tabs tabs={[['kh', 'Krankenhäuser & Ziele'], ['nb', 'Nachbarleitstellen & externe Kräfte']]} value={tab} onChange={setTab} />
+      <Tabs tabs={[['kh', 'Krankenhäuser & Ziele'], ['nb', 'Nachbarleitstellen']]} value={tab} onChange={setTab} />
       {tab === 'kh' && (
         <EntityEditor<Hospital>
           title="Krankenhäuser"
           items={c.hospitals}
           searchText={(h) => `${h.name} | ${h.departments.join(' ')}`}
-          intro={<div className="infobox small">Die Zielauswahl richtet sich ausschließlich nach den hier hinterlegten Spieldaten (Fachrichtung, freie Betten, geschätzte Fahrzeit). Sie ist keine medizinische Entscheidungshilfe.</div>}
           columns={[
             { label: 'Name', render: (h) => <b>{h.name}</b> },
             { label: 'Fachrichtungen', render: (h) => <span className="small">{h.departments.map((d) => DEPARTMENTS.find((x) => x[0] === d)?.[1] ?? d).join(', ')}</span> },
@@ -47,7 +46,7 @@ export function HospitalsView({ game }: { game: GameState }) {
           ]}
           fields={[
             { key: 'name', label: 'Name', type: 'text', required: true },
-            { key: 'capacity', label: 'Aufnahmekapazität (Patienten gleichzeitig)', type: 'number', min: 0, max: 500, required: true },
+            { key: 'capacity', label: 'Aufnahmekapazität', type: 'number', min: 0, max: 500, required: true },
             { key: 'available', label: 'Aufnahmebereit', type: 'checkbox' },
             { key: 'departments', label: 'Fachrichtungen', type: 'multi', options: DEPARTMENTS },
             { key: 'position', label: 'Standort', type: 'latlng', required: true, center: c.mapCenter },
@@ -77,11 +76,6 @@ export function HospitalsView({ game }: { game: GameState }) {
             create={() => ({ id: newId('nb'), name: '', position: [...c.mapCenter], note: '' })}
             onSave={(n, isNew) => store.edit((_, g) => saveNeighbor(g, n, isNew) ?? undefined, 'Nachbarleitstelle gespeichert.')}
             onDelete={(n) => store.edit((_, g) => deleteNeighbor(g, n.id) ?? undefined, 'Nachbarleitstelle gelöscht.')}
-            intro={
-              <div className="small muted">
-                Externe Einsatzmittel (z. B. Rettungshubschrauber) werden unter <b>Fahrzeuge</b> angelegt und dort einer Nachbarleitstelle zugeordnet. Sie erscheinen im Einsatzmittelvorschlag mit zusätzlichem Anforderungsverzug. Eine echte Kommunikation mit anderen Leitstellen findet nicht statt.
-              </div>
-            }
           />
         </div>
       )}

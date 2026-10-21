@@ -50,9 +50,6 @@ export function EditorView({ game }: { game: GameState }) {
         value={tab}
         onChange={setTab}
       />
-      <div className="small muted" style={{ marginBottom: 10 }}>
-        Wachen, Fahrzeuge, Stichwörter/AAO und Kliniken bearbeitest du in den gleichnamigen Bereichen oben. Alle Änderungen wirken sofort im laufenden Spiel und werden automatisch gespeichert.
-      </div>
       {tab === 'allgemein' && <GeneralForm center={game.center} />}
       {tab === 'gebiete' && <AreasEditor game={game} />}
       {tab === 'orgs' && <OrgsEditor game={game} />}
@@ -81,29 +78,28 @@ function GeneralForm({ center }: { center: CenterConfig }) {
         {text('country', 'Land')}
         {text('state', 'Bundesland')}
         {text('district', 'Landkreis / Kreis')}
-        {text('city', 'Sitz (Stadt / Gemeinde)')}
+        {text('city', 'Sitz')}
       </div>
       <label className="field">
         <span>Beschreibung</span>
         <textarea rows={3} value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} />
       </label>
       <div className="field">
-        <span>Kartenmittelpunkt (Startansicht)</span>
+        <span>Kartenmittelpunkt</span>
         <LatLngPicker value={f.mapCenter} onChange={(mapCenter) => setF({ ...f, mapCenter })} />
       </div>
       <div className="form-grid">
         <label className="field">
-          <span>Zoomstufe (6–16)</span>
+          <span>Zoom (6–16)</span>
           <input type="number" min={6} max={16} value={f.mapZoom} onChange={(e) => setF({ ...f, mapZoom: Number(e.target.value) })} />
         </label>
         <label className="field">
-          <span>Sichtbarkeit (für spätere Community-Bibliothek)</span>
+          <span>Sichtbarkeit</span>
           <select value={f.sharing.visibility} onChange={(e) => setF({ ...f, sharing: { ...f.sharing, visibility: e.target.value as CenterConfig['sharing']['visibility'] } })}>
             <option value="privat">privat</option>
             <option value="geteilt">geteilt</option>
             <option value="oeffentlich">öffentlich</option>
           </select>
-          <span className="dim small">Wird nur gespeichert; eine Online-Bibliothek gibt es noch nicht.</span>
         </label>
         <label className="field">
           <span>Autor/-in</span>
@@ -118,8 +114,8 @@ function GeneralForm({ center }: { center: CenterConfig }) {
         >
           Speichern
         </button>
-        <button className="btn" disabled={!dirty} onClick={() => setF(pick(center))}>Änderungen verwerfen</button>
-        {dirty && <span className="small" style={{ color: 'var(--warn)' }}>Ungespeicherte Änderungen</span>}
+        <button className="btn" disabled={!dirty} onClick={() => setF(pick(center))}>Verwerfen</button>
+        {dirty && <span className="small" style={{ color: 'var(--warn)' }}>ungespeichert</span>}
       </div>
     </div>
   );
@@ -153,9 +149,9 @@ function PolygonEditor({ value, onChange }: { value: LatLng[]; onChange: (v: Lat
   return (
     <div className="col" style={{ gap: 6 }}>
       <div className="row">
-        <span className="small muted grow">{value.length} Eckpunkte – Klick in die Karte fügt einen Punkt hinzu.</span>
-        <button className="btn small" disabled={!value.length} onClick={() => onChange(value.slice(0, -1))}>Letzten Punkt entfernen</button>
-        <button className="btn small danger" disabled={!value.length} onClick={() => onChange([])}>Alle Punkte löschen</button>
+        <span className="small muted grow">{value.length} Eckpunkte</span>
+        <button className="btn small" disabled={!value.length} onClick={() => onChange(value.slice(0, -1))}>Punkt zurück</button>
+        <button className="btn small danger" disabled={!value.length} onClick={() => onChange([])}>Alle löschen</button>
       </div>
       <div ref={el} className="map-dark" style={{ height: 320, borderRadius: 6, border: '1px solid var(--line)' }} />
     </div>
@@ -166,10 +162,9 @@ function AreasEditor({ game }: { game: GameState }) {
   const c = game.center;
   return (
     <EntityEditor<Area>
-      title="Einsatzgebiete (Gemeinden & Teilgebiete)"
+      title="Einsatzgebiete"
       items={c.areas}
       searchText={(a) => a.name}
-      intro={<div className="small muted">Notrufe entstehen zufällig innerhalb der Gebiete. Die zuständigen Wachen werden im Einsatzmittelvorschlag bevorzugt (Fahrzeuge anderer Wachen erhalten einen Zeitmalus).</div>}
       columns={[
         { label: 'Name', render: (a) => <b>{a.name}</b> },
         { label: 'Art', render: (a) => a.kind },
@@ -180,9 +175,9 @@ function AreasEditor({ game }: { game: GameState }) {
         { key: 'name', label: 'Name', type: 'text', required: true },
         { key: 'kind', label: 'Art', type: 'select', options: [['landkreis', 'Landkreis (OSM)'], ['gemeinde', 'Gemeinde'], ['teilgebiet', 'Teilgebiet'], ['stadtteil', 'Stadtteil']], required: true },
         { key: 'responsibleStationIds', label: 'Zuständige Wachen', type: 'multi', options: c.stations.map((s) => [s.id, s.name]) },
-        { key: 'polygon', label: 'Gebietsgrenze', type: 'custom', render: (d, set) => (d.kind === 'landkreis' ? <span className="small muted">Echte Kreisgrenze aus OpenStreetMap – nicht von Hand bearbeitbar.</span> : <PolygonEditor value={d.polygons[0]?.[0] ?? []} onChange={(ring) => set({ polygons: [[ring]] })} />) },
+        { key: 'polygon', label: 'Gebietsgrenze', type: 'custom', render: (d, set) => (d.kind === 'landkreis' ? <span className="small muted">OSM-Kreisgrenze (fest)</span> : <PolygonEditor value={d.polygons[0]?.[0] ?? []} onChange={(ring) => set({ polygons: [[ring]] })} />) },
       ]}
-      validate={(a) => (a.kind !== 'landkreis' && (a.polygons[0]?.[0]?.length ?? 0) < 3 ? { polygon: 'Mindestens 3 Eckpunkte setzen.', _: 'Die Gebietsgrenze braucht mindestens 3 Eckpunkte.' } : {})}
+      validate={(a) => (a.kind !== 'landkreis' && (a.polygons[0]?.[0]?.length ?? 0) < 3 ? { polygon: 'Mind. 3 Eckpunkte', _: 'Mind. 3 Eckpunkte.' } : {})}
       create={() => ({ id: newId('area'), name: '', kind: 'teilgebiet', polygons: [], responsibleStationIds: [] })}
       duplicate={(a) => ({ ...a, id: newId('area'), name: `${a.name} (Kopie)` })}
       onSave={(a, isNew) => store.edit((_, g) => saveArea(g, a, isNew) ?? undefined, 'Gebiet gespeichert.')}
@@ -194,8 +189,8 @@ function AreasEditor({ game }: { game: GameState }) {
 export function RadioGroupFields({ value, onChange, invalid }: { value: RadioGroup; onChange: (v: RadioGroup) => void; invalid?: boolean }) {
   return (
     <div className="row wrap">
-      <input type="text" placeholder="Name, z. B. Rettungsdienst Ostholstein" value={value.name} className={invalid && !value.name.trim() ? 'invalid' : ''} onChange={(e) => onChange({ ...value, name: e.target.value })} aria-label="Name der Funkrufgruppe" style={{ minWidth: 260 }} />
-      <input type="text" placeholder="Kürzel, z. B. RD_OH" value={value.code} className={invalid && !value.code.trim() ? 'invalid' : ''} onChange={(e) => onChange({ ...value, code: e.target.value.toUpperCase() })} aria-label="Kürzel der Funkrufgruppe" style={{ width: 140 }} />
+      <input type="text" placeholder="Name" value={value.name} className={invalid && !value.name.trim() ? 'invalid' : ''} onChange={(e) => onChange({ ...value, name: e.target.value })} aria-label="Name der Funkrufgruppe" style={{ minWidth: 260 }} />
+      <input type="text" placeholder="Kürzel" value={value.code} className={invalid && !value.code.trim() ? 'invalid' : ''} onChange={(e) => onChange({ ...value, code: e.target.value.toUpperCase() })} aria-label="Kürzel der Funkrufgruppe" style={{ width: 140 }} />
     </div>
   );
 }
@@ -219,10 +214,10 @@ function OrgsEditor({ game }: { game: GameState }) {
         { key: 'name', label: 'Name', type: 'text', required: true },
         { key: 'kind', label: 'Art', type: 'select', options: ORG_KINDS, required: true },
         { key: 'color', label: 'Farbe (Karte)', type: 'color' },
-        { key: 'radioGroup', label: 'Funkrufgruppe (Pflicht)', type: 'custom', render: (d, set) => <RadioGroupFields value={d.radioGroup} onChange={(radioGroup) => set({ radioGroup })} /> },
+        { key: 'radioGroup', label: 'Funkrufgruppe', type: 'custom', render: (d, set) => <RadioGroupFields value={d.radioGroup} onChange={(radioGroup) => set({ radioGroup })} /> },
         { key: 'responsibilities', label: 'Zuständigkeiten', type: 'textarea' },
       ]}
-      validate={(o) => ({ radioGroup: !o.radioGroup.name.trim() || !o.radioGroup.code.trim() ? 'Name und Kürzel der Funkrufgruppe sind Pflicht.' : undefined })}
+      validate={(o) => ({ radioGroup: !o.radioGroup.name.trim() || !o.radioGroup.code.trim() ? 'Name und Kürzel fehlen.' : undefined })}
       create={() => ({ id: newId('org'), name: '', kind: 'sonstige', responsibilities: '', color: '#12a594', radioGroup: { name: '', code: '' } })}
       duplicate={(o) => ({ ...o, id: newId('org'), name: `${o.name} (Kopie)` })}
       onSave={(o, isNew) => store.edit((_, g) => saveOrganization(g, o, isNew) ?? undefined, 'Organisation gespeichert.')}
@@ -251,9 +246,9 @@ function TypesEditor({ game }: { game: GameState }) {
         { key: 'name', label: 'Bezeichnung', type: 'text', required: true },
         { key: 'orgKind', label: 'Organisationsart', type: 'select', options: ORG_KINDS, required: true },
         { key: 'seats', label: 'Sitzplätze', type: 'number', min: 1, max: 60, required: true },
-        { key: 'speedKmh', label: 'Ø Geschwindigkeit mit Sonderrechten (km/h)', type: 'number', min: 5, max: 400, required: true },
-        { key: 'canTransport', label: 'Patiententransport möglich', type: 'checkbox' },
-        { key: 'airborne', label: 'Luftfahrzeug (Luftlinie)', type: 'checkbox' },
+        { key: 'speedKmh', label: 'Ø km/h (Sonderrechte)', type: 'number', min: 5, max: 400, required: true },
+        { key: 'canTransport', label: 'Patiententransport', type: 'checkbox' },
+        { key: 'airborne', label: 'Luftfahrzeug', type: 'checkbox' },
         { key: 'capabilities', label: 'Fähigkeiten', type: 'multi', options: Object.entries(CAPABILITIES) },
       ]}
       create={() => ({ id: newId('vt'), code: '', name: '', orgKind: 'feuerwehr', capabilities: [], seats: 2, speedKmh: 55 })}
@@ -265,12 +260,12 @@ function TypesEditor({ game }: { game: GameState }) {
 }
 
 const MEANING_TEXT: Record<StatusDef['meaning'], string> = {
-  frei_funk: 'Einsatzbereit, unterwegs (alarmierbar)',
-  frei_wache: 'Einsatzbereit auf Wache (alarmierbar)',
-  alarmiert: 'Alarm empfangen, rückt aus',
-  anfahrt: 'Auf Anfahrt zum Einsatzort',
+  frei_funk: 'Frei über Funk',
+  frei_wache: 'Frei auf Wache',
+  alarmiert: 'Alarmiert',
+  anfahrt: 'Anfahrt',
   einsatzort: 'Am Einsatzort',
-  sprechwunsch: 'Sprechwunsch / Rückmeldung',
+  sprechwunsch: 'Sprechwunsch',
   ausser_dienst: 'Nicht einsatzbereit',
   transport: 'Patiententransport',
   am_ziel: 'Am Transportziel',
@@ -289,10 +284,9 @@ function StatusEditor({ game }: { game: GameState }) {
   };
   return (
     <div className="card col" style={{ maxWidth: 900 }}>
-      <div className="small muted">Statussysteme unterscheiden sich regional. Code, Bezeichnung und Farbe sind frei wählbar; die Spielbedeutung (rechts) ist fest, damit die Simulation den Status versteht.</div>
       <table className="grid">
         <thead>
-          <tr><th>Code</th><th>Bezeichnung</th><th>Farbe</th><th>Bedeutung in der Simulation</th></tr>
+          <tr><th>Code</th><th>Bezeichnung</th><th>Farbe</th><th>Bedeutung</th></tr>
         </thead>
         <tbody>
           {defs.map((d, i) => (
@@ -318,15 +312,14 @@ function StreetsEditor({ center }: { center: CenterConfig }) {
   const list = text.split('\n').map((s) => s.trim()).filter(Boolean);
   return (
     <div className="card col" style={{ maxWidth: 640 }}>
-      <h3>Straßennamen für generierte Einsatzadressen</h3>
-      <div className="small muted">Ein Name pro Zeile. Einsatzadressen werden zufällig aus diesen Namen, einer Hausnummer und dem Gebietsnamen gebildet.</div>
+      <h3>Straßennamen</h3>
       <textarea rows={14} value={text} onChange={(e) => setText(e.target.value)} />
       <div className="row">
         <button
           className="btn primary"
           disabled={list.length === 0}
           onClick={async () => {
-            if (list.length < 5 && !(await confirmDialog('Weniger als 5 Straßennamen führen zu sehr ähnlichen Adressen. Trotzdem speichern?', { confirmLabel: 'Speichern', danger: false }))) return;
+            if (list.length < 5 && !(await confirmDialog('Weniger als 5 Straßennamen. Trotzdem speichern?', { confirmLabel: 'Speichern', danger: false }))) return;
             store.edit((c) => void (c.streetNames = list), `${list.length} Straßennamen gespeichert.`);
           }}
         >

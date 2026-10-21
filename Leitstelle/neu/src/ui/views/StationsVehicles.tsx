@@ -44,7 +44,7 @@ export function StationsView({ game }: { game: GameState }) {
           { key: 'organizationId', label: 'Organisation', type: 'select', options: c.organizations.map((o) => [o.id, o.name]), required: true },
           { key: 'address', label: 'Adresse', type: 'text' },
           { key: 'capacity', label: 'Stellplätze', type: 'number', min: 0, max: 100, required: true },
-          { key: 'turnoutSeconds', label: 'Ausrückzeit (Sekunden)', type: 'number', min: 0, max: 3600, required: true, help: 'Zeit von Alarm bis Status 3. Ehrenamtlich typisch 240–420 s.' },
+          { key: 'turnoutSeconds', label: 'Ausrückzeit (s)', type: 'number', min: 0, max: 3600, required: true },
           { key: 'position', label: 'Standort', type: 'latlng', required: true, center: c.mapCenter },
         ]}
         create={() => ({ id: newId('st'), name: '', kind: 'feuerwache', organizationId: c.organizations[0]?.id ?? '', position: [...c.mapCenter], address: '', capacity: 4, turnoutSeconds: 60 })}
@@ -61,7 +61,7 @@ const WD = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
 function WindowsEditor({ value, onChange }: { value: ServiceWindow[]; onChange: (v: ServiceWindow[]) => void }) {
   return (
     <div className="col" style={{ gap: 4 }}>
-      {value.length === 0 && <span className="dim small">Rund um die Uhr im Dienst.</span>}
+      {value.length === 0 && <span className="dim small">24/7</span>}
       {value.map((w, i) => (
         <div key={i} className="row wrap">
           <input type="number" min={0} max={23} value={w.fromHour} onChange={(e) => onChange(value.map((x, j) => (j === i ? { ...x, fromHour: Number(e.target.value) } : x)))} style={{ width: 64 }} aria-label="Beginn (Stunde)" />
@@ -93,7 +93,7 @@ const fromLocalInput = (s: string) => Date.parse(`${s}:00Z`);
 export function PeriodsEditor<T extends { id: string; from: number; to: number; reason: string }>({ value, onChange, now, label }: { value: T[]; onChange: (v: T[]) => void; now: number; label: string }) {
   return (
     <div className="col" style={{ gap: 4 }}>
-      {value.length === 0 && <span className="dim small">Keine Einträge.</span>}
+      {value.length === 0 && <span className="dim small">–</span>}
       {value.map((m, i) => (
         <div key={m.id} className="row wrap">
           <input type="datetime-local" value={toLocalInput(m.from)} onChange={(e) => onChange(value.map((x, j) => (j === i ? { ...x, from: fromLocalInput(e.target.value) } : x)))} aria-label="Beginn" />
@@ -107,7 +107,6 @@ export function PeriodsEditor<T extends { id: string; from: number; to: number; 
       <button className="btn small" style={{ alignSelf: 'flex-start' }} onClick={() => onChange([...value, { id: newId('per'), from: now, to: now + 4 * 3600_000, reason: '' } as T])}>
         + {label}
       </button>
-      <span className="dim small">Zeiten in Simulationszeit.</span>
     </div>
   );
 }
@@ -145,11 +144,11 @@ export function VehiclesView({ game }: { game: GameState }) {
           { label: 'Wartung', render: (v) => <span className="small">{v.maintenance.filter((m) => m.to > now).map((m) => `${fmtDateTime(m.from)} ${m.reason}`).join('; ')}</span> },
         ]}
         fields={[
-          { key: 'callsign', label: 'Funkrufname', type: 'text', required: true, placeholder: 'z. B. Florian Musterstadt 1/46-1' },
+          { key: 'callsign', label: 'Funkrufname', type: 'text', required: true, placeholder: 'Florian Musterstadt 1/46-1' },
           { key: 'typeId', label: 'Fahrzeugtyp', type: 'select', options: c.vehicleTypes.map((t) => [t.id, `${t.code} – ${t.name}`]), required: true },
           { key: 'stationId', label: 'Wache', type: 'select', options: c.stations.map((s) => [s.id, s.name]), required: true },
-          { key: 'organizationId', label: 'Organisation (leer = wie Wache)', type: 'select', options: c.organizations.map((o) => [o.id, o.name]) },
-          { key: 'identifier', label: 'Kennzeichen / Kennung', type: 'text' },
+          { key: 'organizationId', label: 'Organisation', type: 'select', options: c.organizations.map((o) => [o.id, o.name]) },
+          { key: 'identifier', label: 'Kennzeichen', type: 'text' },
           {
             key: 'radioGroup',
             label: 'Funkrufgruppe',
@@ -169,27 +168,26 @@ export function VehiclesView({ game }: { game: GameState }) {
           },
           {
             key: 'equipment',
-            label: 'Zusatzausrüstung (kommagetrennt)',
+            label: 'Zusatzausrüstung',
             type: 'custom',
             render: (d, set) => <input type="text" value={d.equipment.join(', ')} onChange={(e) => set({ equipment: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) })} />,
-            help: 'Informativ; die Disposition nutzt die Fähigkeiten des Fahrzeugtyps.',
           },
           {
             key: 'id',
-            label: 'Bilder für die Karte (ohne / mit Blaulicht)',
+            label: 'Kartenbild (ohne / mit SoSi)',
             type: 'custom',
-            render: (d) => (c.vehicles.some((v) => v.id === d.id) ? <VehicleImageCell vehicleId={d.id} /> : <span className="small dim">Nach dem Speichern hier oder in der Liste hochladen.</span>),
+            render: (d) => (c.vehicles.some((v) => v.id === d.id) ? <VehicleImageCell vehicleId={d.id} /> : <span className="small dim">–</span>),
           },
           { key: 'serviceWindows', label: 'Dienstzeiten', type: 'custom', render: (d, set) => <WindowsEditor value={d.serviceWindows} onChange={(serviceWindows) => set({ serviceWindows })} /> },
           {
             key: 'maintenance',
-            label: 'Geplante Wartung / Ausfall',
+            label: 'Wartung / Ausfall',
             type: 'custom',
             render: (d, set) => <PeriodsEditor<MaintenanceWindow> value={d.maintenance} onChange={(maintenance) => set({ maintenance })} now={now} label="Wartung" />,
           },
           {
             key: 'external',
-            label: 'Externes Einsatzmittel (Anforderung über Nachbarleitstelle)',
+            label: 'Extern (Nachbarleitstelle)',
             type: 'custom',
             render: (d, set) => (
               <div className="row wrap">
@@ -201,7 +199,7 @@ export function VehiclesView({ game }: { game: GameState }) {
                 </select>
                 {d.external && (
                   <label className="row small">
-                    Anforderungsverzug (s)
+                    Verzug (s)
                     <input type="number" min={0} value={d.external.requestDelaySeconds} onChange={(e) => set({ external: { ...d.external!, requestDelaySeconds: Number(e.target.value) } })} style={{ width: 80 }} />
                   </label>
                 )}
@@ -225,7 +223,7 @@ export function VehiclesView({ game }: { game: GameState }) {
           };
         }}
         duplicate={(v) => ({ ...v, id: newId('v'), callsign: `${v.callsign} (Kopie)`, maintenance: [] })}
-        validate={(v) => (c.stations.length === 0 ? { stationId: 'Bitte zuerst eine Wache anlegen.' } : !v.stationId ? { stationId: 'Pflichtfeld' } : {})}
+        validate={(v) => (c.stations.length === 0 ? { stationId: 'Keine Wache vorhanden' } : !v.stationId ? { stationId: 'Pflichtfeld' } : {})}
         onSave={(v, isNew) => store.edit((_, g) => saveVehicle(g, v, isNew) ?? undefined, 'Fahrzeug gespeichert.')}
         onDelete={(v) => store.edit((_, g) => deleteVehicle(g, v.id) ?? undefined, 'Fahrzeug gelöscht.')}
       />

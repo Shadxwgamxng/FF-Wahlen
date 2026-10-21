@@ -16,8 +16,8 @@ type Step = 'grund' | 'kreise' | 'orgs' | 'daten' | 'fertig';
 const STEPS: [Step, string][] = [
   ['grund', '1. Grunddaten'],
   ['kreise', '2. Landkreise'],
-  ['orgs', '3. Organisationen & Funkrufgruppen'],
-  ['daten', '4. Kartendaten & Standorte'],
+  ['orgs', '3. Organisationen'],
+  ['daten', '4. Kartendaten'],
   ['fertig', '5. Erstellen'],
 ];
 
@@ -63,8 +63,8 @@ export function CreateWizard({ onCancel }: { onCancel: () => void }) {
       const qs = [...overpassQueries(counties.map((c) => c.osmRelationId)), poiQuery(counties.map((c) => c.osmRelationId))];
       for (let i = 0; i < qs.length; i++) {
         const label = `Lade ${qs[i].label} (${i + 1}/${qs.length})`;
-        setLoading(`${label} … das kann bei großen Kreisen 1–2 Minuten dauern.`);
-        all.push(...(await runOverpass(qs[i].query, { onStatus: (t) => setLoading(`${label} – ${t}`) })));
+        setLoading(`${label} …`);
+        all.push(...(await runOverpass(qs[i].query, { onStatus: (t) => setLoading(`${label}: ${t}`) })));
       }
       setLoading('Werte Daten aus …');
       await new Promise((r) => setTimeout(r, 20));
@@ -75,7 +75,7 @@ export function CreateWizard({ onCancel }: { onCancel: () => void }) {
       setFacilities(fac);
       setFacOn(Object.fromEntries(fac.map((f) => [f.osmId, true])));
     } catch (e) {
-      setError(`Kartendaten konnten nicht geladen werden: ${(e as Error).message}`);
+      setError(`Laden fehlgeschlagen: ${(e as Error).message}`);
     } finally {
       setLoading(null);
     }
@@ -133,7 +133,6 @@ export function CreateWizard({ onCancel }: { onCancel: () => void }) {
                 </span>
               </label>
             ))}
-            <span className="dim small">Stichwörter, AAO und Meldebilder lassen sich später im Bereich „Stichwörter & AAO“ anpassen.</span>
           </div>
         </div>
       )}
@@ -142,10 +141,9 @@ export function CreateWizard({ onCancel }: { onCancel: () => void }) {
 
       {step === 'orgs' && (
         <div className="card col">
-          <div className="small muted">Wähle die Organisationen deiner Leitstelle. Jede Organisation braucht eine Funkrufgruppe; die Fahrzeuge übernehmen sie automatisch (im Fahrzeug änderbar).</div>
           <table className="grid">
             <thead>
-              <tr><th>Aktiv</th><th>Organisation</th><th>Funkrufgruppe (Name / Kürzel)</th></tr>
+              <tr><th>Aktiv</th><th>Organisation</th><th>Funkrufgruppe</th></tr>
             </thead>
             <tbody>
               {orgs.map((o, i) => (
@@ -164,13 +162,11 @@ export function CreateWizard({ onCancel }: { onCancel: () => void }) {
 
       {step === 'daten' && (
         <div className="card col">
-          <div className="small muted">
-            Für realistische Einsatzorte (echte Straßen, Wohnhäuser, Gewerbe, Wald, Gewässer) lädt LEITWARTE einmalig Daten aus OpenStreetMap (Overpass-API, kostenlos). Danach werden sie lokal gespeichert. Daten © OpenStreetMap-Mitwirkende, ODbL.
-          </div>
+          <div className="dim small">Kartendaten © OpenStreetMap-Mitwirkende (ODbL)</div>
           <div className="row wrap">
             <button className="btn primary" disabled={Boolean(loading)} onClick={loadData}>{places ? 'Erneut laden' : 'Kartendaten laden'}</button>
             <label className="check small">
-              <input type="checkbox" checked={skipData} onChange={(e) => setSkipData(e.target.checked)} /> ohne Kartendaten fortfahren (Einsatzorte dann nur mit Straßennamen-Liste)
+              <input type="checkbox" checked={skipData} onChange={(e) => setSkipData(e.target.checked)} /> ohne Kartendaten
             </label>
           </div>
           {loading && <div className="infobox">{loading}</div>}
@@ -182,13 +178,12 @@ export function CreateWizard({ onCancel }: { onCancel: () => void }) {
           )}
           {places && (
             <div className="col" data-testid="takeover">
-              <h4>Was soll übernommen werden? (ohne Fahrzeuge)</h4>
+              <h4>Übernahme</h4>
               <label className="check">
-                <input type="checkbox" checked={takeStations} onChange={(e) => setTakeStations(e.target.checked)} data-testid="take-stations" /> Wachen (Feuerwehr, Rettungsdienst, Polizei) –{' '}
-                {facilities.filter((f) => f.kind !== 'krankenhaus').length}
+                <input type="checkbox" checked={takeStations} onChange={(e) => setTakeStations(e.target.checked)} data-testid="take-stations" /> Wachen ({facilities.filter((f) => f.kind !== 'krankenhaus').length})
               </label>
               <label className="check">
-                <input type="checkbox" checked={takeHospitals} onChange={(e) => setTakeHospitals(e.target.checked)} data-testid="take-hospitals" /> Krankenhäuser – {facilities.filter((f) => f.kind === 'krankenhaus').length}
+                <input type="checkbox" checked={takeHospitals} onChange={(e) => setTakeHospitals(e.target.checked)} data-testid="take-hospitals" /> Krankenhäuser ({facilities.filter((f) => f.kind === 'krankenhaus').length})
               </label>
               <div className="row wrap">
                 <b className="small">POIs:</b>
@@ -202,8 +197,7 @@ export function CreateWizard({ onCancel }: { onCancel: () => void }) {
           )}
           {facilities.length > 0 && (
             <div className="col">
-              <h4>Reale Standorte als Vorschlag übernehmen</h4>
-              <div className="small muted">Es werden nur die Standorte angelegt – Fahrzeuge legst du anschließend selbst an. Kliniken bekommen Standard-Fachrichtungen, die du anpassen solltest.</div>
+              <h4>Standorte</h4>
               {(['feuerwehr', 'rettungswache', 'polizei', 'krankenhaus'] as Facility['kind'][]).map((k) => {
                 const list = facilities.filter((f) => f.kind === k);
                 if (!list.length) return null;
@@ -235,12 +229,11 @@ export function CreateWizard({ onCancel }: { onCancel: () => void }) {
       {step === 'fertig' && (
         <div className="card col" style={{ maxWidth: 760 }}>
           <div><b>{name}</b> {operator && <span className="muted">({operator})</span>}</div>
-          <div>Stichwortkatalog: {CATALOGS.find((c) => c.id === catalogId)?.label}</div>
+          <div>Katalog: {CATALOGS.find((c) => c.id === catalogId)?.label}</div>
           <div>Landkreise: {counties.map((c) => c.name).join(', ')}</div>
           <div>Organisationen: {activeOrgs.map((o) => `${o.name} [${o.radioGroup.code}]`).join(', ')}</div>
-          <div>Einsatzorte aus OSM: {places ? places.places.length.toLocaleString('de-DE') : 'keine'}</div>
+          <div>Einsatzorte: {places ? places.places.length.toLocaleString('de-DE') : 'keine'}</div>
           <div>Standorte: {input.facilities.filter((f) => f.kind !== 'krankenhaus').length} Wachen, {input.facilities.filter((f) => f.kind === 'krankenhaus').length} Kliniken, {input.pois.length} POIs</div>
-          <div className="small muted">Nach dem Erstellen legst du die Fahrzeuge an den Wachen an (alle Angaben Pflicht).</div>
           {errors.length > 0 && (
             <div className="errbox">
               {errors.map((e) => (
@@ -296,7 +289,7 @@ function CountyPicker({ counties, onChange }: { counties: County[]; onChange: (c
       setMsg('Suche Landkreis …');
       try {
         const c = await fetchCountyAt([e.latlng.lat, e.latlng.lng]);
-        if (ref.current.counties.some((x) => x.osmRelationId === c.osmRelationId)) setMsg(`${c.name} ist bereits ausgewählt.`);
+        if (ref.current.counties.some((x) => x.osmRelationId === c.osmRelationId)) setMsg(`${c.name} bereits gewählt.`);
         else {
           ref.current.onChange([...ref.current.counties, c]);
           setMsg(`${c.name} hinzugefügt.`);
@@ -327,7 +320,6 @@ function CountyPicker({ counties, onChange }: { counties: County[]; onChange: (c
 
   return (
     <div className="card col">
-      <div className="small muted">Klicke in die Fläche eines Landkreises bzw. einer kreisfreien Stadt. Die echte Grenze wird aus OpenStreetMap geladen (Nominatim). Mehrere Kreise sind möglich.</div>
       <div className="row wrap">
         {counties.map((c) => (
           <span key={c.osmRelationId} className="chip">
@@ -335,12 +327,12 @@ function CountyPicker({ counties, onChange }: { counties: County[]; onChange: (c
             <button className="btn ghost small" aria-label={`${c.name} entfernen`} onClick={() => onChange(counties.filter((x) => x.osmRelationId !== c.osmRelationId))}>✕</button>
           </span>
         ))}
-        {counties.length === 0 && <span className="dim small">Noch kein Landkreis ausgewählt.</span>}
+        {counties.length === 0 && <span className="dim small">Kein Kreis gewählt</span>}
         {busy && <span className="chip warn">lädt …</span>}
         {msg && !busy && <span className="small">{msg}</span>}
       </div>
       <div ref={el} className="map-dark" style={{ height: 520, borderRadius: 6, border: '1px solid var(--line)', cursor: 'crosshair' }} data-testid="county-map" />
-      <div className="dim small">Grenzdaten © OpenStreetMap-Mitwirkende (ODbL), abgerufen über nominatim.openstreetmap.org.</div>
+      <div className="dim small">Kartendaten © OpenStreetMap-Mitwirkende (ODbL)</div>
     </div>
   );
 }

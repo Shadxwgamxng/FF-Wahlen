@@ -51,16 +51,13 @@ export function VehicleSetup({ game }: { game: GameState }) {
   return (
     <div className="page col" data-testid="vehicle-setup">
       <div className="row wrap" style={{ alignItems: 'center' }}>
-        <h2 className="grow" style={{ margin: 0 }}>Fahrzeuge an den Wachen</h2>
+        <h2 className="grow" style={{ margin: 0 }}>Fahrzeuge je Wache</h2>
         <input placeholder="Wache suchen …" value={filter} onChange={(e) => setFilter(e.target.value)} style={{ width: 220 }} />
         <label className="check small">
-          <input type="checkbox" checked={onlyEmpty} onChange={(e) => setOnlyEmpty(e.target.checked)} /> nur Wachen ohne Fahrzeuge ({empty})
+          <input type="checkbox" checked={onlyEmpty} onChange={(e) => setOnlyEmpty(e.target.checked)} /> nur ohne Fahrzeuge ({empty})
         </label>
       </div>
-      <div className="small muted">
-        Lege für jede Wache die Fahrzeuge an. Alle Angaben sind Pflicht. Danach oben „Leitstelle starten“. Wachen, Kliniken und POIs bearbeitest du in den anderen Reitern.
-      </div>
-      {c.stations.length === 0 && <div className="infobox">Noch keine Wachen – lege sie unter „Wachen“ an oder übernimm sie beim Erstellen aus OpenStreetMap.</div>}
+      {c.stations.length === 0 && <div className="empty">Keine Wachen angelegt.</div>}
       {stations.map((s) => (
         <StationCard key={s.id} game={game} station={s} />
       ))}
@@ -139,7 +136,7 @@ function StationCard({ game, station }: { game: GameState; station: Station }) {
             <label>
               Fahrzeugtyp*
               <select value={d.typeId} onChange={(e) => set({ typeId: e.target.value })} data-testid="vs-type">
-                <option value="">– wählen –</option>
+                <option value="">wählen</option>
                 {c.vehicleTypes.map((t) => (
                   <option key={t.id} value={t.id}>
                     {t.code} – {t.name}
@@ -178,15 +175,14 @@ function StationCard({ game, station }: { game: GameState; station: Station }) {
               </span>
             </label>
             <label>
-              Bild ohne Blaulicht (Karte)
+              Bild normal
               <input key={`n${imgKey}`} type="file" accept="image/*" onChange={(e) => setImgs({ ...imgs, normal: e.target.files?.[0] })} data-testid="vs-img-normal" />
             </label>
             <label>
-              Bild mit Blaulicht (Karte)
+              Bild Sondersignal
               <input key={`b${imgKey}`} type="file" accept="image/*" onChange={(e) => setImgs({ ...imgs, blaulicht: e.target.files?.[0] })} data-testid="vs-img-blaulicht" />
             </label>
           </div>
-          <div className="small muted">Bilder sind freiwillig. Mit beiden Bildern blinkt das Fahrzeug auf der Karte bei Fahrt mit Sondersignal.</div>
           {tried && errors.length > 0 && <div className="errbox small">{errors.join(' · ')}</div>}
           <div className="row">
             <button className="btn primary small" onClick={add} data-testid="vs-add">

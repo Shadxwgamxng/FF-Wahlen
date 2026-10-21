@@ -37,7 +37,7 @@ export function KeywordsView({ game }: { game: GameState }) {
   const provided = (cap: string) => c.vehicles.filter((v) => capsOf(game, v).includes(cap)).length;
   return (
     <div className="page">
-      <Tabs tabs={[['kw', 'Einsatzstichwörter'], ['aao', 'Alarm- und Ausrückeordnung (AAO)'], ['caps', 'Fähigkeiten']]} value={tab} onChange={setTab} />
+      <Tabs tabs={[['kw', 'Einsatzstichwörter'], ['aao', 'AAO'], ['caps', 'Fähigkeiten']]} value={tab} onChange={setTab} />
       {tab === 'kw' && (
         <EntityEditor<Keyword>
           title="Einsatzstichwörter"
@@ -51,17 +51,16 @@ export function KeywordsView({ game }: { game: GameState }) {
             { label: 'AAO', render: (k) => <span className="small">{reqText(c.aao.find((a) => a.keywordId === k.id)?.requirements ?? []) || <span className="field-error">keine AAO</span>}</span> },
           ]}
           fields={[
-            { key: 'code', label: 'Code', type: 'text', required: true, placeholder: 'z. B. B 3' },
+            { key: 'code', label: 'Code', type: 'text', required: true, placeholder: 'B 3' },
             { key: 'label', label: 'Bezeichnung', type: 'text', required: true },
             { key: 'category', label: 'Kategorie', type: 'select', options: Object.entries(CATEGORY_LABELS), required: true },
-            { key: 'priority', label: 'Priorität', type: 'select', options: [['1', '1 – Sofort, Sonderrechte'], ['2', '2 – Dringend'], ['3', '3 – Nicht zeitkritisch']], required: true },
+            { key: 'priority', label: 'Priorität', type: 'select', options: [['1', '1 – Sonderrechte'], ['2', '2 – dringend'], ['3', '3 – nicht zeitkritisch']], required: true },
           ]}
           create={() => ({ id: newId('kw'), code: '', label: '', category: 'brand', priority: 2 })}
           duplicate={(k) => ({ ...k, id: newId('kw'), code: `${k.code} (Kopie)` })}
           onSave={(k, isNew) => store.edit((_, g) => saveKeyword(g, { ...k, priority: Number(k.priority) as 1 | 2 | 3 }, isNew) ?? undefined, 'Stichwort gespeichert.')}
           onDelete={(k) => store.edit((_, g) => deleteKeyword(g, k.id) ?? undefined, 'Stichwort gelöscht.')}
-          deleteWarning={() => 'Die zugehörige AAO-Regel wird ebenfalls gelöscht.'}
-          intro={<div className="small muted">Ein neues Stichwort erhält automatisch eine leere AAO-Regel. Stichwörter der Szenarien werden über den Code zugeordnet (z. B. „B 3“).</div>}
+          deleteWarning={() => 'AAO-Regel wird mitgelöscht.'}
         />
       )}
       {tab === 'aao' && (
@@ -80,7 +79,7 @@ export function KeywordsView({ game }: { game: GameState }) {
               label: 'Abdeckung',
               render: (a) => {
                 const missing = a.requirements.filter((r) => provided(r.capability) < r.count);
-                return missing.length ? <span className="field-error small">zu wenige Fahrzeuge: {reqText(missing)}</span> : <span style={{ color: 'var(--ok)' }}>✓</span>;
+                return missing.length ? <span className="field-error small">fehlt: {reqText(missing)}</span> : <span style={{ color: 'var(--ok)' }}>✓</span>;
               },
             },
             { label: 'Hinweis', render: (a) => <span className="small muted">{a.note}</span> },
@@ -88,16 +87,11 @@ export function KeywordsView({ game }: { game: GameState }) {
           fields={[
             { key: 'keywordId', label: 'Stichwort', type: 'select', options: c.keywords.map((k) => [k.id, `${k.code} – ${k.label}`]), required: true },
             { key: 'note', label: 'Hinweis', type: 'text' },
-            { key: 'requirements', label: 'Einsatzmittel (nach Fähigkeit)', type: 'custom', render: (d, set) => <RequirementsEditor value={d.requirements} onChange={(requirements) => set({ requirements })} /> },
+            { key: 'requirements', label: 'Einsatzmittel', type: 'custom', render: (d, set) => <RequirementsEditor value={d.requirements} onChange={(requirements) => set({ requirements })} /> },
           ]}
           create={() => ({ id: newId('aao'), keywordId: c.keywords.find((k) => !c.aao.some((a) => a.keywordId === k.id))?.id ?? '', requirements: [], note: '' })}
           onSave={(a, isNew) => store.edit((_, g) => saveAao(g, a, isNew) ?? undefined, 'AAO gespeichert.')}
           onDelete={(a) => store.edit((_, g) => deleteAao(g, a.id) ?? undefined, 'AAO-Regel gelöscht.')}
-          intro={
-            <div className="small muted">
-              Die AAO beschreibt den Bedarf je Stichwort über <b>Fähigkeiten</b> (z. B. „2× Löschfahrzeug“). Der Einsatzmittelvorschlag wählt dafür die schnellsten verfügbaren Fahrzeuge, deren Typ diese Fähigkeit besitzt.
-            </div>
-          }
         />
       )}
       {tab === 'caps' && (
