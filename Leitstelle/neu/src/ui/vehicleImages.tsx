@@ -1,7 +1,7 @@
 import { useEffect, useRef, useSyncExternalStore } from 'react';
 import { kvStore } from '../persistence/db';
 import { store, useStore } from '../store/gameStore';
-import type { Vehicle } from '../model/types';
+import type { GameState, Vehicle } from '../model/types';
 
 /**
  * Fahrzeugbilder für die Karte: je Fahrzeug ein Bild ohne und eines mit Blaulicht.
@@ -165,9 +165,16 @@ export function __storedForTests(): Stored {
   return data;
 }
 
-/** Mit Sondersignal unterwegs (Anfahrt oder Transport)? Dann blinkt das Bild. */
-export function blinksNow(v: Vehicle): boolean {
-  return !!(v.rt.move?.emergency && v.rt.move.purpose !== 'rueckfahrt');
+/**
+ * Mit Sondersignal? Dann blinkt das Bild: Anfahrt oder Transport mit Sondersignal, und schon beim
+ * Ausrücken (alarmiert, auch während eines Sprechwunschs) zu einem Einsatz mit Sondersignal.
+ */
+export function blinksNow(v: Vehicle, state: GameState | null = store.state): boolean {
+  if (v.rt.move) return v.rt.move.emergency && v.rt.move.purpose !== 'rueckfahrt';
+  const st = v.rt.status === 'sprechwunsch' ? v.rt.statusBeforeSpeak : v.rt.status;
+  if (st !== 'alarmiert' || !v.rt.incidentId || !state) return false;
+  const inc = state.runtime.incidents.find((i) => i.id === v.rt.incidentId);
+  return !!inc && state.center.keywords.find((k) => k.id === inc.keywordId)?.emergency !== false;
 }
 
 /**

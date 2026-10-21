@@ -187,4 +187,16 @@ describe('Fahrzeugbilder', () => {
     expect(blinksNow(mv('einsatz', false))).toBe(false);
     expect(blinksNow(mv('rueckfahrt', true))).toBe(false);
   });
+
+  it('Blinken schon beim Ausrücken zu einem Einsatz mit Sondersignal', () => {
+    const center = createSampleCenter();
+    const v = center.vehicles[0];
+    const kw = (emergency: boolean) => ({ id: 'kw', emergency }) as (typeof center.keywords)[number];
+    const st = (emergency: boolean) => ({ center: { ...center, keywords: [kw(emergency)] }, runtime: { incidents: [{ id: 'i1', keywordId: 'kw' }] } }) as unknown as Parameters<typeof blinksNow>[1];
+    const alarmed = { ...v, rt: { ...v.rt, move: null, status: 'alarmiert', incidentId: 'i1' } } as typeof v;
+    expect(blinksNow(alarmed, st(true))).toBe(true);
+    expect(blinksNow(alarmed, st(false))).toBe(false);
+    expect(blinksNow({ ...alarmed, rt: { ...alarmed.rt, status: 'sprechwunsch', statusBeforeSpeak: 'alarmiert' } } as typeof v, st(true))).toBe(true);
+    expect(blinksNow({ ...alarmed, rt: { ...alarmed.rt, status: 'einsatzort' } } as typeof v, st(true))).toBe(false);
+  });
 });

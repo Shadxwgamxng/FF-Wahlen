@@ -147,7 +147,7 @@ export function MapView(p: Props) {
         const img = vimg.urls[v.id];
         const base = img?.normal ?? img?.blaulicht;
         // mit Sondersignal unterwegs: Bild ohne/mit Blaulicht wechseln (Blinken), bei nur einem Bild blauer Schein
-        const sig = blinksNow(v);
+        const sig = blinksNow(v, g);
         const blink = !!(img?.normal && img?.blaulicht && sig);
         const glow = sig && !blink;
         upsert(
