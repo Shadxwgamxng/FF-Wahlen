@@ -20,6 +20,8 @@ interface Props {
 
 const PRIO_COLOR = { 1: '#f2555a', 2: '#f5a524', 3: '#3d8bfd' } as const;
 
+const POI_COLOR = { pflege: '#e5484d', handel: '#f5a524', oeffentlich: '#3d8bfd', gewerbe: '#8e4ec6' } as const;
+
 export function MapView(p: Props) {
   const vimg = useVehicleImages();
   const el = useRef<HTMLDivElement>(null);
@@ -29,7 +31,7 @@ export function MapView(p: Props) {
   const lines = useRef<Map<string, L.Polyline>>(new Map());
   const cbs = useRef(p);
   cbs.current = p;
-  const [show, setShow] = useState({ areas: true, stations: true, hospitals: true, vehicles: true, freeVehicles: false, routes: true });
+  const [show, setShow] = useState({ areas: true, stations: true, hospitals: true, pois: false, vehicles: true, freeVehicles: false, routes: true });
 
   // Initialisierung
   useEffect(() => {
@@ -37,7 +39,7 @@ export function MapView(p: Props) {
     const c = p.game.center;
     const m = L.map(el.current, { zoomControl: true, preferCanvas: false }).setView(c.mapCenter, c.mapZoom);
     L.tileLayer(TILE_URL, { attribution: TILE_ATTRIBUTION, maxZoom: 19 }).addTo(m);
-    for (const k of ['areas', 'stations', 'hospitals', 'routes', 'incidents', 'vehicles']) layers.current[k] = L.layerGroup().addTo(m);
+    for (const k of ['areas', 'pois', 'stations', 'hospitals', 'routes', 'incidents', 'vehicles']) layers.current[k] = L.layerGroup().addTo(m);
     m.on('click', (e: L.LeafletMouseEvent) => cbs.current.onMapClick?.([e.latlng.lat, e.latlng.lng]));
     map.current = m;
     const ro = new ResizeObserver(() => m.invalidateSize());
@@ -73,6 +75,13 @@ export function MapView(p: Props) {
           .bindTooltip(`<b>${esc(s.name)}</b><br>${esc(org?.name ?? '')}<br>${n} Fahrzeuge`)
           .addTo(L_.stations);
       }
+    L_.pois.clearLayers();
+    if (show.pois)
+      for (const poi of center.pois ?? []) {
+        L.circleMarker(poi.position, { radius: 4, color: POI_COLOR[poi.group], weight: 1, fillOpacity: 0.7 })
+          .bindTooltip(`<b>${esc(poi.name)}</b><br>${esc(poi.type)}${poi.address ? `<br>${esc(poi.address)}` : ''}`)
+          .addTo(L_.pois);
+      }
     L_.hospitals.clearLayers();
     if (show.hospitals) {
       for (const h of center.hospitals) {
@@ -84,7 +93,7 @@ export function MapView(p: Props) {
         L.circleMarker(n.position, { radius: 7, color: '#12a594', fillOpacity: 0.3 }).bindTooltip(`<b>${esc(n.name)}</b><br>Nachbarleitstelle`).addTo(L_.hospitals);
       }
     }
-  }, [center.areas, center.stations, center.hospitals, center.neighbors, center.organizations, center.vehicles.length, show.areas, show.stations, show.hospitals]);
+  }, [center.areas, center.stations, center.hospitals, center.neighbors, center.organizations, center.vehicles.length, center.pois, show.areas, show.stations, show.hospitals, show.pois]);
 
   // Dynamische Ebenen (Einsätze, Fahrzeuge, Routen)
   useEffect(() => {
@@ -204,6 +213,7 @@ export function MapView(p: Props) {
             ['areas', 'Gebiete'],
             ['stations', 'Wachen'],
             ['hospitals', 'Kliniken'],
+            ['pois', 'POIs'],
             ['vehicles', 'Fahrzeuge'],
             ['freeVehicles', 'auch freie'],
             ['routes', 'Routen'],

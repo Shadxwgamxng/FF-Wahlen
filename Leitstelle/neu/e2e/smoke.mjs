@@ -130,8 +130,22 @@ async function main() {
   await page.getByTestId('wizard-next').click();
   await page.getByRole('button', { name: 'Kartendaten laden' }).click();
   await page.getByText(/Einsatzorte geladen/).waitFor({ timeout: 30000 });
+  assert((await page.getByTestId('takeover').count()) === 1, 'Auswahl Wachen/Kliniken/POIs');
   await page.getByTestId('wizard-next').click();
   await page.getByTestId('wizard-create').click();
+  // nach dem Erstellen: Fahrzeuge an den Wachen anlegen (alle Angaben Pflicht)
+  await page.getByTestId('vehicle-setup').waitFor();
+  assert(await page.getByTestId('start-play').isDisabled(), 'Starten erst mit Fahrzeugen');
+  const card = page.getByTestId('station-card').first();
+  await card.getByTestId('station-add-toggle').click();
+  await card.getByTestId('vs-add').click();
+  await card.locator('.errbox').waitFor();
+  await card.getByTestId('vs-type').selectOption({ index: 1 });
+  await card.getByTestId('vs-callsign').fill('Florian Test 1-1');
+  await card.getByTestId('vs-identifier').fill('OH-T 1');
+  await card.getByTestId('vs-add').click();
+  await page.waitForFunction(() => window.leitwarte.state.center.vehicles.length === 1);
+  await page.getByTestId('start-play').click();
   await page.getByTestId('desk').waitFor();
   let g = await game();
   assert(g.center.areas[0].osmRelationId === 27025, 'Kreis übernommen');
@@ -140,7 +154,7 @@ async function main() {
   assert(g.center.organizations.every((o) => o.radioGroup.code), 'Funkrufgruppen gesetzt');
   assert(overpassMainFailed > 0, 'Ausfall des Overpass-Hauptservers simuliert');
   log(`Overpass-Hauptserver nicht erreichbar – Daten über Ausweichserver geladen (${overpassMainFailed} Fehlversuche)`);
-  log(`Eigene Leitstelle erstellt: ${g.center.stations.length} reale Standorte, ${g.center.places.places.length} Einsatzorte`);
+  log(`Eigene Leitstelle erstellt: ${g.center.stations.length} reale Standorte, ${g.center.pois.length} POIs, ${g.center.places.places.length} Einsatzorte; Fahrzeug mit Pflichtangaben an Wache angelegt`);
   await page.getByRole('button', { name: 'Beenden' }).click();
   await page.getByTestId('start-screen').waitFor();
 
@@ -152,7 +166,9 @@ async function main() {
   assert(g.center.vehicles.every((v) => g.center.organizations.some((o) => o.id === v.organizationId)), 'Fahrzeuge mit Organisation/Funkrufgruppe');
   log(`Beispielleitstelle Ostholstein: ${g.center.stations.length} Standorte, ${g.center.vehicles.length} Fahrzeuge (Overpass-Abfragen: ${overpassCalls})`);
   assert((await page.getByRole('navigation', { name: 'Bereiche' }).getByRole('button', { name: /Personal/ }).count()) === 0, 'Personal-Menü entfernt');
-  log('Personal-Menü ist entfernt');
+  for (const label of ['Wachen', 'Fahrzeuge', 'Stichwörter & AAO', 'Leitstellen-Editor'])
+    assert((await page.getByRole('navigation', { name: 'Bereiche' }).getByRole('button', { name: label, exact: true }).count()) === 0, `${label} im Spiel nicht bearbeitbar`);
+  log('Personal-Menü ist entfernt; im Spiel keine Bearbeitungsfenster (nur über „Bearbeiten“)');
 
   // ------------------------------------------------------------------ Notruf → Einsatzmaske
   await nav(page, 'Simulation');
@@ -275,7 +291,7 @@ async function main() {
   // ------------------------------------------------------------------ Speichern/Laden
   await page.getByRole('button', { name: 'Beenden' }).click();
   await page.getByTestId('start-screen').waitFor();
-  await page.getByRole('row', { name: /Ostholstein/ }).first().getByRole('button', { name: 'Laden' }).click();
+  await page.getByRole('row', { name: /Ostholstein/ }).first().getByTestId('project-start').click();
   await page.getByTestId('desk').waitFor();
   g = await game();
   assert(g.runtime.archive.length >= 1 && g.center.places.places.length > 1000, 'Spielstand inkl. OSM-Daten wieder geladen');

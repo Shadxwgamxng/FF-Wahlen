@@ -1,4 +1,4 @@
-import type { Area, CenterConfig, Hospital, LatLng, Organization, PlaceIndex, Station } from '../model/types';
+import type { Area, CenterConfig, Hospital, LatLng, Organization, PlaceIndex, Station, Poi } from '../model/types';
 import type { County, Facility } from '../geo/osm';
 import { catalogAao, catalogById, catalogKeywords } from './catalogs';
 import { DEFAULT_STATUS_DEFS, DEFAULT_VEHICLE_TYPES } from './vehicleTypes';
@@ -45,6 +45,8 @@ export interface WizardInput {
   organizations: Organization[];
   places: PlaceIndex | null;
   facilities: Facility[];
+  /** Besondere Objekte (POIs) aus OpenStreetMap */
+  pois?: Poi[];
 }
 
 export function centerBounds(counties: County[]): { center: LatLng; zoom: number } {
@@ -155,6 +157,7 @@ export function buildCenter(i: WizardInput): CenterConfig {
     neighbors: [],
     streetNames: [...STREET_NAMES],
     places: i.places,
+    pois: i.pois ?? [],
     settings: {
       callsPerHour: 5,
       difficulty: 'normal',

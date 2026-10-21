@@ -2,6 +2,7 @@ import type { CenterConfig, ServiceWindow, Station, Vehicle } from '../../model/
 import type { County } from '../../geo/osm';
 import { extractFacilities } from '../../geo/osm';
 import { buildPlaceIndex, type OverpassElement } from '../../geo/places';
+import { extractPois } from '../../geo/pois';
 import { buildCenter, defaultOrganizations } from '../centerFactory';
 import { emptyVehicleRuntime } from '../sampleCenter';
 import { distanceMeters, pointInArea } from '../../sim/geo';
@@ -276,6 +277,7 @@ export function createOstholsteinCenter(elements: OverpassElement[]): CenterConf
   for (const a of c.areas) a.responsibleStationIds.push(kats.id, thw.id);
   add(rthStation, 'rth', 'Christoph 12', [{ fromHour: 7, toHour: 20, weekdays: [] }], { neighborId: 'nb_luft', requestDelaySeconds: 120 });
   c.vehicles = vehicles;
+  c.pois = extractPois(elements, undefined, (p) => pointInArea(p, OSTHOLSTEIN));
   c.settings.seed = 20261019;
   return c;
 }

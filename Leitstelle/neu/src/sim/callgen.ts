@@ -1,9 +1,9 @@
-import type { Call, GameState, KeywordCategory, LatLng, PlaceKind, Weather } from '../model/types';
+import type { Call, GameState, KeywordCategory, LatLng, PlaceIndex, PlaceKind, PoiGroup, Weather } from '../model/types';
 import { scenariosForCatalog, type FactSpec, type LocationKind, type ScenarioDef, type VariantDef } from '../data/scenarios';
 import type { Facts, FactValue } from '../data/questions';
 import { Rng } from './rng';
 import { areaBounds, pointInArea } from './geo';
-import { describePlace, pickPlace, placeLatLng } from '../geo/places';
+import { describePlace, pickPlace, placeLatLng, reverseGeocode } from '../geo/places';
 import { emptyMask } from '../model/mask';
 import { hourOf } from './availability';
 import { DIFFICULTY, isNight } from './difficulty';
@@ -85,8 +85,38 @@ export interface GeneratedLocation {
   city: string;
 }
 
+/** Adresse des nächstgelegenen Gebäudes (für POIs ohne eigene Adresse) */
+function nearestAddress(ix: PlaceIndex, p: LatLng) {
+  const r = reverseGeocode(ix, p);
+  return r && r.distanceM < 300 ? describePlace(ix, r.tuple) : null;
+}
+
+/** Welche POI-Gruppen zu welcher Lageart passen */
+const POI_FOR: Partial<Record<LocationKind, PoiGroup[]>> = { klinik: ['pflege'], oeffentlich: ['oeffentlich', 'handel'], gewerbe: ['gewerbe', 'handel'] };
+
 export function randomLocation(state: GameState, rng: Rng, kind: LocationKind): GeneratedLocation {
   const c = state.center;
+  // 0. Besondere Objekte (POIs) passend zur Lage: Pflegeheim, Supermarkt, Schule, Industriebetrieb …
+  const groups = POI_FOR[kind];
+  if (groups && c.pois?.length && rng.chance(0.45)) {
+    const list = c.pois.filter((p) => groups.includes(p.group));
+    if (list.length) {
+      const poi = rng.pick(list);
+      const near = c.places ? nearestAddress(c.places, poi.position) : null;
+      const address = poi.address || (near ? near.address : poi.name);
+      const m = /^(.*?)\s+(\d+\s*[a-zA-Z]?)\s*,\s*(\d{5})?\s*(.*)$/.exec(address);
+      return {
+        position: poi.position,
+        address,
+        areaId: areaAt(state, poi.position),
+        detail: `${poi.type} „${poi.name}“`,
+        street: m?.[1] ?? near?.street ?? '',
+        houseNumber: m?.[2] ?? near?.houseNumber ?? '',
+        postcode: m?.[3] ?? near?.postcode ?? '',
+        city: m?.[4] ?? near?.city ?? '',
+      };
+    }
+  }
   // 1. Echte Orte aus OpenStreetMap, passend zur Lage (Türöffnung im Wohnhaus, Waldbrand im Wald …)
   if (c.places && c.places.places.length > 0) {
     let pk = PLACE_FOR[kind];

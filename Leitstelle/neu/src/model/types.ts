@@ -95,6 +95,18 @@ export interface Area {
 export type PlaceKind = 'w' | 'g' | 'o' | 'k' | 's' | 'b' | 'l' | 'x';
 export type PlaceTuple = [PlaceKind, number, number, number, string, number, string, number];
 
+export type PoiGroup = 'pflege' | 'handel' | 'oeffentlich' | 'gewerbe';
+
+export interface Poi {
+  id: ID;
+  name: string;
+  /** z. B. "Pflegeheim", "Arztpraxis", "Supermarkt" */
+  type: string;
+  group: PoiGroup;
+  position: LatLng;
+  address: string;
+}
+
 export interface PlaceIndex {
   source: 'osm';
   fetchedAt: string;
@@ -339,6 +351,8 @@ export interface CenterConfig {
   streetNames: string[];
   /** Echte Adressen/Orte aus OpenStreetMap (für realistische Einsatzorte) */
   places: PlaceIndex | null;
+  /** Besondere Objekte aus OpenStreetMap (Pflegeheime, Arztpraxen, Märkte, Schulen …) für Einsatzlagen und Karte */
+  pois?: Poi[];
   settings: SimSettings;
   /** Vorbereitet für spätere Community-Bibliothek */
   sharing: { visibility: 'privat' | 'geteilt' | 'oeffentlich'; author: string; tags: string[] };

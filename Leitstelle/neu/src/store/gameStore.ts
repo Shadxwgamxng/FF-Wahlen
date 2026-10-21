@@ -279,6 +279,18 @@ export class GameStore {
 
   // -------------------------------------------------------------- Laden / Neu
 
+  /**
+   * spielen: nur Leitstand und Spielfunktionen; bearbeiten: Wachen, Fahrzeuge, AAO, Editor …
+   * Bearbeitet wird nur beim Erstellen, Starten (Auswahl "Bearbeiten") oder Bearbeiten einer Leitstelle.
+   */
+  mode: 'spielen' | 'bearbeiten' = 'spielen';
+
+  setMode(mode: 'spielen' | 'bearbeiten') {
+    if (mode === 'bearbeiten' && this.state?.runtime.clock.running) this.cmdQuiet('setRunning', false);
+    this.mode = mode;
+    this.emit();
+  }
+
   async newProject(center: CenterConfig, name?: string) {
     const game = createGame(center);
     const now = Date.now();

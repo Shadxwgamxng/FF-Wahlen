@@ -3,6 +3,8 @@ import L from 'leaflet';
 import type { Organization, PlaceIndex } from '../../model/types';
 import { extractFacilities, fetchCountyAt, overpassQueries, runOverpass, type County, type Facility } from '../../geo/osm';
 import { buildPlaceIndex, type OverpassElement } from '../../geo/places';
+import { extractPois, poiQuery, POI_GROUP_LABEL } from '../../geo/pois';
+import type { Poi, PoiGroup } from '../../model/types';
 import { buildCenter, defaultOrganizations, validateWizard } from '../../data/centerFactory';
 import { CATALOGS } from '../../data/catalogs';
 import { pointInArea } from '../../sim/geo';
@@ -35,16 +37,30 @@ export function CreateWizard({ onCancel }: { onCancel: () => void }) {
   const [loading, setLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [skipData, setSkipData] = useState(false);
+  // Übernahme aus OpenStreetMap (ohne Fahrzeuge)
+  const [takeStations, setTakeStations] = useState(true);
+  const [takeHospitals, setTakeHospitals] = useState(true);
+  const [pois, setPois] = useState<Poi[]>([]);
+  const [poiGroups, setPoiGroups] = useState<Record<PoiGroup, boolean>>({ pflege: true, handel: true, oeffentlich: true, gewerbe: true });
 
   const activeOrgs = orgs.filter((o) => orgOn[o.id]);
-  const input = { catalogId, name, operator, counties, organizations: activeOrgs, places, facilities: facilities.filter((f) => facOn[f.osmId]) };
+  const input = {
+    catalogId,
+    name,
+    operator,
+    counties,
+    organizations: activeOrgs,
+    places,
+    facilities: facilities.filter((f) => facOn[f.osmId] && (f.kind === 'krankenhaus' ? takeHospitals : takeStations)),
+    pois: pois.filter((p) => poiGroups[p.group]),
+  };
   const errors = validateWizard(input);
 
   const loadData = async () => {
     setError(null);
     const all: OverpassElement[] = [];
     try {
-      const qs = overpassQueries(counties.map((c) => c.osmRelationId));
+      const qs = [...overpassQueries(counties.map((c) => c.osmRelationId)), poiQuery(counties.map((c) => c.osmRelationId))];
       for (let i = 0; i < qs.length; i++) {
         const label = `Lade ${qs[i].label} (${i + 1}/${qs.length})`;
         setLoading(`${label} … das kann bei großen Kreisen 1–2 Minuten dauern.`);
@@ -55,6 +71,7 @@ export function CreateWizard({ onCancel }: { onCancel: () => void }) {
       const ix = buildPlaceIndex(all, { areas: counties, maxPerKind: { w: 30000, g: 6000, o: 4000, k: 1500, s: 8000, b: 2000, l: 4000, x: 2500 } });
       const fac = extractFacilities(all).filter((f) => counties.some((c) => pointInArea(f.position, c)));
       setPlaces(ix);
+      setPois(extractPois(all, undefined, (p) => counties.some((c) => pointInArea(p, c))));
       setFacilities(fac);
       setFacOn(Object.fromEntries(fac.map((f) => [f.osmId, true])));
     } catch (e) {
@@ -67,6 +84,8 @@ export function CreateWizard({ onCancel }: { onCancel: () => void }) {
   const create = async () => {
     if (errors.length) return;
     await store.newProject(buildCenter(input));
+    // danach: Fahrzeuge an den Wachen anlegen
+    store.setMode('bearbeiten');
   };
 
   const canNext: Record<Step, boolean> = {
@@ -161,6 +180,26 @@ export function CreateWizard({ onCancel }: { onCancel: () => void }) {
               {places.places.length.toLocaleString('de-DE')} Einsatzorte geladen ({countKinds(places)}).
             </div>
           )}
+          {places && (
+            <div className="col" data-testid="takeover">
+              <h4>Was soll übernommen werden? (ohne Fahrzeuge)</h4>
+              <label className="check">
+                <input type="checkbox" checked={takeStations} onChange={(e) => setTakeStations(e.target.checked)} data-testid="take-stations" /> Wachen (Feuerwehr, Rettungsdienst, Polizei) –{' '}
+                {facilities.filter((f) => f.kind !== 'krankenhaus').length}
+              </label>
+              <label className="check">
+                <input type="checkbox" checked={takeHospitals} onChange={(e) => setTakeHospitals(e.target.checked)} data-testid="take-hospitals" /> Krankenhäuser – {facilities.filter((f) => f.kind === 'krankenhaus').length}
+              </label>
+              <div className="row wrap">
+                <b className="small">POIs:</b>
+                {(Object.keys(POI_GROUP_LABEL) as PoiGroup[]).map((g) => (
+                  <label key={g} className="check small">
+                    <input type="checkbox" checked={poiGroups[g]} onChange={(e) => setPoiGroups({ ...poiGroups, [g]: e.target.checked })} /> {POI_GROUP_LABEL[g]} ({pois.filter((p) => p.group === g).length})
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
           {facilities.length > 0 && (
             <div className="col">
               <h4>Reale Standorte als Vorschlag übernehmen</h4>
@@ -200,7 +239,8 @@ export function CreateWizard({ onCancel }: { onCancel: () => void }) {
           <div>Landkreise: {counties.map((c) => c.name).join(', ')}</div>
           <div>Organisationen: {activeOrgs.map((o) => `${o.name} [${o.radioGroup.code}]`).join(', ')}</div>
           <div>Einsatzorte aus OSM: {places ? places.places.length.toLocaleString('de-DE') : 'keine'}</div>
-          <div>Standorte: {input.facilities.filter((f) => f.kind !== 'krankenhaus').length} Wachen, {input.facilities.filter((f) => f.kind === 'krankenhaus').length} Kliniken</div>
+          <div>Standorte: {input.facilities.filter((f) => f.kind !== 'krankenhaus').length} Wachen, {input.facilities.filter((f) => f.kind === 'krankenhaus').length} Kliniken, {input.pois.length} POIs</div>
+          <div className="small muted">Nach dem Erstellen legst du die Fahrzeuge an den Wachen an (alle Angaben Pflicht).</div>
           {errors.length > 0 && (
             <div className="errbox">
               {errors.map((e) => (

@@ -160,6 +160,11 @@ export function parseCenterLenient(raw: unknown): { center: CenterConfig | null;
   if (Array.isArray(r.streetNames)) out.streetNames = r.streetNames.filter((s): s is string => typeof s === 'string');
   out.catalogId = typeof r.catalogId === 'string' ? r.catalogId : 'standard';
   if (!Array.isArray(r.meldebilder)) out.meldebilder = [];
+  if (Array.isArray(r.pois))
+    out.pois = r.pois.filter(
+      (x): x is NonNullable<CenterConfig['pois']>[number] =>
+        !!x && typeof x === 'object' && typeof (x as { name?: unknown }).name === 'string' && latLng.safeParse((x as { position?: unknown }).position).success,
+    );
   out.places = null;
   if (r.places) {
     const pp = placeIndexSchema.safeParse(r.places);

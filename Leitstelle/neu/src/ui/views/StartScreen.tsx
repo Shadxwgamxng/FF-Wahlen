@@ -3,6 +3,7 @@ import { projects, type ProjectRecord } from '../../persistence/db';
 import { importJson, validateStoredGame } from '../../persistence/schema';
 import { createOstholsteinCenter, OSTHOLSTEIN } from '../../data/ostholstein';
 import { overpassQueries, runOverpass } from '../../geo/osm';
+import { poiQuery } from '../../geo/pois';
 import type { OverpassElement } from '../../geo/places';
 import { CreateWizard } from './CreateWizard';
 import { store } from '../../store/gameStore';
@@ -19,7 +20,7 @@ export function StartScreen() {
   const startSample = async () => {
     try {
       const all: OverpassElement[] = [];
-      const qs = overpassQueries([OSTHOLSTEIN.osmRelationId]);
+      const qs = [...overpassQueries([OSTHOLSTEIN.osmRelationId]), poiQuery([OSTHOLSTEIN.osmRelationId])];
       for (let i = 0; i < qs.length; i++) {
         const label = `Lade OpenStreetMap-Daten: ${qs[i].label} (${i + 1}/${qs.length})`;
         setSampleState(`${label} …`);
@@ -27,6 +28,7 @@ export function StartScreen() {
       }
       setSampleState('Baue Leitstelle auf …');
       await store.newProject(createOstholsteinCenter(all));
+      store.setMode('spielen');
     } catch (e) {
       setSampleState(`Fehler: ${(e as Error).message}`);
     }
@@ -42,11 +44,12 @@ export function StartScreen() {
     void refresh();
   }, []);
 
-  const open = (p: ProjectRecord) => {
+  const open = (p: ProjectRecord, mode: 'spielen' | 'bearbeiten' = 'spielen') => {
     const { game, issues } = validateStoredGame(p.state);
     if (!game) return setReport({ title: 'Spielstand beschädigt', lines: issues.map((i) => `${i.path}: ${i.message}`) });
     if (issues.length) store.toast('info', `${issues.length} Datenproblem(e) beim Laden repariert.`);
     store.load({ ...p, state: game });
+    store.setMode(mode);
   };
 
   const copy = async (p: ProjectRecord) => {
@@ -135,7 +138,8 @@ export function StartScreen() {
                   <td className="mono small">{fmtDateTime(p.state.runtime.clock.now)}</td>
                   <td className="small">{new Date(p.updatedAt).toLocaleString('de-DE')}</td>
                   <td className="right nowrap">
-                    <button className="btn small primary" onClick={() => open(p)}>Laden</button>{' '}
+                    <button className="btn small primary" onClick={() => open(p)} data-testid="project-start">Starten</button>{' '}
+                    <button className="btn small" onClick={() => open(p, 'bearbeiten')} data-testid="project-edit">Bearbeiten</button>{' '}
                     <button className="btn small" onClick={() => copy(p)}>Kopieren</button>{' '}
                     <button className="btn small danger" onClick={() => remove(p)}>Löschen</button>
                   </td>

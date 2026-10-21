@@ -15,26 +15,32 @@ import { SimulationView } from './views/SimulationView';
 import { MultiplayerView } from './views/MultiplayerView';
 import { DataView } from './views/DataView';
 import { VoiceTestView } from './views/VoiceTestView';
+import { VehicleSetup } from './views/VehicleSetup';
 import { installAudio } from './audio';
 import { openPopout, POPOUTS } from './PopoutApp';
 import { installRouting, useRoutingState } from './routingService';
 import { FunkController } from './funk';
 import { CallVoiceController } from './callVoice';
 
-export type ViewId = 'leitstand' | 'wachen' | 'fahrzeuge' | 'aao' | 'kliniken' | 'statistik' | 'editor' | 'simulation' | 'mehrspieler' | 'daten' | 'sprachtest';
+export type ViewId = 'leitstand' | 'einrichten' | 'wachen' | 'fahrzeuge' | 'aao' | 'kliniken' | 'statistik' | 'editor' | 'simulation' | 'mehrspieler' | 'daten' | 'sprachtest';
 
-const NAV: [ViewId, string][] = [
+/** Im Spiel: nur Leitstand und Spielfunktionen – bearbeitet wird im Bearbeitungsmodus */
+const NAV_PLAY: [ViewId, string][] = [
   ['leitstand', 'Leitstand'],
+  ['statistik', 'Archiv & Statistik'],
+  ['simulation', 'Simulation'],
+  ['sprachtest', 'Sprachtest'],
+  ['daten', 'Daten & Einstellungen'],
+];
+const NAV_EDIT: [ViewId, string][] = [
+  ['einrichten', 'Fahrzeuge an Wachen'],
   ['wachen', 'Wachen'],
   ['fahrzeuge', 'Fahrzeuge'],
   ['aao', 'Stichwörter & AAO'],
   ['kliniken', 'Kliniken & Extern'],
-  ['statistik', 'Archiv & Statistik'],
   ['editor', 'Leitstellen-Editor'],
-  ['simulation', 'Simulation'],
   ['mehrspieler', 'Mehrspieler'],
   ['daten', 'Daten & Einstellungen'],
-  ['sprachtest', 'Sprachtest'],
 ];
 
 export const SPEEDS = [1, 2, 5, 10, 30, 60];
@@ -43,10 +49,14 @@ export function App() {
   useVehicleImagesLoader();
   const game = useStore((s) => s.state);
   const [view, setView] = useState<ViewId>('leitstand');
+  const mode = useStore((s) => s.mode);
+  const NAV = mode === 'bearbeiten' ? NAV_EDIT : NAV_PLAY;
+  // Moduswechsel: passende Startansicht
+  useEffect(() => setView(mode === 'bearbeiten' ? 'einrichten' : 'leitstand'), [mode]);
   const [help, setHelp] = useState(false);
   const projectId = useStore((s) => s.project?.id);
   // Beim Laden einer anderen Leitstelle immer im Leitstand beginnen
-  useEffect(() => setView('leitstand'), [projectId]);
+  useEffect(() => setView(store.mode === 'bearbeiten' ? 'einrichten' : 'leitstand'), [projectId]);
 
   useEffect(() => installRouting(), []);
   useEffect(() => {
@@ -70,9 +80,10 @@ export function App() {
       if (e.ctrlKey || e.metaKey) return;
       if (e.altKey && /^[0-9]$/.test(e.key)) {
         const idx = e.key === '0' ? 9 : Number(e.key) - 1;
-        if (NAV[idx]) {
+        const nav = store.mode === 'bearbeiten' ? NAV_EDIT : NAV_PLAY;
+        if (nav[idx]) {
           e.preventDefault();
-          setView(NAV[idx][0]);
+          setView(nav[idx][0]);
         }
         return;
       }
@@ -115,7 +126,7 @@ export function App() {
 
   return (
     <div className="shell">
-      <TopBar onHelp={() => setHelp(true)} />
+      {mode === 'bearbeiten' ? <EditBar /> : <TopBar onHelp={() => setHelp(true)} />}
       <nav className="nav" style={{ padding: '0 8px', background: 'var(--bg-2)', borderBottom: '1px solid var(--line)' }} aria-label="Bereiche">
         {NAV.map(([id, label], i) => (
           <button key={id} className={view === id ? 'active' : ''} onClick={() => setView(id)} title={i < 10 ? `Alt+${(i + 1) % 10}` : undefined}>
@@ -124,7 +135,8 @@ export function App() {
         ))}
       </nav>
       <main className="main">
-        {view === 'leitstand' && <Desk game={game} />}
+        {view === 'leitstand' && mode === 'spielen' && <Desk game={game} />}
+        {view === 'einrichten' && <VehicleSetup game={game} />}
         {view === 'wachen' && <StationsView game={game} />}
         {view === 'fahrzeuge' && <VehiclesView game={game} />}
         {view === 'aao' && <KeywordsView game={game} />}
@@ -142,6 +154,26 @@ export function App() {
       <Toasts />
       <ConfirmHost />
     </div>
+  );
+}
+
+/** Kopfzeile im Bearbeitungsmodus */
+function EditBar() {
+  const game = useStore((s) => s.state)!;
+  const project = useStore((s) => s.project);
+  const noVehicles = game.center.vehicles.length === 0;
+  return (
+    <header className="topbar edit">
+      <span className="brand">LEITWARTE</span>
+      <span className="chip warn">Bearbeitungsmodus</span>
+      <span className="ellipsis" style={{ maxWidth: 320 }}>{project?.name ?? game.center.name}</span>
+      <span className="spacer" />
+      <span className="small muted">{game.center.stations.length} Wachen · {game.center.vehicles.length} Fahrzeuge · {game.center.hospitals.length} Kliniken · {game.center.pois?.length ?? 0} POIs</span>
+      <button className="btn primary" onClick={() => store.setMode('spielen')} disabled={noVehicles} title={noVehicles ? 'Erst Fahrzeuge anlegen' : 'Bearbeitung beenden und spielen'} data-testid="start-play">
+        ▶ Leitstelle starten
+      </button>
+      <button className="btn small" onClick={() => void store.close()}>Beenden</button>
+    </header>
   );
 }
 
