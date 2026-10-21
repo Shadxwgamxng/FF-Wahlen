@@ -17,7 +17,7 @@ export function CallList({ game, selectedId, onSelect }: { game: GameState; sele
         <span className={`count ${calls.some((c) => c.state === 'klingelt') ? 'alarm' : ''}`} data-testid="call-count">{calls.length}</span>
       </div>
       <div className="panel-body">
-        {calls.length === 0 && <div className="empty">Keine wartenden Notrufe.</div>}
+        {calls.length === 0 && <div className="empty">Keine Notrufe.</div>}
         {calls.map((c) => (
           <div key={c.id} className={`list-item ${c.state === 'klingelt' ? 'ringing' : ''} ${selectedId === c.id ? 'selected' : ''}`} onClick={() => onSelect(c.id)} data-testid="call-item">
             <span style={{ fontSize: 18 }}>{c.state === 'klingelt' ? '☎' : '◉'}</span>
@@ -28,7 +28,7 @@ export function CallList({ game, selectedId, onSelect }: { game: GameState; sele
                 <span className="mono small">{fmtAgo(now, c.receivedAt)}</span>
               </div>
               {c.state === 'klingelt' ? (
-                <div className="small muted">Anrufer wartet{c.redialOf ? ' (erneuter Anruf!)' : ''}</div>
+                <div className="small muted">wartet{c.redialOf ? ' · Wiederanruf' : ''}</div>
               ) : (
                 <div className="small muted ellipsis">{c.opening}</div>
               )}
@@ -47,7 +47,7 @@ export function IncidentList({ game, selectedId, onSelect, onNewManual }: { game
     <div className="panel" style={{ flex: 1 }}>
       <div className="panel-head">
         <h4 className="grow">Laufende Einsätze</h4>
-        <button className="btn small" onClick={onNewManual} title="Einsatz ohne Notruf anlegen (z. B. Meldung über Funk)">+ Einsatz</button>
+        <button className="btn small" onClick={onNewManual} title="Einsatz ohne Notruf">+ Einsatz</button>
         <span className="count">{incs.length}</span>
       </div>
       <div className="panel-body">
@@ -79,7 +79,7 @@ export function IncidentList({ game, selectedId, onSelect, onNewManual }: { game
   );
 }
 
-const STATE_SHORT = { neu: '⚠ nicht disponiert', disponiert: 'Anfahrt', vor_ort: 'vor Ort', abarbeitung_beendet: 'beendet – entlassen', abgeschlossen: 'abgeschlossen' } as const;
+const STATE_SHORT = { neu: '⚠ nicht disponiert', disponiert: 'Anfahrt', vor_ort: 'vor Ort', abarbeitung_beendet: 'beendet', abgeschlossen: 'abgeschlossen' } as const;
 
 const ORG_FILTER: [string, string, OrgKind[]][] = [
   ['alle', 'Alle', []],

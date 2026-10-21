@@ -31,7 +31,7 @@ function UnrevealedActions({ msg }: { msg: RadioMessage }) {
 }
 
 /** Text einer Funkmeldung – vor dem Ansprechen nur der Sprechwunsch */
-export const radioText = (msg: RadioMessage) => (msg.revealed === false ? 'Sprechwunsch – bitte ansprechen.' : msg.text);
+export const radioText = (msg: RadioMessage) => (msg.revealed === false ? 'Sprechwunsch' : msg.text);
 
 function RevealedActions({ game, msg }: { game: GameState; msg: RadioMessage }) {
   const v = game.center.vehicles.find((x) => x.id === msg.vehicleId);
@@ -55,7 +55,7 @@ function RevealedActions({ game, msg }: { game: GameState; msg: RadioMessage }) 
         <button className="btn small primary" onClick={() => store.cmd('assignHospital', msg.id, chosen)} disabled={!chosen}>
           Ziel zuweisen
         </button>
-        <span className="dim small">✓ = Fachrichtung „{patient?.department}“ laut Spieldaten vorhanden</span>
+        <span className="dim small">✓ = {patient?.department}</span>
       </div>
     );
   }

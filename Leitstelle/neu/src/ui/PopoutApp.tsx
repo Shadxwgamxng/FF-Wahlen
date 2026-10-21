@@ -21,7 +21,7 @@ export const POPOUTS: [string, string][] = [
 
 export function openPopout(kind: string) {
   const w = window.open(`${location.pathname}?fenster=${kind}`, `leitwarte-${kind}`, 'width=1280,height=860');
-  if (!w) store.toast('fehler', 'Das Fenster wurde vom Browser blockiert – bitte Pop-ups für diese Seite erlauben.');
+  if (!w) store.toast('fehler', 'Pop-up blockiert');
 }
 
 export function PopoutApp({ kind }: { kind: string }) {
@@ -41,7 +41,7 @@ export function PopoutApp({ kind }: { kind: string }) {
     return (
       <div className="start">
         <h2>LEITWARTE – {title}</h2>
-        <div className="infobox">{alive ? 'Warte auf das Hauptfenster … (dort eine Leitstelle öffnen)' : 'Das Hauptfenster ist geschlossen. Bitte LEITWARTE im Hauptfenster öffnen.'}</div>
+        <div className="infobox">{alive ? 'Warte auf Hauptfenster …' : 'Hauptfenster geschlossen'}</div>
       </div>
     );
   }
@@ -49,7 +49,7 @@ export function PopoutApp({ kind }: { kind: string }) {
     return (
       <div className="start">
         <h2>LEITWARTE – {title}</h2>
-        <div className="infobox">Die Leitstelle wird gerade bearbeitet. Dieses Fenster ist wieder aktiv, sobald im Hauptfenster „Leitstelle starten“ gewählt wird.</div>
+        <div className="infobox">Leitstelle wird bearbeitet</div>
       </div>
     );
   const now = game.runtime.clock.now;
@@ -65,7 +65,6 @@ export function PopoutApp({ kind }: { kind: string }) {
         <span className="chip">{WEATHER_LABEL[game.runtime.weather]}</span>
         <span className="spacer" />
         {!alive && <span className="chip alarm">Hauptfenster getrennt</span>}
-        <span className="small dim">Zweitfenster – Simulation läuft im Hauptfenster</span>
       </header>
       <main className="main" style={{ display: 'flex', minHeight: 0 }}>
         {kind === 'karte' && (
@@ -87,7 +86,7 @@ export function PopoutApp({ kind }: { kind: string }) {
         {kind === 'einsaetze' && (
           <div className="col" style={{ flex: 1, minHeight: 0, gap: 0 }}>
             <CallList game={game} selectedId={null} onSelect={(id) => store.uiAction({ kind: 'openCall', id })} />
-            <IncidentList game={game} selectedId={null} onSelect={openIncident} onNewManual={() => store.toast('info', 'Manuelle Einsätze bitte im Hauptfenster anlegen.')} />
+            <IncidentList game={game} selectedId={null} onSelect={openIncident} onNewManual={() => store.toast('info', 'Nur im Hauptfenster')} />
           </div>
         )}
         {kind === 'funk' && (

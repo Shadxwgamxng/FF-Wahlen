@@ -226,7 +226,7 @@ export function MapView(p: Props) {
         {p.pickHint && <span className="chip warn">{p.pickHint}</span>}
       </div>
       <div className="map-legend">
-        <div><b>Routen:</b> durchgezogen = Straßenroute (OSRM), gestrichelt gerade = Näherung (Luftlinie). Keine Verkehrsdaten.</div>
+        <div>Route: durchgezogen OSRM · gestrichelt Luftlinie</div>
       </div>
     </>
   );

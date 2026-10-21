@@ -41,8 +41,8 @@ function OwnerSelect({ game }: { game: GameState }) {
   const players = (game.runtime.players ?? []).filter((p) => !p.host);
   if (players.length === 0 && !store.tabletOwner) return null;
   return (
-    <label className="row small" title="Sendetaste, Notrufabfrage und Funkstatus gehören zu diesem Spieler">
-      Gehört zu:
+    <label className="row small">
+      Platz:
       <select
         value={store.tabletOwner?.id ?? ''}
         onChange={(e) => {
@@ -96,12 +96,12 @@ export function TabletApp() {
         <h2>LEITWARTE – Tablet</h2>
         <div className="infobox" data-testid="tablet-waiting">
           {!lan.enabled
-            ? 'Diese Ansicht funktioniert nur über den LAN-Server (npm run lan).'
+            ? 'Nur über LAN-Server (npm run lan)'
             : !lan.connected
-              ? 'Verbinde mit dem LAN-Server …'
+              ? 'Verbindungsaufbau …'
               : alive
-                ? 'Verbunden. Warte auf den Leitstand am PC … (dort eine Leitstelle öffnen)'
-                : 'Der Leitstand am PC antwortet nicht. Bitte LEITWARTE am PC öffnen.'}
+                ? 'Warte auf Leitstand …'
+                : 'Leitstand antwortet nicht'}
         </div>
       </div>
     );
@@ -198,7 +198,7 @@ function Funkbedienplatz({ game }: { game: GameState }) {
       /* ohne Speicher nur für diese Sitzung */
     }
   };
-  if (!active) return <div className="infobox">Keine Funkrufgruppen konfiguriert.</div>;
+  if (!active) return <div className="infobox">Keine Funkrufgruppen</div>;
   const ids = new Set(active.vehicles.map((v) => v.id));
   const messages = game.runtime.radio.filter((r) => !r.handled && ids.has(r.vehicleId)).sort((a, b) => a.at - b.at);
   const others = groups.filter((g) => g !== active && g.pending > 0);
@@ -225,12 +225,11 @@ function Funkbedienplatz({ game }: { game: GameState }) {
         <div className="col tablet-ptt" style={{ gap: 6 }}>
           <PttButton group={active.group.code} big />
           <FunkStatusLine />
-          <div className="dim small">Gesprochen wird am Leitstand-PC (Mikrofon und Lautsprecher dort).</div>
         </div>
         <FunkLog game={game} group={active.group.code} max={8} />
         {others.length > 0 && (
           <div className="warnbox">
-            Meldungen in anderen Gruppen:{' '}
+            Andere Gruppen:{' '}
             {others.map((g) => (
               <button key={g.group.code} className="btn small" onClick={() => select(g.group.code)}>
                 {g.group.code} ({g.pending})
@@ -239,7 +238,7 @@ function Funkbedienplatz({ game }: { game: GameState }) {
           </div>
         )}
         <div className="col" data-testid="funk-meldungen">
-          {messages.length === 0 && <div className="dim">Keine offenen Meldungen in dieser Rufgruppe.</div>}
+          {messages.length === 0 && <div className="dim">Keine offenen Meldungen</div>}
           {messages.map((r) => {
             const v = game.center.vehicles.find((x) => x.id === r.vehicleId);
             return (
@@ -254,13 +253,13 @@ function Funkbedienplatz({ game }: { game: GameState }) {
         </div>
         <div className="row" style={{ alignItems: 'center' }}>
           <div className="tablet-title grow">
-            {showAll ? `Alle Fahrzeuge der Rufgruppe (${active.vehicles.length})` : `Fahrzeuge im Einsatz (${busy.length} von ${active.vehicles.length})`}
+            {showAll ? `Fahrzeuge (${active.vehicles.length})` : `Im Einsatz (${busy.length}/${active.vehicles.length})`}
           </div>
           <button className="btn" onClick={() => setShowAll((x) => !x)}>
             {showAll ? 'Nur im Einsatz' : 'Alle anzeigen'}
           </button>
         </div>
-        {vehicles.length === 0 && <div className="dim">Alle Fahrzeuge dieser Rufgruppe sind frei auf Wache.</div>}
+        {vehicles.length === 0 && <div className="dim">Keine Fahrzeuge im Einsatz</div>}
         <div className="funk-vehicles">
           {vehicles.map((v) => (
             <div key={v.id} className="funk-vehicle">

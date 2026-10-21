@@ -88,8 +88,8 @@ export function Desk({ game }: { game: GameState }) {
   }, [call, incident, manual, openIncident, showOnMap]);
 
   const createManual = () => {
-    if (!manual?.pos) return store.toast('fehler', 'Bitte den Einsatzort in der Karte anklicken.');
-    if (!manual.keywordId) return store.toast('fehler', 'Bitte ein Stichwort wählen.');
+    if (!manual?.pos) return store.toast('fehler', 'Einsatzort fehlt.');
+    if (!manual.keywordId) return store.toast('fehler', 'Stichwort fehlt.');
     void store.cmdAsync('createManualIncident', manual.keywordId!, manual.pos!, manual.address, manual.description).then(async (r) => {
       if (r.ok && r.id) await store.nextState();
       if (r.ok && r.id) {
@@ -104,18 +104,14 @@ export function Desk({ game }: { game: GameState }) {
   const showMap = !popouts.includes('karte');
   const showRight = !popouts.includes('fahrzeuge');
   const showBottom = !popouts.includes('funk');
+  // Freien Platz bekommen die verbliebenen Bereiche (Karte gelöst → Fahrzeugliste wird breit usw.)
+  const leftW = showLeft ? (showMap || showRight ? 'var(--left-w)' : '1fr') : '0';
+  const mapW = showMap ? '1fr' : '0';
+  const rightW = showRight ? (showMap ? 'var(--right-w)' : '1fr') : '0';
   const deskStyle = {
-    gridTemplateColumns: `${showLeft ? 'var(--left-w) 5px' : '0 0'} 1fr ${showRight ? '5px var(--right-w)' : '0 0'}`,
+    gridTemplateColumns: `${leftW} ${showLeft ? '5px' : '0'} ${mapW} ${showRight ? '5px' : '0'} ${rightW}`,
     gridTemplateRows: `1fr ${showBottom ? '5px var(--bottom-h)' : '0 0'}`,
   };
-  const away = (kind: string, label: string) => (
-    <div className="popped" data-testid={`popped-${kind}`}>
-      <span>{label} – eigenes Fenster</span>
-      <button className="btn small" onClick={() => store.closePopout(kind)}>
-        Zurückholen
-      </button>
-    </div>
-  );
 
   return (
     <div className="desk" data-testid="desk" style={deskStyle}>
@@ -132,7 +128,7 @@ export function Desk({ game }: { game: GameState }) {
       )}
       {showLeft && <Splitter cssVar="--left-w" dir="x" className="sl" min={240} max={600} />}
       <div className="desk-map">
-        {!showMap ? away('karte', 'Karte') : (
+        {showMap && (
         <MapView
           game={game}
           selectedIncidentId={incident?.id ?? null}
@@ -140,7 +136,7 @@ export function Desk({ game }: { game: GameState }) {
           onSelectIncident={openIncident}
           onSelectVehicle={setVehicleId}
           focus={focus}
-          pickHint={manual && !manual.pos ? 'Einsatzort in die Karte klicken' : null}
+          pickHint={manual && !manual.pos ? 'Einsatzort in Karte wählen' : null}
           onMapClick={
             manual
               ? (ll) => {
@@ -186,7 +182,7 @@ export function Desk({ game }: { game: GameState }) {
 
       {manual && manual.pos && (
         <Modal
-          title="Einsatz ohne Notruf anlegen"
+          title="Einsatz ohne Notruf"
           onClose={() => setManual(null)}
           footer={
             <>
@@ -208,7 +204,6 @@ export function Desk({ game }: { game: GameState }) {
             <span>Beschreibung</span>
             <textarea rows={2} value={manual.description} onChange={(e) => setManual({ ...manual, description: e.target.value })} />
           </label>
-          <div className="dim small">Manuell angelegte Einsätze haben keinen verdeckten Szenarioverlauf: Der Bedarf entspricht der AAO, es gibt keine Patienten.</div>
         </Modal>
       )}
     </div>

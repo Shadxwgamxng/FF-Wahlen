@@ -179,7 +179,8 @@ async function main() {
   assert(overpassMainFailed > 0, 'Ausfall des Overpass-Hauptservers simuliert');
   log(`Overpass-Hauptserver nicht erreichbar – Daten über Ausweichserver geladen (${overpassMainFailed} Fehlversuche)`);
   log(`Eigene Leitstelle erstellt: ${g.center.stations.length} reale Standorte, ${g.center.pois.length} POIs, ${g.center.places.places.length} Einsatzorte; Fahrzeug mit Pflichtangaben an Wache angelegt`);
-  await page.getByRole('button', { name: 'Beenden' }).click();
+  await page.getByRole('button', { name: 'Datei', exact: true }).click();
+  await page.getByRole('menuitem', { name: /^Beenden/ }).click();
   await page.getByTestId('start-screen').waitFor();
 
   // ------------------------------------------------------------------ Beispielleitstelle Ostholstein
@@ -309,7 +310,8 @@ async function main() {
   await page.getByTestId('play-pause').click();
 
   // ------------------------------------------------------------------ Speichern/Laden
-  await page.getByRole('button', { name: 'Beenden' }).click();
+  await page.getByRole('button', { name: 'Datei', exact: true }).click();
+  await page.getByRole('menuitem', { name: /^Beenden/ }).click();
   await page.getByTestId('start-screen').waitFor();
   await page.getByRole('row', { name: /Ostholstein/ }).first().getByTestId('project-start').click();
   await page.getByTestId('desk').waitFor();
@@ -326,7 +328,10 @@ async function main() {
   const vid = await page.evaluate(() => window.leitwarte.state.center.vehicles.find((v) => v.rt.status === 'frei_wache')?.id);
   await pop.getByRole('button', { name: 'Status 6 – außer Dienst' }).click();
   await page.waitForFunction(() => window.leitwarte.state.center.vehicles.some((v) => v.rt.status === 'ausser_dienst' && v.rt.breakdownUntil === -1), null, { timeout: 5000 });
-  log('Zweitfenster „Fahrzeugstatus“: Befehl (Status 6) wird im Hauptfenster ausgeführt');
+  // gelöster Bereich verschwindet im Hauptfenster (nichts doppelt)
+  await page.waitForFunction(() => window.leitwarte.popouts.includes('fahrzeuge'), null, { timeout: 8000 });
+  assert((await page.locator('.desk-right').count()) === 0, 'Fahrzeugliste im Hauptfenster ausgeblendet');
+  log('Zweitfenster „Fahrzeugstatus“: Bereich im Hauptfenster ausgeblendet; Befehl (Status 6) wird im Hauptfenster ausgeführt');
   const [pop2] = await Promise.all([page.waitForEvent('popup'), (async () => {
     await page.locator('summary', { hasText: 'Fenster' }).click();
     await page.getByTestId('popout-einsaetze').click();
@@ -338,6 +343,13 @@ async function main() {
   await pop.screenshot({ path: `${shots}04-zweitfenster.png` });
   log('Zweitfenster „Notrufe & Einsätze“: Klick öffnet die Einsatzmaske im Hauptfenster');
   void vid;
+  await page.screenshot({ path: `${shots}04b-hauptfenster-mit-zweitfenstern.png` });
+  // Fenster schließen: Bereiche erscheinen wieder im Hauptfenster
+  await pop.close({ runBeforeUnload: true });
+  await pop2.close({ runBeforeUnload: true });
+  await page.waitForFunction(() => window.leitwarte.popouts.length === 0, null, { timeout: 10000 });
+  assert((await page.locator('.desk-right').count()) === 1, 'Fahrzeugliste wieder da');
+  log('Zweitfenster geschlossen – Bereiche wieder im Hauptfenster');
 
   // ------------------------------------------------------------------ Sprachtest (ohne Mikrofon: Texteingabe)
   await nav(page, 'Sprachtest');

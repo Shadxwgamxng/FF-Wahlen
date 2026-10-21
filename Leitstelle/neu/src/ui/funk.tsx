@@ -79,7 +79,7 @@ export function FunkController() {
       let finalText = '';
       const consent = getConsent();
       if (!consent || consent.mode === 'text') {
-        store.setFunkStatus({ error: 'Mikrofon für den Funk noch nicht freigegeben – bitte am PC im Funkpanel freigeben.', sending: false });
+        store.setFunkStatus({ error: 'Mikrofon nicht freigegeben (Funkpanel am PC)', sending: false });
         return;
       }
       const r = createRecognizer({
@@ -108,7 +108,7 @@ export function FunkController() {
         },
       });
       if (!r) {
-        store.setFunkStatus({ error: 'Dieser Browser kann keine Sprache erkennen (Chrome oder Edge verwenden). Funksprüche lassen sich auch eintippen.' });
+        store.setFunkStatus({ error: 'Keine Spracherkennung im Browser (Chrome/Edge)' });
         return;
       }
       rec = r;
@@ -118,7 +118,7 @@ export function FunkController() {
         r.start();
       } catch {
         rec = null;
-        store.setFunkStatus({ sending: false, error: 'Die Spracherkennung konnte nicht gestartet werden.' });
+        store.setFunkStatus({ sending: false, error: 'Spracherkennung nicht gestartet' });
         return;
       }
       clearTimer();
@@ -224,7 +224,7 @@ export function PttButton({ group, big = false }: { group: string | null; big?: 
       onKeyDown={(e) => (e.key === ' ' || e.key === 'Enter') && !e.repeat && press(true)}
       onKeyUp={(e) => (e.key === ' ' || e.key === 'Enter') && press(false)}
     >
-      {active ? '● Senden …' : status.receiving ? 'Empfang …' : 'Senden (gedrückt halten)'}
+      {active ? '● Senden …' : status.receiving ? 'Empfang …' : 'Senden'}
     </button>
   );
 }
@@ -241,7 +241,7 @@ export function useFunkStatus() {
 export function FunkStatusLine() {
   const s = useFunkStatus();
   if (s.sending) return <div className="small funk-status on">● {s.interim || 'Sprechen …'}</div>;
-  if (s.receiving) return <div className="small funk-status rx">Empfang: Fahrzeug spricht …</div>;
+  if (s.receiving) return <div className="small funk-status rx">Empfang …</div>;
   if (s.error) return <div className="small funk-status err">{s.error}</div>;
   return null;
 }
@@ -256,7 +256,7 @@ export function FunkLog({ game, group, max = 12 }: { game: GameState; group?: st
   }, [lines.length, lines[lines.length - 1]?.id]);
   return (
     <div className="funk-log" ref={ref} data-testid="funk-log">
-      {lines.length === 0 && <div className="dim small">Noch kein Funkverkehr.</div>}
+      {lines.length === 0 && <div className="dim small">Kein Funkverkehr</div>}
       {lines.map((l) => (
         <div key={l.id} className={`funk-line ${l.from}`} data-testid="funk-line">
           <span className="mono small dim">{fmtClock(l.at)}</span> <b>{l.from === 'leitstelle' ? 'Leitstelle' : l.from === 'system' ? 'ℹ' : ''}</b> {l.text}
@@ -277,16 +277,13 @@ export function FunkConsent() {
   if (consent && consent.mode !== 'text') return null;
   return (
     <div className="infobox small col" style={{ gap: 4 }} data-testid="funk-consent">
-      <span>
-        Für Sprechfunk und Freisprechen bei Notrufen braucht LEITWARTE das Mikrofon dieses PCs. Die Spracherkennung des Browsers läuft je nach Wahl auf dem Gerät oder beim
-        Browserhersteller (Chrome/Edge: Google bzw. Microsoft). LEITWARTE speichert keine Audiodaten.
-      </span>
+      <span>Mikrofon für Funk und Freisprechen (keine Audiospeicherung)</span>
       <div className="row wrap">
         <button className="btn small" onClick={() => setConsent(giveConsent('geraet'))}>
-          Freigeben – nur auf dem Gerät erkennen
+          Freigeben (lokal)
         </button>
         <button className="btn small" onClick={() => setConsent(giveConsent('browserdienst'))}>
-          Freigeben – Browserdienst erlaubt
+          Freigeben (Browserdienst)
         </button>
       </div>
     </div>
@@ -347,7 +344,7 @@ export function FunkBar({ game }: { game: GameState }) {
           ))}
         </select>
         <PttButton group={group} />
-        <span className="dim small">oder {PTT_KEY} halten</span>
+        <span className="dim small">{PTT_KEY}</span>
       </div>
       <FunkStatusLine />
       <FunkConsent />
@@ -358,7 +355,7 @@ export function FunkBar({ game }: { game: GameState }) {
           send();
         }}
       >
-        <input className="grow" value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="Funkspruch tippen, z. B. „Florian Ostholstein 61-48-01 von Leitstelle, kommen“" data-testid="funk-input" />
+        <input className="grow" value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="Funkspruch" data-testid="funk-input" />
         <button className="btn small" type="submit">
           Senden
         </button>

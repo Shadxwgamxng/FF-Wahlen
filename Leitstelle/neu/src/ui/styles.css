@@ -504,7 +504,7 @@ html[data-style='behoerde'] .mb-list { background: #f8f8f8; border-color: #8f9aa
 html[data-style='behoerde'] .mb-item:hover:not(:disabled) { background: #0a4a92; }
 html[data-style='behoerde'] .panel-head { background: linear-gradient(#5b84b8, #3a6497); color: #fff; border-bottom: 1px solid #23456f; }
 html[data-style='behoerde'] .panel-head h4, html[data-style='behoerde'] .panel-head .muted, html[data-style='behoerde'] .panel-head .small { color: #fff; }
-html[data-style='behoerde'] .panel-head .btn { padding: 0 6px; }
+html[data-style='behoerde'] .panel-head .btn, html[data-style='behoerde'] .panel-head .btn.small { padding: 0 6px; color: #0a2a52; }
 html[data-style='behoerde'] .panel-head .count { background: #fff; color: #0a2a52; }
 html[data-style='behoerde'] .mask-title { color: #0a2a52; border-bottom: 1px solid var(--line); padding-bottom: 2px; }
 html[data-style='behoerde'] .statusbar { background: #e4e4e4; border-top-color: #a0a0a0; color: #222; }

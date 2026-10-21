@@ -32,7 +32,7 @@ export function DataView({ game }: { game: GameState }) {
   }, [project.id]);
 
   const loadSnap = async (s: SnapshotRecord) => {
-    if (!(await confirmDialog(`Spielstand "${s.name}" laden? Der aktuelle Spielverlauf wird ersetzt (vorher ggf. selbst sichern).`, { confirmLabel: 'Laden' }))) return;
+    if (!(await confirmDialog(`Spielstand "${s.name}" laden? Aktueller Verlauf wird ersetzt.`, { confirmLabel: 'Laden' }))) return;
     const { game: g, issues } = validateStoredGame(s.state);
     if (!g) return store.toast('fehler', `Spielstand beschädigt: ${issues.map((i) => i.message).join('; ')}`);
     store.replaceState(g);
@@ -55,7 +55,7 @@ export function DataView({ game }: { game: GameState }) {
         <h3>Leitstelle & Speichern</h3>
         <div className="row wrap">
           <label className="field grow">
-            <span>Name dieses Spielstands / Projekts</span>
+            <span>Projektname</span>
             <input type="text" value={name} onChange={(e) => setName(e.target.value)} />
           </label>
           <button className="btn" disabled={!name.trim() || name === project.name} onClick={() => store.rename(name)} style={{ alignSelf: 'flex-end' }}>Umbenennen</button>
@@ -67,12 +67,12 @@ export function DataView({ game }: { game: GameState }) {
             onClick={async () => {
               const now = Date.now();
               await projects.put({ id: newId('proj'), name: `${project.name} (Kopie)`, createdAt: now, updatedAt: now, state: game });
-              store.toast('ok', 'Kopie angelegt – sie erscheint in der Leitstellenauswahl.');
+              store.toast('ok', 'Kopie angelegt.');
             }}
           >
             Als Kopie speichern
           </button>
-          <span className="small muted">Automatisches Speichern alle 20 s (Echtzeit) in diesem Browser; automatische Spielstände alle 10 min.</span>
+          <span className="small muted">Autosave 20 s · Auto-Spielstand 10 min</span>
         </div>
       </div>
 
@@ -130,8 +130,8 @@ export function DataView({ game }: { game: GameState }) {
           <button className="btn" onClick={() => downloadFile(`leitwarte-leitstelle-${slug(game.center.name)}.json`, JSON.stringify(exportCenter(game.center), null, 1))}>Leitstelle exportieren (JSON)</button>
           <button className="btn" onClick={() => downloadFile(`leitwarte-spielstand-${slug(project.name)}.json`, JSON.stringify(exportGame(game), null, 1))}>Aktuellen Spielstand exportieren (JSON)</button>
         </div>
-        <div className="small muted">Das Format ist versioniert und in <span className="mono">docs/DATENFORMAT.md</span> beschrieben. JSON-Dateien importierst du in der Leitstellenauswahl (Menü „Beenden“) als neue Leitstelle.</div>
-        <h4>CSV-Import in diese Leitstelle</h4>
+        <div className="small muted">Format: <span className="mono">docs/DATENFORMAT.md</span></div>
+        <h4>CSV-Import</h4>
         <div className="row wrap">
           <button className="btn" onClick={() => importCsv('wachen')}>Wachen (CSV) …</button>
           <button className="btn" onClick={() => importCsv('fahrzeuge')}>Fahrzeuge (CSV) …</button>
@@ -147,24 +147,23 @@ Stichwörter:  code;bezeichnung;kategorie;prioritaet;bedarf   (bedarf z. B. loes
       <DiasCard />
 
       <div className="card col">
-        <h3>Persönliche Einstellungen (dieser Browser)</h3>
-        <label className="check"><input type="checkbox" checked={prefs.sound} onChange={(e) => setPrefs({ sound: e.target.checked })} /> Signaltöne (Notruf, Alarm, Funk)</label>
+        <h3>Arbeitsplatz</h3>
+        <label className="check"><input type="checkbox" checked={prefs.sound} onChange={(e) => setPrefs({ sound: e.target.checked })} /> Signaltöne</label>
         <label className="row small">Lautstärke <input type="range" min={0} max={1} step={0.05} value={prefs.volume} onChange={(e) => setPrefs({ volume: Number(e.target.value) })} /> <button className="btn small" onClick={() => sounds.ring()}>Test</button></label>
         <label className="check">
-          <input type="checkbox" checked={prefs.tts} disabled={!ttsAvailable()} onChange={(e) => setPrefs({ tts: e.target.checked })} /> Funksprüche der Fahrzeuge vorlesen (Sprachausgabe des Browsers, am Leitstand-PC)
-          {!ttsAvailable() && <span className="dim small">– in diesem Browser nicht verfügbar</span>}
+          <input type="checkbox" checked={prefs.tts} disabled={!ttsAvailable()} onChange={(e) => setPrefs({ tts: e.target.checked })} /> Funksprüche vorlesen (TTS)
+          {!ttsAvailable() && <span className="dim small">(nicht verfügbar)</span>}
         </label>
         {prefs.tts && <button className="btn small" style={{ alignSelf: 'flex-start' }} onClick={() => speak('Florian Bergstadt eins sechsundvierzig eins, Status vier.')}>Sprachausgabe testen</button>}
         <StyleSwitch />
-        <label className="check"><input type="checkbox" checked={prefs.mapDark} onChange={(e) => setPrefs({ mapDark: e.target.checked })} /> Dunkle Kartendarstellung (Stil „Modern“)</label>
+        <label className="check"><input type="checkbox" checked={prefs.mapDark} onChange={(e) => setPrefs({ mapDark: e.target.checked })} /> Karte dunkel (Modern)</label>
         <h4 style={{ marginTop: 8 }}>Straßenrouting (OSRM)</h4>
-        <label className="check"><input type="checkbox" checked={prefs.routingEnabled} onChange={(e) => setPrefs({ routingEnabled: e.target.checked })} /> Echte Straßenrouten verwenden (sonst Luftlinien-Näherung)</label>
+        <label className="check"><input type="checkbox" checked={prefs.routingEnabled} onChange={(e) => setPrefs({ routingEnabled: e.target.checked })} /> Straßenrouting aktiv</label>
         <div className="row wrap">
           <input type="text" value={prefs.routingUrl} onChange={(e) => setPrefs({ routingUrl: e.target.value.trim() })} style={{ width: 280 }} aria-label="Adresse des OSRM-Servers" />
           <button className="btn small" onClick={async () => setRouteTest(await testRouting(prefs.routingUrl))}>Verbindung testen</button>
           {routeTest && <span className={`small ${routeTest.startsWith('OK') ? '' : 'field-error'}`}>{routeTest}</span>}
         </div>
-        <span className="dim small">Lokaler, kostenloser OSRM-Server – Einrichtung mit Docker siehe docs/ROUTING.md.</span>
         <div className="row">
           <button className="btn small" onClick={() => setHelp(true)}>Tastaturkürzel anzeigen</button>
           <button
@@ -175,7 +174,7 @@ Stichwörter:  code;bezeichnung;kategorie;prioritaet;bedarf   (bedarf z. B. loes
               } catch {
                 /* ignorieren */
               }
-              store.toast('ok', 'Fensteraufteilung zurückgesetzt (wirkt beim nächsten Öffnen des Leitstands).');
+              store.toast('ok', 'Fensteraufteilung zurückgesetzt.');
             }}
           >
             Fensteraufteilung zurücksetzen
@@ -211,7 +210,7 @@ function DiasCard() {
     setError(null);
     try {
       const t = await importDias(await f.text());
-      store.toast('ok', `Notrufabfrage importiert: ${t.stats.nodes} Schritte, ${t.stats.results} Ergebnisse.`);
+      store.toast('ok', `DIAS importiert: ${t.stats.nodes} Schritte, ${t.stats.results} Ergebnisse.`);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -221,30 +220,26 @@ function DiasCard() {
   return (
     <div className="card col" data-testid="dias-card">
       <h3>Notrufabfrage (DIAS)</h3>
-      <div className="small muted">
-        Lade hier deinen Export der standardisierten Notrufabfrage (JSON). Er wird nur in diesem Browser gespeichert und ist nicht Teil von LEITWARTE. Beim Annehmen eines Notrufs
-        zeigt die Einsatzmaske dann die Abfrage: Du stellst die Fragen selbst, klickst die Antworten an und übernimmst am Ende Stichwort, Meldebild und Infotext.
-      </div>
       {!ready ? (
         <div className="small muted">Lade …</div>
       ) : tree ? (
         <div className="small" data-testid="dias-status">
-          Importiert: <b>{tree.stats.nodes}</b> Abfrageschritte, <b>{tree.stats.results}</b> Ergebnisse
-          {tree.stats.incomplete > 0 && <> ({tree.stats.incomplete} Schritte im Mitschnitt unvollständig)</>} · Quelle {tree.source} · Stand {tree.capturedAt.slice(0, 10) || 'unbekannt'}
+          Schritte <b>{tree.stats.nodes}</b> · Ergebnisse <b>{tree.stats.results}</b>
+          {tree.stats.incomplete > 0 && <> ({tree.stats.incomplete} unvollständig)</>} · Quelle {tree.source} · Stand {tree.capturedAt.slice(0, 10) || 'unbekannt'}
         </div>
       ) : (
-        <div className="small muted">Noch keine Notrufabfrage importiert.</div>
+        <div className="small muted">Nicht importiert.</div>
       )}
       <div className="row wrap">
         <label className="btn">
-          {busy ? 'Importiere …' : tree ? 'Neue Datei importieren …' : 'DIAS-Datei importieren …'}
+          {busy ? 'Importiere …' : tree ? 'Neu importieren …' : 'Importieren …'}
           <input type="file" accept=".json,application/json" hidden disabled={busy} data-testid="dias-file" onChange={(e) => void onFile(e.target.files?.[0])} />
         </label>
         {tree && (
           <button
             className="btn danger"
             onClick={async () => {
-              if (await confirmDialog('Importierte Notrufabfrage aus diesem Browser löschen?', { confirmLabel: 'Löschen', danger: true })) await removeDias();
+              if (await confirmDialog('Notrufabfrage löschen?', { confirmLabel: 'Löschen', danger: true })) await removeDias();
             }}
           >
             Löschen

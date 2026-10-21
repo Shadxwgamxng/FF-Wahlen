@@ -64,12 +64,17 @@ function Menu({ title, items, testId }: { title: string; items: MenuItem[]; test
 
 export function MenuBar({ nav, view, setView, onHelp }: { nav: [string, string][]; view: string; setView: (v: never) => void; onHelp: () => void }) {
   const mode = useStore((s) => s.mode);
+  const popouts = useStore((s) => s.popouts);
   const player = store.isPlayerClient;
   const style = getPrefs().uiStyle;
   const ansicht: MenuItem[] = [
     ...nav.map(([id, label]) => ({ label, checked: view === id, onClick: () => setView(id as never) })),
     { label: '', sep: true },
-    ...(mode === 'spielen' && !player ? POPOUTS.map(([k, l]) => ({ label: `${l} in eigenem Fenster`, onClick: () => openPopout(k) })) : []),
+    ...(mode === 'spielen' && !player
+      ? POPOUTS.map(([k, l]) =>
+          popouts.includes(k) ? { label: `${l} zurückholen`, onClick: () => store.closePopout(k) } : { label: `${l} in eigenem Fenster`, onClick: () => openPopout(k) },
+        )
+      : []),
     { label: '', sep: true },
     { label: 'Stil Behörde', checked: style === 'behoerde', onClick: () => setPrefs({ uiStyle: 'behoerde' }) },
     { label: 'Stil Modern', checked: style === 'modern', onClick: () => setPrefs({ uiStyle: 'modern' }) },

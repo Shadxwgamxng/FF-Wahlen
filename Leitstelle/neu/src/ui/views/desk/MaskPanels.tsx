@@ -16,7 +16,7 @@ import { FunkConsent } from '../../funk';
 export function Gespraech({ game, call }: { game: GameState; call: Call }) {
   return (
     <div className="mask-box col" style={{ flex: 1, minHeight: 0 }}>
-      <div className="mask-title">Gesprächsverlauf – {call.caller.name || 'Anrufer'} <span className="dim">({call.caller.relation})</span></div>
+      <div className="mask-title">Gesprächsverlauf · {call.caller.name || 'Anrufer'} <span className="dim">({call.caller.relation})</span></div>
       <div className="dialog" style={{ overflow: 'auto', flex: 1, minHeight: 120 }} aria-label="Gesprächsverlauf">
         <div className="bubble dispatcher small">Notruf Feuerwehr und Rettungsdienst, wo genau ist der Notfallort?</div>
         <div className="bubble caller">{call.opening}</div>
@@ -34,9 +34,9 @@ export function Gespraech({ game, call }: { game: GameState; call: Call }) {
 }
 
 const VOICE_LABEL: Record<string, string> = {
-  hoert: '● Freisprechen – sprich einfach mit dem Anrufer',
+  hoert: '● Freisprechen',
   spricht: 'Anrufer spricht …',
-  pause: 'Pause – Funk-Sendetaste gedrückt',
+  pause: 'Pause (Funk)',
   stumm: 'Mikrofon stumm',
   aufgelegt: '☎ Anrufer hat aufgelegt',
 };
@@ -110,7 +110,7 @@ export function PolizeiTelefon({ game, inc }: { game: GameState; inc: Incident }
             send();
           }}
         >
-          <input className="grow" value={text} onChange={(e) => setText(e.target.value)} placeholder="z. B. „Wir brauchen zwei Streifen zur Absicherung, Person aggressiv“" data-testid="polizei-input" />
+          <input className="grow" value={text} onChange={(e) => setText(e.target.value)} placeholder="Meldung an Polizei" data-testid="polizei-input" />
           <button className="btn small" type="submit">
             Sagen
           </button>
@@ -163,7 +163,7 @@ export function DispoListe({ game, inc, onSelectVehicle }: { game: GameState; in
               );
             })}
             {inc.vehicleIds.length === 0 && (
-              <tr><td colSpan={12} className="empty">Noch keine Einsatzmittel alarmiert.</td></tr>
+              <tr><td colSpan={12} className="empty">Keine Einsatzmittel alarmiert.</td></tr>
             )}
           </tbody>
         </table>
@@ -199,7 +199,7 @@ export function Massnahmen({ game, inc, alarmRequest }: { game: GameState; inc: 
   const alarm = () => {
     const ids = [...sel].filter((id) => sug.candidates.find((c) => c.vehicle.id === id)?.available);
     const groups = [...selGroups];
-    if (ids.length === 0 && groups.length === 0) return store.toast('fehler', 'Keine verfügbaren Fahrzeuge oder Alarmgruppen ausgewählt.');
+    if (ids.length === 0 && groups.length === 0) return store.toast('fehler', 'Keine Einsatzmittel ausgewählt.');
     if (groups.length) store.cmd('alarmGroups', inc.id, groups);
     if (ids.length) store.cmd('alarmVehicles', inc.id, ids);
   };
@@ -247,7 +247,7 @@ export function Massnahmen({ game, inc, alarmRequest }: { game: GameState; inc: 
   const groups = showAll ? sortedGroups : [...sortedGroups.filter((g) => groupRank(g) < 2), ...sortedGroups.filter((g) => groupRank(g) >= 2).slice(0, 5)];
   const tf = turnoutFactor(game.runtime.clock.now);
 
-  if (inc.state === 'abarbeitung_beendet') return <div className="mask-box"><div className="mask-title">Maßnahmen</div><div className="hint small">Einsatzmaßnahmen beendet – Kräfte entlassen und Einsatz abschließen.</div></div>;
+  if (inc.state === 'abarbeitung_beendet') return <div className="mask-box"><div className="mask-title">Maßnahmen</div><div className="small muted">Maßnahmen beendet.</div></div>;
 
   return (
     <div className="mask-box col" style={{ gap: 6 }}>
@@ -256,7 +256,7 @@ export function Massnahmen({ game, inc, alarmRequest }: { game: GameState; inc: 
         <span className="small muted">AAO{inc.backupRequests.length ? ' + Nachforderungen' : ''}: {reqText(required) || '–'}</span>
       </div>
       {open.length === 0 ? (
-        <div className="hint small">Bedarf laut AAO durch gebundene Kräfte gedeckt.</div>
+        <div className="small muted">AAO gedeckt.</div>
       ) : (
         <div className="small">
           Offen: <b>{reqText(open)}</b>
@@ -288,7 +288,7 @@ export function Massnahmen({ game, inc, alarmRequest }: { game: GameState; inc: 
           <tbody>
             {groups.length > 0 && (
               <tr className="group-head">
-                <td colSpan={7} className="small muted">Freiwillige Feuerwehren – Alarmierung über Alarmgruppe, die Wehr rückt nach Lage aus (Ausrückzeit {tf.label}{tf.factor > 1 ? ' verlängert' : ''})</td>
+                <td colSpan={7} className="small muted">Alarmgruppen FF · Ausrückzeit {tf.label}{tf.factor > 1 ? ' (verlängert)' : ''}</td>
               </tr>
             )}
             {groups.map((g) => {
@@ -345,7 +345,7 @@ export function Massnahmen({ game, inc, alarmRequest }: { game: GameState; inc: 
                 <td className="nowrap">{c.vehicle.callsign}</td>
                 <td>{c.type?.code}</td>
                 <td><StatusBadge game={game} meaning={c.vehicle.rt.status} /></td>
-                <td className="mono nowrap" title={c.routed ? 'Straßenroute (OSRM)' : 'Näherung (Luftlinie × Umwegfaktor)'}>{Math.round(c.etaMs / 60000)} min{c.routed ? '' : '*'}</td>
+                <td className="mono nowrap" title={c.routed ? 'Route' : 'Luftlinie'}>{Math.round(c.etaMs / 60000)} min{c.routed ? '' : '*'}</td>
                 <td className="mono small nowrap">{formatKm(c.distanceM)}</td>
                 <td className="small">
                   {!c.available ? <span className="field-error">{c.reason}</span> : reasons.get(c.vehicle.id) ? <span style={{ color: 'var(--ok)' }}>Vorschlag: {reasons.get(c.vehicle.id)!.join(' · ')}</span> : c.matches.length ? `passt: ${c.matches.map(capLabel).join(', ')}` : <span className="dim">kein offener Bedarf</span>}
@@ -355,9 +355,9 @@ export function Massnahmen({ game, inc, alarmRequest }: { game: GameState; inc: 
           </tbody>
         </table>
       </div>
-      <div className="dim small">ETA = Ausrückzeit + Fahrzeit über Straßenroute (OSRM, Sonderrechte-Faktor 0,75). * = Näherung, Route noch nicht verfügbar. Bei Alarmgruppen entscheidet die Wehr selbst, welche Fahrzeuge ausrücken.</div>
+      <div className="dim small">* ETA geschätzt</div>
       <div className="row wrap">
-        <span className="small muted">Nachalarmieren nach Bedarf:</span>
+        <span className="small muted">Nachalarmieren:</span>
         <select value={backupCap} onChange={(e) => setBackupCap(e.target.value)} aria-label="Fähigkeit">
           {Object.entries(CAPABILITIES).map(([k, l]) => (
             <option key={k} value={k}>{l}</option>

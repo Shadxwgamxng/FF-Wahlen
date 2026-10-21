@@ -28,18 +28,18 @@ import { MeldebildSelect, StreetInput } from './desk/Maske';
  */
 
 const MODE_LABEL: Record<RecognitionMode, string> = {
-  geraet: 'Spracherkennung nur auf diesem Gerät',
-  browserdienst: 'Spracherkennung über den Dienst des Browsers',
+  geraet: 'Erkennung lokal (Gerät)',
+  browserdienst: 'Erkennung über Browserdienst',
   text: 'Nur Texteingabe (kein Mikrofon)',
 };
 
 const ON_DEVICE_LABEL: Record<SpeechSupport['onDevice'], string> = {
-  verfuegbar: 'auf dem Gerät verfügbar',
-  herunterladbar: 'auf dem Gerät möglich – Sprachpaket muss geladen werden',
+  verfuegbar: 'lokal verfügbar',
+  herunterladbar: 'lokal möglich, Sprachpaket fehlt',
   'wird-geladen': 'Sprachpaket wird geladen …',
-  'nicht-verfuegbar': 'auf dem Gerät nicht verfügbar',
-  unbekannt: 'auf dem Gerät: unbekannt (Prüfung ohne Ergebnis)',
-  ungeprueft: 'auf dem Gerät: noch nicht geprüft',
+  'nicht-verfuegbar': 'lokal nicht verfügbar',
+  unbekannt: 'lokal: unbekannt',
+  ungeprueft: 'lokal: ungeprüft',
 };
 
 export function VoiceTestView({ game }: { game: GameState }) {
@@ -66,13 +66,9 @@ export function VoiceTestView({ game }: { game: GameState }) {
     <div className="page voice-page" data-testid="voice-test">
       <div className="card col">
         <div className="row wrap" style={{ alignItems: 'center' }}>
-          <h3 className="grow">Sprachtest – Notrufabfrage per Sprache</h3>
-          <span className="badge sim-badge" title="Der Anrufer ist eine regelbasierte Simulation. Keine KI, kein echter Notruf.">SIMULATION</span>
+          <h3 className="grow">Sprachtest</h3>
+          <span className="badge sim-badge" title="Regelbasierter Anrufer">SIMULATION</span>
         </div>
-        <p className="dim small">
-          Übungsbereich mit einem festen Testfall. Der Anrufer ist <b>simuliert und regelbasiert</b> (keine KI): Er antwortet nur mit den Fakten des Szenarios und erfindet nichts.
-          Es wird nichts automatisch übernommen – du trägst alle Angaben selbst in die Maske ein. Kosten entstehen keine.
-        </p>
         <SupportInfo support={support} consent={consent} checking={checking} onCheck={check} onWithdraw={async () => {
           if (!(await confirmDialog('Einwilligung widerrufen? Alle gespeicherten Transkripte werden gelöscht.', { confirmLabel: 'Widerrufen', danger: true }))) return;
           withdrawConsent();
@@ -87,13 +83,13 @@ export function VoiceTestView({ game }: { game: GameState }) {
 function SupportInfo({ support, consent, checking, onCheck, onWithdraw }: { support: SpeechSupport; consent: VoiceConsent | null; checking: boolean; onCheck: () => void; onWithdraw: () => void }) {
   return (
     <div className="row wrap small" data-testid="voice-support">
-      <span className={`chip ${support.recognition ? 'ok' : 'warn'}`}>Spracherkennung: {support.recognition ? ON_DEVICE_LABEL[support.onDevice] : 'nicht verfügbar (Texteingabe nutzen)'}</span>
+      <span className={`chip ${support.recognition ? 'ok' : 'warn'}`}>Spracherkennung: {support.recognition ? ON_DEVICE_LABEL[support.onDevice] : 'nicht verfügbar'}</span>
       {support.recognition && support.onDevice !== 'nicht-verfuegbar' && (
-        <button className="btn small" disabled={checking} onClick={onCheck} title="Fragt den Browser, ob Deutsch ohne Online-Dienst erkannt werden kann. In seltenen Fällen kann das den Tab zum Absturz bringen.">
-          {checking ? 'Prüfe …' : 'Erkennung auf dem Gerät prüfen'}
+        <button className="btn small" disabled={checking} onClick={onCheck} title="Lokale Erkennung (Deutsch) prüfen">
+          {checking ? 'Prüfe …' : 'Lokal prüfen'}
         </button>
       )}
-      <span className={`chip ${support.synthesis ? 'ok' : 'warn'}`}>Sprachausgabe: {support.synthesis ? 'verfügbar' : 'nicht verfügbar (Antworten nur als Text)'}</span>
+      <span className={`chip ${support.synthesis ? 'ok' : 'warn'}`}>Sprachausgabe: {support.synthesis ? 'verfügbar' : 'nicht verfügbar'}</span>
       {consent && (
         <>
           <span className="chip">Einwilligung: {MODE_LABEL[consent.mode]}</span>
@@ -116,42 +112,32 @@ function ConsentCard({ support, onConsent }: { support: SpeechSupport; onConsent
   const option = (m: RecognitionMode, disabled: boolean, text: string) => (
     <label className="check" style={{ opacity: disabled ? 0.5 : 1 }}>
       <input type="radio" name="voice-mode" checked={mode === m} disabled={disabled} onChange={() => setMode(m)} /> <b>{MODE_LABEL[m]}</b>
-      <span className="dim small">– {text}</span>
+      <span className="dim small">({text})</span>
     </label>
   );
   return (
     <div className="card col" style={{ maxWidth: 900 }} data-testid="voice-consent">
       <h3>Einwilligung</h3>
-      <ul className="small" style={{ margin: 0, paddingLeft: 18, lineHeight: 1.5 }}>
-        <li>Der Sprachtest nutzt die <b>eingebaute Sprachfunktion deines Browsers</b>. LEITWARTE hat keinen eigenen Server und sendet keine Daten.</li>
-        <li>
-          <b>Spracherkennung:</b> Chrome und Edge schicken deine Sprache normalerweise an den Spracherkennungsdienst des Herstellers (z. B. Google), um sie in Text umzuwandeln. Nur wenn der
-          Browser Deutsch <b>auf dem Gerät</b> erkennen kann, bleibt das Audio auf deinem Rechner. Diese Wahl triffst du unten.
-        </li>
-        <li>
-          Das Mikrofon wird erst durch einen Klick auf „Sprechen" (oder Taste M) eingeschaltet und schaltet sich nach deiner Sprechpause, nach einigen Sekunden Stille oder mit „Fertig" wieder
-          aus. Im Freisprechmodus schaltet es sich nach jeder Antwort des Anrufers wieder ein, bis das Gespräch endet. Audio wird nicht gespeichert.
-        </li>
-        <li>
-          <b>Sprachausgabe:</b> Der Anrufer spricht über die Stimmen deines Browsers. Manche Stimmen (in Chrome z. B. „Google Deutsch") sind Online-Stimmen; dabei wird nur der Antworttext des
-          simulierten Anrufers übertragen. Lokale Stimmen kannst du in der Stimmauswahl wählen.
-        </li>
-        <li>
-          <b>Transkripte</b> (nur Text) werden ausschließlich in diesem Browser gespeichert (localStorage), maximal 30 Gespräche. Du kannst sie einzeln oder alle löschen; der Widerruf der
-          Einwilligung löscht sie ebenfalls.
-        </li>
-      </ul>
+      <table className="grid small">
+        <tbody>
+          <tr><td>Erkennung</td><td>Browserdienst (z. B. Google) oder lokal</td></tr>
+          <tr><td>Mikrofon</td><td>nur bei „Sprechen“/M bzw. Freisprechen</td></tr>
+          <tr><td>Audio</td><td>wird nicht gespeichert</td></tr>
+          <tr><td>Sprachausgabe</td><td>Online-Stimmen erhalten nur Anrufertext</td></tr>
+          <tr><td>Transkripte</td><td>nur Text, lokal, max. 30</td></tr>
+        </tbody>
+      </table>
       <div className="col" style={{ gap: 6 }}>
-        {option('geraet', !onDevice, support.recognition ? `${ON_DEVICE_LABEL[support.onDevice]}${support.onDevice === 'ungeprueft' ? ' – oben „Erkennung auf dem Gerät prüfen“' : ''}` : 'Browser hat keine Spracherkennung')}
-        {option('browserdienst', !support.recognition, 'Audio wird vom Browser an seinen Erkennungsdienst gesendet')}
-        {option('text', false, 'Du tippst deine Fragen, der Anrufer antwortet trotzdem per Sprachausgabe')}
+        {option('geraet', !onDevice, support.recognition ? ON_DEVICE_LABEL[support.onDevice] : 'keine Spracherkennung')}
+        {option('browserdienst', !support.recognition, 'Audio geht an Browserdienst')}
+        {option('text', false, 'Anrufer antwortet per Sprachausgabe')}
       </div>
       <label className="check">
-        <input type="checkbox" checked={ok} onChange={(e) => setOk(e.target.checked)} data-testid="voice-consent-check" /> Ich habe die Hinweise gelesen und bin einverstanden.
+        <input type="checkbox" checked={ok} onChange={(e) => setOk(e.target.checked)} data-testid="voice-consent-check" /> Einverstanden
       </label>
       <div className="row">
         <button className="btn primary" disabled={!ok} onClick={() => onConsent(mode)} data-testid="voice-consent-ok">
-          Einverstanden – Sprachtest öffnen
+          Sprachtest öffnen
         </button>
       </div>
     </div>
@@ -282,7 +268,7 @@ function VoiceSession({ game, consent, support }: { game: GameState; consent: Vo
       },
     });
     if (!r) {
-      setError(onDeviceOnly ? 'Dein Browser kann die Erkennung auf dem Gerät nicht zusichern. Es wird nichts gesendet – nutze die Texteingabe oder ändere die Einwilligung.' : 'Spracherkennung nicht verfügbar.');
+      setError(onDeviceOnly ? 'Lokale Erkennung nicht verfügbar.' : 'Spracherkennung nicht verfügbar.');
       return;
     }
     recognizer.current = r;
@@ -329,7 +315,7 @@ function VoiceSession({ game, consent, support }: { game: GameState; consent: Vo
   const start = () => {
     stopSpeaking();
     live.current = { call, sim: new CallerSim(call), startedAt: Date.now(), sessionId: `st_${Date.now().toString(36)}` };
-    linesRef.current = [{ who: 'system', text: `Notruf angenommen – ${call.caller.phone} (${call.caller.relation}). Melde dich wie am Notrufplatz.`, at: Date.now() }];
+    linesRef.current = [{ who: 'system', text: `Notruf angenommen: ${call.caller.phone} (${call.caller.relation})`, at: Date.now() }];
     setLines(linesRef.current);
     setEntry(emptyVoiceEntry());
     setEvaluation(null);
@@ -366,7 +352,7 @@ function VoiceSession({ game, consent, support }: { game: GameState; consent: Vo
       <div className="card col voice-talk">
         <div className="row wrap" style={{ alignItems: 'center' }}>
           <h3 className="grow">Gespräch</h3>
-          <span className="dim small">Testfall: {call.scenarioName} · Fall Nr. {seed}</span>
+          <span className="dim small">{call.scenarioName} · Fall {seed}</span>
         </div>
         <div className="row wrap">
           {!active ? (
@@ -375,7 +361,7 @@ function VoiceSession({ game, consent, support }: { game: GameState; consent: Vo
             </button>
           ) : (
             <>
-              <button className={`btn ${listening ? 'alarm' : 'primary'}`} disabled={!micAllowed || listening} onClick={listen} title={micAllowed ? 'Taste M' : 'Mikrofon laut Einwilligung nicht genutzt'} data-testid="voice-mic">
+              <button className={`btn ${listening ? 'alarm' : 'primary'}`} disabled={!micAllowed || listening} onClick={listen} title={micAllowed ? 'Taste M' : 'Mikrofon nicht freigegeben'} data-testid="voice-mic">
                 {listening ? '● Hört zu …' : 'Sprechen (M)'}
               </button>
               {listening && (
@@ -388,7 +374,7 @@ function VoiceSession({ game, consent, support }: { game: GameState; consent: Vo
               </button>
             </>
           )}
-          <label className="check small" title="Nach jeder Antwort des Anrufers automatisch wieder zuhören">
+          <label className="check small" title="Nach Antwort automatisch zuhören">
             <input type="checkbox" checked={handsFree} disabled={!micAllowed} onChange={(e) => setHandsFree(e.target.checked)} /> Freisprechen
           </label>
           <label className="check small">
@@ -407,7 +393,7 @@ function VoiceSession({ game, consent, support }: { game: GameState; consent: Vo
         </div>
         {consent.mode === 'geraet' && support.onDevice !== 'verfuegbar' && support.onDevice !== 'nicht-verfuegbar' && (
           <div className="row small">
-            <span className="dim grow">Für die Erkennung auf dem Gerät muss der Browser einmalig das deutsche Sprachpaket laden (falls noch nicht geschehen).</span>
+            <span className="dim grow">Sprachpaket Deutsch</span>
             <button
               className="btn small"
               disabled={installing}
@@ -424,7 +410,7 @@ function VoiceSession({ game, consent, support }: { game: GameState; consent: Vo
         )}
         {error && <div className="voice-error small" role="alert">{error}</div>}
         <div className="voice-log" ref={logRef} data-testid="voice-transcript" aria-live="polite">
-          {lines.length === 0 && <div className="dim small">Noch kein Gespräch. Mit „Anruf annehmen" beginnt der Testanruf.</div>}
+          {lines.length === 0 && <div className="dim small">Kein Gespräch.</div>}
           {lines.map((l, i) => (
             <div key={i} className={`voice-line ${l.who}`}>
               <span className="who">{l.who === 'disponent' ? 'Du' : l.who === 'anrufer' ? 'Anrufer' : '•'}</span>
@@ -449,7 +435,7 @@ function VoiceSession({ game, consent, support }: { game: GameState; consent: Vo
           <input
             type="text"
             className="grow"
-            placeholder={active ? 'Frage tippen, z. B. „Wo genau ist der Notfallort?"' : 'Erst den Anruf annehmen'}
+            placeholder={active ? 'Frage eingeben' : '–'}
             value={typed}
             disabled={!active}
             onChange={(e) => setTyped(e.target.value)}
@@ -463,8 +449,7 @@ function VoiceSession({ game, consent, support }: { game: GameState; consent: Vo
       </div>
 
       <div className="card col voice-mask">
-        <h3>Einsatzmaske (selbst ausfüllen)</h3>
-        <p className="dim small">Nichts wird automatisch übernommen. Die Auswertung vergleicht deine Eingaben nach dem Gespräch mit dem Testfall.</p>
+        <h3>Einsatzmaske</h3>
         <div className="form-grid">
           <label className="field" style={{ gridColumn: '1 / -1' }}>
             <span>Straße</span>
@@ -516,11 +501,11 @@ function VoiceSession({ game, consent, support }: { game: GameState; consent: Vo
         {evaluation && (
           <div className="col" data-testid="voice-evaluation">
             <h3>
-              Auswertung: {evaluation.score} von {evaluation.total} · Gesprächsdauer {evaluation.durationSeconds} s
+              Auswertung: {evaluation.score} von {evaluation.total} · Dauer {evaluation.durationSeconds} s
             </h3>
             <table className="grid small">
               <thead>
-                <tr><th></th><th>Prüfpunkt</th><th>Richtig</th><th>Deine Angabe</th></tr>
+                <tr><th></th><th>Prüfpunkt</th><th>Soll</th><th>Ist</th></tr>
               </thead>
               <tbody>
                 {evaluation.items.map((it) => (
@@ -555,7 +540,7 @@ function VoiceSession({ game, consent, support }: { game: GameState; consent: Vo
 
       <div className="card col voice-history">
         <div className="row" style={{ alignItems: 'center' }}>
-          <h3 className="grow">Gespeicherte Transkripte (nur in diesem Browser)</h3>
+          <h3 className="grow">Transkripte</h3>
           <button
             className="btn small danger"
             disabled={!history.length}

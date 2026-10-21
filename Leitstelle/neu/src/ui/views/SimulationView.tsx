@@ -23,16 +23,15 @@ function SettingsForm({ game }: { game: GameState }) {
   const bool = (k: 'useTimeOfDay' | 'useWeather' | 'randomBreakdowns' | 'autoHospital' | 'autoRelease', label: string, help: string) => (
     <label className="check" title={help}>
       <input type="checkbox" checked={s[k]} onChange={(e) => setS({ ...s, [k]: e.target.checked })} /> {label}
-      <span className="dim small">– {help}</span>
     </label>
   );
   return (
     <div className="col" style={{ maxWidth: 900, gap: 14 }}>
       <div className="card col">
-        <h3>Einsatzaufkommen & Schwierigkeit</h3>
+        <h3>Aufkommen & Schwierigkeit</h3>
         <div className="form-grid">
           <label className="field">
-            <span>Notrufe pro Stunde (Grundwert)</span>
+            <span>Notrufe/h (Basis)</span>
             <input type="number" min={0} max={200} step={0.5} className={s.callsPerHour < 0 || s.callsPerHour > 200 ? 'invalid' : ''} value={s.callsPerHour} onChange={(e) => setS({ ...s, callsPerHour: Number(e.target.value) })} />
           </label>
           <label className="field">
@@ -46,10 +45,10 @@ function SettingsForm({ game }: { game: GameState }) {
           <label className="field">
             <span>Zufalls-Seed</span>
             <input type="number" step={1} value={s.seed} onChange={(e) => setS({ ...s, seed: Math.trunc(Number(e.target.value)) })} />
-            <span className="dim small">Wirkt beim Neustart der Simulation.</span>
+            <span className="dim small">ab Neustart</span>
           </label>
           <label className="field">
-            <span>Umwegfaktor Fahrzeitnäherung</span>
+            <span>Umwegfaktor</span>
             <input type="number" min={1} max={3} step={0.05} value={s.detourFactor} onChange={(e) => setS({ ...s, detourFactor: Number(e.target.value) })} />
           </label>
         </div>
@@ -75,14 +74,14 @@ function SettingsForm({ game }: { game: GameState }) {
       <div className="card col">
         <h3>Spielmechanik</h3>
         {bool('useTimeOfDay', 'Tageszeit berücksichtigen', 'Aufkommen und Szenarien schwanken über den Tag')}
-        {bool('useWeather', 'Wetter berücksichtigen', 'Wetterlage verändert die Szenariohäufigkeit (simuliertes Wetter, keine echten Daten)')}
+        {bool('useWeather', 'Wetter berücksichtigen', 'Wetter beeinflusst Szenariohäufigkeit (simuliert)')}
         {bool('randomBreakdowns', 'Zufällige Fahrzeugausfälle', 'Fahrzeuge auf der Wache können defekt gehen')}
-        {bool('autoHospital', 'Transportziel automatisch wählen', 'statt Sprechwunsch der RTW-Besatzung')}
-        {bool('autoRelease', 'Kräfte automatisch entlassen', 'nach Einsatzende inkl. automatischem Abschluss')}
+        {bool('autoHospital', 'Transportziel automatisch wählen', 'ohne Sprechwunsch RTW')}
+        {bool('autoRelease', 'Kräfte automatisch entlassen', 'nach Einsatzende, mit Abschluss')}
       </div>
       <div className="card col">
         <h3>Einsatzverteilung nach Kategorie</h3>
-        <div className="small muted">Gewicht 1 = Standard, 0 = Kategorie tritt nicht auf, 2 = doppelt so häufig.</div>
+        <div className="small muted">Gewicht: 0 aus · 1 Standard · 2 doppelt</div>
         <div className="form-grid">
           {(Object.keys(CATEGORY_LABELS) as KeywordCategory[]).map((cat) => (
             <label key={cat} className="field">
@@ -100,7 +99,7 @@ function SettingsForm({ game }: { game: GameState }) {
         <button
           className="btn danger"
           onClick={async () => {
-            if (await confirmDialog('Simulation neu starten? Laufende Notrufe, Einsätze, Archiv und Statistik dieses Spielstands werden gelöscht. Die Leitstellenkonfiguration bleibt erhalten.\n\nTipp: Vorher unter „Daten“ einen Spielstand sichern.', { confirmLabel: 'Neu starten' }))
+            if (await confirmDialog('Simulation neu starten? Notrufe, Einsätze, Archiv und Statistik werden gelöscht.', { confirmLabel: 'Neu starten' }))
               store.cmd('restartSimulation');
           }}
         >
@@ -123,12 +122,12 @@ function ScenarioList({ game }: { game: GameState }) {
     <div className="col">
       <div className="row">
         <input type="search" placeholder="Szenarien suchen …" value={q} onChange={(e) => setQ(e.target.value)} style={{ maxWidth: 360 }} />
-        <span className="small muted grow">{SCENARIOS.length - disabled.size} von {SCENARIOS.length} aktiv. Über „Auslösen“ kann jedes Szenario gezielt geübt werden.</span>
+        <span className="small muted grow">{SCENARIOS.length - disabled.size}/{SCENARIOS.length} aktiv</span>
       </div>
       <div className="card" style={{ padding: 0 }}>
         <table className="grid">
           <thead>
-            <tr><th>Aktiv</th><th>Szenario</th><th>Kategorie</th><th>Richtiges Stichwort</th><th>Varianten</th><th>Häufigkeit</th><th></th></tr>
+            <tr><th>Aktiv</th><th>Szenario</th><th>Kategorie</th><th>Stichwort</th><th>Varianten</th><th>Häufigkeit</th><th></th></tr>
           </thead>
           <tbody>
             {list.map((s) => (

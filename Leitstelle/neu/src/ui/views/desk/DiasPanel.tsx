@@ -89,7 +89,7 @@ export function DiasPanel({ game, call, tablet }: { game: GameState; call: Call;
   if (!tree)
     return (
       <div className="dias small muted" data-testid="dias-missing">
-        Keine standardisierte Notrufabfrage importiert – unter <b>Daten &amp; Einstellungen › Notrufabfrage (DIAS)</b> kannst du deinen DIAS-Export laden.
+        DIAS nicht importiert (Daten &amp; Einstellungen › Notrufabfrage)
       </div>
     );
   return (
@@ -163,7 +163,7 @@ function DiasBody({
   };
 
   return (
-    <div className="dias-body" ref={ref} tabIndex={0} onKeyDown={onKey} aria-label="Notrufabfrage – Antwortcode drücken, Rücktaste = zurück">
+    <div className="dias-body" ref={ref} tabIndex={0} onKeyDown={onKey} aria-label="Notrufabfrage">
       {steps.length > 0 && (
         <ol className="dias-path">
           {steps.map((s, i) => {
@@ -206,7 +206,7 @@ function DiasBody({
           <div className="dias-q" dangerouslySetInnerHTML={{ __html: node.html }} />
           <div className="dias-options">
             {node.options.map((o, i) => (
-              <button key={i} className={`btn dias-opt${o.to ? '' : ' lw-gap'}`} onClick={() => choose(i)} title={o.to ? undefined : 'Folgeseite fehlt im Mitschnitt – LEITWARTE ergänzt'} data-testid="dias-option">
+              <button key={i} className={`btn dias-opt${o.to ? '' : ' lw-gap'}`} onClick={() => choose(i)} title={o.to ? undefined : 'Folgeseite fehlt (LW-Ergänzung)'} data-testid="dias-option">
                 <span className="mono dias-code">{o.code}</span>
                 <span className="dias-label">{o.label}</span>
               </button>
@@ -216,9 +216,7 @@ function DiasBody({
       ) : (
         <div className="dias-current warnbox small">
           <b>{node.question || INCOMPLETE_TEXT[node.kind]}</b>
-          <div>
-            Dieser Schritt ({INCOMPLETE_TEXT[node.kind]}) ist im importierten Mitschnitt nicht enthalten. Trage die Angabe bei Bedarf unter Hinweise ein und wähle das Stichwort selbst.
-          </div>
+          <div>Nicht im Mitschnitt. Stichwort manuell wählen.</div>
         </div>
       )}
     </div>
@@ -238,7 +236,7 @@ function DiasResultView({ game, call, node, pathText, mismatch, tablet, tree, st
     const meldebild = res.sections.map((s) => s.meldebild).join(' / ');
     const extra = [...infos].join(', ');
     store.cmdQuiet('applyDiasResult', call.id, { keywordId: targetKw?.id ?? null, info: meldebild, remarks: [`Notrufabfrage: ${pathText}`, extra && `Info: ${extra}`].filter(Boolean) });
-    store.toast('ok', targetKw ? `Abfrageergebnis übernommen: ${targetKw.code}` : 'Abfrageergebnis übernommen – Stichwort bitte selbst wählen.');
+    store.toast('ok', targetKw ? `Abfrageergebnis übernommen: ${targetKw.code}` : 'Abfrageergebnis übernommen, ohne Stichwort');
   };
 
   return (
@@ -249,8 +247,7 @@ function DiasResultView({ game, call, node, pathText, mismatch, tablet, tree, st
       </div>
       {mismatch && (
         <div className="warnbox small" data-testid="dias-mismatch">
-          <b>Achtung, Ergebnis ungesichert:</b> Diese Ergebnisseite wurde im Mitschnitt über einen anderen Abfrageweg aufgezeichnet (Schritt {mismatch.step}: aufgezeichnet „{mismatch.recorded}“, gewählt „{mismatch.chosen}“).
-          Meldebild und Stichwort können deshalb von deinem Fall abweichen – bitte prüfen und ggf. selbst wählen.
+          <b>Ergebnis ungesichert:</b> Abfrageweg weicht ab (Schritt {mismatch.step}: Mitschnitt „{mismatch.recorded}“, gewählt „{mismatch.chosen}“).
         </div>
       )}
       {res.sections.map((s, i) => (
@@ -301,7 +298,7 @@ function DiasResultView({ game, call, node, pathText, mismatch, tablet, tree, st
       {mismatch && (
         <div data-testid="lw-alternative">
           <div className="small muted" style={{ margin: '6px 0 2px' }}>
-            Alternative: von LEITWARTE aus deinem tatsächlichen Abfrageweg berechnet
+            Alternative (LEITWARTE)
           </div>
           <LwResultView game={game} call={call} tree={tree} steps={steps} completion={{ answers: {} }} tablet={tablet} compact />
         </div>
@@ -339,8 +336,7 @@ function GapView({
   const header = (
     <div className="lw-note small" data-testid="lw-note">
       <span className="lw-badge">LEITWARTE</span>{' '}
-      {gap.kind === 'fehlt' ? 'Die Folgeseite dieser Antwort ist im DIAS-Mitschnitt nicht enthalten.' : `Dieser Schritt (${INCOMPLETE_TEXT[gap.kind]}) ist im DIAS-Mitschnitt nicht enthalten.`} Ab hier ergänzt LEITWARTE mit eigenen
-      Fragen – nicht aus DIAS.
+      {gap.kind === 'fehlt' ? 'Folgeseite fehlt im Mitschnitt' : `${INCOMPLETE_TEXT[gap.kind]} fehlt im Mitschnitt`}, Ergänzung ohne DIAS
     </div>
   );
   if (!completion && needsInput) return <GapInput gap={gap} header={header} onDone={(input) => setCompletion({ input, answers: {} })} />;
@@ -455,13 +451,13 @@ function LwResultView({ game, call, tree, steps, completion, tablet, compact }: 
   const kw = code ? game.center.keywords.find((k) => k.code === code) : undefined;
   const apply = () => {
     store.cmdQuiet('applyDiasResult', call.id, { keywordId: kw?.id ?? null, info: res.meldebild, remarks: [`Notrufabfrage (LEITWARTE-Ergänzung): ${res.info}`] });
-    store.toast('ok', kw ? `LEITWARTE-Ergebnis übernommen: ${kw.code}` : 'LEITWARTE-Ergebnis übernommen – Stichwort bitte selbst wählen.');
+    store.toast('ok', kw ? `LEITWARTE-Ergebnis übernommen: ${kw.code}` : 'LEITWARTE-Ergebnis übernommen, ohne Stichwort');
   };
   return (
     <div className="dias-result lw-result" data-testid="lw-result">
       <div className="dias-summary">
         <b>
-          <span className="lw-badge">LEITWARTE</span> Ergebnis (nicht aus DIAS)
+          <span className="lw-badge">LEITWARTE</span> Ergebnis
         </b>
         {!compact && <div className="small">{res.info}</div>}
       </div>

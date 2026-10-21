@@ -27,7 +27,7 @@ export function OwnerBanner({ kind, id, owner }: { kind: 'call' | 'incident'; id
   return (
     <div className="warnbox row" data-testid="owner-banner">
       <span className="grow">
-        Wird von <b>{owner.name}</b> bearbeitet. Du kannst zusehen oder übernehmen.
+        Bearbeiter: <b>{owner.name}</b>
       </span>
       <button className="btn small primary" onClick={() => store.cmd('takeOver', kind, id)} data-testid="take-over">
         Übernehmen
@@ -69,7 +69,7 @@ export function PlayerNameField({ autoFocus = false }: { autoFocus?: boolean }) 
   const [name, setName] = useState(player?.name ?? '');
   return (
     <label className="row small">
-      Dein Name:
+      Name:
       <input value={name} autoFocus={autoFocus} onChange={(e) => setName(e.target.value)} onBlur={() => name.trim() && store.setPlayerName(name)} placeholder="z. B. Lukas" style={{ width: 140 }} data-testid="player-name" />
     </label>
   );
@@ -86,11 +86,11 @@ export function JoinScreen() {
     <div className="start" data-testid="join-screen">
       <div className="hero">
         <h1>LEITWARTE</h1>
-        <div className="muted">Mitspielen – die Simulation läuft beim Gastgeber.</div>
+        <div className="muted">Mitspielen</div>
       </div>
       <div className="card col" style={{ maxWidth: 520 }}>
         <label className="col">
-          Dein Name
+          Name
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="z. B. Lukas" data-testid="join-name" />
         </label>
         <button className="btn primary" disabled={!name.trim()} onClick={() => store.setPlayerName(name)} data-testid="join-ok">
@@ -98,14 +98,14 @@ export function JoinScreen() {
         </button>
         <div className="infobox small">
           {!lan.enabled
-            ? 'Mitspielen geht nur über den LAN-Server des Gastgebers (npm run lan).'
+            ? 'Nur über LAN-Server (npm run lan)'
             : !lan.connected
-              ? 'Verbinde mit dem Gastgeber …'
+              ? 'Verbindungsaufbau …'
               : mode === 'bearbeiten'
-                ? 'Der Gastgeber bearbeitet gerade die Leitstelle. Es geht los, sobald er startet.'
+                ? 'Leitstelle wird bearbeitet'
                 : alive
-                  ? 'Verbunden. Warte, bis der Gastgeber eine Leitstelle startet …'
-                  : 'Der Gastgeber antwortet nicht.'}
+                  ? 'Warte auf Start …'
+                  : 'Gastgeber antwortet nicht'}
         </div>
       </div>
     </div>

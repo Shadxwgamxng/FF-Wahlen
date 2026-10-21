@@ -107,13 +107,13 @@ export function Maske(p: Props) {
         {call && <span className="mono small muted">Eingang {fmtClock(call.receivedAt, true)} ({fmtAgo(now, call.receivedAt)})</span>}
         {inc && <span className="mono small muted">angelegt {fmtClock(inc.createdAt)} · Alarm {inc.firstAlarmAt ? fmtClock(inc.firstAlarmAt) : '–'} · Eintreffen {inc.firstArrivalAt ? fmtClock(inc.firstArrivalAt) : '–'}</span>}
         {(inc ?? call) && <OwnerTag owner={(inc ?? call)!.owner} />}
-        <button className="btn small" onClick={p.onClose} title="Maske schließen (Esc) – Karte anzeigen">Zur Karte ✕</button>
+        <button className="btn small" onClick={p.onClose} title="Schließen (Esc)">Zur Karte ✕</button>
       </div>
       {inc ? <OwnerBanner kind="incident" id={inc.id} owner={inc.owner} /> : call && <OwnerBanner kind="call" id={call.id} owner={call.owner} />}
 
       {call && call.state === 'klingelt' ? (
         <div className="col" style={{ alignItems: 'center', justifyContent: 'center', flex: 1 }}>
-          <div className="muted">Eingehender Notruf – Anrufer wartet seit {fmtAgo(now, call.receivedAt)}</div>
+          <div className="muted">Notruf wartet seit {fmtAgo(now, call.receivedAt)}</div>
           <button className="btn alarm" style={{ fontSize: 16, padding: '10px 24px' }} onClick={() => store.cmd('acceptCall', call.id)} autoFocus>
             Notruf annehmen <kbd>N</kbd>
           </button>
@@ -140,7 +140,7 @@ export function Maske(p: Props) {
               </div>
               <label className="mask-grid1">Objekt / Zusatz<input type="text" value={mask.object} onChange={(e) => setMask({ object: e.target.value })} placeholder="z. B. 2. OG links, Hinterhaus" /></label>
               <div className="row wrap" style={{ marginTop: 4 }}>
-                {resolved && ('error' in resolved ? <span className="field-error small">✗ {resolved.error}</span> : <span className="small" style={{ color: resolved.exact ? 'var(--ok)' : 'var(--warn)' }}>{resolved.exact ? '✓ Adresse gefunden' : '~ Straße gefunden, Hausnummer unbekannt (Straßenmitte)'}</span>)}
+                {resolved && ('error' in resolved ? <span className="field-error small">✗ {resolved.error}</span> : <span className="small" style={{ color: resolved.exact ? 'var(--ok)' : 'var(--warn)' }}>{resolved.exact ? '✓ Adresse gefunden' : '~ Straße gefunden, Nr. unbekannt'}</span>)}
                 <span className="spacer" />
                 {call && mode === 'notruf' && (
                   <>
@@ -163,7 +163,7 @@ export function Maske(p: Props) {
               <legend>Ereignis</legend>
               {game.center.meldebilder.length > 0 && (
                 <label className="mask-grid1">
-                  Meldebild (Verdachtsdiagnose)
+                  Meldebild
                   <MeldebildSelect
                     game={game}
                     value={inc ? (inc.meldebildId ?? null) : (call?.meldebildId ?? null)}
@@ -203,15 +203,15 @@ export function Maske(p: Props) {
                       </button>
                     </>
                   ) : (
-                    'kein passendes Stichwort konfiguriert'
+                    'kein Stichwort'
                   )}
                 </div>
               )}
-              <label className="mask-grid1">Alarmierungstext / Info<input type="text" value={mask.info} onChange={(e) => setMask({ info: e.target.value })} disabled={mode === 'einsatz'} placeholder="Kurzinfo für die Kräfte" /></label>
+              <label className="mask-grid1">Alarmierungstext / Info<input type="text" value={mask.info} onChange={(e) => setMask({ info: e.target.value })} disabled={mode === 'einsatz'} /></label>
               {kw && (
                 <div className="small muted">
                   Sondersignal: {kw.emergency === false ? 'nein' : 'ja'}
-                  {kw.forward && ' · Weiterleitung – es entsteht kein Einsatz'}
+                  {kw.forward && ' · Weiterleitung'}
                   {kw.exercise && ' · Übungseinsatz'}
                   {kw.infection && ` · Infektionsschutz (${kw.infection === 'hoch' ? 'hochinfektiös' : 'COVID'})`}
                   {kw.note && ` · ${kw.note}`}
@@ -244,7 +244,7 @@ export function Maske(p: Props) {
               <div className="col" style={{ gap: 6 }}>
                 {nearby.length > 0 && (
                   <div className="warnbox col small">
-                    <b>Mögliche Doppelmeldung:</b>
+                    <b>Doppelmeldung?</b>
                     {nearby.map(({ i, d }) => (
                       <div key={i.id} className="row">
                         <span className="grow">{game.center.keywords.find((k) => k.id === i.keywordId)?.code} · {i.address} ({formatKm(d)})</span>
@@ -318,7 +318,7 @@ export function MeldebildSelect({ game, value, onChange, disabled }: { game: Gam
       <input
         type="text"
         value={open ? q : current ? `${current.cedus ? `${current.cedus} · ` : ''}${current.label}` : q}
-        placeholder="Meldebild suchen (Text oder CEDUS) …"
+        placeholder="Text oder CEDUS …"
         onFocus={() => {
           setOpen(true);
           setQ('');
@@ -348,7 +348,7 @@ export function MeldebildSelect({ game, value, onChange, disabled }: { game: Gam
               {m.label} <span className="dim">→ {m.keywordCode || 'kein Vorschlag'}</span>
             </div>
           ))}
-          {list.length === 0 && <div className="suggest-item dim">Kein Meldebild gefunden.</div>}
+          {list.length === 0 && <div className="suggest-item dim">Kein Treffer.</div>}
         </div>
       )}
     </div>

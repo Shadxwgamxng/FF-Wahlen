@@ -60,7 +60,7 @@ export function StatsView({ game }: { game: GameState }) {
       <Tabs tabs={[['kpi', 'Kennzahlen'], ['archiv', `Einsatzarchiv (${game.runtime.archive.length})`]]} value={tab} onChange={setTab} />
       {tab === 'kpi' && (
         <div className="col" style={{ gap: 14 }}>
-          <div className="small muted">Alle Werte werden aus den tatsächlichen Ereignissen dieses Spielstands berechnet (simulierte Zeit: {formatDuration(s.simulatedMs)}).</div>
+          <div className="small muted">Simulierte Zeit: {formatDuration(s.simulatedMs)}</div>
           <div className="cards">
             {(
               [
@@ -81,23 +81,23 @@ export function StatsView({ game }: { game: GameState }) {
               </div>
             ))}
           </div>
-          <div className="small dim">Dispositionszeit = Notrufeingang bis erste Alarmierung · Anfahrtszeit = erste Alarmierung bis erstes Eintreffen · Einsatzbindung = erste Alarmierung bis Abschluss.</div>
+          <div className="small dim">Dispo: Eingang–Alarm · Anfahrt: Alarm–Eintreffen · Bindung: Alarm–Abschluss</div>
           <div className="row wrap" style={{ alignItems: 'flex-start', gap: 14 }}>
             <div className="card grow" style={{ minWidth: 320 }}>
               <h3 style={{ marginBottom: 8 }}>Einsätze nach Kategorie</h3>
               <Bars rows={s.byCategory.map((c) => ({ label: CATEGORY_LABELS[c.category], value: c.count }))} />
             </div>
             <div className="card grow" style={{ minWidth: 320 }}>
-              <h3 style={{ marginBottom: 8 }}>Einsätze nach Tageszeit (Stunde)</h3>
+              <h3 style={{ marginBottom: 8 }}>Einsätze nach Stunde</h3>
               <HourChart byHour={s.byHour} />
             </div>
           </div>
           <div className="card">
-            <h3 style={{ marginBottom: 8 }}>Fahrzeugauslastung und -verfügbarkeit</h3>
+            <h3 style={{ marginBottom: 8 }}>Fahrzeugauslastung</h3>
             <div style={{ maxHeight: 420, overflow: 'auto' }}>
               <table className="grid">
                 <thead>
-                  <tr><th>Fahrzeug</th><th>Alarme</th><th>Auslastung (gebunden)</th><th>Verfügbar</th></tr>
+                  <tr><th>Fahrzeug</th><th>Alarme</th><th>Auslastung</th><th>Verfügbar</th></tr>
                 </thead>
                 <tbody>
                   {s.vehicles.map((v) => (
@@ -121,7 +121,7 @@ export function StatsView({ game }: { game: GameState }) {
       )}
       {tab === 'archiv' && (
         <div className="col">
-          <input type="search" placeholder="Archiv durchsuchen (Nummer, Stichwort, Adresse) …" value={q} onChange={(e) => setQ(e.target.value)} style={{ maxWidth: 420 }} />
+          <input type="search" placeholder="Nr., Stichwort, Adresse …" value={q} onChange={(e) => setQ(e.target.value)} style={{ maxWidth: 420 }} />
           <div className="card" style={{ padding: 0 }}>
             <table className="grid">
               <thead>
