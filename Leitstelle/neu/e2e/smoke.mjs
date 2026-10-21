@@ -169,8 +169,8 @@ async function main() {
   const call = g.runtime.calls.find((c) => c.state === 'in_abfrage');
   assert(call.location.street && call.location.houseNumber, `Türöffnung an echter Wohnadresse (${call.location.address})`);
   log(`Einsatzort ist eine echte Wohnadresse: ${call.location.address} (${call.location.detail})`);
-  await mask.getByRole('button', { name: /Wo genau ist der Notfallort/ }).click();
-  await mask.getByRole('button', { name: /Personen in Gefahr/ }).click();
+  // eine zentrale Abfrage: ohne DIAS-Import wird nur gesprochen – hier wie ein Gespräch protokolliert
+  await page.evaluate((id) => window.leitwarte.cmd('voiceTurn', id, 'Wo genau ist der Notfallort, ist jemand in Gefahr?', 'Hauptstraße 1.', ['ort', 'b_personen', 'th_personen', 'th_hilfe', 'verletzt', 'rd_bewusst']), call.id);
   // Ortung
   await mask.getByTestId('locate').click();
   await page.getByRole('button', { name: '10×' }).click();

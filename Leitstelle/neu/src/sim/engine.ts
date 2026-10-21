@@ -26,7 +26,7 @@ import { hourOf, outOfServiceReason, vehicleAvailability } from './availability'
 import { DIFFICULTY, HOURLY_PROFILE } from './difficulty';
 import { distanceMeters, interpolate, pointInArea, travelTimeMs } from './geo';
 import { cumulative, EMERGENCY_FACTOR, getRoute, requestRoute } from './routing';
-import { aaoRequirements, capsOf, coverage, hospitalOptions, MEDICAL_CAPS, mergeRequirements, openRequirements, typeOf } from './dispatch';
+import { isPoliceVehicle, aaoRequirements, capsOf, coverage, hospitalOptions, MEDICAL_CAPS, mergeRequirements, openRequirements, typeOf } from './dispatch';
 import { SIM_START, emptyVehicleRuntime } from '../data/sampleCenter';
 import { groupDeployment, groupName, isGroupStation, isGroupVehicle, turnoutFactor } from './alarmGroups';
 import { emptyMask, maskAddress } from '../model/mask';
@@ -1145,7 +1145,20 @@ export function changeIncidentKeyword(state: GameState, incidentId: string, keyw
 // Befehle: Disposition
 // ---------------------------------------------------------------------------
 
+/** Nur die simulierte Polizeileitstelle darf Polizeifahrzeuge alarmieren */
+let policeDispatch = false;
+export function alarmPolice(state: GameState, incidentId: string, vehicleIds: string[]): CommandResult {
+  policeDispatch = true;
+  try {
+    return alarmVehicles(state, incidentId, vehicleIds);
+  } finally {
+    policeDispatch = false;
+  }
+}
+
 export function alarmVehicles(state: GameState, incidentId: string, vehicleIds: string[]): CommandResult {
+  if (!policeDispatch && vehicleIds.some((id) => { const v = state.center.vehicles.find((x) => x.id === id); return v && isPoliceVehicle(state, v); }))
+    return fail('Polizei wird über die Polizeileitstelle angefordert – „Polizei anrufen“ in der Einsatzmaske.');
   const inc = incident(state, incidentId);
   if (!inc) return fail('Einsatz nicht gefunden.');
   if (inc.state === 'abgeschlossen') return fail('Einsatz ist bereits abgeschlossen.');

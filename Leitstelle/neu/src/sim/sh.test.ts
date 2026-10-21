@@ -25,6 +25,7 @@ import {
 import { hospitalOptions, suggestForIncident } from './dispatch';
 import { groupDeployment, isGroupVehicle, proposalWithGroups, turnoutFactor } from './alarmGroups';
 import { injectScenarioCall } from './engine';
+import { policeShare, policeTalk } from './polizei';
 
 const SEC = 1000;
 /** Echte OSM-Daten aus dem Süden des Kreises (siehe e2e/fixtures/README.md) */
@@ -113,6 +114,11 @@ describe('Katalog Schleswig-Holstein in der Beispielleitstelle Ostholstein', () 
           const plan = proposalWithGroups(g, inc, s);
           if (plan.groups.length) alarmGroups(g, inc.id, plan.groups.map((x) => x.station.id));
           if (plan.vehicleIds.length) alarmVehicles(g, inc.id, plan.vehicleIds);
+          // Polizei wird telefonisch angefordert
+          if (s.open.some((o) => o.capability.startsWith('polizei')) && !inc.police?.sent.length) {
+            policeShare(g, inc.id);
+            policeTalk(g, inc.id, 'Wir brauchen eine Streife zur Absicherung.');
+          }
         }
         for (const m of g.runtime.radio.filter((x) => !x.handled && x.incidentId === inc.id)) {
           if (m.kind === 'transportziel') {

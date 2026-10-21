@@ -17,6 +17,12 @@ import { EMERGENCY_FACTOR, getRoute } from './routing';
 export const MEDICAL_CAPS = new Set(['rtw', 'ktw', 'notarzt', 'intensiv', 'rth']);
 const OUT_OF_AREA_PENALTY_MS = 90_000;
 
+/** Polizeifahrzeuge disponiert die Polizei selbst – angefordert wird per Telefon (sim/polizei.ts) */
+export function isPoliceVehicle(state: GameState, v: Vehicle): boolean {
+  const org = state.center.organizations.find((o) => o.id === v.organizationId);
+  return org?.kind === 'polizei';
+}
+
 export function typeOf(state: GameState, v: Vehicle): VehicleType | undefined {
   return state.center.vehicleTypes.find((t) => t.id === v.typeId);
 }
@@ -102,7 +108,7 @@ export function suggestForIncident(state: GameState, inc: Incident): Suggestion 
   const openCaps = new Set(open.map((o) => o.capability));
 
   const candidates: Candidate[] = state.center.vehicles
-    .filter((v) => !inc.activeVehicleIds.includes(v.id))
+    .filter((v) => !inc.activeVehicleIds.includes(v.id) && !isPoliceVehicle(state, v))
     .map((v) => {
       const av = vehicleAvailability(state, v);
       const { etaMs, distanceM, routed } = etaFor(state, v, inc.position);

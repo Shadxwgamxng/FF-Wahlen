@@ -1,6 +1,7 @@
 import type { GameState } from '../model/types';
 import * as E from '../sim/engine';
 import { radioCall, radioTalk } from '../sim/funk';
+import { policeCallClose, policeCallOpen, policeShare, policeTalk } from '../sim/polizei';
 import type { CommandResult } from '../sim/engine';
 
 /**
@@ -28,6 +29,10 @@ export const COMMANDS = {
   injectScenarioCall: E.injectScenarioCall,
   linkCallToIncident: E.linkCallToIncident,
   radioCall,
+  policeCallOpen,
+  policeCallClose,
+  policeShare,
+  policeTalk,
   radioTalk,
   releaseAllOnScene: E.releaseAllOnScene,
   releaseVehicle: E.releaseVehicle,

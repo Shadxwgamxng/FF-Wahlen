@@ -73,9 +73,16 @@ const activeCall = (): Call | null => {
   return calls.sort((a, b) => (b.acceptedAt ?? 0) - (a.acceptedAt ?? 0))[0] ?? null;
 };
 
+interface Turn {
+  text: string;
+  ended: boolean;
+  persona: { rate: number; pitch: number };
+}
+
 interface Session {
+  /** Notruf-ID oder "pol:<Einsatz-ID>" beim Telefonat mit der Polizei */
   callId: string;
-  sim: CallerSim;
+  respond: (text: string) => Turn;
   rec: Recognizer | null;
   /** Anrufer spricht gerade */
   speaking: boolean;
@@ -84,6 +91,40 @@ interface Session {
   /** Fehler der Erkennung in Folge */
   errors: number;
   voice?: string;
+}
+
+/** Gesprächspartner am Telefon: laufender Notruf, sonst ein offenes Telefonat mit der Polizei */
+function activeTarget(): { key: string; respond: (text: string) => Turn; greeting?: string } | null {
+  const c = activeCall();
+  if (c) {
+    let sim: CallerSim | null = null;
+    return {
+      key: c.id,
+      respond: (text) => {
+        sim ??= new CallerSim(voiceCallOf(c));
+        const turn = sim.respond(text);
+        // neu festgelegte Detailangaben des Anrufers (x_…) im Spielstand merken
+        const game = store.state?.runtime.calls.find((x) => x.id === c.id);
+        const patch: Record<string, string | number | boolean> = {};
+        for (const [k, v] of Object.entries(sim.call.facts)) if (k.startsWith('x_') && game && game.facts[k] === undefined) patch[k] = v;
+        store.cmdQuiet('voiceTurn', c.id, text, turn.text || '…', turn.questions, patch);
+        return { text: turn.text, ended: turn.ended, persona: personaFor(turn.emotion, sim.personality) };
+      },
+    };
+  }
+  const inc = store.state?.runtime.incidents.find((i) => i.police?.open);
+  if (!inc) return null;
+  const first = inc.police?.lines.filter((l) => l.from === 'polizei').at(-1)?.text;
+  return {
+    key: `pol:${inc.id}`,
+    greeting: first,
+    respond: (text) => {
+      store.cmdQuiet('policeTalk', inc.id, text);
+      const p = store.state?.runtime.incidents.find((i) => i.id === inc.id)?.police;
+      const last = p?.lines[p.lines.length - 1];
+      return { text: last?.from === 'polizei' ? last.text : '', ended: !p?.open, persona: { rate: 1.05, pitch: 0.95 } };
+    },
+  };
 }
 
 /** Läuft nur im Hauptfenster (Leitstand-PC) */
@@ -98,7 +139,7 @@ export function CallVoiceController() {
       if (restart) clearTimeout(restart);
       restart = null;
       const s = session;
-      if (!s || s.rec || s.speaking || s.busy || s.sim.ended) return;
+      if (!s || s.rec || s.speaking || s.busy || status.state === 'aufgelegt') return;
       if (status.muted) return setStatus({ state: 'stumm', interim: '' });
       if (funkBusy()) return setStatus({ state: 'pause', interim: '' });
       const consent = getConsent();
@@ -133,16 +174,11 @@ export function CallVoiceController() {
       if (session !== s || !text.trim()) return;
       s.busy = true;
       s.errors = 0;
-      const turn = s.sim.respond(text);
-      // neu festgelegte Detailangaben des Anrufers (x_…) im Spielstand merken
-      const game = store.state?.runtime.calls.find((c) => c.id === s.callId);
-      const patch: Record<string, string | number | boolean> = {};
-      for (const [k, v] of Object.entries(s.sim.call.facts)) if (k.startsWith('x_') && game && game.facts[k] === undefined) patch[k] = v;
-      store.cmdQuiet('voiceTurn', s.callId, text, turn.text || '…', turn.questions, patch);
+      const turn = s.respond(text);
       if (turn.text) {
         s.speaking = true;
         setStatus({ state: 'spricht', interim: '' });
-        await speakAs(turn.text, personaFor(turn.emotion, s.sim.personality), s.voice);
+        await speakAs(turn.text, turn.persona, s.voice);
         s.speaking = false;
       }
       s.busy = false;
@@ -161,12 +197,23 @@ export function CallVoiceController() {
     };
 
     const sync = () => {
-      const c = activeCall();
-      if (session && session.callId !== c?.id) end();
-      if (c && !session) {
+      const target = activeTarget();
+      if (session && session.callId !== target?.key) end();
+      if (target && !session) {
         const vs = germanVoices();
-        session = { callId: c.id, sim: new CallerSim(voiceCallOf(c)), rec: null, speaking: false, busy: false, errors: 0, voice: vs.length ? vs[hashSeed(c.id) % vs.length].voiceURI : undefined };
-        setStatus({ callId: c.id, state: 'hoert', interim: '', error: '', muted: false });
+        session = { callId: target.key, respond: target.respond, rec: null, speaking: false, busy: false, errors: 0, voice: vs.length ? vs[hashSeed(target.key) % vs.length].voiceURI : undefined };
+        setStatus({ callId: target.key, state: 'hoert', interim: '', error: '', muted: false });
+        if (target.greeting) {
+          // Polizei meldet sich am Telefon
+          const s = session;
+          s.speaking = true;
+          setStatus({ state: 'spricht' });
+          void speakAs(target.greeting, { rate: 1.05, pitch: 0.95 }, s.voice).then(() => {
+            s.speaking = false;
+            if (session === s) listen();
+          });
+          return;
+        }
         listen();
         return;
       }

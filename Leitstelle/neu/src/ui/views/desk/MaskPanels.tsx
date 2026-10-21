@@ -1,9 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { Call, GameState, Incident } from '../../../model/types';
 import { CAPABILITIES } from '../../../data/vehicleTypes';
-import { CATEGORY_LABELS } from '../../../data/keywords';
-import { questionsFor } from '../../../data/questions';
-import { askedQuestions, capLabel, prefetchRoutes, reqText, statusDef } from '../../../sim/engine';
+import { capLabel, prefetchRoutes, reqText, statusDef } from '../../../sim/engine';
 import { aaoRequirements, openRequirements, suggestForIncident } from '../../../sim/dispatch';
 import { groupName, isGroupVehicle, proposalWithGroups, turnoutFactor } from '../../../sim/alarmGroups';
 import { formatDuration, formatKm } from '../../../sim/geo';
@@ -16,11 +14,9 @@ import { FunkConsent } from '../../funk';
 
 /** Gesprächsleiste: Dialog mit dem Anrufer und Fragen */
 export function Gespraech({ game, call }: { game: GameState; call: Call }) {
-  const asked = askedQuestions(call);
-  const questions = questionsFor(call.category);
   return (
     <div className="mask-box col" style={{ flex: 1, minHeight: 0 }}>
-      <div className="mask-title">Gespräch mit {call.caller.name || 'Anrufer'} <span className="dim">({call.caller.relation})</span></div>
+      <div className="mask-title">Gesprächsverlauf – {call.caller.name || 'Anrufer'} <span className="dim">({call.caller.relation})</span></div>
       <div className="dialog" style={{ overflow: 'auto', flex: 1, minHeight: 120 }} aria-label="Gesprächsverlauf">
         <div className="bubble dispatcher small">Notruf Feuerwehr und Rettungsdienst, wo genau ist der Notfallort?</div>
         <div className="bubble caller">{call.opening}</div>
@@ -32,18 +28,6 @@ export function Gespraech({ game, call }: { game: GameState; call: Call }) {
         ))}
       </div>
       {call.state === 'in_abfrage' && <Freisprechen callId={call.id} />}
-      {call.state === 'in_abfrage' && (
-        <div>
-          <div className="small muted" style={{ margin: '4px 0' }}>Fragen ({CATEGORY_LABELS[call.category]}):</div>
-          <div className="question-grid">
-            {questions.map((q) => (
-              <button key={q.id} className="btn small" disabled={asked.has(q.id)} onClick={() => store.cmd('askQuestion', call.id, q.id)}>
-                {q.text}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
       {game.runtime.clock.now - call.receivedAt > 0 && <span className="dim small">Gesprächsbeginn {fmtClock(call.acceptedAt ?? call.receivedAt, true)}</span>}
     </div>
   );
@@ -73,6 +57,65 @@ function Freisprechen({ callId }: { callId: string }) {
         </button>
       </div>
       {s.state === 'fehler' && <FunkConsent />}
+    </div>
+  );
+}
+
+/** Telefonat mit der Polizeileitstelle: Einsatz teilen und Kräfte anfordern (die Polizei disponiert selbst) */
+export function PolizeiTelefon({ game, inc }: { game: GameState; inc: Incident }) {
+  const [text, setText] = useState('');
+  const p = inc.police;
+  const needed = openRequirements(game, aaoRequirements(game, inc), game.center.vehicles.filter((v) => inc.activeVehicleIds.includes(v.id))).some((r) => r.capability.startsWith('polizei'));
+  const send = () => {
+    if (!text.trim()) return;
+    store.cmd('policeTalk', inc.id, text.trim());
+    setText('');
+  };
+  return (
+    <div className="mask-box col" style={{ gap: 6 }} data-testid="polizei">
+      <div className="row" style={{ alignItems: 'center' }}>
+        <div className="mask-title grow">Polizei</div>
+        {needed && !p?.sent.length && <span className="chip alarm small">Polizei erforderlich</span>}
+        {p?.sent.length ? <span className="chip small">{p.sent.length} Streife(n) unterwegs</span> : null}
+        {!p?.open ? (
+          <button className="btn small primary" onClick={() => store.cmd('policeCallOpen', inc.id)} data-testid="polizei-anrufen">
+            ☎ Polizei anrufen
+          </button>
+        ) : (
+          <>
+            <button className="btn small" disabled={p.shared} onClick={() => store.cmd('policeShare', inc.id)} data-testid="polizei-teilen">
+              {p.shared ? 'Einsatz geteilt' : 'Einsatz teilen'}
+            </button>
+            <button className="btn small" onClick={() => store.cmd('policeCallClose', inc.id)}>
+              Auflegen
+            </button>
+          </>
+        )}
+      </div>
+      {p?.open && <Freisprechen callId={`pol:${inc.id}`} />}
+      {p && p.lines.length > 0 && (
+        <div className="dialog" style={{ maxHeight: 160, overflow: 'auto' }}>
+          {p.lines.slice(-8).map((l, i) => (
+            <div key={i} className={`bubble ${l.from === 'leitstelle' ? 'dispatcher' : 'caller'} small`}>
+              {l.text}
+            </div>
+          ))}
+        </div>
+      )}
+      {p?.open && (
+        <form
+          className="row"
+          onSubmit={(e) => {
+            e.preventDefault();
+            send();
+          }}
+        >
+          <input className="grow" value={text} onChange={(e) => setText(e.target.value)} placeholder="z. B. „Wir brauchen zwei Streifen zur Absicherung, Person aggressiv“" data-testid="polizei-input" />
+          <button className="btn small" type="submit">
+            Sagen
+          </button>
+        </form>
+      )}
     </div>
   );
 }

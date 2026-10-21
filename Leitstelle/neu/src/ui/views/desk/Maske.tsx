@@ -11,7 +11,7 @@ import { emptyMask } from '../../../model/mask';
 import { store } from '../../../store/gameStore';
 import { confirmDialog, fmtAgo, fmtClock } from '../../components/common';
 import { KeywordSelect } from './KeywordSelect';
-import { DispoListe, Gespraech, Massnahmen, Rueckmeldungen } from './MaskPanels';
+import { DispoListe, Gespraech, Massnahmen, PolizeiTelefon, Rueckmeldungen } from './MaskPanels';
 import { DiasPanel } from './DiasPanel';
 
 /**
@@ -280,6 +280,7 @@ export function Maske(p: Props) {
               <>
                 <DispoListe game={game} inc={inc} onSelectVehicle={p.onSelectVehicle} />
                 <Massnahmen game={game} inc={inc} alarmRequest={p.alarmRequest} />
+                <PolizeiTelefon game={game} inc={inc} />
                 <Rueckmeldungen game={game} inc={inc} />
                 {call && (
                   <details>

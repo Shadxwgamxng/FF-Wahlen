@@ -488,6 +488,8 @@ export interface Incident {
   activeVehicleIds: ID[];
   backupRequests: { at: number; text: string; requirements: AaoRequirement[] }[];
   escalation: { at: number; requirements: AaoRequirement[]; text: string; triggered: boolean; extraPatients: number } | null;
+  /** Telefonat mit der Polizeileitstelle (sim/polizei.ts) */
+  police?: { open: boolean; shared: boolean; lines: { at: number; from: 'leitstelle' | 'polizei'; text: string }[]; sent: string[] };
   log: { at: number; text: string }[];
   /** Bewertungshinweis: richtiges Stichwort gewählt? */
   keywordCorrect: boolean | null;
