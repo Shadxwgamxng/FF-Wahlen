@@ -31,6 +31,32 @@ const count = (v: FactValue | undefined, pick: Pick, none: readonly string[], on
 /** Fakt als Satz – mit wechselndem Einstieg ("Also, …", "Na, …") nur, wo der Fakt ein ganzer Satz ist */
 const text = (v: FactValue | undefined, pick: Pick, fallback: readonly string[] = CANT_SAY) => (v === undefined || v === '' ? pick(fallback) : String(v));
 
+/** "ins Klinikum …" / "in die Kreisklinik …" / "ins Krankenhaus „…“" */
+const intoHospital = (name: string) => {
+  const first = name.split(/\s+/)[0].toLowerCase();
+  if (/(klinikum|krankenhaus|zentrum|spital)$/.test(first)) return `ins ${name}`;
+  if (/klinik$/.test(first)) return `in die ${name}`;
+  return `ins Krankenhaus „${name}“`;
+};
+
+/** KTP: konkretes Ziel aus den verdeckten Fakten von callgen (undefined = Szenario ohne festgelegtes Ziel) */
+function ktpZiel(f: Facts, pick: Pick): string | undefined {
+  if (!f._destKind) return undefined;
+  const city = String(f._destCity ?? '');
+  const street = String(f._destStreet ?? '');
+  const name = String(f._destName ?? '');
+  const purpose = String(f._destPurpose ?? '');
+  const inCity = city ? ` in ${city}` : '';
+  let s: string;
+  if (f._destKind === 'heim') s = `nach Hause${street ? `, ${street}${inCity}` : ''}`;
+  else if (f._destKind === 'poi') s = `${purpose ? `${purpose.charAt(0).toLowerCase()}${purpose.slice(1)}` : 'zu'}, ${name}${street ? `, ${street}${inCity}` : ''}`;
+  else {
+    const cityWord = city.split(/\s+/)[0];
+    s = `${purpose ? `${purpose.charAt(0).toLowerCase()}${purpose.slice(1)} ` : ''}${intoHospital(name)}${city && !name.includes(cityWord) ? ` nach ${city}` : ''}`;
+  }
+  return pick([`${s.charAt(0).toUpperCase()}${s.slice(1)}.`, `Es geht ${s}.`]);
+}
+
 /** Fragen, die in jedem Notruf gestellt werden können */
 export const COMMON_QUESTIONS: QuestionDef[] = [
   {
@@ -123,7 +149,7 @@ export const CATEGORY_QUESTIONS: Record<KeywordCategory, QuestionDef[]> = {
     { id: 'rd_vorerkrankung', text: 'Sind Vorerkrankungen oder Medikamente bekannt?', answer: (f, pick = firstPick) => text(f.history, pick, ['Davon weiß ich nichts.', 'Weiß ich nicht, davon hat sie mir nie was erzählt.', 'Keine Ahnung, ehrlich.']) },
   ],
   ktp: [
-    { id: 'ktp_ziel', text: 'Von wo nach wo soll der Transport gehen?', answer: (f, pick = firstPick) => text(f.target, pick) },
+    { id: 'ktp_ziel', text: 'Von wo nach wo soll der Transport gehen?', answer: (f, pick = firstPick) => ktpZiel(f, pick) ?? text(f.target, pick) },
     { id: 'ktp_mobil', text: 'Kann der Patient sitzen oder muss er liegend transportiert werden?', answer: (f, pick = firstPick) => text(f.mobility, pick) },
     { id: 'ktp_infekt', text: 'Liegt eine Infektionskrankheit vor?', answer: (f, pick = firstPick) => yesNo(f.infection, pick, [`Ja: ${text(f.pathogen, pick, ['multiresistente Keime'])}.`, `Ja, ${text(f.pathogen, pick, ['multiresistente Keime'])}.`], ['Nein, nichts bekannt.', 'Nein, ist nichts bekannt.']) },
     { id: 'ktp_zeit', text: 'Wann soll der Transport erfolgen?', answer: (f, pick = firstPick) => text(f.when, pick, ['So bald wie möglich.', 'Am besten so bald wie möglich.']) },

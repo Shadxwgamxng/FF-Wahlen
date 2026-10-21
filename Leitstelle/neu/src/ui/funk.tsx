@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { FunkLine, GameState, RadioGroup } from '../model/types';
-import { radioGroupOf } from '../model/radio';
+import { heardGroups, hearsLine, radioGroupOf } from '../model/radio';
 import { hashSeed } from '../voice/details/types';
 import { createRecognizer, germanVoices, speakAs, type Recognizer } from '../voice/speech';
 import { getConsent, giveConsent } from '../voice/transcripts';
@@ -8,6 +8,17 @@ import { store, useStore } from '../store/gameStore';
 import { squelch } from './audio';
 import { getPrefs } from './prefs';
 import { fmtClock } from './components/common';
+import type { CommandResult } from '../sim/engine';
+
+/**
+ * Funkspruch/Ansprechen abschicken und auf den neuen Zustand warten. Wurde dabei ein Sprechwunsch
+ * aufgedeckt (Ergebnis-id = Einsatz), öffnet der eigene PC den Einsatz in der Maske.
+ */
+export async function radioSend(p: Promise<CommandResult>): Promise<void> {
+  const r = await p;
+  await store.nextState();
+  if (r.ok && r.id) store.uiAction({ kind: 'openIncident', id: r.id, via: 'funk' });
+}
 
 /**
  * Sprechfunk am Leitstand.
@@ -30,15 +41,25 @@ export function radioGroups(game: GameState): RadioGroup[] {
   return [...m.values()].sort((a, b) => a.code.localeCompare(b.code));
 }
 
+export const PC_GROUP_KEY = 'leitwarte.pc.rufgruppe';
+
+/** Gemerkte Rufgruppe (je Gerät): '' = keine, null = noch nie gewählt */
+function loadSaved(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+/** Rufgruppen, die dieser PC gerade hört: seine eigene und die seines Tablets */
+export function heardNow(): Set<string> {
+  return heardGroups(loadSaved(PC_GROUP_KEY), store.tabletGroup());
+}
+
 /** Gemerkte Rufgruppe (je Gerät) */
-export function useSavedGroup(key: string): [string, (c: string) => void] {
-  const [code, setCode] = useState(() => {
-    try {
-      return localStorage.getItem(key) ?? '';
-    } catch {
-      return '';
-    }
-  });
+export function useSavedGroup(key: string): [string | null, (c: string) => void] {
+  const [code, setCode] = useState(() => loadSaved(key));
   const set = (c: string) => {
     setCode(c);
     try {
@@ -60,6 +81,8 @@ export function FunkController() {
     let timer: ReturnType<typeof setTimeout> | null = null;
     /** Taste erneut gedrückt, während die vorige Sendung noch ausgewertet wird */
     let pending: { group: string | null } | null = null;
+    /** Funkspruch wird ausgewertet – Leitung bleibt belegt, bis die Antwort eingereiht ist */
+    let evaluating = false;
 
     const clearTimer = () => {
       if (timer) clearTimeout(timer);
@@ -71,7 +94,7 @@ export function FunkController() {
       rec?.stop();
     };
     const start = (g: string | null) => {
-      if (rec) {
+      if (rec || evaluating) {
         pending = { group: g };
         return;
       }
@@ -96,10 +119,15 @@ export function FunkController() {
           if (rec === r) rec = null;
           clearTimer();
           // onFinal folgt direkt nach onEnd
-          queueMicrotask(() => {
+          evaluating = true;
+          queueMicrotask(async () => {
             const text = finalText.trim();
-            store.setFunkStatus({ sending: false, interim: '' });
-            if (text && store.state) store.cmd('radioTalk', text, group);
+            store.setFunkStatus({ interim: '' });
+            // erst absenden, dann "sending" lösen: die Antwort der Besatzung setzt vorher "receiving",
+            // sonst hört das Freisprechen in der Lücke die Antwort aus dem Lautsprecher
+            if (text && store.state) await radioSend(store.cmdAsync('radioTalk', text, group));
+            evaluating = false;
+            store.setFunkStatus({ sending: false });
             // Taste inzwischen wieder gedrückt? Dann gleich weiter senden
             const again = pending;
             pending = null;
@@ -127,7 +155,7 @@ export function FunkController() {
       }, MAX_SEND_MS);
       timer = t;
     };
-    const off = store.onPtt((on, g) => (on ? start(g) : stop()));
+    const off = store.onPtt((on, g) => (on && !g ? store.setFunkStatus({ error: 'Keine Rufgruppe' }) : on ? start(g) : stop()));
 
     // Funksprüche der Fahrzeuge nacheinander sprechen
     let lastSpoken = store.state?.runtime.funk?.counter ?? 0;
@@ -141,11 +169,12 @@ export function FunkController() {
       busy = true;
       store.setFunkStatus({ receiving: true });
       squelch();
-      await speakAs(line.speech ?? line.text, voiceFor(line.vehicleId), pickVoice(line.vehicleId));
+      await speakAs(line.speech ?? line.text, voiceFor(line.vehicleId), pickVoice(line.vehicleId), 'funk');
       squelch(0.1);
-      store.setFunkStatus({ receiving: false });
       busy = false;
-      void next();
+      // zwischen zwei Funksprüchen bleibt "receiving" stehen (keine Lücke fürs Freisprechen)
+      if (queue.length) void next();
+      else store.setFunkStatus({ receiving: false });
     };
     const unsub = store.subscribe(() => {
       const f = store.state?.runtime.funk;
@@ -157,14 +186,9 @@ export function FunkController() {
         return;
       }
       if (!f || f.counter <= lastSpoken) return;
-      // Mitspieler hören nur ihre geschaltete Rufgruppe; der Leitstand-PC alles (auch für das Tablet)
-      let myGroup = '';
-      try {
-        myGroup = localStorage.getItem('leitwarte.pc.rufgruppe') ?? '';
-      } catch {
-        /* ohne Speicher: alles */
-      }
-      const fresh = f.log.filter((l) => l.id > lastSpoken && l.from === 'fahrzeug' && (!store.isPlayerClient || !myGroup || !l.group || l.group === myGroup));
+      // jeder PC hört nur seine geschaltete Rufgruppe und die seines Tablets
+      const heard = heardNow();
+      const fresh = f.log.filter((l) => l.id > lastSpoken && l.from === 'fahrzeug' && hearsLine(l, heard));
       lastSpoken = f.counter;
       if (!getPrefs().tts) return;
       queue.push(...fresh);
@@ -208,6 +232,13 @@ export function PttButton({ group, big = false }: { group: string | null; big?: 
     return () => window.removeEventListener('blur', up);
   });
   const active = down || status.sending;
+  if (!group) {
+    return (
+      <button type="button" className={`btn ptt ${big ? 'ptt-big' : ''}`} data-testid="ptt" disabled title="Erst eine Rufgruppe schalten">
+        Keine Rufgruppe
+      </button>
+    );
+  }
   return (
     <button
       type="button"
@@ -246,10 +277,10 @@ export function FunkStatusLine() {
   return null;
 }
 
-/** Funkverkehr (neueste unten), optional nur eine Rufgruppe */
-export function FunkLog({ game, group, max = 12 }: { game: GameState; group?: string | null; max?: number }) {
+/** Funkverkehr (neueste unten): nur gehörte Rufgruppen und Zeilen ohne Gruppe */
+export function FunkLog({ game, groups, max = 12 }: { game: GameState; groups: Set<string>; max?: number }) {
   const all = game.runtime.funk?.log ?? [];
-  const lines = all.filter((l) => !group || !l.group || l.group === group).slice(-max);
+  const lines = all.filter((l) => hearsLine(l, groups)).slice(-max);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     ref.current?.scrollTo({ top: ref.current.scrollHeight });
@@ -293,8 +324,14 @@ export function FunkConsent() {
 /** Funkbedienung am PC: Rufgruppe, Sendetaste, getippter Funkspruch, Funkverkehr */
 export function FunkBar({ game }: { game: GameState }) {
   const groups = radioGroups(game);
-  const [saved, setSaved] = useSavedGroup('leitwarte.pc.rufgruppe');
-  const group = groups.find((g) => g.code === saved)?.code ?? groups[0]?.code ?? null;
+  const [saved, setSaved] = useSavedGroup(PC_GROUP_KEY);
+  const group = groups.find((g) => g.code === saved)?.code ?? null;
+  // Erststart: einmalig die erste Gruppe schalten (danach gilt die gespeicherte Wahl, auch "keine")
+  useEffect(() => {
+    if (saved === null && groups[0]) setSaved(groups[0].code);
+  });
+  // Tablet-Gruppe ändert sich → Funkverkehr neu filtern
+  useStore((s) => s.tabletGroup());
   const [typed, setTyped] = useState('');
   // F8 gedrückt halten = senden
   const groupRef = useRef(group);
@@ -304,6 +341,7 @@ export function FunkBar({ game }: { game: GameState }) {
     const down = (e: KeyboardEvent) => {
       if (e.key !== PTT_KEY || e.repeat) return;
       e.preventDefault();
+      if (!groupRef.current) return;
       held = true;
       store.sendPtt(true, groupRef.current);
     };
@@ -329,14 +367,15 @@ export function FunkBar({ game }: { game: GameState }) {
     };
   }, []);
   const send = () => {
-    if (!typed.trim()) return;
-    store.cmd('radioTalk', typed.trim(), group);
+    if (!typed.trim() || !group) return;
+    void radioSend(store.cmdAsync('radioTalk', typed.trim(), group));
     setTyped('');
   };
   return (
     <div className="col funk-bar" style={{ gap: 6 }} data-testid="funk-bar">
       <div className="row wrap" style={{ alignItems: 'center' }}>
         <select value={group ?? ''} onChange={(e) => setSaved(e.target.value)} aria-label="Rufgruppe" data-testid="pc-rufgruppe">
+          <option value="">– keine –</option>
           {groups.map((g) => (
             <option key={g.code} value={g.code}>
               {g.code} – {g.name}
@@ -355,12 +394,12 @@ export function FunkBar({ game }: { game: GameState }) {
           send();
         }}
       >
-        <input className="grow" value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="Funkspruch" data-testid="funk-input" />
-        <button className="btn small" type="submit">
+        <input className="grow" value={typed} onChange={(e) => setTyped(e.target.value)} placeholder={group ? 'Funkspruch' : 'Keine Rufgruppe'} data-testid="funk-input" />
+        <button className="btn small" type="submit" disabled={!group}>
           Senden
         </button>
       </form>
-      <FunkLog game={game} group={group} max={8} />
+      <FunkLog game={game} groups={heardGroups(group, store.tabletGroup())} max={8} />
     </div>
   );
 }

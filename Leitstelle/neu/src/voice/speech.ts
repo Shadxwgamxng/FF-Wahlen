@@ -201,34 +201,86 @@ export function germanVoices(): SpeechSynthesisVoice[] {
   return window.speechSynthesis.getVoices().filter((v) => v.lang.toLowerCase().startsWith('de'));
 }
 
-export function stopSpeaking() {
-  if (typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.cancel();
+/** Wer spricht: Funk (Besatzungen), Telefon (Anrufer, Polizei) oder Ansage/Sprachtest */
+export type SpeechChannel = 'funk' | 'telefon' | 'ansage';
+
+interface SpeechItem {
+  text: string;
+  persona: VoicePersona;
+  voiceURI?: string;
+  channel: SpeechChannel;
+  resolve: () => void;
+}
+
+/*
+ * Gemeinsame Warteschlange aller Sprachausgaben: Der Browser bekommt immer nur eine Äußerung, damit
+ * Funk und Telefon nie durcheinander reden und stopSpeaking(kanal) nur den eigenen Kanal abbricht.
+ */
+const waiting: SpeechItem[] = [];
+let current: { item: SpeechItem; finish: () => void } | null = null;
+
+const hasSynthesis = () => typeof window !== 'undefined' && 'speechSynthesis' in window;
+
+function pump() {
+  if (current || !hasSynthesis()) return;
+  // Funk hat Vorrang vor wartenden Telefon- und Ansagetexten
+  const f = waiting.findIndex((w) => w.channel === 'funk');
+  const item = waiting.splice(f >= 0 ? f : 0, 1)[0];
+  if (!item) return;
+  const u = new SpeechSynthesisUtterance(item.text);
+  u.lang = 'de-DE';
+  u.rate = item.persona.rate;
+  u.pitch = item.persona.pitch;
+  const voice = germanVoices().find((v) => v.voiceURI === item.voiceURI);
+  if (voice) u.voice = voice;
+  let done = false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const finish = () => {
+    if (done) return;
+    done = true;
+    clearTimeout(timer);
+    if (current?.item === item) current = null;
+    item.resolve();
+    pump();
+  };
+  // Ersatz, falls kein "end" kommt: ca. 14 Zeichen pro Sekunde (großzügig mit 10 gerechnet) plus Puffer –
+  // gezählt ab Übergabe an den Browser und erneut ab Sprechbeginn
+  const arm = () => {
+    clearTimeout(timer);
+    timer = setTimeout(finish, 2000 + (item.text.length / (10 * item.persona.rate)) * 1000);
+  };
+  current = { item, finish };
+  u.onstart = arm;
+  u.onend = finish;
+  u.onerror = finish;
+  arm();
+  try {
+    window.speechSynthesis.speak(u);
+  } catch {
+    finish();
+  }
+}
+
+/** Bricht die Sprachausgabe ab – nur eines Kanals oder (ohne Angabe) alles */
+export function stopSpeaking(channel?: SpeechChannel) {
+  if (!hasSynthesis()) return;
+  for (let i = waiting.length - 1; i >= 0; i--) if (!channel || waiting[i].channel === channel) waiting.splice(i, 1)[0].resolve();
+  const c = current;
+  if (c && (!channel || c.item.channel === channel)) {
+    window.speechSynthesis.cancel();
+    c.finish();
+  } else if (!channel) window.speechSynthesis.cancel();
 }
 
 /**
- * Spricht den Text des simulierten Anrufers. Das Promise endet auch dann, wenn der Browser kein
+ * Spricht den Text des simulierten Anrufers (bzw. der Besatzung) – eingereiht hinter laufende Ausgaben.
+ * Das Promise endet nach dem Sprechen, beim Abbruch des Kanals und auch dann, wenn der Browser kein
  * "end"-Ereignis liefert (z. B. ohne installierte Stimmen) – spätestens nach einer geschätzten Sprechdauer.
  */
-export function speakAs(text: string, persona: VoicePersona, voiceURI?: string): Promise<void> {
-  if (!text || typeof window === 'undefined' || !('speechSynthesis' in window)) return Promise.resolve();
+export function speakAs(text: string, persona: VoicePersona, voiceURI?: string, channel: SpeechChannel = 'ansage'): Promise<void> {
+  if (!text || !hasSynthesis()) return Promise.resolve();
   return new Promise((resolve) => {
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = 'de-DE';
-    u.rate = persona.rate;
-    u.pitch = persona.pitch;
-    const voice = germanVoices().find((v) => v.voiceURI === voiceURI);
-    if (voice) u.voice = voice;
-    let done = false;
-    const finish = () => {
-      if (done) return;
-      done = true;
-      clearTimeout(timer);
-      resolve();
-    };
-    // ca. 14 Zeichen pro Sekunde (großzügig mit 10 gerechnet) bei normaler Rate, plus Puffer
-    const timer = setTimeout(finish, 2000 + (text.length / (10 * persona.rate)) * 1000);
-    u.onend = finish;
-    u.onerror = finish;
-    window.speechSynthesis.speak(u);
+    waiting.push({ text, persona, voiceURI, channel, resolve });
+    pump();
   });
 }

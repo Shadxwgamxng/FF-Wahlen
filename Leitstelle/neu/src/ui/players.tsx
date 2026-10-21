@@ -1,6 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { GameState } from '../model/types';
 import { store, useStore } from '../store/gameStore';
+import { playerOnline } from '../sim/engine';
+import { sounds } from './audio';
+import { getPrefs } from './prefs';
 
 /**
  * Mehrspieler: Spielername, Lebenszeichen, Spielerliste und Zuständigkeit.
@@ -21,30 +24,108 @@ export function OwnerTag({ owner }: { owner: Owner }) {
   return <span className={`chip small ${isMine(owner) ? 'ok' : ''}`} title="zuständig">{isMine(owner) ? 'ich' : owner.name}</span>;
 }
 
-/** Hinweis in der Maske: jemand anderes ist zuständig – mit "Übernehmen" */
-export function OwnerBanner({ kind, id, owner }: { kind: 'call' | 'incident'; id: string; owner: Owner }) {
+type Kind = 'call' | 'incident';
+
+const myId = () => store.player?.id ?? 'host';
+
+/** Notruf bzw. Einsatz aus dem aktuellen Zustand (stabile Referenz für useStore) */
+function useTarget(kind: Kind, id: string) {
+  return useStore((s) => (kind === 'call' ? s.state?.runtime.calls.find((c) => c.id === id) : s.state?.runtime.incidents.find((i) => i.id === id)));
+}
+
+/** Hinweis in der Maske: jemand anderes ist zuständig – Übernahme anfragen (bzw. sofort, wenn offline) */
+export function OwnerBanner({ kind, id, owner }: { kind: Kind; id: string; owner: Owner }) {
+  const target = useTarget(kind, id);
+  const game = useStore((s) => s.state);
   if (!owner || isMine(owner)) return null;
+  const req = target?.takeOverRequest;
+  const declined = target?.takeOverDeclined;
+  const offline = game ? !playerOnline(game, owner.id) : false;
   return (
     <div className="warnbox row" data-testid="owner-banner">
       <span className="grow">
         Bearbeiter: <b>{owner.name}</b>
+        {offline && <span className="muted"> (offline)</span>}
+        {req && (req.from.id === myId() ? ' – Anfrage läuft …' : ` – ${req.from.name} fragt an`)}
+        {!req && declined?.id === myId() && <span data-testid="take-over-declined"> – Anfrage abgelehnt</span>}
       </span>
-      <button className="btn small primary" onClick={() => store.cmd('takeOver', kind, id)} data-testid="take-over">
-        Übernehmen
-      </button>
+      {req?.from.id === myId() ? (
+        <button className="btn small" onClick={() => store.cmd('cancelTakeOver', kind, id)} data-testid="take-over-cancel">
+          Zurückziehen
+        </button>
+      ) : (
+        !req && (
+          <button className="btn small primary" onClick={() => store.cmd('takeOver', kind, id)} data-testid="take-over">
+            {offline ? 'Sofort übernehmen' : 'Übernahme anfragen'}
+          </button>
+        )
+      )}
     </div>
   );
 }
 
-/** Lebenszeichen alle 5 s, damit alle sehen, wer mitspielt */
+/** Beim Zuständigen: nicht-modaler Hinweis auf Übernahme-Anfragen (mit Ton) */
+export function TakeOverNotice() {
+  const calls = useStore((s) => s.state?.runtime.calls);
+  const incidents = useStore((s) => s.state?.runtime.incidents);
+  const list = [
+    ...(calls ?? []).filter((c) => c.takeOverRequest && c.owner && isMine(c.owner) && (c.state === 'klingelt' || c.state === 'in_abfrage')).map((c) => ({ kind: 'call' as const, id: c.id, req: c.takeOverRequest! })),
+    ...(incidents ?? []).filter((i) => i.takeOverRequest && i.owner && isMine(i.owner)).map((i) => ({ kind: 'incident' as const, id: i.id, req: i.takeOverRequest! })),
+  ];
+  const key = list.map((x) => `${x.id}:${x.req.from.id}`).join('|');
+  const heard = useRef(new Set<string>());
+  useEffect(() => {
+    const fresh = list.filter((x) => !heard.current.has(`${x.id}:${x.req.from.id}`));
+    heard.current = new Set(list.map((x) => `${x.id}:${x.req.from.id}`));
+    if (fresh.length && getPrefs().sound) sounds.request();
+  }, [key]);
+  if (!list.length) return null;
+  return (
+    <div className="takeover-notice col" role="status">
+      {list.map((x) => (
+        <div key={x.id} className="warnbox row" data-testid="take-over-request">
+          <span className="grow">
+            <b>{x.req.from.name}</b> möchte {x.kind === 'call' ? 'den Notruf' : 'den Einsatz'} übernehmen
+          </span>
+          <button className="btn small primary" onClick={() => store.cmd('answerTakeOver', x.kind, x.id, true)} data-testid="take-over-accept">
+            Genehmigen
+          </button>
+          <button className="btn small" onClick={() => store.cmd('answerTakeOver', x.kind, x.id, false)} data-testid="take-over-decline">
+            Ablehnen
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Takt aus einem Worker: Browser drosseln Timer in Hintergrund-Tabs (Chrome nach 5 min auf etwa 1/min),
+ * Worker-Timer nicht. Ohne Worker: normales setInterval.
+ */
+function steadyInterval(fn: () => void, ms: number): () => void {
+  try {
+    const url = URL.createObjectURL(new Blob([`setInterval(() => postMessage(0), ${ms});`], { type: 'text/javascript' }));
+    const w = new Worker(url);
+    w.onmessage = fn;
+    return () => {
+      w.terminate();
+      URL.revokeObjectURL(url);
+    };
+  } catch {
+    const t = setInterval(fn, ms);
+    return () => clearInterval(t);
+  }
+}
+
+/** Lebenszeichen alle 5 s, damit alle sehen, wer mitspielt (der Gastgeber stempelt mit seiner Uhr) */
 export function usePlayerHeartbeat() {
   const hasGame = useStore((s) => Boolean(s.state));
   useEffect(() => {
     if (!hasGame) return;
     const beat = () => store.cmdQuiet('playerSeen', Date.now());
     beat();
-    const t = setInterval(beat, 5000);
-    return () => clearInterval(t);
+    return steadyInterval(beat, 5000);
   }, [hasGame]);
 }
 

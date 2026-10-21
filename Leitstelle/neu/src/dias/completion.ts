@@ -411,3 +411,26 @@ export function pickKeyword(candidates: string[], codes: Iterable<string>): stri
   }
   return null;
 }
+
+/** Aktueller Knoten der Abfrage (wie im Abfragefeld; null, wenn der Weg ins Leere führt) */
+export function currentNode(tree: DiasTree, steps: Step[]): DiasNode | null {
+  const last = steps[steps.length - 1];
+  const id = last ? tree.nodes[last.nodeId]?.options[last.option]?.to : tree.root;
+  return id ? (tree.nodes[id] ?? null) : null;
+}
+
+/**
+ * Die Frage, die gerade im Abfragefeld steht: DIAS-Knoten, Eingabeschritt einer Lücke oder
+ * LEITWARTE-Folgefrage (als Knoten mit Antwortmöglichkeiten). null bei Ergebnis/Ende.
+ */
+export function currentQuestion(tree: DiasTree, steps: Step[], c?: Completion): DiasNode | null {
+  const gap = gapAt(tree, steps);
+  if (!gap) {
+    const n = currentNode(tree, steps);
+    return n && n.kind === 'frage' ? n : null;
+  }
+  if (!c && gap.kind !== 'fehlt' && gap.kind !== 'ende') return gap.node ?? null;
+  const q = nextFollowUp(tree, steps, c ?? { answers: {} });
+  if (!q) return null;
+  return { id: `lw_${q.id}`, question: q.text, html: '', kind: 'frage', options: q.options.map((o) => ({ code: o.v, label: o.label, to: null })), dialog: null, result: null };
+}

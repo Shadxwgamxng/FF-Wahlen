@@ -20,7 +20,7 @@ const MAX_LINES = 80;
 /** so viele Funkzeilen lang bleibt ein angesprochenes Fahrzeug "im Gespräch" */
 const CONTEXT_LINES = 8;
 
-const ok = (message?: string): CommandResult => ({ ok: true, message });
+const ok = (message?: string, id?: string): CommandResult => ({ ok: true, message, id });
 const fail = (error: string): CommandResult => ({ ok: false, error });
 
 function funkOf(state: GameState): FunkState {
@@ -51,6 +51,22 @@ export function numberWord(w: string): number | null {
   if (w in TENS) return TENS[w];
   const m = /^(ein|zwei|drei|vier|fünf|fuenf|sechs|sieben|acht|neun)und(zwanzig|dreißig|dreissig|vierzig|fünfzig|fuenfzig|sechzig|siebzig|achtzig|neunzig)$/.exec(w);
   return m ? UNIT_PREFIX[m[1]] + TENS[m[2]] : null;
+}
+
+/** Umkehrung der Tabellen: erste Schreibweise je Wert (mit Umlaut), 2 als "zwo" (Funkpraxis) */
+const invert = (t: Record<string, number>) => Object.entries(t).reduce<Record<number, string>>((acc, [w, n]) => (n in acc ? acc : { ...acc, [n]: w }), {});
+const UNIT_WORDS: Record<number, string> = { ...invert(UNITS), 2: 'zwo' };
+const TEEN_WORDS = invert(TEENS);
+const TEN_WORDS = invert(TENS);
+const PREFIX_WORDS = invert(UNIT_PREFIX);
+
+/** Zahl (0–99) als Zahlwort: 1 → "eins", 2 → "zwo", 21 → "einundzwanzig", 67 → "siebenundsechzig"; sonst Ziffern */
+export function numberToWords(n: number): string {
+  if (!Number.isInteger(n) || n < 0 || n > 99) return String(n);
+  if (n < 10) return UNIT_WORDS[n];
+  if (n < 20) return TEEN_WORDS[n];
+  const unit = n % 10;
+  return unit ? `${PREFIX_WORDS[unit]}und${TEN_WORDS[n - unit]}` : TEN_WORDS[n];
 }
 
 /** Text in Kleinbuchstaben mit einheitlichen Leerzeichen */
@@ -99,6 +115,17 @@ function joinedWindows(nums: number[]): Set<string> {
   return out;
 }
 
+/** Ziffernweise gesprochene Folgen (nur Einzelziffern, 4–6 lang): "sieben sechs vier acht null eins" → "76481" */
+function digitWindows(nums: number[]): Set<string> {
+  const out = new Set<string>();
+  for (let i = 0; i < nums.length; i++)
+    for (let k = 4; k <= 6 && i + k <= nums.length; k++) {
+      const win = nums.slice(i, i + k);
+      if (win.every((n) => n < 10)) out.add(win.join(''));
+    }
+  return out;
+}
+
 function containsSeq(hay: number[], needle: number[]): boolean {
   if (!needle.length || needle.length > hay.length) return false;
   for (let i = 0; i + needle.length <= hay.length; i++) if (needle.every((n, j) => hay[i + j] === n)) return true;
@@ -118,6 +145,7 @@ export function matchCallsign(state: GameState, text: string): { vehicle: Vehicl
   const nums = spokenNumbers(text);
   const norm = normalizeFunk(text);
   const hits: { v: Vehicle; score: number }[] = [];
+  const digits = digitWindows(nums);
   for (const v of state.center.vehicles) {
     const seq = callsignNumbers(v.callsign);
     const word = callsignWord(v.callsign);
@@ -129,20 +157,23 @@ export function matchCallsign(state: GameState, text: string): { vehicle: Vehicl
     } else if (seq.length === 3 && joinedWindows(nums).has(seq.join(''))) {
       // Erkennung hat Zahlen zusammengezogen: "6148 1" oder "61481" = 61-48-1 (statt "null eins")
       hits.push({ v, score: 29 + (named ? 5 : 0) });
+    } else if (seq.length === 3 && (digits.has(seq.join('')) || digits.has(seq.map((n) => String(n).padStart(2, '0')).join('')))) {
+      // ziffernweise gesprochen: "sieben sechs vier acht null eins" = 76-48-01
+      hits.push({ v, score: 28 + (named ? 5 : 0) });
     } else if (!seq.length && norm.includes(` ${v.callsign.toLowerCase()} `)) hits.push({ v, score: 50 });
   }
   hits.sort((a, b) => b.score - a.score);
   const words = new Set(state.center.vehicles.map((v) => callsignWord(v.callsign)));
-  const attempted = hits.length > 0 || [...words].some((w) => w.length >= 4 && norm.includes(` ${w} `)) || nums.filter((n) => n >= 10).length >= 2 || nums.some((n) => n >= 1000);
+  const attempted = hits.length > 0 || [...words].some((w) => w.length >= 4 && norm.includes(` ${w} `)) || nums.filter((n) => n >= 10).length >= 2 || nums.some((n) => n >= 1000) || digits.size > 0;
   if (!hits.length) return { vehicle: null, attempted, ambiguous: false };
   if (hits.length > 1 && hits[0].score === hits[1].score) return { vehicle: null, attempted: true, ambiguous: true };
   return { vehicle: hits[0].v, attempted: true, ambiguous: false };
 }
 
-/** Text für die Sprachausgabe: Rufnamen in Zahlengruppen ("61 48 1" = einundsechzig achtundvierzig eins), ohne Bindestriche */
+/** Text für die Sprachausgabe: Rufnamengruppen als Zahlwörter ("61-48-01" = einundsechzig achtundvierzig eins), ohne Bindestriche */
 export function toSpeech(text: string): string {
   return text
-    .replace(/(\d+)[-/](\d+)(?:-(\d+))?/g, (_, a: string, b: string, c?: string) => [a, b, c].filter(Boolean).map((x) => x!.replace(/^0(\d)$/, '$1')).join(' '))
+    .replace(/(\d+)[-/](\d+)(?:-(\d+))?/g, (_, a: string, b: string, c?: string) => [a, b, c].filter(Boolean).map((x) => numberToWords(Number(x))).join(' '))
     .replace(/×/g, ' ')
     .replace(/–/g, ',');
 }
@@ -353,8 +384,9 @@ function lagemeldung(state: GameState, v: Vehicle): string {
   return parts.join(', ');
 }
 
+/** Antwort der Besatzung in der Rufgruppe der Leitstellenzeile (ohne Gruppe, z. B. nach "Ansprechen" per Klick: für alle hörbar) */
 function vehicleLine(state: GameState, v: Vehicle, group: string | null, text: string): FunkLine {
-  return addLine(state, { from: 'fahrzeug', vehicleId: v.id, group: group ?? radioGroupOf(state.center, v)?.code, text, speech: toSpeech(text) });
+  return addLine(state, { from: 'fahrzeug', vehicleId: v.id, group: group ?? undefined, text, speech: toSpeech(text) });
 }
 
 /** Ältester offener Sprechwunsch des Fahrzeugs, dessen Inhalt noch niemand gehört hat */
@@ -411,7 +443,10 @@ export function radioTalk(state: GameState, text: string, group: string | null =
   let close: 'kommen' | 'Ende' | null = 'kommen';
 
   // alle offenen Anliegen des Fahrzeugs, ältestes zuerst
-  if (pending) for (const m of state.runtime.radio.filter((r) => r.vehicleId === v.id && !r.handled && r.revealed === false)) parts.push(reveal(state, v, m));
+  const revealedMsgs = pending ? state.runtime.radio.filter((r) => r.vehicleId === v.id && !r.handled && r.revealed === false) : [];
+  for (const m of revealedMsgs) parts.push(reveal(state, v, m));
+  // aufgedeckter Sprechwunsch: zugehöriger Einsatz (ohne Einsatzbezug, z. B. Defekt: der des Fahrzeugs)
+  const incidentId = revealedMsgs.length ? (revealedMsgs.find((m) => m.incidentId)?.incidentId ?? v.rt.incidentId ?? undefined) : undefined;
 
   const content = messageContent(said);
   if (order?.k === 'info' || (!order && contentWords(content).length >= 3)) {
@@ -435,7 +470,8 @@ export function radioTalk(state: GameState, text: string, group: string | null =
   f.lastAt = f.counter;
   // nach "Ende" ist das Gespräch vorbei
   if (close === 'Ende' || (order?.k === 'quittung' && close === null)) f.lastVehicleId = undefined;
-  return ok();
+  // id: Einsatz zum eben aufgedeckten Sprechwunsch (die Oberfläche öffnet ihn)
+  return ok(undefined, incidentId);
 }
 
 function execOrder(state: GameState, v: Vehicle, order: Order, justRevealed: boolean): { text?: string; error?: string; close: 'kommen' | 'Ende' | null } {

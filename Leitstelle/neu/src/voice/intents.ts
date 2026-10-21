@@ -62,10 +62,47 @@ const COMMON: Rule[] = [
       p(' (erzaehlen|schildern|beschreiben) sie'),
       p(' worum geht'),
       p(' was (kann ich|koennen wir) (fuer sie )?tun'),
+      p(' (weshalb|warum|weswegen|wieso) rufen sie'),
+      p(' (was ist der )?(grund|anlass) (ihres|fuer ihren) anruf'),
     ],
   },
   { id: 'rueckruf', strong: [p(' (telefon|rueckruf|handy)?nummer'), w('erreichbar|zurueckrufen|rueckruf')] },
 ];
+
+/**
+ * Allgemeine Abfragefragen ohne Fachrichtung (Antwort aus voice/diasAnswer.ts, kritische Angaben
+ * immer aus den Szenariofakten). Eigene Formulierungen.
+ */
+const SNA: Rule[] = [
+  {
+    id: 'sna_bei_person',
+    strong: [
+      p(' (sind|bist|bleiben) sie (\\w+ ){0,2}(bei|neben) (der|dem|ihm|ihr|ihrem|ihrer|den) '),
+      p(' (sind|bist) sie (\\w+ ){0,2}an (der|dem) (person|patient\\w*|verletzte\\w*|betroffene\\w*) '),
+    ],
+  },
+  { id: 'sna_selbst', strong: [p(' (sind|ist|bist) (sie|es) (\\w+ )?selbst (\\w+ )?(betroffen|verletzt|erkrankt|krank) '), p(' sind sie (der|die) (patient|patientin|betroffene) '), p(' geht es um sie (selbst )?')] },
+  { id: 'sna_medizinisch', strong: [p(' (medizinische[nrs]?|gesundheitliche[nrs]?) (notfall|problem|grund|hilfe)'), p(' (handelt es sich|geht es) um (einen |eine )?(medizinisch|krank)')] },
+  { id: 'sna_krampf', strong: [w('krampfanfall|krampfanfaelle|gekrampft|krampft|krampfen|krampf|epileptisch\\w*|zuckungen|zuckt')] },
+  { id: 'sna_schwanger', strong: [p(' schwanger'), w('wehen|geburt|fruchtblase')] },
+  { id: 'sna_alter_grenze', strong: [p(' (ueber|unter|aelter als|juenger als|mindestens) \\d+ (jahre|jahren|jahr)')] },
+  { id: 'sna_anzahl', strong: [p(' wie ?viele (\\w+ ){0,2}(personen|leute|menschen|patienten|verletzte|betroffene|insassen) '), p(' wie viele sind (\\w+ )?(verletzt|betroffen|erkrankt) ')] },
+  {
+    id: 'sna_gefahr',
+    strong: [
+      p(' (ist|sind|besteht) (die |der |das )?(person|personen|jemand|patient\\w*|verletzte\\w*|betroffene\\w*|mann|frau|kind|leute|lebens)? ?(\\w+ ){0,2}in (akuter |unmittelbarer )?gefahr'),
+      p(' (akute|unmittelbare) gefahr'),
+      p(' lebensgefahr'),
+    ],
+  },
+];
+/** Allgemeine Regel fällt weg, wenn eine fachliche Frage dasselbe schon abdeckt */
+const SUPERSEDED: Record<string, string[]> = {
+  sna_anzahl: ['verletzt', 'p_beteiligte'],
+  sna_gefahr: ['b_personen', 'th_personen', 'th_gefahr', 'vu_eingeklemmt'],
+  sna_krampf: ['rd_vorerkrankung'],
+  rd_alter: ['sna_alter_grenze'],
+};
 
 const INJURED: Rule = {
   id: 'verletzt',
@@ -126,7 +163,17 @@ const CATEGORY: Record<KeywordCategory, Rule[]> = {
     { id: 'rd_vorerkrankung', strong: [p(' vorerkrank'), w('medikamente|tabletten|krankheiten|erkrankungen|vorgeschichte|diabetes|herzkrank|zucker|zuckerkrank|asthma|epilepsie|allergien|blutverduenner')] },
   ],
   ktp: [
-    { id: 'ktp_ziel', strong: [w('wohin|nach wo|zielklinik|ziel|abholen|abholort|klinik|krankenhaus|station'), p(' von wo(?! (aus )?rufen)'), p(' wo soll (er|sie|der patient|die patientin) (denn )?hin')] },
+    {
+      id: 'ktp_ziel',
+      strong: [
+        w('wohin|nach wo|zielklinik|ziel|abholen|abholort|klinik|krankenhaus|station'),
+        p(' (transport|fahrt|reise)?ziel\\w*'),
+        p(' von wo(?! (aus )?rufen)'),
+        // "Wo soll es hingehen?", "Wo muss der Patient hin?", "Wo fahren wir hin?"
+        p(' wo (soll|sollen|muss|muessen|geht|gehts|fahren|faehrt|kommt) (\\w+ ){0,3}hin'),
+        p(' (hin)?(gebracht|verlegt) werden'),
+      ],
+    },
     { id: 'ktp_mobil', strong: [w('sitzen|sitzend|liegen|liegend|gehfaehig|rollstuhl|trage|laufen')] },
     { id: 'ktp_infekt', strong: [p(' infekt'), w('keime|mrsa|ansteckend|corona|covid|isolation|isoliert')] },
     { id: 'ktp_zeit', strong: [w('wann|uhrzeit|termin|zeitpunkt|abholzeit')] },
@@ -182,8 +229,13 @@ const CONVERSATION: { id: ConversationIntent; patterns: RegExp[] }[] = [
   { id: 'ende', patterns: [w('auf wiederhoeren|wiederhoeren|tschuess|ich lege (jetzt )?auf|sie koennen (jetzt )?auflegen')] },
 ];
 
+/** Reihenfolge im zweiten Durchlauf (medizinische Fragen zuerst) */
+const CROSS_ORDER: KeywordCategory[] = ['rd', 'vu', 'th', 'brand', 'ktp', 'abc', 'wasser', 'pol', 'tier', 'sonstiges'];
+/** Zu allgemeine Muster, die nur in der eigenen Fachrichtung gelten ("wann", "beteiligt", "sehen" …) */
+const CROSS_SKIP = new Set(['ktp_zeit', 'ktp_ziel', 'ktp_mobil', 'w_sicht', 'vu_fzg', 'abc_menge', 'p_beteiligte', 'th_hilfe', 's_lage']);
+
 /** Satz beginnt mit einer Anweisung ("Gehen Sie …") – Stichwörter darin sind keine Fragen */
-const IMPERATIVE = /^ (?:gehen|verlassen|schliessen|bleiben|legen|machen|oeffnen|halten|warten|druecken|stellen|bringen|holen|schicken|beginnen|fangen|loeschen) sie /;
+const IMPERATIVE = /^ (?:gehen|verlassen|schliessen|bleiben|legen|machen|oeffnen|halten|warten|druecken|stellen|bringen|holen|schicken|beginnen|fangen|loeschen|schauen|gucken|pruefen|kontrollieren|versuchen|achten|nehmen) sie /;
 const QUESTION_PART = / (?:wo|wie|was|wer|wann|welche\w*|wohin|wieviel\w*|ist|sind|hat|haben|gibt|kann|koennen|atmet|blutet) \w/;
 const FILLERS = /^ (?:(?:ok|okay|so|aeh|aehm|gut|also|bitte|dann|jetzt|und) )*/;
 
@@ -205,13 +257,32 @@ function dropContained(hits: SpanHit[]): SpanHit[] {
 /** Erkennt Fragen und Gesprächsabsichten in einer Äußerung des Disponenten */
 export function matchIntents(utterance: string, category: KeywordCategory): IntentMatch {
   const text = normalize(utterance);
-  const rules = [...COMMON, ...CATEGORY[category]];
-  const strongHits: SpanHit[] = [];
+  const rules = [...COMMON, ...CATEGORY[category], ...SNA];
+  let strongHits: SpanHit[] = [];
   for (const r of rules) {
     const m = firstMatch(text, r.strong);
     if (m && !strongHits.some((h) => h.id === r.id)) strongHits.push({ id: r.id, ...m });
   }
   strongHits.push(...matchDetails(text, category));
+  strongHits = strongHits.filter((h) => !SUPERSEDED[h.id]?.some((id) => strongHits.some((o) => o.id === id)));
+  if (!strongHits.length) {
+    // Zweiter Durchlauf: Fragen anderer Fachrichtungen ("Atmet die Person?" beim Brand).
+    // Bei gleicher Fundstelle gewinnt die zuerst geprüfte Fachrichtung.
+    const cross: SpanHit[] = [];
+    const add = (h: SpanHit) => {
+      if (!cross.some((o) => o.id === h.id || (o.at < h.end && h.at < o.end))) cross.push(h);
+    };
+    for (const cat of CROSS_ORDER) {
+      if (cat === category) continue;
+      for (const r of CATEGORY[cat]) {
+        if (CROSS_SKIP.has(r.id)) continue;
+        const m = firstMatch(text, r.strong);
+        if (m) add({ id: r.id, ...m });
+      }
+    }
+    for (const h of matchDetails(text, null)) add(h);
+    strongHits = cross;
+  }
   const intents: ConversationIntent[] = [];
   for (const c of CONVERSATION) if (firstIndex(text, c.patterns) >= 0) intents.push(c.id);
   let hits = dropContained(strongHits);

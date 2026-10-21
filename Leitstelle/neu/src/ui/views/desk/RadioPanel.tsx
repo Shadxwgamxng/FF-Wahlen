@@ -4,7 +4,7 @@ import { hospitalOptions } from '../../../sim/dispatch';
 import { formatDuration } from '../../../sim/geo';
 import { store } from '../../../store/gameStore';
 import { fmtClock } from '../../components/common';
-import { FunkBar } from '../../funk';
+import { FunkBar, radioSend } from '../../funk';
 
 const KIND_LABEL: Record<RadioMessage['kind'], string> = {
   transportziel: 'Transportziel',
@@ -23,7 +23,7 @@ export function RadioActions({ game, msg }: { game: GameState; msg: RadioMessage
 function UnrevealedActions({ msg }: { msg: RadioMessage }) {
   return (
     <div className="row wrap">
-      <button className="btn small primary" onClick={() => store.cmd('radioCall', msg.vehicleId)} data-testid="ansprechen">
+      <button className="btn small primary" onClick={() => void radioSend(store.cmdAsync('radioCall', msg.vehicleId))} data-testid="ansprechen">
         Ansprechen
       </button>
     </div>

@@ -1,5 +1,8 @@
 import { store } from '../store/gameStore';
 import { getPrefs } from './prefs';
+import { hearsVehicle } from '../model/radio';
+import { heardNow } from './funk';
+import { speakAs } from '../voice/speech';
 
 /**
  * Akustik ohne externe Dienste: Töne werden per Web-Audio-API synthetisiert,
@@ -59,18 +62,26 @@ export const sounds = {
   alarm: () => tone([523, 659, 784], 0.25, 0.02, 'triangle'),
   radio: () => tone([1200], 0.08, 0, 'square'),
   warn: () => tone([300, 220], 0.2, 0.05, 'sawtooth'),
+  /** Mehrspieler: jemand möchte übernehmen */
+  request: () => tone([660, 880, 660], 0.1, 0.06, 'triangle'),
 };
 
 export function speak(text: string) {
   const p = getPrefs();
-  if (!p.tts || typeof window === 'undefined' || !('speechSynthesis' in window)) return;
-  const u = new SpeechSynthesisUtterance(text);
-  u.lang = 'de-DE';
-  u.rate = p.ttsRate;
-  window.speechSynthesis.speak(u);
+  if (!p.tts) return;
+  // über die gemeinsame Warteschlange – nie gleichzeitig mit Funk oder Anrufer
+  void speakAs(text, { rate: p.ttsRate, pitch: 1 }, undefined, 'ansage');
 }
 
 export const ttsAvailable = () => typeof window !== 'undefined' && 'speechSynthesis' in window;
+
+/** Funkton (z. B. Sprechwunsch) nur für Fahrzeuge in einer gehörten Rufgruppe */
+function radioHeard(s: NonNullable<typeof store.state>, fresh: { kind: string; vehicleId?: string }[]) {
+  const radio = fresh.filter((e) => e.kind === 'nachforderung' || e.kind === 'funk');
+  if (!radio.length) return false;
+  const heard = heardNow();
+  return radio.some((e) => hearsVehicle(s.center, e.vehicleId, heard));
+}
 
 /** Reagiert auf neue Ereignisse im Protokoll */
 export function installAudio() {
@@ -94,7 +105,7 @@ export function installAudio() {
       if (kinds.has('notruf') && fresh.some((e) => e.text.startsWith('Notruf geht ein'))) sounds.ring();
       else if (kinds.has('alarm')) sounds.alarm();
       else if (kinds.has('warnung')) sounds.warn();
-      else if (kinds.has('nachforderung') || kinds.has('funk')) sounds.radio();
+      else if (radioHeard(s, fresh)) sounds.radio();
     }
     // Funksprüche der Fahrzeuge spricht der Funk selbst (ui/funk.tsx, Einstellung "Funksprüche vorlesen")
   });

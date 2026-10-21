@@ -1,5 +1,5 @@
-import type { LatLng, Poi, PoiGroup } from '../model/types';
-import type { OverpassElement } from './places';
+import type { LatLng, PlaceIndex, Poi, PoiGroup } from '../model/types';
+import { describePlace, reverseGeocode, type OverpassElement } from './places';
 
 /**
  * Besondere Objekte (POIs) aus OpenStreetMap: Pflegeheime, Arztpraxen, Apotheken, Märkte, Schulen,
@@ -79,4 +79,60 @@ export function extractPois(elements: OverpassElement[], groups: PoiGroup[] = ['
     out.push({ id: `poi_${e.type[0]}${e.id}`, name, type: rule[1], group: rule[0], position: [round5(p[0]), round5(p[1])], address: addr });
   }
   return out.sort((a, b) => a.group.localeCompare(b.group) || a.type.localeCompare(b.type, 'de') || a.name.localeCompare(b.name, 'de'));
+}
+
+export interface AddressParts {
+  street: string;
+  houseNumber: string;
+  postcode: string;
+  city: string;
+}
+
+/** Zerlegt „Straße Nr, PLZ Ort“ in Einzelteile (null, wenn keine Hausnummer erkennbar ist) */
+export function splitAddress(addr: string): AddressParts | null {
+  const m = /^(.*?)\s+(\d+\s*[a-zA-Z]?)\s*,\s*(\d{5})?\s*(.*)$/.exec(addr.trim());
+  return m ? { street: m[1], houseNumber: m[2].replace(/\s+/g, ''), postcode: m[3] ?? '', city: m[4] } : null;
+}
+
+/**
+ * Vollständige Adresse eines POI: eigene addr-Tags, sonst alles vom nächsten Gebäude (nie gemischt).
+ * Nur ohne Kartendaten bleibt die (ggf. unvollständige) eigene Angabe bzw. der Name.
+ */
+export function poiAddress(poi: Poi, ix?: PlaceIndex | null): AddressParts & { address: string } {
+  const own = splitAddress(poi.address);
+  if (own) return { ...own, address: poi.address };
+  const r = ix ? reverseGeocode(ix, poi.position) : null;
+  if (ix && r) {
+    const d = describePlace(ix, r.tuple);
+    return { street: d.street, houseNumber: d.houseNumber, postcode: d.postcode, city: d.city, address: d.address };
+  }
+  return { street: poi.address ? poi.address.split(',')[0].trim() : '', houseNumber: '', postcode: '', city: '', address: poi.address || poi.name };
+}
+
+const normPoi = (s: string) =>
+  s
+    .toLowerCase()
+    .replace(/ß/g, 'ss')
+    .replace(/[^a-z0-9äöü]+/g, ' ')
+    .trim();
+
+/** POI-Suche für die Maske: Name, Typ oder Adresse; Treffer am Wortanfang vor Teiltreffern */
+export function searchPois(pois: Poi[] | undefined, query: string, limit = 10): Poi[] {
+  const q = normPoi(query);
+  if (q.length < 2 || !pois?.length) return [];
+  const words = q.split(' ');
+  const scored: { p: Poi; s: number }[] = [];
+  for (const p of pois) {
+    const name = normPoi(p.name);
+    const hay = `${name} ${normPoi(p.type)} ${normPoi(p.address)}`;
+    // alle Suchwörter müssen vorkommen
+    if (!words.every((w) => hay.includes(w))) continue;
+    const atWord = (w: string) => hay.startsWith(w) || hay.includes(` ${w}`);
+    const s = name.startsWith(q) ? 0 : words.every(atWord) ? (words.every((w) => name.startsWith(w) || name.includes(` ${w}`)) ? 1 : 2) : 3;
+    scored.push({ p, s });
+  }
+  return scored
+    .sort((a, b) => a.s - b.s || a.p.name.localeCompare(b.p.name, 'de'))
+    .slice(0, limit)
+    .map((x) => x.p);
 }

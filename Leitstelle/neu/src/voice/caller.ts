@@ -1,11 +1,13 @@
 import type { KeywordCategory } from '../model/types';
-import type { Facts } from '../data/questions';
-import { findQuestion } from '../data/questions';
+import type { Facts, QuestionDef } from '../data/questions';
+import { CATEGORY_QUESTIONS, findQuestion } from '../data/questions';
+import type { DiasNode } from '../dias/model';
 import { hashSeed } from './details/types';
 import { CallerVoice, initialEmotion, lowerFirst, personalityFor, voiceFor, type Emotion, type Personality, type VoicePersona } from './style';
 import type { GeneratedLocation } from '../sim/callgen';
 import { matchIntents, normalize, type ConversationIntent } from './intents';
 import { answerDetail, findDetail } from './details';
+import { answerDiasNode, answerFree, answerKindOf, answerTopic, classifyFree, isSnaTopic, similarToQuestion, topicOf, type SnaSource } from './diasAnswer';
 
 /**
  * Simulierter Anrufer für den Sprachtest – rein regelbasiert, ohne KI und ohne Netzwerk.
@@ -46,6 +48,36 @@ export interface CallerTurn {
   ended: boolean;
   /** Inhaltliche Antworten ohne Füllwörter (für Prüfung und Auswertung) */
   content: string[];
+  /** beantworteter Abfrageknoten (Notrufabfrage) und die dazu passende Antwortmöglichkeit */
+  dias?: { nodeId: string; option: number | null };
+}
+
+/** Kontext einer Äußerung: aktuelle Frage der Notrufabfrage (DIAS-Knoten oder LEITWARTE-Folgefrage) */
+export interface RespondContext {
+  dias?: DiasNode | null;
+}
+
+/**
+ * Fachfragen mit kritischer Angabe: Fehlt der Fakt (oder ist es eine Frage einer anderen Fachrichtung),
+ * antwortet das allgemeine Thema – abgeleitet statt "weiß ich nicht".
+ */
+const CRITICAL_TOPIC: Record<string, [topic: string, fact: string]> = {
+  rd_bewusst: ['sna_bewusst', 'conscious'],
+  rd_atmung: ['sna_atmung', 'breathing'],
+  rd_alter: ['sna_alter', 'age'],
+  vu_eingeklemmt: ['sna_eingeklemmt', 'trapped'],
+  b_personen: ['sna_eingeklemmt', 'trapped'],
+  th_personen: ['sna_gefahr', 'trapped'],
+  verletzt: ['sna_anzahl', 'injured'],
+};
+
+/** Frage einer beliebigen Fachrichtung (zweiter Erkennungsdurchlauf) */
+function anyQuestion(id: string): QuestionDef | undefined {
+  for (const qs of Object.values(CATEGORY_QUESTIONS)) {
+    const q = qs.find((x) => x.id === id);
+    if (q) return q;
+  }
+  return undefined;
 }
 
 const MAX_ANSWERS_PER_TURN = 3;
@@ -111,7 +143,7 @@ export class CallerSim {
   }
 
   /** Reaktion auf eine Äußerung des Disponenten */
-  respond(utterance: string): CallerTurn {
+  respond(utterance: string, ctx: RespondContext = {}): CallerTurn {
     const base = { questions: [] as string[], intents: [] as ConversationIntent[], emotion: this.emotion, content: [] as string[] };
     const v = this.voice;
     if (this.ended) return { ...base, text: '', understood: false, ended: true };
@@ -121,6 +153,11 @@ export class CallerSim {
     const m = matchIntents(said, this.call.category);
     const parts: string[] = [];
     let content = false;
+    const sna: SnaSource = { scenarioId: this.call.scenarioId, category: this.call.category, facts: this.call.facts, relation: this.call.caller.relation, opening: this.call.opening, seed: callSeed(this.call) };
+    const node = ctx.dias && answerKindOf(ctx.dias) !== 'keine' ? ctx.dias : null;
+    // Vorgelesene Abfragefrage: Antwort passend zur Frage im Abfragefeld
+    const readsNode = node !== null && similarToQuestion(said, node.question);
+    let diasTurn: CallerTurn['dias'];
 
     if (!this.openingSaid) {
       parts.push(openingLine(this.call.opening, this.personality, this.emotion, this.call.caller.name, v));
@@ -149,13 +186,29 @@ export class CallerSim {
 
     const answers: string[] = [];
     const spoken: string[] = [];
-    for (const qid of m.questions.slice(0, MAX_ANSWERS_PER_TURN)) {
+    const answerNode = (n: DiasNode) => {
+      const r = answerDiasNode(sna, n, v.pick);
+      if (!r) return false;
+      const key = `dias:${n.id}`;
+      spoken.push(r.text);
+      answers.push(this.asked.has(key) ? `${v.phrase('schonGesagt')} ${r.text}` : v.naturalize(r.text, this.emotion));
+      this.asked.add(key);
+      diasTurn = { nodeId: n.id, option: r.option };
+      return true;
+    };
+    if (readsNode) answerNode(node);
+    for (const qid of readsNode ? [] : m.questions.slice(0, MAX_ANSWERS_PER_TURN)) {
       let a: string;
-      if (findDetail(qid)) {
+      const crit = CRITICAL_TOPIC[qid];
+      if (isSnaTopic(qid)) {
+        a = answerTopic(sna, qid, v.pick, said);
+      } else if (crit && (!findQuestion(this.call.category, qid) || this.call.facts[crit[1]] === undefined)) {
+        a = answerTopic(sna, crit[0], v.pick, said);
+      } else if (findDetail(qid)) {
         // Detail ohne Szenariofakt: wird beim ersten Mal passend festgelegt und gemerkt
         a = answerDetail({ scenarioId: this.call.scenarioId, category: this.call.category, facts: this.call.facts, relation: this.call.caller.relation }, qid);
       } else {
-        const q = findQuestion(this.call.category, qid);
+        const q = findQuestion(this.call.category, qid) ?? anyQuestion(qid);
         if (!q) continue;
         a = q.answer(this.call.facts, v.pick);
       }
@@ -190,6 +243,25 @@ export class CallerSim {
       content = true;
     }
 
+    // Nichts erkannt: Anweisung quittieren, Frage plausibel beantworten (Thema, Abfragefeld, festgelegt)
+    const free = !content && !m.intents.includes('begruessung') ? classifyFree(said) : null;
+    if (free) {
+      const topical = free !== 'anweisung' && topicOf(said) !== null;
+      if (free === 'anweisung' || topical || !node || !answerNode(node)) {
+        const r = answerFree(sna, said, free, v.pick);
+        spoken.push(r.text);
+        answers.push(v.naturalize(r.text, this.emotion));
+      }
+      parts.push(...answers);
+      this.lastAnswer = answers.join(' ');
+      content = true;
+    } else if (!content && node && !m.intents.includes('begruessung') && normalize(said).trim().split(' ').length >= 3 && answerNode(node)) {
+      // unklar formulierte Frage, während eine Abfragefrage offen ist
+      parts.push(...answers);
+      this.lastAnswer = answers.join(' ');
+      content = true;
+    }
+
     if (!content) {
       if (m.intents.includes('begruessung') && parts.length) {
         // nur Begrüßung: der Anrufer hat mit seinem Eröffnungssatz geantwortet
@@ -220,6 +292,7 @@ export class CallerSim {
       emotion: this.emotion,
       ended: this.ended,
       content: spoken,
+      ...(diasTurn ? { dias: diasTurn } : {}),
     };
   }
 }

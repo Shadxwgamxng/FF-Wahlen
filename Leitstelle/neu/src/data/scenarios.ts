@@ -487,24 +487,50 @@ const BASE_SCENARIOS: ScenarioDef[] = [
     patients: { count: [1, 1], doctorProb: 0.2, departments: ['innere'] },
   },
   // ------------------------------------------------------------------ KRANKENTRANSPORT
+  // Verdeckte Fakten für callgen: _pickup = Abholort (klinik | pflege | wohn), _station = Station/Wohnbereich,
+  // _dest = Zielart (klinik | heim | dialyse | praxis), _destPurpose = Anlass ("Zur Strahlentherapie")
   {
     id: 'ktp_entlassung', name: 'Krankentransport', category: 'ktp', keyword: 'KTP', weight: 5, location: 'klinik',
-    openings: ['Hier ist die Station 4b, wir bräuchten einen Liegendtransport nach Hause.', 'Pflegeheim Sonnenhof, wir bestellen einen Transport zur Dialyse.'],
-    facts: { what: 'Bestellter Krankentransport.', target: oneOf('Vom Klinikum nach Hause.', 'Vom Pflegeheim zur Dialyse.', 'Von zuhause zur Strahlentherapie.'), mobility: oneOf('Liegend.', 'Tragestuhl.'), infection: false, when: 'In der nächsten Stunde.', intensive: false },
+    openings: ['Hier ist die Station 4b, wir bräuchten einen Krankentransport nach Hause.', 'Station 4b hier, wir haben eine Entlassung und brauchen einen Transport nach Hause.'],
+    facts: { what: 'Bestellter Krankentransport.', target: 'Vom Krankenhaus nach Hause.', mobility: oneOf('Liegend.', 'Tragestuhl.'), infection: false, when: 'In der nächsten Stunde.', intensive: false, _pickup: 'klinik', _station: 'Station 4b', _dest: 'heim' },
     keyQuestions: ['ktp_infekt', 'ktp_mobil'], workMin: [15, 25], time: { day: 2, night: 0.15 },
     patients: { count: [1, 1], doctorProb: 0, departments: ['allgemein'] },
+    variants: [
+      {
+        label: 'Dialyse', weight: 0.6,
+        openings: ['Hier ist das Pflegeheim, Wohnbereich 2, wir bestellen einen Transport zur Dialyse.'],
+        facts: { target: 'Vom Pflegeheim zur Dialyse.', _pickup: 'pflege', _station: 'Wohnbereich 2', _dest: 'dialyse' },
+      },
+      {
+        label: 'Strahlentherapie', weight: 0.5,
+        openings: ['Ich bräuchte einen Krankentransport für meine Mutter zur Strahlentherapie.'],
+        facts: { target: 'Von zuhause zur Strahlentherapie.', mobility: 'Tragestuhl.', _pickup: 'wohn', _station: '', _dest: 'klinik', _destPurpose: 'Zur Strahlentherapie' },
+      },
+      {
+        label: 'Facharzttermin', weight: 0.4,
+        openings: ['Mein Vater hat einen Termin beim Facharzt und kann nicht sitzen, wir brauchen einen Krankentransport.'],
+        facts: { target: 'Von zuhause zum Facharzt.', mobility: 'Liegend.', _pickup: 'wohn', _station: '', _dest: 'praxis' },
+      },
+    ],
   },
   {
     id: 'ktp_inf', name: 'Infektionstransport', category: 'ktp', keyword: 'KTP INF', weight: 1, location: 'klinik',
-    openings: ['Wir brauchen einen Transport für einen Patienten mit MRSA.'],
-    facts: { what: 'Infektionstransport.', target: 'Klinikverlegung.', mobility: 'Liegend.', infection: true, pathogen: oneOf('MRSA', '3MRGN', 'Norovirus'), when: 'Heute Vormittag.', intensive: false },
+    openings: ['Hier ist die Station 3, wir brauchen einen Infektionstransport, der Patient wird in ein anderes Krankenhaus verlegt.'],
+    facts: { what: 'Infektionstransport.', target: 'Verlegung in ein anderes Krankenhaus.', mobility: 'Liegend.', infection: true, pathogen: oneOf('MRSA', '3MRGN', 'Norovirus'), when: 'Heute Vormittag.', intensive: false, _pickup: 'klinik', _station: 'Station 3', _dest: 'klinik' },
     keyQuestions: ['ktp_infekt'], workMin: [25, 40], time: { day: 2, night: 0.1 },
     patients: { count: [1, 1], doctorProb: 0, departments: ['allgemein'] },
+    variants: [
+      {
+        label: 'Aus dem Pflegeheim', weight: 0.5,
+        openings: ['Pflegeheim hier, Wohnbereich 1. Eine Bewohnerin mit einer Infektion muss ins Krankenhaus.'],
+        facts: { target: 'Vom Pflegeheim ins Krankenhaus.', _pickup: 'pflege', _station: 'Wohnbereich 1', _dest: 'klinik' },
+      },
+    ],
   },
   {
     id: 'ktp_itw', name: 'Intensivverlegung', category: 'ktp', keyword: 'KTP ITW', weight: 0.5, location: 'klinik',
-    openings: ['Intensivstation Kreisklinik: Wir müssen einen beatmeten Patienten ins Zentrum verlegen.'],
-    facts: { what: 'Intensivverlegung.', target: 'Von der Kreisklinik ins Klinikum.', mobility: 'Liegend.', infection: false, when: 'Dringend.', intensive: true },
+    openings: ['Hier ist die Intensivstation, wir müssen einen beatmeten Patienten in ein anderes Krankenhaus verlegen.'],
+    facts: { what: 'Intensivverlegung.', target: 'Von der Intensivstation in ein anderes Krankenhaus.', mobility: 'Liegend.', infection: false, when: 'Dringend.', intensive: true, _pickup: 'klinik', _station: 'Intensivstation', _dest: 'klinik' },
     keyQuestions: ['ktp_intensiv'], workMin: [30, 45],
     patients: { count: [1, 1], doctorProb: 0, departments: ['intensiv'] },
   },

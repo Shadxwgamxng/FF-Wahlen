@@ -28,6 +28,7 @@ import {
 } from './engine';
 import { suggestForIncident, hospitalOptions } from './dispatch';
 import { vehicleAvailability } from './availability';
+import { computeStats } from './stats';
 import { hospitalOptions as ho } from './dispatch';
 
 const SEC = 1000;
@@ -344,6 +345,66 @@ describe('Disposition und Einsatzlebenszyklus', () => {
     const inc = g.runtime.incidents.find((i) => i.id === id)!;
     alarmVehicles(g, id, suggestForIncident(g, inc).proposal.map((p) => p.vehicleId));
     expect(closeIncident(g, id).ok).toBe(false);
+  });
+
+  it('Einsatz mit offenen Maßnahmen: ohne force Rückfrage, mit force vorzeitig abgeschlossen', () => {
+    const g = newGame();
+    const call = injectCall(g, 'th_baum', -1);
+    acceptCall(g, call.id);
+    askQuestion(g, call.id, 'ort');
+    setCallKeyword(g, call.id, 'kw_th_1');
+    const r = createIncidentFromCall(g, call.id);
+    const id = r.ok ? r.id! : '';
+    const inc = g.runtime.incidents.find((i) => i.id === id)!;
+    const vids = suggestForIncident(g, inc).proposal.map((p) => p.vehicleId);
+    alarmVehicles(g, id, vids);
+    runUntil(g, () => inc.firstArrivalAt !== null, 60 * MIN);
+    const res = closeIncident(g, id);
+    expect(res.ok).toBe(false);
+    expect(!res.ok && res.needsConfirm?.length).toBeTruthy();
+    expect(g.runtime.incidents.some((i) => i.id === id)).toBe(true);
+    expect(closeIncident(g, id, true).ok).toBe(true);
+    expect(g.runtime.incidents.some((i) => i.id === id)).toBe(false);
+    const a = g.runtime.archive.find((x) => x.id === id)!;
+    expect(a.closedOpen?.some((x) => x.startsWith('Fahrzeuge gebunden'))).toBe(true);
+    expect(a.log.some((l) => l.text.includes('vorzeitig abgeschlossen'))).toBe(true);
+    for (const vid of vids) expect(g.center.vehicles.find((v) => v.id === vid)!.rt.incidentId).toBeNull();
+    expect(computeStats(g).incidentsClosedEarly).toBe(1);
+    // Fahrzeuge rücken regulär ein
+    expect(() => runUntil(g, () => false, 60 * MIN)).not.toThrow();
+  });
+
+  it('vorzeitiger Abschluss: laufender Transport fährt ohne Einsatzbindung zu Ende', () => {
+    const g = newGame(3);
+    const call = injectCall(g, 'rd_sturz', -1);
+    call.facts.conscious = true;
+    acceptCall(g, call.id);
+    askQuestion(g, call.id, 'ort');
+    setCallKeyword(g, call.id, 'kw_rd_1');
+    const r = createIncidentFromCall(g, call.id);
+    const id = r.ok ? r.id! : '';
+    const inc = g.runtime.incidents.find((i) => i.id === id)!;
+    inc.patients.forEach((p) => {
+      p.department = 'unfallchirurgie';
+      p.needsDoctor = false;
+    });
+    const rtwId = suggestForIncident(g, inc).proposal[0].vehicleId;
+    alarmVehicles(g, id, [rtwId]);
+    const rtw = g.center.vehicles.find((v) => v.id === rtwId)!;
+    runUntil(g, () => {
+      const m = g.runtime.radio.find((x) => !x.handled && x.kind === 'transportziel');
+      if (m) assignHospital(g, m.id, 'kh_klinikum');
+      return rtw.rt.status === 'transport';
+    });
+    expect(closeIncident(g, id).ok).toBe(false);
+    expect(closeIncident(g, id, true).ok).toBe(true);
+    expect(g.runtime.archive.find((a) => a.id === id)!.closedOpen?.some((x) => x.includes('Transport'))).toBe(true);
+    expect(rtw.rt.incidentId).toBeNull();
+    expect(rtw.rt.status).toBe('transport');
+    runUntil(g, () => rtw.rt.status === 'frei_wache');
+    expect(rtw.rt.status).toBe('frei_wache');
+    expect(rtw.rt.patientId).toBeNull();
+    expect(g.center.hospitals.find((h) => h.id === 'kh_klinikum')!.occupied).toBe(1);
   });
 });
 

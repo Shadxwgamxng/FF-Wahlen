@@ -8,6 +8,8 @@ export interface Stats {
   incidentsTotal: number;
   incidentsOpen: number;
   incidentsClosed: number;
+  /** davon vorzeitig (mit offenen Maßnahmen/Patienten) abgeschlossen */
+  incidentsClosedEarly: number;
   byCategory: { category: KeywordCategory; count: number }[];
   byHour: number[];
   avgDispatchMs: number | null;
@@ -59,6 +61,7 @@ export function computeStats(g: GameState): Stats {
     incidentsTotal: all.length,
     incidentsOpen: rt.incidents.length,
     incidentsClosed: arch.length,
+    incidentsClosedEarly: arch.filter((a) => a.closedOpen?.length).length,
     byCategory: [...cats.entries()].map(([category, count]) => ({ category, count })).sort((a, b) => b.count - a.count),
     byHour,
     avgDispatchMs: avg(dispatch),

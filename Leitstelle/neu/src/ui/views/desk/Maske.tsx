@@ -3,11 +3,13 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Call, EinsatzMask, GameState, Incident, LatLng } from '../../../model/types';
 import { CATEGORY_LABELS } from '../../../data/keywords';
 import {
+  closeIncidentOpenPoints,
   keywordHint,
   resolveMaskLocation,
 } from '../../../sim/engine';
 import { distanceMeters, formatKm } from '../../../sim/geo';
 import { searchStreets } from '../../../geo/places';
+import { poiAddress, searchPois } from '../../../geo/pois';
 import { emptyMask } from '../../../model/mask';
 import { store } from '../../../store/gameStore';
 import { confirmDialog, fmtAgo, fmtClock } from '../../components/common';
@@ -55,7 +57,7 @@ export function Maske(p: Props) {
   const mask = call && !inc ? call.mask : incMask;
   const setMask = (patch: Partial<EinsatzMask>) => {
     if (call && !inc) store.cmdQuiet('updateCallMask', call.id, patch);
-    else setIncMask((m) => ({ ...m, ...patch, ...('street' in patch || 'houseNumber' in patch || 'city' in patch ? { position: null } : {}) }));
+    else setIncMask((m) => ({ ...m, ...patch, ...(('street' in patch || 'houseNumber' in patch || 'city' in patch) && !('position' in patch) ? { position: null } : {}) }));
   };
   const resolved = useMemo(() => (mask.street ? resolveMaskLocation(game, mask, call ? { street: call.location.street, position: call.location.position } : undefined) : null), [game, mask, call]);
   const addrChanged = inc && JSON.stringify([mask.street, mask.houseNumber, mask.postcode, mask.city, mask.position]) !== JSON.stringify([inc.mask?.street ?? inc.address, inc.mask?.houseNumber ?? '', inc.mask?.postcode ?? '', inc.mask?.city ?? '', inc.mask?.position ?? null]);
@@ -94,7 +96,9 @@ export function Maske(p: Props) {
   const closeInc = async () => {
     if (!inc) return;
     if (inc.vehicleIds.length === 0 && !(await confirmDialog('Einsatz ohne alarmierte Kräfte abschließen (abbrechen)?', { confirmLabel: 'Abschließen' }))) return;
-    if ((await store.cmdAsync('closeIncident', inc.id)).ok) p.onClose();
+    const open = closeIncidentOpenPoints(game, inc);
+    if (open.length && !(await confirmDialog(`Maßnahmen nicht beendet – trotzdem abschließen?\n\n${open.map((x) => `• ${x}`).join('\n')}`, { confirmLabel: 'Trotzdem abschließen' }))) return;
+    if ((await store.cmdAsync('closeIncident', inc.id, open.length > 0)).ok) p.onClose();
   };
 
   return (
@@ -138,7 +142,7 @@ export function Maske(p: Props) {
                 <label>Ort<input type="text" value={mask.city} onChange={(e) => setMask({ city: e.target.value })} aria-label="Ort" /></label>
                 <label>PLZ<input type="text" value={mask.postcode} onChange={(e) => setMask({ postcode: e.target.value })} aria-label="Postleitzahl" /></label>
               </div>
-              <label className="mask-grid1">Objekt / Zusatz<input type="text" value={mask.object} onChange={(e) => setMask({ object: e.target.value })} placeholder="z. B. 2. OG links, Hinterhaus" /></label>
+              <label className="mask-grid1">Objekt / Zusatz<ObjectInput game={game} value={mask.object} onChange={(object, extra) => setMask({ object, ...extra })} /></label>
               <div className="row wrap" style={{ marginTop: 4 }}>
                 {resolved && ('error' in resolved ? <span className="field-error small">✗ {resolved.error}</span> : <span className="small" style={{ color: resolved.exact ? 'var(--ok)' : 'var(--warn)' }}>{resolved.exact ? '✓ Adresse gefunden' : '~ Straße gefunden, Nr. unbekannt'}</span>)}
                 <span className="spacer" />
@@ -233,6 +237,7 @@ export function Maske(p: Props) {
                   </select>
                 </label>
               </div>
+              <label className="mask-grid1">Zieladresse<input type="text" value={mask.targetAddress ?? ''} onChange={(e) => setMask({ targetAddress: e.target.value })} disabled={mode === 'einsatz'} placeholder="Straße Nr., Ort / Station" /></label>
             </fieldset>
 
             <fieldset className="mask-box">
@@ -273,7 +278,7 @@ export function Maske(p: Props) {
               <div className="row wrap">
                 <button className="btn" disabled={inc.activeVehicleIds.length === 0} onClick={() => store.cmd('releaseAllOnScene', inc.id)}>Alle entlassen</button>
                 <span className="spacer" />
-                <button className="btn primary" onClick={closeInc} disabled={inc.activeVehicleIds.length > 0} data-testid="close-incident">Einsatz abschließen</button>
+                <button className="btn primary" onClick={closeInc} data-testid="close-incident">Einsatz abschließen</button>
               </div>
             )}
           </div>
@@ -349,6 +354,52 @@ export function MeldebildSelect({ game, value, onChange, disabled }: { game: Gam
             </div>
           ))}
           {list.length === 0 && <div className="suggest-item dim">Kein Treffer.</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Objekt-Eingabe mit Vorschlägen aus den POIs; Auswahl übernimmt Adresse und Position (Freitext bleibt möglich) */
+export function ObjectInput({ game, value, onChange }: { game: GameState; value: string; onChange: (object: string, extra?: Partial<EinsatzMask>) => void }) {
+  const [open, setOpen] = useState(false);
+  const { pois, places } = game.center;
+  const list = useMemo(() => (open ? searchPois(pois, value, 10).map((p) => ({ p, a: poiAddress(p, places) })) : []), [pois, places, value, open]);
+  return (
+    <div style={{ position: 'relative' }}>
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => {
+          onChange(e.target.value);
+          setOpen(true);
+        }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        placeholder="Objekt suchen oder z. B. 2. OG links"
+        aria-label="Objekt"
+        data-testid="object-input"
+        autoComplete="off"
+        style={{ width: '100%' }}
+      />
+      {open && list.length > 0 && (
+        <div className="suggest" role="listbox">
+          {list.map(({ p, a }) => (
+            <div
+              key={p.id}
+              role="option"
+              aria-selected={false}
+              className="suggest-item"
+              onMouseDown={(ev) => {
+                ev.preventDefault();
+                // Position im selben Patch, sonst verwirft die Adressänderung sie wieder
+                onChange(`${p.type} ${p.name}`, { street: a.street, houseNumber: a.houseNumber, postcode: a.postcode, city: a.city, position: [...p.position] as LatLng });
+                setOpen(false);
+              }}
+            >
+              {p.name} <span className="dim">· {p.type} · {a.address}</span>
+            </div>
+          ))}
         </div>
       )}
     </div>

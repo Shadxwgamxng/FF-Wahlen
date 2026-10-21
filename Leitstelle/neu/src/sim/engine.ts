@@ -40,7 +40,7 @@ import { geocode, reverseGeocode, describePlace } from '../geo/places';
  * werden sie innerhalb von immer.produce() aufgerufen, in Tests direkt.
  */
 
-export type CommandResult = { ok: true; message?: string; id?: string } | { ok: false; error: string };
+export type CommandResult = { ok: true; message?: string; id?: string } | { ok: false; error: string; needsConfirm?: string[] };
 const ok = (message?: string, id?: string): CommandResult => ({ ok: true, message, id });
 const fail = (error: string): CommandResult => ({ ok: false, error });
 
@@ -484,6 +484,14 @@ function finishHandover(state: GameState, v: Vehicle) {
       h.occupied++;
       withRng(state, (rng) => state.runtime.hospitalBeds.push({ hospitalId: h.id, until: now + rng.range(2, 8) * 3600_000 }));
       log(state, 'einsatz', `Patient ${pat.label} an ${h.name} übergeben.`, { incidentId: inc.id, vehicleId: v.id });
+    }
+  } else if (v.rt.patientId && v.rt.targetHospitalId) {
+    // Einsatz wurde vorzeitig abgeschlossen: Übergabe ohne Einsatzbezug
+    const h = state.center.hospitals.find((x) => x.id === v.rt.targetHospitalId);
+    if (h) {
+      h.occupied++;
+      withRng(state, (rng) => state.runtime.hospitalBeds.push({ hospitalId: h.id, until: now + rng.range(2, 8) * 3600_000 }));
+      log(state, 'einsatz', `${v.callsign}: Patient an ${h.name} übergeben.`, { vehicleId: v.id });
     }
   }
   detachFromIncident(state, v);
@@ -1041,6 +1049,10 @@ export function createIncidentFromCall(state: GameState, callId: string, mask?: 
   const who = getActor();
   if (c.owner) inc.owner = c.owner;
   else if (who) inc.owner = { id: who.id, name: who.name };
+  // offene Übernahme-Anfrage gilt jetzt dem Einsatz (der Notruf ist abgeschlossen)
+  if (c.takeOverRequest) inc.takeOverRequest = c.takeOverRequest;
+  delete c.takeOverRequest;
+  delete c.takeOverDeclined;
   rt.incidents.push(inc);
   c.state = 'abgeschlossen';
   c.closedAt = rt.clock.now;
@@ -1356,20 +1368,57 @@ export function requestBackup(state: GameState, incidentId: string, reqs: AaoReq
   return ok();
 }
 
-export function closeIncident(state: GameState, incidentId: string): CommandResult {
+const isTransporting = (v: Vehicle) => {
+  const s = v.rt.status === 'sprechwunsch' ? v.rt.statusBeforeSpeak : v.rt.status;
+  return s === 'transport' || s === 'am_ziel';
+};
+
+/** Offene Punkte, die einem regulären Abschluss entgegenstehen (leer = ohne Rückfrage abschließbar) */
+export function closeIncidentOpenPoints(state: GameState, inc: Incident): string[] {
+  const pts: string[] = [];
+  const bound = state.center.vehicles.filter((v) => inc.activeVehicleIds.includes(v.id));
+  const transp = bound.filter(isTransporting);
+  const rest = bound.filter((v) => !isTransporting(v));
+  if (rest.length) pts.push(`Fahrzeuge gebunden: ${rest.map((v) => v.callsign).join(', ')}`);
+  if (transp.length) pts.push(`Transport läuft: ${transp.map((v) => v.callsign).join(', ')}`);
+  const openPat = inc.patients.filter((p) => p.state === 'wartet' || p.state === 'versorgt');
+  if (openPat.length) pts.push(`Patienten nicht versorgt/transportiert: ${openPat.map((p) => p.label).join(', ')}`);
+  if (inc.state !== 'abarbeitung_beendet' && inc.vehicleIds.length > 0 && inc.workDoneMs < inc.workTotalMs) pts.push('Einsatzmaßnahmen nicht beendet');
+  return pts;
+}
+
+/**
+ * Einsatz abschließen. Ohne force schlägt der Abschluss bei offenen Punkten fehl (needsConfirm);
+ * mit force werden Kräfte entlassen, laufende Transporte vom Einsatz gelöst und der Einsatz vorzeitig archiviert.
+ */
+export function closeIncident(state: GameState, incidentId: string, force = false): CommandResult {
   const rt = state.runtime;
   const inc = incident(state, incidentId);
   if (!inc) return fail('Einsatz nicht gefunden.');
   if (inc.state === 'abgeschlossen') return fail('Einsatz ist bereits abgeschlossen.');
-  if (inc.activeVehicleIds.length > 0) return fail('Es sind noch Fahrzeuge gebunden. Bitte zuerst entlassen.');
-  if (inc.patients.some((p) => p.state === 'wartet' || p.state === 'versorgt' || p.state === 'transport'))
-    return fail('Es gibt noch unversorgte bzw. nicht übergebene Patienten.');
-  if (inc.state !== 'abarbeitung_beendet' && inc.vehicleIds.length > 0 && inc.workDoneMs < inc.workTotalMs)
-    return fail('Die Einsatzmaßnahmen sind noch nicht beendet.');
+  const open = closeIncidentOpenPoints(state, inc);
+  if (open.length && !force) return { ok: false, error: `Einsatz nicht abschließbar: ${open.join('; ')}.`, needsConfirm: open };
+  if (open.length) {
+    for (const v of state.center.vehicles.filter((x) => inc.activeVehicleIds.includes(x.id))) {
+      if (!isTransporting(v)) {
+        releaseVehicleInternal(state, v, 'Einsatz vorzeitig abgeschlossen');
+        continue;
+      }
+      // Transport fährt zu Ende, ist aber nicht mehr an den Einsatz gebunden
+      if (v.rt.status === 'sprechwunsch' && v.rt.statusBeforeSpeak) {
+        const back = v.rt.statusBeforeSpeak;
+        v.rt.statusBeforeSpeak = undefined;
+        setStatus(state, v, back);
+      }
+      inc.activeVehicleIds = inc.activeVehicleIds.filter((id) => id !== v.id);
+      v.rt.incidentId = null;
+      log(state, 'einsatz', `${v.callsign} führt Transport ohne Einsatzbindung zu Ende.`, { incidentId: inc.id, vehicleId: v.id });
+    }
+  }
   inc.state = 'abgeschlossen';
   inc.closedAt = rt.clock.now;
   for (const r of rt.radio) if (r.incidentId === inc.id) r.handled = true;
-  log(state, 'abschluss', `Einsatz ${inc.number} abgeschlossen.`, { incidentId });
+  log(state, 'abschluss', open.length ? `Einsatz ${inc.number} vorzeitig abgeschlossen (${open.join('; ')}).` : `Einsatz ${inc.number} abgeschlossen.`, { incidentId });
   const kw = state.center.keywords.find((k) => k.id === inc.keywordId);
   const call = rt.calls.find((c) => c.id === inc.callId);
   rt.archive.push({
@@ -1388,13 +1437,14 @@ export function closeIncident(state: GameState, incidentId: string): CommandResu
     backupCount: inc.backupRequests.length,
     patientCount: inc.patients.length,
     keywordCorrect: inc.keywordCorrect,
+    ...(open.length ? { closedOpen: open } : {}),
     log: [...inc.log],
   });
   rt.incidents = rt.incidents.filter((i) => i.id !== inc.id);
   // Abgeschlossene Notrufe und erledigte Funkmeldungen begrenzen
   rt.calls = rt.calls.filter((c) => c.state === 'klingelt' || c.state === 'in_abfrage' || rt.clock.now - (c.closedAt ?? rt.clock.now) < 30 * MIN);
   rt.radio = rt.radio.filter((r) => !r.handled || rt.clock.now - r.at < 30 * MIN);
-  return ok('Einsatz abgeschlossen und archiviert.');
+  return ok(open.length ? 'Einsatz vorzeitig abgeschlossen und archiviert.' : 'Einsatz abgeschlossen und archiviert.');
 }
 
 /** Manuelle Statusänderung für nicht gebundene Fahrzeuge (Außer Dienst / Einsatzbereit) */
@@ -1455,16 +1505,82 @@ export function restartSimulation(state: GameState): CommandResult {
   return ok('Simulation neu gestartet.');
 }
 
-/** Mehrspieler: Notruf oder Einsatz übernehmen (Zuständigkeit wechselt zum ausführenden Spieler) */
+/** Zuständiger gilt als offline, wenn sein letztes Lebenszeichen so viel älter ist als das jüngste */
+export const OWNER_OFFLINE_MS = 15_000;
+
+/** Notruf (nur offen) oder Einsatz, um dessen Zuständigkeit es geht */
+function takeOverTarget(state: GameState, kind: 'call' | 'incident', id: string) {
+  return kind === 'call' ? state.runtime.calls.find((c) => c.id === id && (c.state === 'klingelt' || c.state === 'in_abfrage')) : state.runtime.incidents.find((i) => i.id === id);
+}
+
+const takeOverLabel = (kind: 'call' | 'incident') => (kind === 'call' ? 'den Notruf' : 'den Einsatz');
+const takeOverRefs = (kind: 'call' | 'incident', id: string) => (kind === 'incident' ? { incidentId: id } : { callId: id });
+
+/** Ist der Spieler noch da? Vergleich mit dem jüngsten Lebenszeichen (alle mit der Uhr des Gastgebers gestempelt) */
+export function playerOnline(state: GameState, id: string): boolean {
+  const list = state.runtime.players ?? [];
+  const p = list.find((x) => x.id === id);
+  if (!p) return false;
+  const newest = Math.max(...list.map((x) => x.seenAt));
+  return newest - p.seenAt <= OWNER_OFFLINE_MS;
+}
+
+/**
+ * Mehrspieler: Notruf oder Einsatz übernehmen. Ohne Zuständigen oder wenn dieser offline ist sofort,
+ * sonst als Anfrage, die der Zuständige genehmigen oder ablehnen muss.
+ */
 export function takeOver(state: GameState, kind: 'call' | 'incident', id: string): CommandResult {
   const who = getActor();
   if (!who) return fail('Kein Spieler.');
-  const target = kind === 'call' ? state.runtime.calls.find((c) => c.id === id) : state.runtime.incidents.find((i) => i.id === id);
+  const target = takeOverTarget(state, kind, id);
   if (!target) return fail('Nicht gefunden.');
+  const me = { id: who.id, name: who.name };
+  if (target.owner?.id === who.id) return ok();
+  if (target.owner && playerOnline(state, target.owner.id)) {
+    if (target.takeOverRequest) return fail(target.takeOverRequest.from.id === who.id ? 'Anfrage läuft bereits.' : `Anfrage läuft bereits (${target.takeOverRequest.from.name}).`);
+    target.takeOverRequest = { from: me, at: state.runtime.clock.now };
+    delete target.takeOverDeclined;
+    log(state, 'system', `${who.name} bittet ${target.owner.name}, ${takeOverLabel(kind)} zu übernehmen.`, takeOverRefs(kind, id));
+    return ok(`Anfrage an ${target.owner.name} gesendet.`);
+  }
   const before = target.owner?.name;
-  target.owner = { id: who.id, name: who.name };
-  log(state, 'system', `${who.name} übernimmt ${kind === 'call' ? 'den Notruf' : 'den Einsatz'}${before ? ` von ${before}` : ''}.`, kind === 'incident' ? { incidentId: id } : { callId: id });
-  return ok(`Übernommen.`);
+  target.owner = me;
+  delete target.takeOverRequest;
+  delete target.takeOverDeclined;
+  log(state, 'system', `${who.name} übernimmt ${takeOverLabel(kind)}${before ? ` von ${before} (offline)` : ''}.`, takeOverRefs(kind, id));
+  return ok('Übernommen.');
+}
+
+/** Mehrspieler: Zuständiger genehmigt oder lehnt eine Übernahme-Anfrage ab */
+export function answerTakeOver(state: GameState, kind: 'call' | 'incident', id: string, accept: boolean): CommandResult {
+  const who = getActor();
+  const target = takeOverTarget(state, kind, id);
+  if (!target) return fail('Nicht gefunden.');
+  const req = target.takeOverRequest;
+  if (!req) return fail('Keine Anfrage offen.');
+  if (who && target.owner && target.owner.id !== who.id) return fail('Nur der Zuständige kann antworten.');
+  const by = target.owner?.name ?? who?.name ?? '';
+  delete target.takeOverRequest;
+  if (accept) {
+    target.owner = { ...req.from };
+    delete target.takeOverDeclined;
+    log(state, 'system', `${by} übergibt ${takeOverLabel(kind)} an ${req.from.name}.`, takeOverRefs(kind, id));
+    return ok(`An ${req.from.name} übergeben.`);
+  }
+  target.takeOverDeclined = { ...req.from, by };
+  log(state, 'system', `${by} lehnt die Übernahme durch ${req.from.name} ab.`, takeOverRefs(kind, id));
+  return ok('Abgelehnt.');
+}
+
+/** Mehrspieler: Anfragender zieht seine Übernahme-Anfrage zurück */
+export function cancelTakeOver(state: GameState, kind: 'call' | 'incident', id: string): CommandResult {
+  const who = getActor();
+  const target = takeOverTarget(state, kind, id);
+  if (!target?.takeOverRequest) return fail('Keine Anfrage offen.');
+  if (who && target.takeOverRequest.from.id !== who.id) return fail('Nur der Anfragende kann zurückziehen.');
+  log(state, 'system', `${target.takeOverRequest.from.name} zieht die Übernahme-Anfrage zurück.`, takeOverRefs(kind, id));
+  delete target.takeOverRequest;
+  return ok('Zurückgezogen.');
 }
 
 /** Mehrspieler: Lebenszeichen eines Spielers (Echtzeit) */

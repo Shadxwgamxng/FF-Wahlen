@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { GameState, LatLng } from '../../../model/types';
 import { areaAt } from '../../../sim/callgen';
-import { store, useStore } from '../../../store/gameStore';
+import { store, useStore, type UiAction } from '../../../store/gameStore';
 import { Modal, Splitter } from '../../components/common';
 import { MapView } from '../../components/MapView';
 import { CallList, EventLog, IncidentList, VehicleBoard, VehicleDetail } from './DeskPanels';
@@ -32,16 +32,31 @@ export function Desk({ game }: { game: GameState }) {
   const call = sel?.kind === 'call' ? game.runtime.calls.find((c) => c.id === sel.id) : undefined;
   const incident = sel?.kind === 'incident' ? game.runtime.incidents.find((i) => i.id === sel.id) : undefined;
 
-  // Aktionen aus weiteren Fenstern (zweiter Bildschirm): Einsatz/Notruf in der Maske öffnen
-  useEffect(
-    () =>
-      store.onUiAction((a) => {
-        if (a.kind === 'openIncident' && a.id) openIncident(a.id);
-        else if (a.kind === 'openCall' && a.id) setSel({ kind: 'call', id: a.id });
-        window.focus();
-      }),
+  // Aktionen aus weiteren Fenstern (zweiter Bildschirm) und angenommene Sprechwünsche: Einsatz/Notruf in der Maske öffnen
+  const selRef = useRef(sel);
+  selRef.current = sel;
+  const handleUi = useCallback(
+    (a: UiAction) => {
+      if (a.kind === 'openIncident' && a.id) {
+        // Sprechwunsch während einer Notrufabfrage: die Maske nicht wegnehmen, nur Hinweis
+        if (a.via === 'funk' && selRef.current?.kind === 'call') {
+          const inc = store.state?.runtime.incidents.find((i) => i.id === a.id);
+          store.toast('info', `Sprechwunsch zu Einsatz ${inc?.number ?? ''}${inc ? ` (${inc.address.split(',')[0]})` : ''}`.trim());
+          return;
+        }
+        openIncident(a.id);
+      } else if (a.kind === 'openCall' && a.id) setSel({ kind: 'call', id: a.id });
+      window.focus();
+    },
     [openIncident],
   );
+  useEffect(() => store.onUiAction(handleUi), [handleUi]);
+  // vom Menü auf den Leitstand umgeschaltet, um eine Aktion auszuführen (App.tsx)
+  useEffect(() => {
+    const a = store.takePendingUiAction();
+    if (a) handleUi(a);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Geschlossene/archivierte Auswahl automatisch aufheben
   useEffect(() => {

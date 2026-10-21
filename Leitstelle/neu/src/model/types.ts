@@ -373,6 +373,13 @@ export interface CallQA {
   covers?: string[];
 }
 
+/** Mehrspieler: Bitte um Übernahme eines Notrufs/Einsatzes */
+export interface TakeOverRequest {
+  from: { id: string; name: string };
+  /** Spielzeit der Anfrage */
+  at: number;
+}
+
 export interface Call {
   id: ID;
   receivedAt: number;
@@ -414,6 +421,10 @@ export interface Call {
   duplicateOfIncidentId: ID | null;
   /** Mehrspieler: wer den Notruf bearbeitet */
   owner?: { id: string; name: string };
+  /** Mehrspieler: offene Übernahme-Anfrage (Zuständiger muss zustimmen) */
+  takeOverRequest?: TakeOverRequest;
+  /** Mehrspieler: letzte abgelehnte Anfrage (Hinweis beim Anfragenden) */
+  takeOverDeclined?: { id: string; name: string; by: string };
   /** Anschlussart des Anrufers (bestimmt die Genauigkeit der Ortung) */
   phoneType: 'festnetz' | 'mobil';
   /** Laufende bzw. abgeschlossene Ortung */
@@ -449,6 +460,8 @@ export interface EinsatzMask {
   info: string;
   patientName: string;
   targetHospitalId: string;
+  /** Zieladresse (KTP), Freitext des Disponenten */
+  targetAddress: string;
   remarks: string;
   /** Aus Ortung übernommene Position (statt Geokodierung der Adresse) */
   position: LatLng | null;
@@ -506,6 +519,10 @@ export interface Incident {
   escalation: { at: number; requirements: AaoRequirement[]; text: string; triggered: boolean; extraPatients: number } | null;
   /** Mehrspieler: wer den Einsatz bearbeitet */
   owner?: { id: string; name: string };
+  /** Mehrspieler: offene Übernahme-Anfrage (Zuständiger muss zustimmen) */
+  takeOverRequest?: TakeOverRequest;
+  /** Mehrspieler: letzte abgelehnte Anfrage (Hinweis beim Anfragenden) */
+  takeOverDeclined?: { id: string; name: string; by: string };
   /** Telefonat mit der Polizeileitstelle (sim/polizei.ts) */
   police?: { open: boolean; shared: boolean; lines: { at: number; from: 'leitstelle' | 'polizei'; text: string }[]; sent: string[]; pending?: { count: number; reason?: string } };
   log: { at: number; text: string }[];
@@ -612,6 +629,8 @@ export interface ArchivedIncident {
   backupCount: number;
   patientCount: number;
   keywordCorrect: boolean | null;
+  /** bei vorzeitigem Abschluss: offene Punkte zum Abschlusszeitpunkt */
+  closedOpen?: string[];
   log: { at: number; text: string }[];
 }
 

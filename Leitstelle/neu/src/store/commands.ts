@@ -48,6 +48,8 @@ export const COMMANDS = {
   startLocating: E.startLocating,
   updateCallMask: E.updateCallMask,
   takeOver: E.takeOver,
+  answerTakeOver: E.answerTakeOver,
+  cancelTakeOver: E.cancelTakeOver,
   playerSeen: E.playerSeen,
   voiceTurn: E.voiceTurn,
   toggleRunning: (s: GameState): CommandResult => E.setRunning(s, !s.runtime.clock.running),
@@ -70,7 +72,7 @@ function guard(state: GameState, name: string, args: unknown[]): string | null {
   const id = typeof args[0] === 'string' ? args[0] : null;
   if (!id) return null;
   const owner = CALL_CMDS.has(name) ? state.runtime.calls.find((c) => c.id === id)?.owner : INC_CMDS.has(name) ? state.runtime.incidents.find((i) => i.id === id)?.owner : undefined;
-  if (owner && owner.id !== who.id) return `Wird von ${owner.name} bearbeitet – zuerst „Übernehmen“.`;
+  if (owner && owner.id !== who.id) return `Wird von ${owner.name} bearbeitet – zuerst „Übernahme anfragen“.`;
   return null;
 }
 

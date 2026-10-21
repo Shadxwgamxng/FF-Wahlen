@@ -66,6 +66,7 @@ export function StatsView({ game }: { game: GameState }) {
               [
                 ['Einsätze gesamt', String(s.incidentsTotal)],
                 ['offen / abgeschlossen', `${s.incidentsOpen} / ${s.incidentsClosed}`],
+                ['vorzeitig abgeschlossen', String(s.incidentsClosedEarly)],
                 ['Notrufe (verpasst)', `${s.callsTotal} (${s.callsMissed})`],
                 ['Ø Wartezeit Notruf', dur(s.avgCallWaitMs)],
                 ['Ø Dispositionszeit', dur(s.avgDispatchMs)],
@@ -131,7 +132,7 @@ export function StatsView({ game }: { game: GameState }) {
                 {arch.map((a) => (
                   <Fragment key={a.id}>
                     <tr onClick={() => setOpen(open === a.id ? null : a.id)} style={{ cursor: 'pointer' }}>
-                      <td className="mono small">{a.number}</td>
+                      <td className="mono small">{a.number}{a.closedOpen?.length ? <span className="field-error" title={`Vorzeitig abgeschlossen: ${a.closedOpen.join('; ')}`}> !</span> : null}</td>
                       <td className="mono"><b>{a.keywordCode}</b></td>
                       <td className="small">{a.address}</td>
                       <td className="small mono">{fmtDateTime(a.createdAt)}</td>
@@ -144,6 +145,7 @@ export function StatsView({ game }: { game: GameState }) {
                     {open === a.id && (
                       <tr>
                         <td colSpan={9}>
+                          {a.closedOpen?.length ? <div className="small field-error">Vorzeitig abgeschlossen: {a.closedOpen.join('; ')}</div> : null}
                           {a.log.map((l, i) => (
                             <div key={i} className="log-line" style={{ gridTemplateColumns: '46px 1fr' }}>
                               <span className="t">{fmtClock(l.at)}</span>

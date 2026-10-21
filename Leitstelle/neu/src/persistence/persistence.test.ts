@@ -4,7 +4,8 @@ import { createSampleCenter } from '../data/sampleCenter';
 import { acceptCall, createGame, tick } from '../sim/engine';
 import { exportCenter, exportGame, importJson, validateStoredGame } from './schema';
 import { importKeywordsCsv, importStationsCsv, importVehiclesCsv, parseCsv } from './csv';
-import { projects, resetDbConnection, snapshots } from './db';
+import { kvStore, projects, resetDbConnection, snapshots } from './db';
+import { __loadForTests, __setShrinkForTests, __storedForTests, blinksNow, setVehicleImage, setVehicleImages } from '../ui/vehicleImages';
 import { computeStats } from '../sim/stats';
 
 describe('JSON-Export und -Import', () => {
@@ -145,5 +146,45 @@ describe('Dokumentiertes Minimalbeispiel', () => {
     expect(r.issues).toEqual([]);
     expect(r.center.vehicles[0].rt.position).toEqual([50.1, 8.7]);
     expect(createGame(r.center).center.vehicles).toHaveLength(1);
+  });
+});
+
+describe('Fahrzeugbilder', () => {
+  // ohne Canvas: "Verkleinern" liefert den Dateinamen als data-URL, mit Verzögerung je nach Name
+  const fakeShrink = async (f: File) => {
+    await new Promise((r) => setTimeout(r, f.name.startsWith('lang') ? 30 : 1));
+    return `data:image/png;base64,${btoa(f.name)}`;
+  };
+  const file = (name: string) => new File(['x'], name, { type: 'image/png' });
+
+  it('gleichzeitiges Hochladen beider Bilder überschreibt sich nicht', async () => {
+    __setShrinkForTests(fakeShrink);
+    await __loadForTests('bild-test');
+    await Promise.all([setVehicleImage('v1', 'normal', file('lang-normal')), setVehicleImage('v1', 'blaulicht', file('blau'))]);
+    await Promise.all([setVehicleImage('v2', 'blaulicht', file('lang-blau')), setVehicleImage('v3', 'normal', file('n3'))]);
+    const d = __storedForTests();
+    expect(Object.keys(d.v1).sort()).toEqual(['blaulicht', 'normal']);
+    expect(d.v2.blaulicht).toBeTruthy();
+    expect(d.v3.normal).toBeTruthy();
+    const saved = await kvStore.get<Record<string, unknown>>('fahrzeugbilder:bild-test');
+    expect(Object.keys(saved!).sort()).toEqual(['v1', 'v2', 'v3']);
+    // beide in einem Schreibvorgang, danach eines entfernen
+    await setVehicleImages('v4', { normal: file('a'), blaulicht: file('b') });
+    await setVehicleImage('v4', 'normal', null);
+    expect(Object.keys(__storedForTests().v4)).toEqual(['blaulicht']);
+    // neu laden liefert denselben Stand
+    await __loadForTests('bild-test');
+    expect(Object.keys(__storedForTests()).sort()).toEqual(['v1', 'v2', 'v3', 'v4']);
+    __setShrinkForTests(null);
+  });
+
+  it('Blinken nur bei Fahrt mit Sondersignal (Anfahrt, Transport)', () => {
+    const v = createSampleCenter().vehicles[0];
+    const mv = (purpose: 'einsatz' | 'transport' | 'rueckfahrt', emergency: boolean) => ({ ...v, rt: { ...v.rt, move: { ...(v.rt.move ?? {}), purpose, emergency } } }) as typeof v;
+    expect(blinksNow(v)).toBe(false);
+    expect(blinksNow(mv('einsatz', true))).toBe(true);
+    expect(blinksNow(mv('transport', true))).toBe(true);
+    expect(blinksNow(mv('einsatz', false))).toBe(false);
+    expect(blinksNow(mv('rueckfahrt', true))).toBe(false);
   });
 });

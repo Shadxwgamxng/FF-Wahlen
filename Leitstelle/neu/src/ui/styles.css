@@ -209,6 +209,8 @@ table.grid tr.unavailable td { color: var(--text-3); }
 
 .toasts { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); z-index: 3000; display: flex; flex-direction: column; gap: 6px; align-items: center; }
 .toast { padding: 8px 14px; border-radius: 6px; background: var(--panel-2); border: 1px solid var(--line-2); box-shadow: 0 4px 20px #0008; max-width: 640px; }
+.takeover-notice { position: fixed; top: 64px; right: 16px; z-index: 2900; gap: 6px; max-width: 460px; }
+.takeover-notice .warnbox { box-shadow: 0 4px 20px #0008; }
 .toast.ok { border-color: var(--ok); } .toast.fehler { border-color: var(--alarm); background: var(--err-bg); }
 
 /* ---------- Karte ---------- */
@@ -356,10 +358,15 @@ table.grid tr.unavailable td { color: var(--text-3); }
 /* Fahrzeugbilder auf der Karte */
 .veh-img { position: relative; transform: translate(-50%, -60%); display: inline-block; filter: drop-shadow(0 1px 2px #000c); }
 .veh-img img { height: 30px; display: block; }
-.veh-img img.bl { position: absolute; top: 0; left: 0; opacity: 0; animation: veh-blink 0.7s steps(1, end) infinite; }
+.veh-img img.bl, .veh-img-inline img.bl { position: absolute; top: 0; left: 0; opacity: 0; animation: veh-blink 0.7s steps(1, end) infinite; }
+/* nur ein Bild: blauer Schein als Ersatzblinken */
+.veh-img.glow img:first-child, .veh-img-inline.glow img { animation: veh-glow 0.7s steps(1, end) infinite; }
+.veh-img-inline { position: relative; display: inline-block; flex: 0 0 auto; line-height: 0; }
+.veh-img-inline img { display: block; width: auto; max-width: 48px; object-fit: contain; }
 .veh-img.sel img:first-child { outline: 2px solid #fff; }
 .veh-img .veh-tag { display: block; margin: 1px auto 0; width: max-content; font: 600 9px/1 var(--mono); padding: 1px 3px; border-radius: 3px; color: #0b0f14; }
 @keyframes veh-blink { 0% { opacity: 0; } 50% { opacity: 1; } }
+@keyframes veh-glow { 0% { filter: none; } 50% { filter: drop-shadow(0 0 4px #3d8bfd) drop-shadow(0 0 2px #7fb3ff); } }
 .veh-img-thumb { height: 22px; display: block; }
 .veh-img-slot .btn { padding: 1px 4px; min-height: 0; }
 

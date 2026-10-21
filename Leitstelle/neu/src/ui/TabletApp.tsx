@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { GameState, RadioGroup, Vehicle } from '../model/types';
-import { radioGroupOf } from '../model/radio';
+import { heardGroups, radioGroupOf } from '../model/radio';
 import { store, useStore } from '../store/gameStore';
 import { ConfirmHost, fmtClock, StatusBadge, Toasts } from './components/common';
 import { DiasPanel } from './views/desk/DiasPanel';
@@ -25,7 +25,10 @@ try {
 }
 
 function setOwner(o: { id: string; name: string } | null) {
+  // bisheriger PC hört die Gruppe dieses Tablets nicht mehr, der neue ab sofort
+  store.sendRufgruppe(null);
   store.tabletOwner = o;
+  store.sendRufgruppe(currentGroup());
   try {
     if (o) localStorage.setItem(OWNER_KEY, JSON.stringify(o));
     else localStorage.removeItem(OWNER_KEY);
@@ -80,6 +83,13 @@ function loadGroup(): string {
   }
 }
 
+/** geschaltete Gruppe, sofern es sie in dieser Leitstelle gibt */
+function currentGroup(): string | null {
+  const code = loadGroup();
+  const c = store.state?.center;
+  return code && c?.vehicles.some((v) => radioGroupOf(c, v)?.code === code) ? code : null;
+}
+
 export function TabletApp() {
   const game = useStore((s) => s.state);
   const alive = useStore((s) => s.mainAlive);
@@ -88,6 +98,13 @@ export function TabletApp() {
   const [mode, setMode] = useState<'auto' | 'funk'>('auto');
   useEffect(() => {
     document.title = 'LEITWARTE – Tablet';
+  }, []);
+  // geschaltete Rufgruppe regelmäßig dem zugehörigen PC melden, damit er mithört (auch während der Notrufabfrage)
+  useEffect(() => {
+    const send = () => store.sendRufgruppe(currentGroup());
+    send();
+    const t = setInterval(send, 5000);
+    return () => clearInterval(t);
   }, []);
 
   if (!game) {
@@ -189,21 +206,27 @@ function Funkbedienplatz({ game }: { game: GameState }) {
   }, [game]);
   const [code, setCode] = useState(loadGroup);
   const [showAll, setShowAll] = useState(false);
-  const active = groups.find((g) => g.group.code === code) ?? groups[0];
+  // genau eine Gruppe oder keine – kein Rückfall auf die erste
+  const active = groups.find((g) => g.group.code === code) ?? null;
+  const activeCode = active?.group.code ?? null;
+  /** Gruppe schalten; die geschaltete erneut antippen bzw. '' = Gruppe verlassen */
   const select = (c: string) => {
-    setCode(c);
+    const next = c === code ? '' : c;
+    setCode(next);
     try {
-      localStorage.setItem(GROUP_KEY, c);
+      localStorage.setItem(GROUP_KEY, next);
     } catch {
       /* ohne Speicher nur für diese Sitzung */
     }
+    store.sendRufgruppe(next || null);
   };
-  if (!active) return <div className="infobox">Keine Funkrufgruppen</div>;
-  const ids = new Set(active.vehicles.map((v) => v.id));
+  if (!groups.length) return <div className="infobox">Keine Funkrufgruppen</div>;
+  const ids = new Set(active?.vehicles.map((v) => v.id));
   const messages = game.runtime.radio.filter((r) => !r.handled && ids.has(r.vehicleId)).sort((a, b) => a.at - b.at);
   const others = groups.filter((g) => g !== active && g.pending > 0);
-  const busy = active.vehicles.filter((v) => v.rt.status !== 'frei_wache').sort((a, b) => a.callsign.localeCompare(b.callsign));
-  const vehicles = showAll ? [...active.vehicles].sort((a, b) => Number(b.rt.status !== 'frei_wache') - Number(a.rt.status !== 'frei_wache') || a.callsign.localeCompare(b.callsign)) : busy;
+  const groupVehicles = active?.vehicles ?? [];
+  const busy = groupVehicles.filter((v) => v.rt.status !== 'frei_wache').sort((a, b) => a.callsign.localeCompare(b.callsign));
+  const vehicles = showAll ? [...groupVehicles].sort((a, b) => Number(b.rt.status !== 'frei_wache') - Number(a.rt.status !== 'frei_wache') || a.callsign.localeCompare(b.callsign)) : busy;
   return (
     <div className="funk-tablet" data-testid="funkbedienplatz">
       <section className="col">
@@ -219,14 +242,27 @@ function Funkbedienplatz({ game }: { game: GameState }) {
         </div>
       </section>
       <section className="col" style={{ minHeight: 0 }}>
-        <div className="tablet-title">
-          Geschaltet: <b>{active.group.code}</b> – {active.group.name}
+        <div className="row" style={{ alignItems: 'center' }}>
+          <div className="tablet-title grow">
+            {active ? (
+              <>
+                Geschaltet: <b>{active.group.code}</b> – {active.group.name}
+              </>
+            ) : (
+              'Keine Rufgruppe geschaltet'
+            )}
+          </div>
+          {active && (
+            <button className="btn" onClick={() => select('')} data-testid="rufgruppe-verlassen">
+              Rufgruppe verlassen
+            </button>
+          )}
         </div>
         <div className="col tablet-ptt" style={{ gap: 6 }}>
-          <PttButton group={active.group.code} big />
+          <PttButton group={activeCode} big />
           <FunkStatusLine />
         </div>
-        <FunkLog game={game} group={active.group.code} max={8} />
+        <FunkLog game={game} groups={heardGroups(null, activeCode)} max={8} />
         {others.length > 0 && (
           <div className="warnbox">
             Andere Gruppen:{' '}
@@ -253,7 +289,7 @@ function Funkbedienplatz({ game }: { game: GameState }) {
         </div>
         <div className="row" style={{ alignItems: 'center' }}>
           <div className="tablet-title grow">
-            {showAll ? `Fahrzeuge (${active.vehicles.length})` : `Im Einsatz (${busy.length}/${active.vehicles.length})`}
+            {showAll ? `Fahrzeuge (${groupVehicles.length})` : `Im Einsatz (${busy.length}/${groupVehicles.length})`}
           </div>
           <button className="btn" onClick={() => setShowAll((x) => !x)}>
             {showAll ? 'Nur im Einsatz' : 'Alle anzeigen'}

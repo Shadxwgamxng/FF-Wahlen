@@ -123,12 +123,18 @@ export class GameStore {
       else if (m.t === 'cmd') {
         // Befehl eines Mitspielers: mit dessen Namen ausführen (Zuständigkeit), ohne Gastgeberrechte
         const actor = m.player ? { ...m.player, host: false } : this.hostActor();
-        const r = withActor(actor, () => this.cmdLocal(m.name as CommandName, m.args, false));
+        // Lebenszeichen mit der Uhr des Gastgebers stempeln (Uhren der Mitspieler können abweichen)
+        const args = m.name === 'playerSeen' ? [Date.now()] : m.args;
+        const r = withActor(actor, () => this.cmdLocal(m.name as CommandName, args, false));
         this.channel?.post({ t: 'result', to: m.from, result: r, req: m.req } satisfies SyncMsg);
-      } else if (m.t === 'ui') this.uiListeners.forEach((l) => l(m.action));
-      else if (m.t === 'popout') this.notePopout(m.kind, m.open);
+      } else if (m.t === 'ui') {
+        // nur Aktionen für den Gastgeber-PC (Mitspieler bekommen ihre selbst)
+        if (!m.action.to || m.action.to === this.hostActor().id) this.uiListeners.forEach((l) => l(m.action));
+      } else if (m.t === 'popout') this.notePopout(m.kind, m.open);
       // Sendetaste eines Tablets, das zu einem Mitspieler gehört, ist nicht für den Gastgeber
       else if (m.t === 'ptt' && (!m.to || m.to === this.hostActor().id)) this.pttListeners.forEach((l) => l(m.on, m.group));
+      // geschaltete Rufgruppe des eigenen Tablets (hört der PC mit)
+      else if (m.t === 'rufgruppe' && (!m.to || m.to === this.hostActor().id)) this.noteTabletGroup(m.group);
     });
     window.addEventListener('beforeunload', () => this.channel?.post({ t: 'bye' } satisfies SyncMsg));
     setInterval(() => this.refreshPopouts(), 2000);
@@ -260,9 +266,14 @@ export class GameStore {
         this.emit();
       } else if (m.t === 'popoutClose') {
         if (this.popoutKind === m.kind) window.close();
+      } else if (m.t === 'ui') {
+        // UI-Aktion vom eigenen Tablet/Zweitfenster eines Mitspielers
+        if (this.isPlayerClient && this.player && m.action.to === this.player.id) this.uiListeners.forEach((l) => l(m.action));
       } else if (m.t === 'ptt') {
         // Tablet eines Mitspielers: Sendetaste löst das Mikrofon an dessen PC aus
         if (this.isPlayerClient && this.player && m.to === this.player.id) this.pttListeners.forEach((l) => l(m.on, m.group));
+      } else if (m.t === 'rufgruppe') {
+        if (this.isPlayerClient && this.player && m.to === this.player.id) this.noteTabletGroup(m.group);
       } else if (m.t === 'funkStatus') {
         // Mitspieler haben ihren eigenen Funkzustand; ein Tablet zeigt den seines PCs
         if (this.isPlayerClient) return;
@@ -287,10 +298,26 @@ export class GameStore {
     }, 2000);
   }
 
-  /** UI-Aktion (z. B. "Einsatz in der Maske öffnen") an das Hauptfenster bzw. lokal */
+  /**
+   * UI-Aktion (z. B. "Einsatz in der Maske öffnen") an den zuständigen PC bzw. lokal.
+   * Ohne a.to: der eigene PC (Tablet → PC seines Spielers, Zweitfenster → Gastgeber).
+   */
   uiAction(a: UiAction) {
-    if (this.role === 'remote') this.channel?.post({ t: 'ui', action: a } satisfies SyncMsg);
-    else this.uiListeners.forEach((l) => l(a));
+    const own = this.isPlayerClient ? this.player?.id : this.role === 'main' ? this.hostActor().id : undefined;
+    const to = a.to ?? (this.role === 'remote' && !this.isPlayerClient ? this.tabletOwner?.id : own);
+    if (own && (!to || to === own)) this.uiListeners.forEach((l) => l(a));
+    else this.channel?.post({ t: 'ui', action: { ...a, to } } satisfies SyncMsg);
+  }
+
+  /** Aktion, für die erst auf den Leitstand umgeschaltet wird (holt der Leitstand beim Öffnen ab) */
+  private pendingUi: UiAction | null = null;
+  deferUiAction(a: UiAction) {
+    this.pendingUi = a;
+  }
+  takePendingUiAction(): UiAction | null {
+    const a = this.pendingUi;
+    this.pendingUi = null;
+    return a;
   }
 
   onUiAction(l: (a: UiAction) => void): () => void {
@@ -349,6 +376,25 @@ export class GameStore {
     // Mitspieler sprechen am eigenen PC; Tablet und Zweitfenster senden an den Leitstand-PC
     if (this.role === 'remote' && !this.isPlayerClient) this.channel?.post({ t: 'ptt', on, group, to: this.tabletOwner?.id } satisfies SyncMsg);
     else this.pttListeners.forEach((l) => l(on, group));
+  }
+
+  /** PC: Rufgruppe des eigenen Tablets (null = keine), mit Zeitpunkt der letzten Meldung */
+  private tabletGroupSeen: { group: string | null; at: number } = { group: null, at: 0 };
+
+  /** Tablet: geschaltete Rufgruppe an den zugehörigen PC melden */
+  sendRufgruppe(group: string | null, owner = this.tabletOwner) {
+    this.channel?.post({ t: 'rufgruppe', group, to: owner?.id } satisfies SyncMsg);
+  }
+
+  private noteTabletGroup(group: string | null) {
+    const changed = group !== this.tabletGroupSeen.group;
+    this.tabletGroupSeen = { group, at: Date.now() };
+    if (changed) this.emitLocal();
+  }
+
+  /** PC: Rufgruppe des eigenen Tablets; meldet es sich nicht mehr (Tablet aus), gilt keine */
+  tabletGroup(): string | null {
+    return Date.now() - this.tabletGroupSeen.at < TABLET_GROUP_TTL ? this.tabletGroupSeen.group : null;
   }
 
   /** Hauptfenster: auf die Sendetaste reagieren */
@@ -645,7 +691,8 @@ export class GameStore {
   }
 }
 
-export type UiAction = { kind: 'openIncident' | 'openCall' | 'focus'; id?: string; pos?: [number, number] };
+/** to: Spieler-ID des PCs, der die Aktion ausführt (fehlt = Gastgeber bzw. eigener PC); via 'funk': angenommener Sprechwunsch */
+export type UiAction = { kind: 'openIncident' | 'openCall' | 'focus'; id?: string; pos?: [number, number]; to?: string; via?: 'funk' };
 
 type SyncMsg =
   | { t: 'hello' }
@@ -660,6 +707,7 @@ type SyncMsg =
   | { t: 'dias'; tree: DiasTree | null }
   | { t: 'delta'; mode: GameStore['mode']; project: GameStore['project']; vehicles: CenterConfig['vehicles']; hospitals: CenterConfig['hospitals']; runtime: GameState['runtime'] }
   | { t: 'ptt'; on: boolean; group: string | null; to?: string }
+  | { t: 'rufgruppe'; group: string | null; to?: string }
   | { t: 'popout'; kind: string; open: boolean }
   | { t: 'popoutClose'; kind: string }
   | { t: 'funkStatus'; status: FunkStatus; owner?: string };
@@ -677,6 +725,9 @@ export interface FunkStatus {
   /** Fahrzeug spricht gerade (Sprachausgabe) */
   receiving: boolean;
 }
+
+/** so lange gilt die zuletzt gemeldete Rufgruppe des Tablets (es meldet sich alle paar Sekunden) */
+const TABLET_GROUP_TTL = 20_000;
 
 export const store = new GameStore();
 

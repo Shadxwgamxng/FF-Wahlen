@@ -136,3 +136,47 @@ describe('Beispielleitstelle Ostholstein', () => {
     for (const call of g.runtime.calls) expect(call.location.city).toBe('Eutin');
   });
 });
+
+describe('Krankentransport: Abholort und Ziel', () => {
+  it('Ziel ist konkret und stimmig: andere Klinik, Wohnadresse oder Dialyse-POI – passend zur Eröffnung', async () => {
+    const { findQuestion } = await import('../data/questions');
+    const orgs = defaultOrganizations().map((o, i) => ({ ...o, radioGroup: { name: o.name, code: `G${i}` } }));
+    const places = buildPlaceIndex(ELEMENTS, { areas: [AREA] });
+    const c = buildCenter({ name: 'T', operator: '', counties: [{ osmRelationId: 1, name: 'Testkreis', state: 'Schleswig-Holstein', polygons: AREA.polygons }], organizations: orgs, places, facilities: extractFacilities(ELEMENTS) });
+    c.hospitals.push({ id: 'kh2', name: 'Klinikum Neustadt (Schwerpunkt)', position: [54.2, 10.8], departments: ['allgemein', 'intensiv'], capacity: 5, occupied: 0, available: true });
+    c.pois = [
+      { id: 'p1', name: 'Haus Seeblick', type: 'Pflegeheim', group: 'pflege', position: [54.101, 10.601], address: 'Lindenweg 5, 23701 Eutin' },
+      { id: 'p2', name: 'Nierenzentrum Eutin', type: 'Dialyse', group: 'pflege', position: [54.11, 10.62], address: 'Industriestraße 12, 23701 Eutin' },
+    ];
+    const g = createGame(c);
+    const ziel = findQuestion('ktp', 'ktp_ziel')!;
+    const seen = new Set<string>();
+    for (const id of ['ktp_entlassung', 'ktp_inf', 'ktp_itw'])
+      for (let seed = 1; seed <= 40; seed++) {
+        const call = generateCall(g, new Rng(seed), `c_${id}_${seed}`, g.runtime.clock.now, findScenario(id))!;
+        const f = call.facts;
+        const label = call.variantIdx >= 0 ? findScenario(id)!.variants![call.variantIdx].label : 'Basis';
+        seen.add(`${id}:${label}:${f._destKind}`);
+        const answer = ziel.answer(f);
+        expect(f._destKind, `${id}/${label}`).toBeTruthy();
+        if (f._pickup === 'klinik') {
+          const pickup = c.hospitals.find((h) => h.position[0] === call.location.position[0] && h.position[1] === call.location.position[1])!;
+          expect(pickup).toBeDefined();
+          expect(call.location.detail).toContain(String(f._station));
+          expect(f._destHospitalId).not.toBe(pickup.id);
+          // Intensivverlegung bevorzugt eine Klinik mit Intensivstation
+          if (id === 'ktp_itw' && pickup.id !== 'kh2') expect(f._destHospitalId).toBe('kh2');
+        }
+        if (f._pickup === 'pflege') expect(call.location.detail).toContain('Pflegeheim „Haus Seeblick“');
+        if (f._pickup === 'wohn') expect(call.location.detail).not.toMatch(/Station|Pflegeheim/);
+        if (f._destKind === 'heim') expect(answer).toMatch(/[Nn]ach Hause, .+ \d+ in Eutin\./);
+        if (f._destKind === 'klinik') expect(answer).toMatch(/Krankenhaus „Sana Kliniken Eutin“|Klinikum Neustadt/);
+        if (f._dest === 'dialyse') expect(answer).toMatch(/[Zz]ur Dialyse, Nierenzentrum Eutin, Industriestraße 12 in Eutin\./);
+      }
+    expect(seen).toContain('ktp_entlassung:Basis:heim');
+    expect(seen).toContain('ktp_entlassung:Dialyse:poi');
+    expect(seen).toContain('ktp_entlassung:Strahlentherapie:klinik');
+    // ohne Facharzt-POI geht es in eine Klinik
+    expect(seen).toContain('ktp_entlassung:Facharzttermin:klinik');
+  });
+});

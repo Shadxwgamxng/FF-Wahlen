@@ -1,6 +1,7 @@
 import { useEffect, useRef, useSyncExternalStore } from 'react';
 import { kvStore } from '../persistence/db';
 import { store, useStore } from '../store/gameStore';
+import type { Vehicle } from '../model/types';
 
 /**
  * Fahrzeugbilder für die Karte: je Fahrzeug ein Bild ohne und eines mit Blaulicht.
@@ -45,8 +46,13 @@ function rebuild() {
   listeners.forEach((l) => l());
 }
 
-async function load(pid: string | null) {
+function load(pid: string | null) {
   projectId = pid;
+  return serial(() => loadNow(pid));
+}
+
+async function loadNow(pid: string | null) {
+  if (projectId !== pid) return;
   data = {};
   if (pid) {
     try {
@@ -107,17 +113,80 @@ async function shrink(file: File): Promise<string> {
   return webp.startsWith('data:image/webp') ? webp : canvas.toDataURL('image/png');
 }
 
-export async function setVehicleImage(vehicleId: string, kind: ImageKind, file: File | null): Promise<void> {
+/** Bildquelle verkleinern; in Tests austauschbar (dort gibt es kein Canvas) */
+let shrinkImpl: (file: File) => Promise<string> = shrink;
+export function __setShrinkForTests(f: ((file: File) => Promise<string>) | null) {
+  shrinkImpl = f ?? shrink;
+}
+
+/** Schreibvorgänge nacheinander ausführen, sonst überschreibt der letzte die anderen */
+let queue: Promise<unknown> = Promise.resolve();
+function serial<T>(job: () => Promise<T>): Promise<T> {
+  const p = queue.then(job, job);
+  queue = p.catch(() => undefined);
+  return p;
+}
+
+/** Mehrere Bilder eines Fahrzeugs in einem Schreibvorgang setzen (null = entfernen, fehlend = unverändert) */
+export async function setVehicleImages(vehicleId: string, files: Partial<Record<ImageKind, File | null>>): Promise<void> {
   const pid = projectId ?? store.project?.id;
   if (!pid) throw new Error('Keine Leitstelle geladen.');
-  const next: Stored = { ...data, [vehicleId]: { ...(data[vehicleId] ?? {}) } };
-  if (file) next[vehicleId][kind] = await shrink(file);
-  else delete next[vehicleId][kind];
-  if (!next[vehicleId].normal && !next[vehicleId].blaulicht) delete next[vehicleId];
-  await kvStore.put(key(pid), next);
-  data = next;
-  rebuild();
-  channel?.postMessage({ projectId: pid });
+  // Verkleinern vor dem Einreihen (darf parallel laufen)
+  const shrunk: Partial<Record<ImageKind, string | null>> = {};
+  for (const k of ['normal', 'blaulicht'] as ImageKind[]) {
+    const f = files[k];
+    if (f !== undefined) shrunk[k] = f ? await shrinkImpl(f) : null;
+  }
+  await serial(async () => {
+    if (projectId && projectId !== pid) return; // Leitstelle inzwischen gewechselt
+    // erst jetzt aus dem aktuellen Stand bauen
+    const next: Stored = { ...data, [vehicleId]: { ...(data[vehicleId] ?? {}) } };
+    for (const [k, v] of Object.entries(shrunk) as [ImageKind, string | null][]) {
+      if (v) next[vehicleId][k] = v;
+      else delete next[vehicleId][k];
+    }
+    if (!next[vehicleId].normal && !next[vehicleId].blaulicht) delete next[vehicleId];
+    await kvStore.put(key(pid), next);
+    data = next;
+    rebuild();
+    channel?.postMessage({ projectId: pid });
+  });
+}
+
+export function setVehicleImage(vehicleId: string, kind: ImageKind, file: File | null): Promise<void> {
+  return setVehicleImages(vehicleId, { [kind]: file });
+}
+
+/** Nur für Tests: Leitstelle laden */
+export const __loadForTests = load;
+
+/** Nur für Tests: gespeicherte Bilder (data-URLs) der geladenen Leitstelle */
+export function __storedForTests(): Stored {
+  return data;
+}
+
+/** Mit Sondersignal unterwegs (Anfahrt oder Transport)? Dann blinkt das Bild. */
+export function blinksNow(v: Vehicle): boolean {
+  return !!(v.rt.move?.emergency && v.rt.move.purpose !== 'rueckfahrt');
+}
+
+/**
+ * Kleines Fahrzeugbild (Fahrzeugliste/-detail) mit derselben Blink-Logik wie auf der Karte.
+ * Nur ein Bild vorhanden: bei Sondersignal blauer Schein als Ersatz.
+ */
+export function VehicleImage({ vehicle, height = 18 }: { vehicle: Vehicle; height?: number }) {
+  const { urls: u } = useVehicleImages();
+  const img = u[vehicle.id];
+  const base = img?.normal ?? img?.blaulicht;
+  if (!base) return null;
+  const sig = blinksNow(vehicle);
+  const both = !!(img?.normal && img?.blaulicht);
+  return (
+    <span className={`veh-img-inline ${sig && both ? 'blink' : ''} ${sig && !both ? 'glow' : ''}`} data-testid="veh-img-inline">
+      <img src={base} alt="" style={{ height }} />
+      {sig && both && <img className="bl" src={img!.blaulicht} alt="" style={{ height }} />}
+    </span>
+  );
 }
 
 /** Spalte in der Fahrzeugliste: Vorschau und Hochladen */

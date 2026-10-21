@@ -6,12 +6,15 @@ import { createRecognizer, germanVoices, speakAs, stopSpeaking, type Recognizer 
 import { getConsent } from '../voice/transcripts';
 import { store } from '../store/gameStore';
 import { isMine } from './players';
+import { loadDias } from '../dias/store';
+import { currentQuestion } from '../dias/completion';
 
 /**
  * Freisprechen bei echten Notrufen im Spiel: Sobald ein Notruf angenommen ist, ist am Leitstand-PC das
  * Mikrofon offen. Gesagtes wird erkannt, der simulierte Anrufer (voice/caller.ts) antwortet per
- * Sprachausgabe. Halbduplex: Während der Anrufer spricht oder die Funk-Sendetaste gedrückt ist, hört
- * die Erkennung nicht zu (kein Echo, nur eine Erkennung gleichzeitig).
+ * Sprachausgabe. Halbduplex: Während der Anrufer spricht oder gefunkt wird (Senden oder Empfang), hört
+ * die Erkennung nicht zu (kein Echo, nur eine Erkennung gleichzeitig). Funk hat Vorrang: Der Anrufer
+ * spricht einen angefangenen Satz zu Ende und wartet mit der nächsten Antwort, bis Funk frei ist.
  * Jeder Wortwechsel landet als Befehl voiceTurn im Gesprächsverlauf der Einsatzmaske.
  */
 
@@ -104,7 +107,11 @@ function activeTarget(): { key: string; respond: (text: string) => Promise<Turn>
       key: c.id,
       respond: async (text) => {
         sim ??= new CallerSim(voiceCallOf(c));
-        const turn = sim.respond(text);
+        // aktuelle Frage im Abfragefeld (DIAS) – der Anrufer beantwortet sie passend
+        const now = store.state?.runtime.calls.find((x) => x.id === c.id);
+        const tree = await loadDias().catch(() => null);
+        const dias = tree ? currentQuestion(tree, now?.dias?.steps ?? [], now?.dias?.completion) : null;
+        const turn = sim.respond(text, { dias });
         // neu festgelegte Detailangaben des Anrufers (x_…) im Spielstand merken
         const game = store.state?.runtime.calls.find((x) => x.id === c.id);
         const patch: Record<string, string | number | boolean> = {};
@@ -130,13 +137,40 @@ function activeTarget(): { key: string; respond: (text: string) => Promise<Turn>
   };
 }
 
+/** Pause nach dem Funk, bevor Anrufer und Mikrofon wieder dran sind */
+const FUNK_GAP_MS = 400;
+
 /** Läuft nur im Hauptfenster (Leitstand-PC) */
 export function CallVoiceController() {
   useEffect(() => {
     let session: Session | null = null;
     let restart: ReturnType<typeof setTimeout> | null = null;
 
-    const funkBusy = () => store.funkStatus.sending;
+    const funkBusy = () => store.funkStatus.sending || store.funkStatus.receiving;
+    let funkWasBusy = funkBusy();
+    let funkFreeAt = 0;
+    /** ms bis Funk frei ist (inkl. Pause danach); -1 = Funk belegt */
+    const funkWait = () => (funkBusy() ? -1 : Math.max(0, funkFreeAt + FUNK_GAP_MS - Date.now()));
+    const pause = () => status.state !== 'pause' && setStatus({ state: 'pause', interim: '' });
+    /** wartet, bis Funk frei ist (Status solange "pause") – oder das Gespräch vorbei ist */
+    const funkFree = (s: Session) =>
+      new Promise<void>((resolve) => {
+        let t: ReturnType<typeof setTimeout> | null = null;
+        const check = () => {
+          if (t) clearTimeout(t);
+          t = null;
+          const w = session === s ? funkWait() : 0;
+          if (w === 0) {
+            unsub();
+            resolve();
+            return;
+          }
+          pause();
+          if (w > 0) t = setTimeout(check, w);
+        };
+        const unsub = store.subscribe(check);
+        check();
+      });
 
     const listen = () => {
       if (restart) clearTimeout(restart);
@@ -144,7 +178,12 @@ export function CallVoiceController() {
       const s = session;
       if (!s || s.rec || s.speaking || s.busy || status.state === 'aufgelegt') return;
       if (status.muted) return setStatus({ state: 'stumm', interim: '' });
-      if (funkBusy()) return setStatus({ state: 'pause', interim: '' });
+      const w = funkWait();
+      if (w !== 0) {
+        pause();
+        if (w > 0) restart = setTimeout(listen, w);
+        return;
+      }
       const consent = getConsent();
       if (!consent || consent.mode === 'text') return setStatus({ state: 'fehler', error: 'Mikrofon noch nicht freigegeben – bitte unten freigeben. Bis dahin per Klick abfragen.' });
       const r = createRecognizer({
@@ -179,9 +218,12 @@ export function CallVoiceController() {
       s.errors = 0;
       const turn = await s.respond(text);
       if (turn.text) {
+        // Funk hat Vorrang: erst antworten, wenn Funk frei ist
+        await funkFree(s);
+        if (session !== s) return;
         s.speaking = true;
         setStatus({ state: 'spricht', interim: '' });
-        await speakAs(turn.text, turn.persona, s.voice);
+        await speakAs(turn.text, turn.persona, s.voice, 'telefon');
         s.speaking = false;
       }
       s.busy = false;
@@ -193,13 +235,17 @@ export function CallVoiceController() {
     const end = () => {
       if (!session) return;
       session.rec?.abort();
-      if (session.speaking) stopSpeaking();
+      // nur das Telefon verstummt – laufender Funk bleibt
+      stopSpeaking('telefon');
       session = null;
       if (restart) clearTimeout(restart);
       setStatus({ callId: null, state: 'aus', interim: '', error: '', muted: false });
     };
 
     const sync = () => {
+      const fb = funkBusy();
+      if (funkWasBusy && !fb) funkFreeAt = Date.now();
+      funkWasBusy = fb;
       const target = activeTarget();
       if (session && session.callId !== target?.key) end();
       if (target && !session) {
@@ -209,24 +255,30 @@ export function CallVoiceController() {
         if (target.greeting) {
           // Polizei meldet sich am Telefon
           const s = session;
+          const greeting = target.greeting;
           s.speaking = true;
-          setStatus({ state: 'spricht' });
-          void speakAs(target.greeting, { rate: 1.05, pitch: 0.95 }, s.voice).then(() => {
-            s.speaking = false;
-            if (session === s) listen();
-          });
+          void funkFree(s)
+            .then(() => {
+              if (session !== s) return;
+              setStatus({ state: 'spricht' });
+              return speakAs(greeting, { rate: 1.05, pitch: 0.95 }, s.voice, 'telefon');
+            })
+            .then(() => {
+              s.speaking = false;
+              if (session === s) listen();
+            });
           return;
         }
         listen();
         return;
       }
       if (!session) return;
-      // Funk-Sendetaste: Erkennung freigeben, danach weiter zuhören
+      // Funk (Senden oder Empfang): Erkennung freigeben, danach (nach kurzer Pause) weiter zuhören
       if (funkBusy() && session.rec) {
         session.rec.abort();
         session.rec = null;
         setStatus({ state: 'pause' });
-      } else if (!funkBusy() && !session.rec && !session.busy && (status.state === 'pause' || status.state === 'stumm')) listen();
+      } else if (!funkBusy() && !session.rec && !session.busy && !session.speaking && (status.state === 'pause' || status.state === 'stumm')) listen();
     };
 
     const retry = () => {

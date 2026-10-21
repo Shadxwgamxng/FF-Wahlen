@@ -3,7 +3,7 @@ import { buildPlaceIndex, type OverpassElement } from '../geo/places';
 import { buildCenter, defaultOrganizations } from '../data/centerFactory';
 import { emptyMask } from '../model/mask';
 import type { GameState } from '../model/types';
-import { acceptCall, alarmVehicles, applyLocate, correctIncidentLocation, createGame, createIncidentFromCall, injectScenarioCall, setCallKeyword, startLocating, tick, locationCorrect } from './engine';
+import { acceptCall, alarmVehicles, applyLocate, correctIncidentLocation, createGame, createIncidentFromCall, injectScenarioCall, setCallKeyword, startLocating, tick, locationCorrect, resolveMaskLocation, updateCallMask } from './engine';
 import { suggestForIncident } from './dispatch';
 import { saveVehicle } from './editorOps';
 import { emptyVehicleRuntime } from '../data/sampleCenter';
@@ -89,5 +89,18 @@ describe('Einsatzmaske', () => {
       }
     }
     expect(seenFest && seenMobil).toBe(true);
+  });
+});
+
+describe('Objekt-Übernahme (POI)', () => {
+  it('Adresse samt Position im selben Patch: Einsatzort gilt sofort als exakt', () => {
+    const g = game();
+    const c = call(g);
+    updateCallMask(g, c.id, { object: 'Pflegeheim Haus am See', street: 'Lindenweg', houseNumber: '3', postcode: '23701', city: 'Eutin', position: [54.1001, 10.6001] });
+    expect(c.mask.position).toEqual([54.1001, 10.6001]);
+    expect(resolveMaskLocation(g, c.mask)).toMatchObject({ exact: true, position: [54.1001, 10.6001] });
+    // spätere Handänderung der Adresse verwirft die Position wieder
+    updateCallMask(g, c.id, { houseNumber: '5' });
+    expect(c.mask.position).toBeNull();
   });
 });

@@ -22,11 +22,11 @@ export interface SpanHit {
   end: number;
 }
 
-/** Detailthemen in einem normalisierten Text, mit Fundstelle */
-export function matchDetails(text: string, category: KeywordCategory): SpanHit[] {
+/** Detailthemen in einem normalisierten Text, mit Fundstelle (category null: alle Kategorien) */
+export function matchDetails(text: string, category: KeywordCategory | null): SpanHit[] {
   const hits: SpanHit[] = [];
   for (const t of DETAIL_TOPICS) {
-    if (t.categories?.length && !t.categories.includes(category)) continue;
+    if (category && t.categories?.length && !t.categories.includes(category)) continue;
     let best: SpanHit | null = null;
     for (const re of t.patterns) {
       const m = re.exec(text);

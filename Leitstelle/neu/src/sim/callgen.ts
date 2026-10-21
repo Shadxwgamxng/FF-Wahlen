@@ -1,9 +1,10 @@
-import type { Call, GameState, KeywordCategory, LatLng, PlaceIndex, PlaceKind, PoiGroup, Weather } from '../model/types';
+import type { Call, GameState, Hospital, KeywordCategory, LatLng, PlaceKind, PoiGroup, Weather } from '../model/types';
 import { scenariosForCatalog, type FactSpec, type LocationKind, type ScenarioDef, type VariantDef } from '../data/scenarios';
 import type { Facts, FactValue } from '../data/questions';
 import { Rng } from './rng';
 import { areaBounds, pointInArea } from './geo';
-import { describePlace, pickPlace, placeLatLng, reverseGeocode } from '../geo/places';
+import { describePlace, pickPlace, placeLatLng } from '../geo/places';
+import { poiAddress } from '../geo/pois';
 import { emptyMask } from '../model/mask';
 import { hourOf } from './availability';
 import { DIFFICULTY, isNight } from './difficulty';
@@ -85,12 +86,6 @@ export interface GeneratedLocation {
   city: string;
 }
 
-/** Adresse des nächstgelegenen Gebäudes (für POIs ohne eigene Adresse) */
-function nearestAddress(ix: PlaceIndex, p: LatLng) {
-  const r = reverseGeocode(ix, p);
-  return r && r.distanceM < 300 ? describePlace(ix, r.tuple) : null;
-}
-
 /** Welche POI-Gruppen zu welcher Lageart passen */
 const POI_FOR: Partial<Record<LocationKind, PoiGroup[]>> = { klinik: ['pflege'], oeffentlich: ['oeffentlich', 'handel'], gewerbe: ['gewerbe', 'handel'] };
 
@@ -102,20 +97,17 @@ export function randomLocation(state: GameState, rng: Rng, kind: LocationKind): 
     const list = c.pois.filter((p) => groups.includes(p.group));
     if (list.length) {
       const poi = rng.pick(list);
-      const near = c.places ? nearestAddress(c.places, poi.position) : null;
-      const own = /^(.*?)\s+(\d+\s*[a-zA-Z]?)\s*,\s*(\d{5})?\s*(.*)$/.exec(poi.address);
-      // vollständige eigene Adresse, sonst alles vom nächsten Gebäude (nie gemischt)
-      const m = own ?? (near ? /^(.*?)\s+(\d+\s*[a-zA-Z]?)\s*,\s*(\d{5})?\s*(.*)$/.exec(near.address) : null);
-      const address = own ? poi.address : near ? near.address : poi.address || poi.name;
+      // vollständige eigene Adresse, sonst alles vom nächsten Gebäude (nie gemischt, nie nur der Name)
+      const a = poiAddress(poi, c.places);
       return {
         position: poi.position,
-        address,
+        address: a.address,
         areaId: areaAt(state, poi.position),
         detail: `${poi.type} „${poi.name}“`,
-        street: m?.[1] ?? near?.street ?? '',
-        houseNumber: m?.[2] ?? near?.houseNumber ?? '',
-        postcode: m?.[3] ?? near?.postcode ?? '',
-        city: m?.[4] ?? near?.city ?? '',
+        street: a.street,
+        houseNumber: a.houseNumber,
+        postcode: a.postcode,
+        city: a.city,
       };
     }
   }
@@ -159,6 +151,87 @@ export function randomLocation(state: GameState, rng: Rng, kind: LocationKind): 
   return { position, address: `${street} ${nr}, ${city}`.trim(), areaId, detail: rng.pick(DETAILS[kind]), street, houseNumber: nr, postcode: '', city };
 }
 
+/** Klinikname zum Sprechen (ohne Klammerzusatz wie "(Maximalversorgung)") */
+const spokenName = (name: string) => name.replace(/\s*\([^)]*\)\s*/g, ' ').trim();
+
+/** Adresse einer Klinik der Leitstelle (nächstes Gebäude aus den Kartendaten, sonst nur der Name) */
+function hospitalAddress(state: GameState, h: Hospital) {
+  return poiAddress({ id: h.id, name: spokenName(h.name), type: 'Klinik', group: 'pflege', position: h.position, address: '' }, state.center.places);
+}
+
+const fittingHospitals = (list: Hospital[], departments: string[]) => {
+  const fit = list.filter((h) => departments.some((d) => h.departments.includes(d)));
+  return fit.length ? fit : list;
+};
+
+/** KTP: Abholort passend zur Eröffnung (Klinikstation, Pflegeheim, Wohnung) */
+function ktpPickup(state: GameState, rng: Rng, kind: string, station: string, departments: string[]): { loc: GeneratedLocation; hospitalId: string } {
+  const c = state.center;
+  if (kind === 'klinik' && c.hospitals.length) {
+    // Klinik mit passender Abteilung (Intensivverlegung nicht aus der Psychiatrie)
+    const h = rng.pick(fittingHospitals(c.hospitals, departments));
+    const a = hospitalAddress(state, h);
+    // ohne Kartendaten ist die Adresse schon der Klinikname
+    const detail = a.address === spokenName(h.name) ? station || 'Station' : `${spokenName(h.name)}${station ? `, ${station}` : ''}`;
+    return { loc: { position: [...h.position] as LatLng, address: a.address, areaId: areaAt(state, h.position), detail, street: a.street, houseNumber: a.houseNumber, postcode: a.postcode, city: a.city }, hospitalId: h.id };
+  }
+  if (kind === 'pflege') {
+    const heime = (c.pois ?? []).filter((p) => p.type === 'Pflegeheim');
+    if (heime.length) {
+      const poi = rng.pick(heime);
+      const a = poiAddress(poi, c.places);
+      const detail = `Pflegeheim „${poi.name}“${station ? `, ${station}` : ''}`;
+      return { loc: { position: poi.position, address: a.address, areaId: areaAt(state, poi.position), detail, street: a.street, houseNumber: a.houseNumber, postcode: a.postcode, city: a.city }, hospitalId: '' };
+    }
+    const loc = randomLocation(state, rng, 'wohn');
+    return { loc: { ...loc, detail: `Pflegeheim${station ? `, ${station}` : ''}` }, hospitalId: '' };
+  }
+  return { loc: randomLocation(state, rng, kind === 'wohn' ? 'wohn' : 'klinik'), hospitalId: '' };
+}
+
+const DEST_POI: Record<string, string> = { dialyse: 'Dialyse', praxis: 'Arztpraxis' };
+const DEST_PURPOSE: Record<string, string> = { dialyse: 'Zur Dialyse', praxis: 'Zum Facharzt' };
+
+/**
+ * KTP: konkretes Transportziel als verdeckte Fakten (_destKind, _destName, _destAddress, _destStreet, _destCity, _destHospitalId).
+ * Klinik ≠ Abholklinik (bevorzugt mit passender Fachabteilung), Wohnadresse oder Dialyse/Facharzt aus den POIs;
+ * fehlt der POI, geht es in eine Klinik.
+ */
+function ktpDestination(state: GameState, rng: Rng, facts: Facts, pickupHospitalId: string, departments: string[]): void {
+  const c = state.center;
+  const want = String(facts._dest);
+  if (!facts._destPurpose && DEST_PURPOSE[want]) facts._destPurpose = DEST_PURPOSE[want];
+  const set = (kind: string, name: string, a: { address: string; street: string; houseNumber: string; city: string }, hospitalId = '') => {
+    facts._destKind = kind;
+    facts._destName = name;
+    facts._destAddress = a.address;
+    facts._destStreet = `${a.street} ${a.houseNumber}`.trim();
+    facts._destCity = a.city;
+    facts._destHospitalId = hospitalId;
+  };
+  if (want === 'heim') {
+    const loc = randomLocation(state, rng, 'wohn');
+    set('heim', '', loc);
+    return;
+  }
+  const poiType = DEST_POI[want];
+  const pois = poiType ? (c.pois ?? []).filter((p) => p.type === poiType) : [];
+  if (pois.length) {
+    const poi = rng.pick(pois);
+    set('poi', poi.name, poiAddress(poi, c.places));
+    return;
+  }
+  const others = c.hospitals.filter((h) => h.id !== pickupHospitalId);
+  const pool = others.length ? others : c.hospitals;
+  if (!pool.length) {
+    // Leitstelle ohne Kliniken: wenigstens eine Adresse nennen
+    set('heim', '', randomLocation(state, rng, 'wohn'));
+    return;
+  }
+  const h = rng.pick(fittingHospitals(pool, departments));
+  set('klinik', spokenName(h.name), hospitalAddress(state, h), h.id);
+}
+
 export function areaAt(state: GameState, p: LatLng): string | null {
   return state.center.areas.find((a) => pointInArea(p, a))?.id ?? null;
 }
@@ -171,7 +244,14 @@ export function generateCall(state: GameState, rng: Rng, id: string, at: number,
   const factSpecs = { ...sc.facts, ...(variant?.facts ?? {}) };
   const facts: Facts = {};
   for (const [k, spec] of Object.entries(factSpecs)) facts[k] = resolveFact(spec, rng);
-  const loc = randomLocation(state, rng, sc.location);
+  // KTP mit Abholort/Zielart: Ort passend zur Eröffnung, Ziel konkret und nie die Abholklinik
+  let loc: GeneratedLocation;
+  if (sc.category === 'ktp' && facts._pickup) {
+    const departments = (variant?.patients ?? sc.patients)?.departments ?? [];
+    const pk = ktpPickup(state, rng, String(facts._pickup), String(facts._station ?? ''), departments);
+    loc = pk.loc;
+    if (facts._dest) ktpDestination(state, rng, facts, pk.hospitalId, departments);
+  } else loc = randomLocation(state, rng, sc.location);
   const phone = `0${rng.int(1500, 1799)} ${rng.int(100000, 999999)}`;
   facts._address = loc.address;
   facts._detail = loc.detail;

@@ -19,7 +19,7 @@ import { openPopout, POPOUTS } from './PopoutApp';
 import { installRouting } from './routingService';
 import { FunkController } from './funk';
 import { CallVoiceController } from './callVoice';
-import { JoinScreen, PlayerChips, usePlayerHeartbeat } from './players';
+import { JoinScreen, PlayerChips, TakeOverNotice, usePlayerHeartbeat } from './players';
 import { MenuBar, StatusBar } from './MenuBar';
 
 export type ViewId = 'leitstand' | 'einrichten' | 'wachen' | 'fahrzeuge' | 'aao' | 'kliniken' | 'statistik' | 'editor' | 'simulation' | 'mehrspieler' | 'daten' | 'sprachtest';
@@ -66,6 +66,18 @@ export function App() {
   // Beim Laden einer anderen Leitstelle immer im Leitstand beginnen
   useEffect(() => setView(store.mode === 'bearbeiten' ? 'einrichten' : 'leitstand'), [projectId]);
 
+  // Einsatz/Notruf öffnen (z. B. angenommener Sprechwunsch), während eine andere Ansicht offen ist: auf den Leitstand
+  const viewRef = useRef(view);
+  viewRef.current = view;
+  useEffect(
+    () =>
+      store.onUiAction((a) => {
+        if (viewRef.current === 'leitstand' || store.mode !== 'spielen' || (a.kind !== 'openIncident' && a.kind !== 'openCall')) return;
+        store.deferUiAction(a);
+        setView('leitstand');
+      }),
+    [],
+  );
   useEffect(() => installRouting(), []);
   useEffect(() => {
     const off = installAudio();
@@ -173,6 +185,7 @@ export function App() {
       {help && <HelpModal onClose={() => setHelp(false)} />}
       <FunkController />
       <CallVoiceController />
+      <TakeOverNotice />
       <Toasts />
       <ConfirmHost />
     </div>

@@ -1,7 +1,7 @@
 /**
  * Ende-zu-Ende-Test Mehrspieler: Gastgeber + zwei Mitspieler (eigene Browser) über den LAN-Server.
  *  - Mitspieler treten über /mitspielen bei und sehen den Leitstand des Gastgebers
- *  - Wer annimmt, ist zuständig; der andere sieht "bearbeitet von …" und kann übernehmen
+ *  - Wer annimmt, ist zuständig; der andere sieht "bearbeitet von …" und kann die Übernahme anfragen (Zuständiger genehmigt/lehnt ab)
  *  - Zeitsteuerung nur beim Gastgeber; Datenmenge pro Zustand klein (nur Änderungen)
  * Aufruf: npm run build && npm run test:mehrspieler
  */
@@ -113,9 +113,19 @@ try {
   log('Ben öffnet denselben Notruf: „Wird von Anna bearbeitet“');
 
   await ben.getByTestId('take-over').click();
+  await anna.getByTestId('take-over-request').waitFor({ timeout: 10000 });
+  await ben.getByTestId('take-over-cancel').waitFor({ timeout: 10000 });
+  assert((await anna.getByTestId('take-over-request').innerText()).includes('Ben'), 'Anna sieht Bens Anfrage');
+  await anna.getByTestId('take-over-decline').click();
+  await ben.getByTestId('take-over-declined').waitFor({ timeout: 10000 });
+  assert(await host.evaluate(() => window.leitwarte.state.runtime.calls.some((c) => c.owner?.name === 'Anna')), 'nach Ablehnung bleibt Anna zuständig');
+  log('Ben fragt an, Anna lehnt ab – Ben sieht „Anfrage abgelehnt“, Anna bleibt zuständig');
+
+  await ben.getByTestId('take-over').click();
+  await anna.getByTestId('take-over-accept').click();
   await host.waitForFunction(() => window.leitwarte.state.runtime.calls.some((c) => c.owner?.name === 'Ben'), null, { timeout: 10000 });
   await anna.getByTestId('owner-banner').waitFor({ timeout: 10000 });
-  log('Ben übernimmt – jetzt sieht Anna „Wird von Ben bearbeitet“');
+  log('Ben fragt erneut an, Anna genehmigt – jetzt sieht Anna „Wird von Ben bearbeitet“');
 
   // Datenmenge: nach dem ersten vollen Zustand nur noch kleine Änderungen
   frames.length = 0;

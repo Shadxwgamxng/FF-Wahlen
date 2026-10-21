@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach } from 'vitest';
+import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
 import { createSampleCenter } from '../data/sampleCenter';
 import { questionsFor, type Facts, type QuestionDef } from '../data/questions';
 import { createGame } from '../sim/engine';
@@ -6,6 +6,7 @@ import { matchIntents } from './intents';
 import { CallerSim, spellWord, initialEmotion } from './caller';
 import { buildVoiceTestCall, emptyVoiceEntry, evaluateVoiceTest } from './testCall';
 import { allPhrases, CallerVoice, type Emotion, type Personality } from './style';
+import { speakAs, stopSpeaking } from './speech';
 import { deleteAllTranscripts, deleteTranscript, getConsent, giveConsent, listTranscripts, MAX_TRANSCRIPTS, saveTranscript, setVoiceStorage, withdrawConsent } from './transcripts';
 
 const game = () => createGame(createSampleCenter());
@@ -57,6 +58,12 @@ describe('Absichtserkennung', () => {
     ['wie groß ist das feuer', 'brand', ['b_ausbreitung']],
     ['steckt jemand im aufzug fest', 'th', ['th_personen']],
     ['in welche klinik soll er', 'ktp', ['ktp_ziel']],
+    ['was ist das transportziel', 'ktp', ['ktp_ziel']],
+    ['wie lautet die zieladresse', 'ktp', ['ktp_ziel']],
+    ['wo soll es hingehen', 'ktp', ['ktp_ziel']],
+    ['wo muss der patient hin', 'ktp', ['ktp_ziel']],
+    ['wo soll die patientin hingebracht werden', 'ktp', ['ktp_ziel']],
+    ['muss er liegend transportiert werden', 'ktp', ['ktp_mobil']],
     ['ist er zuckerkrank', 'rd', ['rd_vorerkrankung']],
     ['blutet er stark', 'rd', ['rd_beschwerden']],
     ['hat jemand rauch eingeatmet', 'brand', ['verletzt']],
@@ -268,5 +275,115 @@ describe('Einwilligung und Transkripte (nur lokal)', () => {
     withdrawConsent();
     expect(getConsent()).toBeNull();
     expect(listTranscripts()).toEqual([]);
+  });
+});
+
+describe('Sprachausgabe: gemeinsame Warteschlange', () => {
+  /** nachgebildete speechSynthesis: merkt sich, was übergeben wurde; Sprechen endet erst auf finish() */
+  interface FakeUtterance {
+    text: string;
+    onstart?: () => void;
+    onend?: () => void;
+    onerror?: () => void;
+  }
+  let handed: FakeUtterance[];
+  let current: FakeUtterance | null;
+  const finish = () => {
+    const u = current;
+    current = null;
+    u?.onend?.();
+  };
+  const p = { rate: 1, pitch: 1 };
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    handed = [];
+    current = null;
+    const synth = {
+      speak: (u: FakeUtterance) => {
+        // nie zwei Äußerungen gleichzeitig beim Browser
+        expect(current).toBeNull();
+        handed.push(u);
+        current = u;
+        u.onstart?.();
+      },
+      cancel: () => {
+        const u = current;
+        current = null;
+        u?.onerror?.();
+      },
+      getVoices: () => [],
+    };
+    vi.stubGlobal('window', { speechSynthesis: synth });
+    vi.stubGlobal(
+      'SpeechSynthesisUtterance',
+      class {
+        text: string;
+        constructor(t: string) {
+          this.text = t;
+        }
+      },
+    );
+  });
+  afterEach(() => {
+    stopSpeaking();
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it('spricht nacheinander, Funk vor wartendem Telefon', async () => {
+    const done: string[] = [];
+    void speakAs('Anrufer 1', p, undefined, 'telefon').then(() => done.push('t1'));
+    void speakAs('Anrufer 2', p, undefined, 'telefon').then(() => done.push('t2'));
+    void speakAs('Funk', p, undefined, 'funk').then(() => done.push('f'));
+    // der angefangene Satz läuft weiter, nur er ist beim Browser
+    expect(handed.map((u) => u.text)).toEqual(['Anrufer 1']);
+    finish();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(handed.map((u) => u.text)).toEqual(['Anrufer 1', 'Funk']);
+    finish();
+    await vi.advanceTimersByTimeAsync(0);
+    finish();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(handed.map((u) => u.text)).toEqual(['Anrufer 1', 'Funk', 'Anrufer 2']);
+    expect(done).toEqual(['t1', 'f', 't2']);
+  });
+
+  it('stopSpeaking(kanal) bricht nur diesen Kanal ab', async () => {
+    const done: string[] = [];
+    void speakAs('Funk 1', p, undefined, 'funk').then(() => done.push('f1'));
+    void speakAs('Anrufer', p, undefined, 'telefon').then(() => done.push('t'));
+    void speakAs('Funk 2', p, undefined, 'funk').then(() => done.push('f2'));
+    stopSpeaking('telefon');
+    await vi.advanceTimersByTimeAsync(0);
+    // Funk läuft ungestört weiter, der wartende Anrufer ist raus
+    expect(done).toEqual(['t']);
+    expect(current?.text).toBe('Funk 1');
+    finish();
+    await vi.advanceTimersByTimeAsync(0);
+    stopSpeaking('funk');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(done).toEqual(['t', 'f1', 'f2']);
+    expect(handed.map((u) => u.text)).toEqual(['Funk 1', 'Funk 2']);
+    expect(current).toBeNull();
+  });
+
+  it('Ersatz-Timer zählt erst ab Übergabe, nicht ab Einreihen', async () => {
+    const done: string[] = [];
+    // 2 s + 10 Zeichen / 10 pro s = 3 s Ersatzdauer je Äußerung
+    void speakAs('aaaaaaaaaa', p, undefined, 'funk').then(() => done.push('1'));
+    void speakAs('bbbbbbbbbb', p, undefined, 'telefon').then(() => done.push('2'));
+    await vi.advanceTimersByTimeAsync(2500);
+    expect(done).toEqual([]);
+    // erste Äußerung liefert kein "end": Ersatz greift nach 3 s
+    current = null;
+    await vi.advanceTimersByTimeAsync(600);
+    expect(done).toEqual(['1']);
+    expect(handed.map((u) => u.text)).toEqual(['aaaaaaaaaa', 'bbbbbbbbbb']);
+    // die zweite hat ihre volle Zeit ab Übergabe
+    await vi.advanceTimersByTimeAsync(2500);
+    expect(done).toEqual(['1']);
+    await vi.advanceTimersByTimeAsync(600);
+    expect(done).toEqual(['1', '2']);
   });
 });

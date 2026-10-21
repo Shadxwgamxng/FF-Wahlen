@@ -4,7 +4,7 @@ import { newId } from '../../model/ids';
 import { radioGroupOf } from '../../model/radio';
 import { emptyVehicleRuntime } from '../../data/sampleCenter';
 import { store } from '../../store/gameStore';
-import { setVehicleImage } from '../vehicleImages';
+import { setVehicleImages } from '../vehicleImages';
 
 /**
  * Fahrzeuge an den Wachen anlegen – direkt nach dem Erstellen einer Leitstelle und im Bearbeitungsmodus.
@@ -100,10 +100,8 @@ function StationCard({ game, station }: { game: GameState; station: Station }) {
     }, `${d.callsign.trim()} angelegt.`);
     if (!err) {
       // Bilder für die Karte (ohne / mit Blaulicht) gleich mitspeichern
-      for (const k of ['normal', 'blaulicht'] as const) {
-        const f = imgs[k];
-        if (f) void setVehicleImage(id, k, f).catch((e) => store.toast('fehler', (e as Error).message));
-      }
+      if (imgs.normal || imgs.blaulicht)
+        void setVehicleImages(id, { normal: imgs.normal, blaulicht: imgs.blaulicht }).catch((e) => store.toast('fehler', (e as Error).message));
       setImgs({});
       setImgKey((x) => x + 1);
       setD({ ...emptyDraft(), groupCode: d.groupCode, groupName: d.groupName, typeId: d.typeId });

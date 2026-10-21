@@ -5,6 +5,7 @@ import { vehicleAvailability, outOfServiceReason } from '../../../sim/availabili
 import { formatDuration } from '../../../sim/geo';
 import { store } from '../../../store/gameStore';
 import { radioGroupOf } from '../../../model/radio';
+import { VehicleImage } from '../../vehicleImages';
 import { fmtAgo, fmtClock, StatusBadge } from '../../components/common';
 
 export function CallList({ game, selectedId, onSelect }: { game: GameState; selectedId: string | null; onSelect: (id: string) => void }) {
@@ -134,7 +135,8 @@ export function VehicleBoard({ game, selectedId, onSelect }: { game: GameState; 
                     <div className="ellipsis">{v.callsign}</div>
                     {info && <div className={`small ellipsis ${av && !av.available ? 'field-error' : 'muted'}`}>{info}</div>}
                   </div>
-                  <span className="small muted" title={`Funkrufgruppe ${radioGroupOf(game.center, v)?.name ?? ''}`}>
+                  <span className="small muted row" style={{ gap: 4, alignItems: 'center', flexWrap: 'nowrap' }} title={`Funkrufgruppe ${radioGroupOf(game.center, v)?.name ?? ''}`}>
+                    <VehicleImage vehicle={v} height={16} />
                     {t?.code} <span className="mono dim">{radioGroupOf(game.center, v)?.code}</span>
                   </span>
                 </div>
@@ -159,6 +161,7 @@ export function VehicleDetail({ game, vehicleId, onClose, onOpenIncident }: { ga
       <div className="panel-head">
         <StatusBadge game={game} meaning={v.rt.status} />
         <h4 className="grow ellipsis" style={{ textTransform: 'none', letterSpacing: 0 }}>{v.callsign}</h4>
+        <VehicleImage vehicle={v} height={24} />
         <button className="btn ghost small" onClick={onClose} aria-label="Fahrzeugdetails schließen">✕</button>
       </div>
       <div className="panel-body pad col small" style={{ gap: 4 }}>
