@@ -31,6 +31,8 @@ export function PopoutApp({ kind }: { kind: string }) {
   const mode = useStore((s) => s.mode);
   const [vehicleId, setVehicleId] = useState<string | null>(null);
   const title = POPOUTS.find((p) => p[0] === kind)?.[1] ?? kind;
+  // Hauptfenster blendet diesen Bereich aus, solange dieses Fenster offen ist
+  useEffect(() => store.announcePopout(kind), [kind]);
   useEffect(() => {
     document.title = `LEITWARTE – ${title}`;
   }, [title]);

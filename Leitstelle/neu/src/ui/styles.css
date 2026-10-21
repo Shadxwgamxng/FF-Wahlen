@@ -451,3 +451,73 @@ html[data-style='behoerde'] .dias-code { background: #dbe6f4; }
 .topbar .chip, .topbar .btn.small { padding-left: 6px; padding-right: 6px; }
 html[data-style='modern'] { --ring-a: #241a14; --ring-b: #3a2618; }
 .topbar.edit { background: var(--topbar-bg); color: var(--topbar-fg); }
+
+/* Bereich in eigenem Fenster */
+.popped { height: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; color: var(--text-3); background: var(--bg); font-size: 12px; }
+
+/* =====================================================================
+   ELS-Aufbau: Menüleiste, Werkzeugleiste, Titelleisten, Statuszeile
+   ===================================================================== */
+.shell { grid-template-rows: auto auto auto 1fr auto; }
+.menubar { display: flex; align-items: stretch; gap: 0; background: var(--panel); border-bottom: 1px solid var(--line-2); font-size: 12px; height: 24px; position: relative; z-index: 3500; }
+.mb-brand { font-weight: 700; padding: 0 12px 0 10px; display: flex; align-items: center; color: var(--accent); border-right: 1px solid var(--line); }
+.mb-menu { position: relative; display: flex; }
+.mb-title { background: none; border: none; padding: 0 10px; cursor: default; color: var(--text); }
+.mb-title:hover, .mb-title.open { background: var(--sel); }
+.mb-list { position: absolute; top: 100%; left: 0; min-width: 240px; background: var(--panel); border: 1px solid var(--line-2); box-shadow: 2px 3px 8px #0005; padding: 2px 0; display: flex; flex-direction: column; }
+.mb-item { display: flex; gap: 6px; align-items: center; background: none; border: none; padding: 4px 10px 4px 4px; text-align: left; cursor: default; color: var(--text); white-space: nowrap; }
+.mb-item:hover:not(:disabled) { background: var(--accent); color: #fff; }
+.mb-item:disabled { color: var(--text-3); }
+.mb-check { width: 16px; text-align: center; }
+.mb-key { color: var(--text-3); padding-left: 20px; font-size: 11px; }
+.mb-item:hover:not(:disabled) .mb-key { color: #fff; }
+.mb-sep { height: 1px; background: var(--line); margin: 3px 0; }
+.mb-sep:first-child, .mb-sep + .mb-sep { display: none; }
+.mb-project { display: flex; align-items: center; padding: 0 10px; color: var(--text-2); }
+
+.statusbar { display: flex; align-items: stretch; gap: 0; background: var(--bg-2); border-top: 1px solid var(--line-2); font-size: 11px; height: 22px; color: var(--text-2); }
+.sb-field { display: flex; align-items: center; padding: 0 10px; border-right: 1px solid var(--line); white-space: nowrap; }
+.sb-field.warn { color: var(--warn); font-weight: 600; }
+.sb-keys { display: flex; align-items: center; gap: 4px; padding: 0 10px; border-left: 1px solid var(--line); border-right: 1px solid var(--line); white-space: nowrap; }
+.sb-keys kbd { margin-left: 6px; }
+
+.tb-field { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border: 1px solid var(--line); background: var(--panel-2); font-size: 12px; white-space: nowrap; }
+.tb-field b { font-family: var(--mono); min-width: 1.5em; text-align: right; }
+.tb-field.alarm { background: var(--alarm); border-color: var(--alarm); color: #fff; }
+.tb-field.warn { background: var(--warn-bg); border-color: var(--warn); }
+
+/* Überschriften ohne Großbuchstaben/Sperrung – Titelleisten statt Web-Labels */
+h4 { text-transform: none; letter-spacing: 0; font-size: 12px; color: var(--head-fg); }
+.mask-title, .mask-box legend { text-transform: none; letter-spacing: 0; font-size: 12px; }
+.panel-head { padding: 3px 8px; min-height: 24px; }
+.panel-head h4 { font-weight: 600; }
+.brand { letter-spacing: .02em; }
+.hero h1 { letter-spacing: .02em; }
+.count { border-radius: 2px; }
+.chip { border-radius: 3px; }
+
+/* Behörde: klassische Titelleisten und Statuszeile */
+html[data-style='behoerde'] .menubar { background: #f0f0f0; border-bottom-color: #a0a0a0; }
+html[data-style='behoerde'] .mb-brand { color: #0a2a52; }
+html[data-style='behoerde'] .mb-title:hover, html[data-style='behoerde'] .mb-title.open { background: #cfe0f6; }
+html[data-style='behoerde'] .mb-list { background: #f8f8f8; border-color: #8f9aa7; }
+html[data-style='behoerde'] .mb-item:hover:not(:disabled) { background: #0a4a92; }
+html[data-style='behoerde'] .panel-head { background: linear-gradient(#5b84b8, #3a6497); color: #fff; border-bottom: 1px solid #23456f; }
+html[data-style='behoerde'] .panel-head h4, html[data-style='behoerde'] .panel-head .muted, html[data-style='behoerde'] .panel-head .small { color: #fff; }
+html[data-style='behoerde'] .panel-head .btn { padding: 0 6px; }
+html[data-style='behoerde'] .panel-head .count { background: #fff; color: #0a2a52; }
+html[data-style='behoerde'] .mask-title { color: #0a2a52; border-bottom: 1px solid var(--line); padding-bottom: 2px; }
+html[data-style='behoerde'] .statusbar { background: #e4e4e4; border-top-color: #a0a0a0; color: #222; }
+html[data-style='behoerde'] .topbar { padding: 3px 8px; }
+html[data-style='behoerde'] .topbar .tb-field { background: #0d2c50; border-color: #5c84b5; color: #fff; }
+html[data-style='behoerde'] .topbar .tb-field.alarm { background: #c4161c; border-color: #fff; }
+html[data-style='behoerde'] .topbar .tb-field.warn { background: #b56b00; border-color: #fff; }
+html[data-style='behoerde'] .clock { font-family: var(--mono); font-size: 17px; background: #000; color: #3cff6b; padding: 0 8px; border: 1px solid #5c84b5; }
+html[data-style='behoerde'] .list-item { padding: 4px 8px; }
+html[data-style='behoerde'] .list-item.ringing { animation: ring-b 1s steps(1) infinite; }
+@keyframes ring-b { 0%, 100% { background: #fff; } 50% { background: #ffd2c2; } }
+
+/* Modern: ruhige Menüleiste */
+html[data-style='modern'] .menubar { background: #0c1118; border-bottom-color: #1a222c; }
+html[data-style='modern'] .statusbar { background: #0c1118; border-top-color: #1a222c; }
+html[data-style='modern'] .panel-head { background: #121821; border-bottom-color: #1f2833; }

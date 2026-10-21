@@ -1,8 +1,6 @@
 import { useVehicleImagesLoader } from './vehicleImages';
 import { useEffect, useRef, useState } from 'react';
 import { store, useStore } from '../store/gameStore';
-import { WEATHER_LABEL } from '../sim/engine';
-import { DIFFICULTY } from '../sim/difficulty';
 import { ConfirmHost, fmtClock, fmtDate, Modal, Toasts } from './components/common';
 import { StartScreen } from './views/StartScreen';
 import { Desk } from './views/desk/Desk';
@@ -18,10 +16,11 @@ import { VoiceTestView } from './views/VoiceTestView';
 import { VehicleSetup } from './views/VehicleSetup';
 import { installAudio } from './audio';
 import { openPopout, POPOUTS } from './PopoutApp';
-import { installRouting, useRoutingState } from './routingService';
+import { installRouting } from './routingService';
 import { FunkController } from './funk';
 import { CallVoiceController } from './callVoice';
 import { JoinScreen, PlayerChips, usePlayerHeartbeat } from './players';
+import { MenuBar, StatusBar } from './MenuBar';
 
 export type ViewId = 'leitstand' | 'einrichten' | 'wachen' | 'fahrzeuge' | 'aao' | 'kliniken' | 'statistik' | 'editor' | 'simulation' | 'mehrspieler' | 'daten' | 'sprachtest';
 
@@ -147,7 +146,8 @@ export function App() {
 
   return (
     <div className="shell">
-      {mode === 'bearbeiten' ? <EditBar /> : <TopBar onHelp={() => setHelp(true)} />}
+      <MenuBar nav={NAV} view={view} setView={setView} onHelp={() => setHelp(true)} />
+      {mode === 'bearbeiten' ? <EditBar /> : <TopBar />}
       <nav className="nav" style={{ padding: '0 8px', background: 'var(--bg-2)', borderBottom: '1px solid var(--line)' }} aria-label="Bereiche">
         {NAV.map(([id, label], i) => (
           <button key={id} className={view === id ? 'active' : ''} onClick={() => setView(id)} title={i < 10 ? `Alt+${(i + 1) % 10}` : undefined}>
@@ -169,6 +169,7 @@ export function App() {
         {view === 'daten' && <DataView game={game} />}
         {view === 'sprachtest' && <VoiceTestView game={game} />}
       </main>
+      <StatusBar />
       {help && <HelpModal onClose={() => setHelp(false)} />}
       <FunkController />
       <CallVoiceController />
@@ -218,23 +219,10 @@ function WindowMenu() {
   );
 }
 
-function RoutingChip() {
-  const r = useRoutingState();
-  const label = { aus: 'Routing aus', unbekannt: 'Routing …', ok: 'Straßenrouting', fehler: 'Luftlinie!' }[r.state];
-  const cls = r.state === 'ok' ? 'ok' : r.state === 'fehler' ? 'warn' : '';
-  const title =
-    r.state === 'fehler'
-      ? `OSRM-Server nicht erreichbar (${r.error}) – Fahrzeuge fahren die Luftlinien-Näherung. Einrichtung: docs/ROUTING.md, Adresse unter „Daten & Einstellungen“.`
-      : r.state === 'ok'
-        ? 'Fahrzeuge fahren echte Straßenrouten (OSRM).'
-        : 'Routing-Status';
-  return <span className={`chip ${cls}`} title={title}>{label}</span>;
-}
 
-function TopBar({ onHelp }: { onHelp: () => void }) {
+/** Werkzeugleiste: Uhr, Zeitsteuerung, Lagezähler */
+function TopBar() {
   const game = useStore((s) => s.state)!;
-  const project = useStore((s) => s.project);
-  const saveStatus = useStore((s) => s.saveStatus);
   const rt = game.runtime;
   const now = rt.clock.now;
   const ringing = rt.calls.filter((c) => c.state === 'klingelt' && c.receivedAt <= now).length;
@@ -243,10 +231,7 @@ function TopBar({ onHelp }: { onHelp: () => void }) {
   const free = game.center.vehicles.filter((v) => v.rt.status === 'frei_wache' || v.rt.status === 'frei_funk').length;
   return (
     <header className="topbar">
-      <span className="brand">LEITWARTE</span>
-      <span className="ellipsis" style={{ maxWidth: 260 }} title={game.center.name}>{project?.name ?? game.center.name}</span>
       <span className="clock" data-testid="sim-clock" title={fmtDate(now)}>{fmtClock(now, true)}</span>
-      <span className="small muted">{fmtDate(now)}</span>
       {store.isPlayerClient ? (
         <span className="chip">{rt.clock.running ? `läuft ${rt.clock.speed}×` : 'pausiert'}</span>
       ) : (
@@ -257,7 +242,7 @@ function TopBar({ onHelp }: { onHelp: () => void }) {
         data-testid="play-pause"
         title="Leertaste"
       >
-        {rt.clock.running ? '❚❚ Pause' : '▶ Start'}
+        {rt.clock.running ? 'Pause' : 'Start'}
       </button>
       <div className="row" role="group" aria-label="Simulationsgeschwindigkeit">
         {SPEEDS.map((sp, i) => (
@@ -268,21 +253,13 @@ function TopBar({ onHelp }: { onHelp: () => void }) {
       </div>
       </>
       )}
-      <PlayerChips game={game} />
-      <span className="chip" title="Wetterlage">{WEATHER_LABEL[rt.weather]}</span>
-      <span className="chip">{DIFFICULTY[game.center.settings.difficulty].label}</span>
       <span className="spacer" />
-      <span className={`chip ${ringing ? 'alarm' : ''}`}>Notrufe {ringing}</span>
-      <span className={`chip ${undisp ? 'warn' : ''}`} title="Nicht disponierte Einsätze">Offen {undisp}</span>
-      <span className={`chip ${radio ? 'warn' : ''}`} title="Offene Sprechwünsche">Funk {radio}</span>
-      <WindowMenu />
-      <RoutingChip />
-      <span className="chip ok" title="Freie Fahrzeuge">Fz frei {free}/{game.center.vehicles.length}</span>
-      <span className="small dim" title="Automatisches Speichern in diesem Browser (IndexedDB)">
-        {saveStatus === 'gespeichert' ? '✓ gespeichert' : saveStatus === 'speichert' ? 'speichert …' : saveStatus === 'fehler' ? '⚠ Speicherfehler' : '● ungespeichert'}
-      </span>
-      <button className="btn small" onClick={onHelp} title="Hilfe (?)">?</button>
-      {!store.isPlayerClient && <button className="btn small" onClick={() => void store.close()} title="Speichern und zur Leitstellenauswahl">Beenden</button>}
+      <PlayerChips game={game} />
+      <span className={`tb-field ${ringing ? 'alarm' : ''}`}>Notrufe <b>{ringing}</b></span>
+      <span className={`tb-field ${undisp ? 'warn' : ''}`}>Offene Einsätze <b>{undisp}</b></span>
+      <span className={`tb-field ${radio ? 'warn' : ''}`}>Sprechwünsche <b>{radio}</b></span>
+      <span className="tb-field">Fahrzeuge frei <b>{free}/{game.center.vehicles.length}</b></span>
+      {!store.isPlayerClient && <WindowMenu />}
     </header>
   );
 }

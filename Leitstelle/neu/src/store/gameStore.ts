@@ -126,10 +126,12 @@ export class GameStore {
         const r = withActor(actor, () => this.cmdLocal(m.name as CommandName, m.args, false));
         this.channel?.post({ t: 'result', to: m.from, result: r, req: m.req } satisfies SyncMsg);
       } else if (m.t === 'ui') this.uiListeners.forEach((l) => l(m.action));
+      else if (m.t === 'popout') this.notePopout(m.kind, m.open);
       // Sendetaste eines Tablets, das zu einem Mitspieler gehört, ist nicht für den Gastgeber
       else if (m.t === 'ptt' && (!m.to || m.to === this.hostActor().id)) this.pttListeners.forEach((l) => l(m.on, m.group));
     });
     window.addEventListener('beforeunload', () => this.channel?.post({ t: 'bye' } satisfies SyncMsg));
+    setInterval(() => this.refreshPopouts(), 2000);
   }
 
   /** Nur lokal neu zeichnen (ohne erneutes Senden) */
@@ -256,6 +258,8 @@ export class GameStore {
         if (!r.ok) this.toast('fehler', r.error);
         else if (r.message) this.toast('ok', r.message);
         this.emit();
+      } else if (m.t === 'popoutClose') {
+        if (this.popoutKind === m.kind) window.close();
       } else if (m.t === 'ptt') {
         // Tablet eines Mitspielers: Sendetaste löst das Mikrofon an dessen PC aus
         if (this.isPlayerClient && this.player && m.to === this.player.id) this.pttListeners.forEach((l) => l(m.on, m.group));
@@ -294,6 +298,45 @@ export class GameStore {
     return () => {
       this.uiListeners.delete(l);
     };
+  }
+
+  // -------------------------------------------------------------- Gelöste Fenster
+
+  /** Welche Bereiche gerade als eigenes Fenster offen sind (Hauptfenster blendet sie dann aus) */
+  popouts: string[] = [];
+  private popoutSeen = new Map<string, number>();
+
+  private notePopout(kind: string, open: boolean) {
+    if (open) this.popoutSeen.set(kind, Date.now());
+    else this.popoutSeen.delete(kind);
+    this.refreshPopouts();
+  }
+
+  private refreshPopouts() {
+    const now = Date.now();
+    for (const [k, t] of this.popoutSeen) if (now - t > 7000) this.popoutSeen.delete(k);
+    const next = [...this.popoutSeen.keys()].sort();
+    if (next.join() !== this.popouts.join()) {
+      this.popouts = next;
+      this.emitLocal();
+    }
+  }
+
+  private popoutKind: string | null = null;
+
+  /** Hauptfenster: gelöstes Fenster schließen (Bereich kommt zurück) */
+  closePopout(kind: string) {
+    this.channel?.postLocal({ t: 'popoutClose', kind } satisfies SyncMsg);
+    this.notePopout(kind, false);
+  }
+
+  /** Zweitfenster: Lebenszeichen an das Hauptfenster (nur im selben Browser) */
+  announcePopout(kind: string) {
+    this.popoutKind = kind;
+    const send = (open: boolean) => this.channel?.postLocal({ t: 'popout', kind, open } satisfies SyncMsg);
+    send(true);
+    setInterval(() => send(true), 2500);
+    window.addEventListener('beforeunload', () => send(false));
   }
 
   // -------------------------------------------------------------- Funk (Sendetaste)
@@ -617,6 +660,8 @@ type SyncMsg =
   | { t: 'dias'; tree: DiasTree | null }
   | { t: 'delta'; mode: GameStore['mode']; project: GameStore['project']; vehicles: CenterConfig['vehicles']; hospitals: CenterConfig['hospitals']; runtime: GameState['runtime'] }
   | { t: 'ptt'; on: boolean; group: string | null; to?: string }
+  | { t: 'popout'; kind: string; open: boolean }
+  | { t: 'popoutClose'; kind: string }
   | { t: 'funkStatus'; status: FunkStatus; owner?: string };
 
 /** Zustand des Funks am Leitstand-PC (Mikrofon, Erkennung) – wird an Tablet und Zweitfenster gemeldet */
