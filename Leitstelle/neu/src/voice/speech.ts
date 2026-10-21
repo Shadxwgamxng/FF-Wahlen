@@ -214,7 +214,7 @@ interface SpeechItem {
 
 /*
  * Gemeinsame Warteschlange aller Sprachausgaben: Der Browser bekommt immer nur eine Äußerung, damit
- * Funk und Telefon nie durcheinander reden und stopSpeaking(kanal) nur den eigenen Kanal abbricht.
+ * Funk und Telefon nie übereinander reden und stopSpeaking(kanal) nur den eigenen Kanal abbricht.
  */
 const waiting: SpeechItem[] = [];
 let current: { item: SpeechItem; finish: () => void } | null = null;
@@ -223,9 +223,8 @@ const hasSynthesis = () => typeof window !== 'undefined' && 'speechSynthesis' in
 
 function pump() {
   if (current || !hasSynthesis()) return;
-  // Funk hat Vorrang vor wartenden Telefon- und Ansagetexten
-  const f = waiting.findIndex((w) => w.channel === 'funk');
-  const item = waiting.splice(f >= 0 ? f : 0, 1)[0];
+  // in Reihenfolge des Eintreffens: Funk und Anrufer sprechen abwechselnd, keiner wartet auf den anderen
+  const item = waiting.shift();
   if (!item) return;
   const u = new SpeechSynthesisUtterance(item.text);
   u.lang = 'de-DE';

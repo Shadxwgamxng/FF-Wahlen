@@ -331,7 +331,7 @@ describe('Sprachausgabe: gemeinsame Warteschlange', () => {
     vi.unstubAllGlobals();
   });
 
-  it('spricht nacheinander, Funk vor wartendem Telefon', async () => {
+  it('spricht nacheinander in Reihenfolge des Eintreffens (Funk und Anrufer abwechselnd)', async () => {
     const done: string[] = [];
     void speakAs('Anrufer 1', p, undefined, 'telefon').then(() => done.push('t1'));
     void speakAs('Anrufer 2', p, undefined, 'telefon').then(() => done.push('t2'));
@@ -340,13 +340,13 @@ describe('Sprachausgabe: gemeinsame Warteschlange', () => {
     expect(handed.map((u) => u.text)).toEqual(['Anrufer 1']);
     finish();
     await vi.advanceTimersByTimeAsync(0);
-    expect(handed.map((u) => u.text)).toEqual(['Anrufer 1', 'Funk']);
+    expect(handed.map((u) => u.text)).toEqual(['Anrufer 1', 'Anrufer 2']);
     finish();
     await vi.advanceTimersByTimeAsync(0);
     finish();
     await vi.advanceTimersByTimeAsync(0);
-    expect(handed.map((u) => u.text)).toEqual(['Anrufer 1', 'Funk', 'Anrufer 2']);
-    expect(done).toEqual(['t1', 'f', 't2']);
+    expect(handed.map((u) => u.text)).toEqual(['Anrufer 1', 'Anrufer 2', 'Funk']);
+    expect(done).toEqual(['t1', 't2', 'f']);
   });
 
   it('stopSpeaking(kanal) bricht nur diesen Kanal ab', async () => {

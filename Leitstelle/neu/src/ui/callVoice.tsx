@@ -13,8 +13,8 @@ import { currentQuestion } from '../dias/completion';
  * Freisprechen bei echten Notrufen im Spiel: Sobald ein Notruf angenommen ist, ist am Leitstand-PC das
  * Mikrofon offen. Gesagtes wird erkannt, der simulierte Anrufer (voice/caller.ts) antwortet per
  * Sprachausgabe. Halbduplex: Während der Anrufer spricht oder gefunkt wird (Senden oder Empfang), hört
- * die Erkennung nicht zu (kein Echo, nur eine Erkennung gleichzeitig). Funk hat Vorrang: Der Anrufer
- * spricht einen angefangenen Satz zu Ende und wartet mit der nächsten Antwort, bis Funk frei ist.
+ * die Erkennung nicht zu (kein Echo, nur eine Erkennung gleichzeitig). Der Anrufer redet auch während
+ * Funkverkehr: Seine Antworten stehen in derselben Sprach-Warteschlange und kommen direkt nach dem laufenden Satz.
  * Jeder Wortwechsel landet als Befehl voiceTurn im Gesprächsverlauf der Einsatzmaske.
  */
 
@@ -152,26 +152,6 @@ export function CallVoiceController() {
     /** ms bis Funk frei ist (inkl. Pause danach); -1 = Funk belegt */
     const funkWait = () => (funkBusy() ? -1 : Math.max(0, funkFreeAt + FUNK_GAP_MS - Date.now()));
     const pause = () => status.state !== 'pause' && setStatus({ state: 'pause', interim: '' });
-    /** wartet, bis Funk frei ist (Status solange "pause") – oder das Gespräch vorbei ist */
-    const funkFree = (s: Session) =>
-      new Promise<void>((resolve) => {
-        let t: ReturnType<typeof setTimeout> | null = null;
-        const check = () => {
-          if (t) clearTimeout(t);
-          t = null;
-          const w = session === s ? funkWait() : 0;
-          if (w === 0) {
-            unsub();
-            resolve();
-            return;
-          }
-          pause();
-          if (w > 0) t = setTimeout(check, w);
-        };
-        const unsub = store.subscribe(check);
-        check();
-      });
-
     const listen = () => {
       if (restart) clearTimeout(restart);
       restart = null;
@@ -218,9 +198,7 @@ export function CallVoiceController() {
       s.errors = 0;
       const turn = await s.respond(text);
       if (turn.text) {
-        // Funk hat Vorrang: erst antworten, wenn Funk frei ist
-        await funkFree(s);
-        if (session !== s) return;
+        // Anrufer redet auch während Funkverkehr – eingereiht direkt hinter den laufenden Satz
         s.speaking = true;
         setStatus({ state: 'spricht', interim: '' });
         await speakAs(turn.text, turn.persona, s.voice, 'telefon');
@@ -257,12 +235,8 @@ export function CallVoiceController() {
           const s = session;
           const greeting = target.greeting;
           s.speaking = true;
-          void funkFree(s)
-            .then(() => {
-              if (session !== s) return;
-              setStatus({ state: 'spricht' });
-              return speakAs(greeting, { rate: 1.05, pitch: 0.95 }, s.voice, 'telefon');
-            })
+          setStatus({ state: 'spricht' });
+          void speakAs(greeting, { rate: 1.05, pitch: 0.95 }, s.voice, 'telefon')
             .then(() => {
               s.speaking = false;
               if (session === s) listen();
