@@ -126,7 +126,8 @@ export class GameStore {
         const r = withActor(actor, () => this.cmdLocal(m.name as CommandName, m.args, false));
         this.channel?.post({ t: 'result', to: m.from, result: r, req: m.req } satisfies SyncMsg);
       } else if (m.t === 'ui') this.uiListeners.forEach((l) => l(m.action));
-      else if (m.t === 'ptt') this.pttListeners.forEach((l) => l(m.on, m.group));
+      // Sendetaste eines Tablets, das zu einem Mitspieler gehört, ist nicht für den Gastgeber
+      else if (m.t === 'ptt' && (!m.to || m.to === this.hostActor().id)) this.pttListeners.forEach((l) => l(m.on, m.group));
     });
     window.addEventListener('beforeunload', () => this.channel?.post({ t: 'bye' } satisfies SyncMsg));
   }
@@ -255,9 +256,13 @@ export class GameStore {
         if (!r.ok) this.toast('fehler', r.error);
         else if (r.message) this.toast('ok', r.message);
         this.emit();
+      } else if (m.t === 'ptt') {
+        // Tablet eines Mitspielers: Sendetaste löst das Mikrofon an dessen PC aus
+        if (this.isPlayerClient && this.player && m.to === this.player.id) this.pttListeners.forEach((l) => l(m.on, m.group));
       } else if (m.t === 'funkStatus') {
-        // Mitspieler haben ihren eigenen Funkzustand
+        // Mitspieler haben ihren eigenen Funkzustand; ein Tablet zeigt den seines PCs
         if (this.isPlayerClient) return;
+        if ((m.owner ?? null) !== (this.tabletOwner?.id ?? null)) return;
         this.funkStatus = m.status;
         this.emitLocal();
       } else if (m.t === 'bye') {
@@ -299,7 +304,7 @@ export class GameStore {
   /** Sendetaste gedrückt/losgelassen – Mikrofon und Erkennung laufen immer am Hauptfenster (Leitstand-PC) */
   sendPtt(on: boolean, group: string | null) {
     // Mitspieler sprechen am eigenen PC; Tablet und Zweitfenster senden an den Leitstand-PC
-    if (this.role === 'remote' && !this.isPlayerClient) this.channel?.post({ t: 'ptt', on, group } satisfies SyncMsg);
+    if (this.role === 'remote' && !this.isPlayerClient) this.channel?.post({ t: 'ptt', on, group, to: this.tabletOwner?.id } satisfies SyncMsg);
     else this.pttListeners.forEach((l) => l(on, group));
   }
 
@@ -316,6 +321,7 @@ export class GameStore {
     this.funkStatus = { ...this.funkStatus, ...patch };
     this.emitLocal();
     if (this.role === 'main') this.channel?.post({ t: 'funkStatus', status: this.funkStatus } satisfies SyncMsg);
+    else if (this.isPlayerClient && this.player) this.channel?.postLan({ t: 'funkStatus', status: this.funkStatus, owner: this.player.id } satisfies SyncMsg);
   }
 
   // -------------------------------------------------------------- Benannte Befehle
@@ -330,6 +336,8 @@ export class GameStore {
 
   /** Dieser Spieler (Mehrspieler); auf dem Gastgeber der Gastgeber selbst */
   player: { id: string; name: string } | null = loadPlayer();
+  /** Tablet: gehört zu diesem Mitspieler (null = Gastgeber-PC) */
+  tabletOwner: { id: string; name: string } | null = null;
   /** Mitspieler-Ansicht (volle Oberfläche, Simulation läuft beim Gastgeber) */
   isPlayerClient = false;
   private reqSeq = 0;
@@ -360,7 +368,7 @@ export class GameStore {
         else if (r.message) this.toast('ok', r.message);
         resolve(r);
       });
-      this.channel?.post({ t: 'cmd', from: this.windowId, name, args: args as unknown[], quiet: true, req, player: this.isPlayerClient ? (this.player ?? undefined) : undefined } satisfies SyncMsg);
+      this.channel?.post({ t: 'cmd', from: this.windowId, name, args: args as unknown[], quiet: true, req, player: this.isPlayerClient ? (this.player ?? undefined) : (this.tabletOwner ?? undefined) } satisfies SyncMsg);
       setTimeout(() => {
         if (this.pending.delete(req)) resolve({ ok: false, error: 'Keine Antwort vom Gastgeber.' });
       }, 8000);
@@ -384,7 +392,7 @@ export class GameStore {
         void this.cmdAsync(name as never, ...(args as never[]));
         return { ok: true };
       }
-      this.channel?.post({ t: 'cmd', from: this.windowId, name, args, quiet: !toast, player: this.isPlayerClient ? (this.player ?? undefined) : undefined } satisfies SyncMsg);
+      this.channel?.post({ t: 'cmd', from: this.windowId, name, args, quiet: !toast, player: this.isPlayerClient ? (this.player ?? undefined) : (this.tabletOwner ?? undefined) } satisfies SyncMsg);
       // Ergebnis kommt asynchron vom Hauptfenster; IDs neu angelegter Objekte sind hier nicht bekannt
       return { ok: true };
     }
@@ -608,8 +616,8 @@ type SyncMsg =
   | { t: 'diasReq' }
   | { t: 'dias'; tree: DiasTree | null }
   | { t: 'delta'; mode: GameStore['mode']; project: GameStore['project']; vehicles: CenterConfig['vehicles']; hospitals: CenterConfig['hospitals']; runtime: GameState['runtime'] }
-  | { t: 'ptt'; on: boolean; group: string | null }
-  | { t: 'funkStatus'; status: FunkStatus };
+  | { t: 'ptt'; on: boolean; group: string | null; to?: string }
+  | { t: 'funkStatus'; status: FunkStatus; owner?: string };
 
 /** Zustand des Funks am Leitstand-PC (Mikrofon, Erkennung) – wird an Tablet und Zweitfenster gemeldet */
 export interface FunkStatus {

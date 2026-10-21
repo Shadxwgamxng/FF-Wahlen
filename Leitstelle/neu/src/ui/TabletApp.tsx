@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { GameState, RadioGroup, Vehicle } from '../model/types';
 import { radioGroupOf } from '../model/radio';
-import { useStore } from '../store/gameStore';
+import { store, useStore } from '../store/gameStore';
 import { ConfirmHost, fmtClock, StatusBadge, Toasts } from './components/common';
 import { DiasPanel } from './views/desk/DiasPanel';
 import { RadioActions, radioText } from './views/desk/RadioPanel';
@@ -14,6 +14,63 @@ import { FunkLog, FunkStatusLine, PttButton } from './funk';
  */
 
 const GROUP_KEY = 'leitwarte.tablet.rufgruppe';
+const OWNER_KEY = 'leitwarte.tablet.gehoertzu';
+
+// Mehrspieler: zu welchem Spieler gehört dieses Tablet? (gemerkt je Gerät)
+try {
+  const o = JSON.parse(localStorage.getItem(OWNER_KEY) ?? 'null');
+  if (o && typeof o.id === 'string') store.tabletOwner = o;
+} catch {
+  /* Gastgeber-PC */
+}
+
+function setOwner(o: { id: string; name: string } | null) {
+  store.tabletOwner = o;
+  try {
+    if (o) localStorage.setItem(OWNER_KEY, JSON.stringify(o));
+    else localStorage.removeItem(OWNER_KEY);
+  } catch {
+    /* nur für diese Sitzung */
+  }
+  store.funkStatus = { sending: false, group: null, interim: '', error: '', receiving: false };
+}
+
+/** Auswahl: Tablet gehört zum Gastgeber-PC oder zu einem Mitspieler */
+function OwnerSelect({ game }: { game: GameState }) {
+  const [, force] = useState(0);
+  const players = (game.runtime.players ?? []).filter((p) => !p.host);
+  if (players.length === 0 && !store.tabletOwner) return null;
+  return (
+    <label className="row small" title="Sendetaste, Notrufabfrage und Funkstatus gehören zu diesem Spieler">
+      Gehört zu:
+      <select
+        value={store.tabletOwner?.id ?? ''}
+        onChange={(e) => {
+          const p = players.find((x) => x.id === e.target.value);
+          setOwner(p ? { id: p.id, name: p.name } : null);
+          force((x) => x + 1);
+        }}
+        data-testid="tablet-owner"
+      >
+        <option value="">Gastgeber-PC</option>
+        {players.map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.name}
+          </option>
+        ))}
+        {store.tabletOwner && !players.some((p) => p.id === store.tabletOwner!.id) && <option value={store.tabletOwner.id}>{store.tabletOwner.name} (nicht verbunden)</option>}
+      </select>
+    </label>
+  );
+}
+
+/** Notrufe, die zu diesem Tablet gehören (Zuständigkeit) */
+function mineForTablet(game: GameState, owner?: { id: string }) {
+  const t = store.tabletOwner;
+  if (t) return owner?.id === t.id;
+  // Gastgeber-Tablet: ohne Zuständigkeit oder vom Gastgeber
+  return !owner || owner.id === 'host' || (game.runtime.players ?? []).some((p) => p.host && p.id === owner.id);
+}
 
 function loadGroup(): string {
   try {
@@ -49,7 +106,7 @@ export function TabletApp() {
       </div>
     );
   }
-  const calls = game.runtime.calls.filter((c) => c.state === 'in_abfrage').sort((a, b) => (b.acceptedAt ?? 0) - (a.acceptedAt ?? 0));
+  const calls = game.runtime.calls.filter((c) => c.state === 'in_abfrage' && mineForTablet(game, c.owner)).sort((a, b) => (b.acceptedAt ?? 0) - (a.acceptedAt ?? 0));
   const showDias = mode === 'auto' && calls.length > 0;
   return (
     <div className="tablet-shell" data-testid="tablet">
@@ -67,6 +124,7 @@ export function TabletApp() {
             </button>
           </div>
         )}
+        <OwnerSelect game={game} />
         <span className={`chip ${lan.connected && alive ? 'ok' : 'alarm'}`}>{lan.connected ? (alive ? 'verbunden' : 'PC antwortet nicht') : 'getrennt'}</span>
       </header>
       <main className="tablet-main">{showDias ? <TabletSna game={game} calls={calls} /> : <Funkbedienplatz game={game} />}</main>

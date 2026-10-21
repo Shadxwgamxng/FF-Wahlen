@@ -4,16 +4,21 @@ Ein PC ist **Gastgeber**: Dort läuft die Simulation. Bis zu vier Spieler (Gastg
 
 Jeder spricht an seinem eigenen PC: Freisprechen mit seinen Anrufern, Funk mit seiner geschalteten Rufgruppe (F8 bzw. „Senden“).
 
-## Verbindung: Radmin VPN oder Hamachi (kostenlos)
+## Verbindung: ZeroTier (kostenlos, auch für Tablets)
 
-Beide bauen ein virtuelles LAN, als säßet ihr im selben Netz.
+ZeroTier baut ein privates virtuelles Netz – für Windows, Android und iPad. So kommen auch die Tablets eurer Freunde an den Gastgeber.
 
-1. Alle installieren **Radmin VPN** (oder **Hamachi**).
-2. Der Gastgeber erstellt ein Netzwerk (Name + Passwort), die Freunde treten bei.
-3. Der Gastgeber startet LEITWARTE mit `npm.cmd run lan` und lässt die Windows-Firewall für **private Netzwerke** zu (Abfrage beim ersten Start; Radmin/Hamachi gilt als privates Netz).
-4. Der Gastgeber öffnet `http://localhost:8080`, gibt oben seinen Namen ein und startet eine Leitstelle.
-5. Die Freunde öffnen in **Chrome oder Edge**: `http://<Radmin-/Hamachi-IP des Gastgebers>:8080/mitspielen`
-   (die IP steht in Radmin/Hamachi beim Gastgeber, z. B. `26.12.34.56` bzw. `25.x.x.x`), Namen eingeben, fertig.
+1. Der Gastgeber legt auf my.zerotier.com kostenlos ein Konto und ein Netzwerk an und notiert die **Network ID**.
+2. Alle installieren die ZeroTier-App (PC und Tablet) und treten mit der Network ID bei.
+3. Der Gastgeber bestätigt auf my.zerotier.com jedes Gerät („Auth“). Dort steht auch die ZeroTier-IP jedes Geräts.
+4. Der Gastgeber startet LEITWARTE mit `npm.cmd run lan` und lässt die Windows-Firewall zu (ZeroTier-Netz als **privat** einstufen).
+5. Der Gastgeber öffnet `http://localhost:8080`, gibt oben seinen Namen ein und startet eine Leitstelle.
+6. Die Freunde öffnen in **Chrome oder Edge**: `http://<ZeroTier-IP des Gastgebers>:8080/mitspielen`, Namen eingeben.
+7. **Tablets:** `http://<ZeroTier-IP des Gastgebers>:8080/tablet` öffnen und oben bei „Gehört zu“ den eigenen Namen wählen. Dann löst die Sendetaste am Tablet das Mikrofon am **eigenen** PC aus, und das Tablet zeigt nur die eigenen Notrufabfragen.
+
+Grenzen der kostenlosen Pläne ändern sich gelegentlich (Stand: ZeroTier etwa 10 Geräte, Tailscale 3 Nutzer). Für 4 PCs + 4 Tablets passt ZeroTier.
+
+**Radmin VPN / Hamachi** funktionieren für die PCs genauso (statt ZeroTier-IP die Radmin-/Hamachi-IP), haben aber keine Tablet-App – Tablets gehen damit nur beim Gastgeber.
 
 ## Mikrofon bei den Freunden
 

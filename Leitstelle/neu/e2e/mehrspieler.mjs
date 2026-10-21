@@ -49,6 +49,28 @@ async function open(name, url) {
   const page = await ctx.newPage();
   page.on('pageerror', (e) => errors.push(`${name}: ${e.message}`));
   await page.addInitScript(prefs);
+  if (name === 'Anna')
+    await page.addInitScript(() => {
+      // Mikrofon-Einwilligung und nachgebildete Spracherkennung (liefert window.__funkSpruch)
+      localStorage.setItem('leitwarte.sprachtest.einwilligung', JSON.stringify({ version: 1, at: 1, mode: 'browserdienst' }));
+      class FakeRecognition {
+        start() {
+          const text = this.continuous ? window.__funkSpruch || '' : '';
+          setTimeout(() => {
+            if (text) this.onresult?.({ resultIndex: 0, results: { length: 1, 0: Object.assign([{ transcript: text, confidence: 1 }], { isFinal: true }) } });
+            if (!this.continuous) setTimeout(() => this.onend?.(), 50);
+          }, 150);
+        }
+        stop() {
+          setTimeout(() => this.onend?.(), 50);
+        }
+        abort() {
+          this.onend?.();
+        }
+      }
+      window.SpeechRecognition = FakeRecognition;
+      window.webkitSpeechRecognition = FakeRecognition;
+    });
   await page.route('**/tile.openstreetmap.org/**', (r) => r.abort());
   await page.route('**/api/interpreter', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: fixture }));
   if (name === 'Anna') page.on('websocket', (ws) => ws.on('framereceived', (f) => frames.push(typeof f.payload === 'string' ? f.payload.length : f.payload.byteLength)));
@@ -107,6 +129,29 @@ try {
   const avg = Math.round(frames.reduce((a, b) => a + b, 0) / Math.max(1, frames.length) / 1024);
   assert(frames.length > 4 && big === 0, `nur kleine Zustandsmeldungen (${frames.length} Meldungen, ${big} große)`);
   log(`Laufende Simulation: ${frames.length} Zustandsmeldungen in 5 s, Ø ${avg} KB unkomprimiert, ohne Leitstellenkonfiguration`);
+
+  // Annas Tablet: gehört zu Anna – Sendetaste löst Annas Mikrofon aus, nicht das des Gastgebers
+  const tab = await open('Tablet', `${BASE}/tablet`);
+  await tab.getByTestId('funkbedienplatz').waitFor({ timeout: 20000 });
+  const annaId = await anna.evaluate(() => window.leitwarte.player.id);
+  await tab.getByTestId('tablet-owner').selectOption(annaId);
+  const cs = await host.evaluate(() => window.leitwarte.state.center.vehicles.find((v) => v.callsign.startsWith('Florian Ostholstein')).callsign);
+  await anna.evaluate((c) => (window.__funkSpruch = `${c} von Leitstelle, kommen`), cs);
+  const grp = await host.evaluate((c) => {
+    const st = window.leitwarte.state;
+    const v = st.center.vehicles.find((x) => x.callsign === c);
+    return v.radioGroup?.code || st.center.organizations.find((o) => o.id === v.organizationId).radioGroup.code;
+  }, cs);
+  await tab.getByTestId('rufgruppe').filter({ hasText: grp }).first().click();
+  const box = await tab.getByTestId('ptt').boundingBox();
+  await tab.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await tab.mouse.down();
+  await anna.waitForFunction(() => window.leitwarte.funkStatus.sending, null, { timeout: 10000 });
+  assert(!(await host.evaluate(() => window.leitwarte.funkStatus.sending)), 'Gastgeber-Mikrofon bleibt aus');
+  await tab.waitForTimeout(400);
+  await tab.mouse.up();
+  await host.waitForFunction((c) => (window.leitwarte.state.runtime.funk?.log ?? []).some((l) => l.from === 'fahrzeug' && l.text.startsWith(`Hier ${c}`)), cs, { timeout: 10000 });
+  log(`Annas Tablet (gehört zu Anna): Sendetaste → Annas PC erkennt den Funkspruch → ${cs} antwortet; Gastgeber-Mikrofon bleibt aus`);
 
   assert(errors.length === 0, `Keine JavaScript-Fehler: ${errors.join(' | ')}`);
   log('Keine JavaScript-Fehler bei Gastgeber und Mitspielern');
