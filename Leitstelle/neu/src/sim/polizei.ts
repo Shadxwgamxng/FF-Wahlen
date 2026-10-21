@@ -1,5 +1,5 @@
 import type { GameState, Incident, Vehicle } from '../model/types';
-import { alarmPolice, log, type CommandResult } from './engine';
+import { alarmPolice, log, tickHooks, type CommandResult } from './engine';
 import { etaFor, isPoliceVehicle, typeOf } from './dispatch';
 import { vehicleAvailability } from './availability';
 import { numberWord } from './funk';
@@ -23,6 +23,7 @@ export interface PoliceCall {
   lines: PoliceLine[];
   /** von der Polizei bereits geschickte Streifen */
   sent: string[];
+  pending?: { count: number; reason?: string };
 }
 
 const ok = (message?: string): CommandResult => ({ ok: true, message });
@@ -146,6 +147,7 @@ export function policeTalk(state: GameState, incidentId: string, text: string): 
   const reason = REASONS.find(([re]) => re.test(n))?.[1];
   const free = freePatrols(state, inc).slice(0, want);
   if (!free.length) {
+    c.pending = { count: want, reason };
     say(state, inc, 'polizei', 'Verstanden. Im Moment ist leider keine Streife frei – ich schicke die nächste, sobald eine frei wird. Rufen Sie gern noch mal an, wenn es dringender wird.');
     log(state, 'einsatz', `Polizei angefordert (${want}), derzeit keine Streife frei.`, { incidentId: inc.id });
     return ok();
@@ -160,6 +162,7 @@ export function policeTalk(state: GameState, incidentId: string, text: string): 
     return ok();
   }
   c.sent.push(...free.map((v) => v.id));
+  c.pending = free.length < want ? { count: want - free.length, reason } : undefined;
   const eta = Math.max(1, Math.round(etaFor(state, free[0], inc.position).etaMs / 60000));
   const what = free.length === 1 ? 'eine Streife' : `${free.length} Streifen`;
   const short = free.length < want ? ` Mehr habe ich gerade nicht frei.` : '';
@@ -167,3 +170,18 @@ export function policeTalk(state: GameState, incidentId: string, text: string): 
   log(state, 'einsatz', `Polizei schickt ${what}: ${free.map((v) => v.callsign).join(', ')}.`, { incidentId: inc.id });
   return ok();
 }
+
+/** Zugesagte Streifen nachschicken, sobald welche frei werden */
+tickHooks.push((state) => {
+  for (const inc of state.runtime.incidents) {
+    const p = inc.police?.pending;
+    if (!p || inc.state === 'abgeschlossen') continue;
+    const free = freePatrols(state, inc).slice(0, p.count);
+    if (!free.length) continue;
+    if (!alarmPolice(state, inc.id, free.map((v) => v.id)).ok) continue;
+    inc.police!.sent.push(...free.map((v) => v.id));
+    p.count -= free.length;
+    if (p.count <= 0) inc.police!.pending = undefined;
+    log(state, 'einsatz', `Polizei schickt nachträglich ${free.map((v) => v.callsign).join(', ')}.`, { incidentId: inc.id });
+  }
+});

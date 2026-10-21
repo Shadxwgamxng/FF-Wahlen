@@ -225,6 +225,9 @@ export const reqText = (reqs: AaoRequirement[]) => reqs.map((r) => `${r.count}×
 // Simulationsschritt
 // ---------------------------------------------------------------------------
 
+/** Zusatzmodule (z. B. Polizeileitstelle) hängen sich in den Simulationstakt */
+export const tickHooks: ((state: GameState) => void)[] = [];
+
 export function tick(state: GameState, dtMs: number) {
   if (dtMs <= 0) return;
   const rt = state.runtime;
@@ -238,6 +241,7 @@ export function tick(state: GameState, dtMs: number) {
   randomBreakdowns(state, dtMs);
   updateVehicles(state);
   updateIncidents(state, dtMs);
+  for (const h of tickHooks) h(state);
   releaseHospitalBeds(state);
   accumulateStats(state, rt.clock.now - prev);
 }

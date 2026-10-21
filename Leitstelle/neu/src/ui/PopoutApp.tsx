@@ -28,6 +28,7 @@ export function PopoutApp({ kind }: { kind: string }) {
   useVehicleImagesLoader();
   const game = useStore((s) => s.state);
   const alive = useStore((s) => s.mainAlive);
+  const mode = useStore((s) => s.mode);
   const [vehicleId, setVehicleId] = useState<string | null>(null);
   const title = POPOUTS.find((p) => p[0] === kind)?.[1] ?? kind;
   useEffect(() => {
@@ -42,6 +43,13 @@ export function PopoutApp({ kind }: { kind: string }) {
       </div>
     );
   }
+  if (mode === 'bearbeiten')
+    return (
+      <div className="start">
+        <h2>LEITWARTE – {title}</h2>
+        <div className="infobox">Die Leitstelle wird gerade bearbeitet. Dieses Fenster ist wieder aktiv, sobald im Hauptfenster „Leitstelle starten“ gewählt wird.</div>
+      </div>
+    );
   const now = game.runtime.clock.now;
   const openIncident = (id: string) => store.uiAction({ kind: 'openIncident', id });
   return (

@@ -503,7 +503,7 @@ export interface Incident {
   backupRequests: { at: number; text: string; requirements: AaoRequirement[] }[];
   escalation: { at: number; requirements: AaoRequirement[]; text: string; triggered: boolean; extraPatients: number } | null;
   /** Telefonat mit der Polizeileitstelle (sim/polizei.ts) */
-  police?: { open: boolean; shared: boolean; lines: { at: number; from: 'leitstelle' | 'polizei'; text: string }[]; sent: string[] };
+  police?: { open: boolean; shared: boolean; lines: { at: number; from: 'leitstelle' | 'polizei'; text: string }[]; sent: string[]; pending?: { count: number; reason?: string } };
   log: { at: number; text: string }[];
   /** Bewertungshinweis: richtiges Stichwort gewählt? */
   keywordCorrect: boolean | null;

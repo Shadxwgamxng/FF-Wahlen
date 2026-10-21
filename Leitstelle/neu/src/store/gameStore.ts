@@ -148,7 +148,7 @@ export class GameStore {
   private stateMsg(): SyncMsg {
     const s = this.state;
     const center = s ? { ...s.center, places: null } : null;
-    return { t: 'state', project: this.project, placesVersion: this.placesVersion(s?.center), state: s ? { ...s, center: center! } : null };
+    return { t: 'state', mode: this.mode, project: this.project, placesVersion: this.placesVersion(s?.center), state: s ? { ...s, center: center! } : null };
   }
 
   private broadcastNow() {
@@ -174,6 +174,7 @@ export class GameStore {
         lastSeen = Date.now();
         this.mainAlive = true;
         this.project = m.project;
+        if (m.mode) this.mode = m.mode;
         if (!m.state) this.state = null;
         else {
           if (this.placesCache?.version !== m.placesVersion && this.placesRequested !== m.placesVersion) {
@@ -289,6 +290,7 @@ export class GameStore {
     if (mode === 'bearbeiten' && this.state?.runtime.clock.running) this.cmdQuiet('setRunning', false);
     this.mode = mode;
     this.emit();
+    this.broadcastNow();
   }
 
   async newProject(center: CenterConfig, name?: string) {
@@ -324,6 +326,7 @@ export class GameStore {
     this.stopLoop();
     this.state = null;
     this.project = null;
+    this.mode = 'spielen';
     this.emit();
   }
 
@@ -478,7 +481,7 @@ type SyncMsg =
   | { t: 'hello' }
   | { t: 'needPlaces' }
   | { t: 'bye' }
-  | { t: 'state'; project: GameStore['project']; placesVersion: string; state: GameState | null }
+  | { t: 'state'; mode?: GameStore['mode']; project: GameStore['project']; placesVersion: string; state: GameState | null }
   | { t: 'places'; version: string; places: CenterConfig['places'] }
   | { t: 'cmd'; from: string; name: string; args: unknown[]; quiet: boolean }
   | { t: 'result'; to: string; result: CommandResult }

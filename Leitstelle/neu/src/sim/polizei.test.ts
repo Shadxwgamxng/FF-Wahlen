@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { createOstholsteinCenter } from '../data/ostholstein';
 import type { OverpassElement } from '../geo/places';
-import { alarmVehicles, createGame, createManualIncident } from './engine';
+import { alarmVehicles, createGame, createManualIncident, tick } from './engine';
 import { isPoliceVehicle, suggestForIncident } from './dispatch';
 import { policeCallOpen, policeShare, policeTalk, requestedPatrols } from './polizei';
 
@@ -46,5 +46,20 @@ describe('Polizei per Telefon', () => {
     expect(requestedPatrols('3 Streifenwagen bitte')).toBe(3);
     expect(requestedPatrols('schicken Sie bitte eine Streife')).toBe(1);
     expect(requestedPatrols('Polizei bitte')).toBe(1);
+  });
+
+  it('schickt zugesagte Streifen nach, sobald welche frei werden', () => {
+    const { g, inc } = setup();
+    const pols = g.center.vehicles.filter((v) => isPoliceVehicle(g, v));
+    const saved = pols.map((v) => v.rt.status);
+    for (const v of pols) v.rt.status = 'ausser_dienst';
+    policeShare(g, inc.id);
+    policeTalk(g, inc.id, 'Wir brauchen eine Streife');
+    expect(inc.police!.sent).toHaveLength(0);
+    expect(inc.police!.pending?.count).toBe(1);
+    pols.forEach((v, i) => (v.rt.status = saved[i]));
+    tick(g, 10_000);
+    expect(inc.police!.sent.length).toBe(1);
+    expect(inc.police!.pending).toBeUndefined();
   });
 });

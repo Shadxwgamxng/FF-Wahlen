@@ -72,12 +72,16 @@ export function StartScreen() {
     if (text === null) return;
     const r = importJson(text);
     if (!r.ok) return setReport({ title: 'Import fehlgeschlagen – es wurden keine Daten verändert', lines: [r.error, ...r.issues.map((i) => `${i.path}: ${i.message}`)] });
-    if (r.kind === 'leitstelle') await store.newProject(r.center);
+    if (r.kind === 'leitstelle') {
+      await store.newProject(r.center);
+      store.setMode(r.center.vehicles.length ? 'spielen' : 'bearbeiten');
+    }
     else {
       const now = Date.now();
       const rec: ProjectRecord = { id: newId('proj'), name: r.game.center.name, createdAt: now, updatedAt: now, state: r.game };
       await projects.put(rec);
       store.load(rec);
+      store.setMode('spielen');
     }
     if (r.issues.length) setReport({ title: `Import mit ${r.issues.length} Korrektur(en)`, lines: r.issues.map((i) => `${i.path}: ${i.message}`) });
   };

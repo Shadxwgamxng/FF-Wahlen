@@ -47,6 +47,14 @@ export function applyStyle(p: Prefs = prefs) {
   if (typeof document !== 'undefined') document.documentElement.dataset.style = p.uiStyle;
 }
 listeners.add(() => applyStyle());
+// Änderungen aus anderen Fenstern (Zweitfenster, Tablet im selben Browser) übernehmen
+if (typeof window !== 'undefined')
+  window.addEventListener('storage', (e) => {
+    if (e.key === KEY) {
+      prefs = load();
+      listeners.forEach((l) => l());
+    }
+  });
 
 export function usePrefs(): Prefs {
   return useSyncExternalStore(

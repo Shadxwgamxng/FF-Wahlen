@@ -88,6 +88,8 @@ export function App() {
         return;
       }
       if (e.altKey) return;
+      // im Bearbeitungsmodus läuft keine Simulation
+      if (store.mode === 'bearbeiten') return;
       if (e.key === ' ') {
         e.preventDefault();
         store.cmdQuiet('toggleRunning');

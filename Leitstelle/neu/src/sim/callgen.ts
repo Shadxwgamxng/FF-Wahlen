@@ -103,8 +103,10 @@ export function randomLocation(state: GameState, rng: Rng, kind: LocationKind): 
     if (list.length) {
       const poi = rng.pick(list);
       const near = c.places ? nearestAddress(c.places, poi.position) : null;
-      const address = poi.address || (near ? near.address : poi.name);
-      const m = /^(.*?)\s+(\d+\s*[a-zA-Z]?)\s*,\s*(\d{5})?\s*(.*)$/.exec(address);
+      const own = /^(.*?)\s+(\d+\s*[a-zA-Z]?)\s*,\s*(\d{5})?\s*(.*)$/.exec(poi.address);
+      // vollständige eigene Adresse, sonst alles vom nächsten Gebäude (nie gemischt)
+      const m = own ?? (near ? /^(.*?)\s+(\d+\s*[a-zA-Z]?)\s*,\s*(\d{5})?\s*(.*)$/.exec(near.address) : null);
+      const address = own ? poi.address : near ? near.address : poi.address || poi.name;
       return {
         position: poi.position,
         address,
