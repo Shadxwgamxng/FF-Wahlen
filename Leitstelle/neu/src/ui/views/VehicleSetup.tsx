@@ -4,6 +4,7 @@ import { newId } from '../../model/ids';
 import { radioGroupOf } from '../../model/radio';
 import { emptyVehicleRuntime } from '../../data/sampleCenter';
 import { store } from '../../store/gameStore';
+import { setVehicleImage } from '../vehicleImages';
 
 /**
  * Fahrzeuge an den Wachen anlegen – direkt nach dem Erstellen einer Leitstelle und im Bearbeitungsmodus.
@@ -74,6 +75,8 @@ function StationCard({ game, station }: { game: GameState; station: Station }) {
   const [open, setOpen] = useState(false);
   const [d, setD] = useState<Draft>(() => ({ ...emptyDraft(), groupCode: org?.radioGroup.code ?? '', groupName: org?.radioGroup.name ?? '' }));
   const [tried, setTried] = useState(false);
+  const [imgs, setImgs] = useState<{ normal?: File; blaulicht?: File }>({});
+  const [imgKey, setImgKey] = useState(0);
   const errors = draftErrors(d, c.vehicles);
   const set = (p: Partial<Draft>) => setD({ ...d, ...p });
 
@@ -82,9 +85,10 @@ function StationCard({ game, station }: { game: GameState; station: Station }) {
     if (errors.length) return;
     const windows: ServiceWindow[] = d.allDay ? [] : [{ fromHour: d.from, toHour: d.to, weekdays: [] }];
     const sameAsOrg = org && org.radioGroup.code === d.groupCode.trim() && org.radioGroup.name === d.groupName.trim();
+    const id = newId('v');
     const err = store.edit((center) => {
       center.vehicles.push({
-        id: newId('v'),
+        id,
         callsign: d.callsign.trim(),
         typeId: d.typeId,
         organizationId: station.organizationId,
@@ -98,6 +102,13 @@ function StationCard({ game, station }: { game: GameState; station: Station }) {
       });
     }, `${d.callsign.trim()} angelegt.`);
     if (!err) {
+      // Bilder für die Karte (ohne / mit Blaulicht) gleich mitspeichern
+      for (const k of ['normal', 'blaulicht'] as const) {
+        const f = imgs[k];
+        if (f) void setVehicleImage(id, k, f).catch((e) => store.toast('fehler', (e as Error).message));
+      }
+      setImgs({});
+      setImgKey((x) => x + 1);
       setD({ ...emptyDraft(), groupCode: d.groupCode, groupName: d.groupName, typeId: d.typeId });
       setTried(false);
     }
@@ -166,7 +177,16 @@ function StationCard({ game, station }: { game: GameState; station: Station }) {
                 )}
               </span>
             </label>
+            <label>
+              Bild ohne Blaulicht (Karte)
+              <input key={`n${imgKey}`} type="file" accept="image/*" onChange={(e) => setImgs({ ...imgs, normal: e.target.files?.[0] })} data-testid="vs-img-normal" />
+            </label>
+            <label>
+              Bild mit Blaulicht (Karte)
+              <input key={`b${imgKey}`} type="file" accept="image/*" onChange={(e) => setImgs({ ...imgs, blaulicht: e.target.files?.[0] })} data-testid="vs-img-blaulicht" />
+            </label>
           </div>
+          <div className="small muted">Bilder sind freiwillig. Mit beiden Bildern blinkt das Fahrzeug auf der Karte bei Fahrt mit Sondersignal.</div>
           {tried && errors.length > 0 && <div className="errbox small">{errors.join(' · ')}</div>}
           <div className="row">
             <button className="btn primary small" onClick={add} data-testid="vs-add">

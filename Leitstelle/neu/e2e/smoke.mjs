@@ -104,6 +104,16 @@ async function main() {
   );
   await page.addInitScript((url) => localStorage.setItem('leitwarte.prefs', JSON.stringify({ routingUrl: url, routingEnabled: true, sound: false })), OSRM);
   const game = () => page.evaluate(() => window.leitwarte.state);
+  // Szenarien löst man im Bearbeitungsmodus aus (Reiter „Simulation“), danach weiterspielen
+  const triggerScenario = async (name) => {
+    await page.evaluate(() => window.leitwarte.setMode('bearbeiten'));
+    await nav(page, 'Simulation');
+    await page.getByRole('tab', { name: /Szenariokatalog/ }).click();
+    await page.getByPlaceholder('Szenarien suchen …').fill(name);
+    await page.getByRole('row', { name: new RegExp(name) }).first().getByRole('button', { name: 'Auslösen' }).click();
+    await page.getByTestId('start-play').click();
+    await page.getByTestId('desk').waitFor();
+  };
 
   await page.goto(BASE);
   await page.getByTestId('start-screen').waitFor();
@@ -143,8 +153,22 @@ async function main() {
   await card.getByTestId('vs-type').selectOption({ index: 1 });
   await card.getByTestId('vs-callsign').fill('Florian Test 1-1');
   await card.getByTestId('vs-identifier').fill('OH-T 1');
+  // Fahrzeugbilder gleich beim Anlegen (1×1-PNG)
+  const png = { name: 'f.png', mimeType: 'image/png', buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64') };
+  await card.getByTestId('vs-img-normal').setInputFiles(png);
+  await card.getByTestId('vs-img-blaulicht').setInputFiles(png);
   await card.getByTestId('vs-add').click();
   await page.waitForFunction(() => window.leitwarte.state.center.vehicles.length === 1);
+  await page.waitForFunction(async () => {
+    const r = indexedDB.open('leitwarte');
+    const db = await new Promise((res) => (r.onsuccess = () => res(r.result)));
+    const v = await new Promise((res) => {
+      const q = db.transaction('kv').objectStore('kv').get(`fahrzeugbilder:${window.leitwarte.project.id}`);
+      q.onsuccess = () => res(q.result);
+    });
+    const id = window.leitwarte.state.center.vehicles[0].id;
+    return !!(v && v[id]?.normal && v[id]?.blaulicht);
+  });
   await page.getByTestId('start-play').click();
   await page.getByTestId('desk').waitFor();
   let g = await game();
@@ -171,11 +195,7 @@ async function main() {
   log('Personal-Menü ist entfernt; im Spiel keine Bearbeitungsfenster (nur über „Bearbeiten“)');
 
   // ------------------------------------------------------------------ Notruf → Einsatzmaske
-  await nav(page, 'Simulation');
-  await page.getByRole('tab', { name: /Szenariokatalog/ }).click();
-  await page.getByPlaceholder('Szenarien suchen …').fill('Türöffnung');
-  await page.getByRole('row', { name: /Türöffnung/ }).first().getByRole('button', { name: 'Auslösen' }).click();
-  await nav(page, 'Leitstand');
+  await triggerScenario('Türöffnung');
   await page.getByTestId('call-item').first().waitFor();
   await page.keyboard.press('n');
   const mask = page.getByTestId('call-window');
@@ -311,11 +331,7 @@ async function main() {
     await page.locator('summary', { hasText: 'Fenster' }).click();
     await page.getByTestId('popout-einsaetze').click();
   })()]);
-  await nav(page, 'Simulation');
-  await page.getByRole('tab', { name: /Szenariokatalog/ }).click();
-  await page.getByPlaceholder('Szenarien suchen …').fill('Ölspur');
-  await page.getByRole('row', { name: /Ölspur/ }).first().getByRole('button', { name: 'Auslösen' }).click();
-  await nav(page, 'Leitstand');
+  await triggerScenario('Ölspur');
   await pop2.getByTestId('call-item').first().waitFor({ timeout: 10000 });
   await pop2.getByTestId('call-item').first().click();
   await page.getByTestId('call-window').waitFor({ timeout: 5000 });
@@ -385,11 +401,7 @@ async function main() {
   await page.getByTestId('dias-file').setInputFiles(diasFile);
   await page.getByTestId('dias-status').waitFor({ timeout: 30000 });
   log(`DIAS importiert: ${(await page.getByTestId('dias-status').innerText()).split('·')[0].trim()}`);
-  await nav(page, 'Simulation');
-  await page.getByRole('tab', { name: /Szenariokatalog/ }).click();
-  await page.getByPlaceholder('Szenarien suchen …').fill('Küchenbrand');
-  await page.getByRole('row', { name: /Küchenbrand/ }).first().getByRole('button', { name: 'Auslösen' }).click();
-  await nav(page, 'Leitstand');
+  await triggerScenario('Küchenbrand');
   await page.getByTestId('call-item').first().waitFor();
   await page.getByTestId('call-item').first().click();
   const cw = page.getByTestId('call-window');

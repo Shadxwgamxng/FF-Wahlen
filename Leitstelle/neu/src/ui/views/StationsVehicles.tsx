@@ -174,6 +174,12 @@ export function VehiclesView({ game }: { game: GameState }) {
             render: (d, set) => <input type="text" value={d.equipment.join(', ')} onChange={(e) => set({ equipment: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) })} />,
             help: 'Informativ; die Disposition nutzt die Fähigkeiten des Fahrzeugtyps.',
           },
+          {
+            key: 'id',
+            label: 'Bilder für die Karte (ohne / mit Blaulicht)',
+            type: 'custom',
+            render: (d) => (c.vehicles.some((v) => v.id === d.id) ? <VehicleImageCell vehicleId={d.id} /> : <span className="small dim">Nach dem Speichern hier oder in der Liste hochladen.</span>),
+          },
           { key: 'serviceWindows', label: 'Dienstzeiten', type: 'custom', render: (d, set) => <WindowsEditor value={d.serviceWindows} onChange={(serviceWindows) => set({ serviceWindows })} /> },
           {
             key: 'maintenance',

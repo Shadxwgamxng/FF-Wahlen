@@ -28,7 +28,6 @@ export type ViewId = 'leitstand' | 'einrichten' | 'wachen' | 'fahrzeuge' | 'aao'
 const NAV_PLAY: [ViewId, string][] = [
   ['leitstand', 'Leitstand'],
   ['statistik', 'Archiv & Statistik'],
-  ['simulation', 'Simulation'],
   ['sprachtest', 'Sprachtest'],
   ['daten', 'Daten & Einstellungen'],
 ];
@@ -39,6 +38,7 @@ const NAV_EDIT: [ViewId, string][] = [
   ['aao', 'Stichwörter & AAO'],
   ['kliniken', 'Kliniken & Extern'],
   ['editor', 'Leitstellen-Editor'],
+  ['simulation', 'Simulation'],
   ['mehrspieler', 'Mehrspieler'],
   ['daten', 'Daten & Einstellungen'],
 ];
