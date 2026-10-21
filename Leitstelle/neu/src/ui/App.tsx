@@ -21,8 +21,16 @@ import { openPopout, POPOUTS } from './PopoutApp';
 import { installRouting, useRoutingState } from './routingService';
 import { FunkController } from './funk';
 import { CallVoiceController } from './callVoice';
+import { JoinScreen, PlayerChips, usePlayerHeartbeat } from './players';
 
 export type ViewId = 'leitstand' | 'einrichten' | 'wachen' | 'fahrzeuge' | 'aao' | 'kliniken' | 'statistik' | 'editor' | 'simulation' | 'mehrspieler' | 'daten' | 'sprachtest';
+
+/** Mitspieler: nur spielen */
+const NAV_PLAYER: [ViewId, string][] = [
+  ['leitstand', 'Leitstand'],
+  ['statistik', 'Archiv & Statistik'],
+  ['sprachtest', 'Sprachtest'],
+];
 
 /** Im Spiel: nur Leitstand und Spielfunktionen – bearbeitet wird im Bearbeitungsmodus */
 const NAV_PLAY: [ViewId, string][] = [
@@ -50,7 +58,8 @@ export function App() {
   const game = useStore((s) => s.state);
   const [view, setView] = useState<ViewId>('leitstand');
   const mode = useStore((s) => s.mode);
-  const NAV = mode === 'bearbeiten' ? NAV_EDIT : NAV_PLAY;
+  const NAV = store.isPlayerClient ? NAV_PLAYER : mode === 'bearbeiten' ? NAV_EDIT : NAV_PLAY;
+  usePlayerHeartbeat();
   // Moduswechsel: passende Startansicht
   useEffect(() => setView(mode === 'bearbeiten' ? 'einrichten' : 'leitstand'), [mode]);
   const [help, setHelp] = useState(false);
@@ -89,7 +98,7 @@ export function App() {
       }
       if (e.altKey) return;
       // im Bearbeitungsmodus läuft keine Simulation
-      if (store.mode === 'bearbeiten') return;
+      if (store.mode === 'bearbeiten' || store.isPlayerClient) return;
       if (e.key === ' ') {
         e.preventDefault();
         store.cmdQuiet('toggleRunning');
@@ -115,6 +124,16 @@ export function App() {
     window.addEventListener('beforeunload', h);
     return () => window.removeEventListener('beforeunload', h);
   }, []);
+
+  // Mitspieler: warten, bis der Gastgeber spielt (nicht während er bearbeitet)
+  if (store.isPlayerClient && (!game || !store.player || mode === 'bearbeiten')) {
+    return (
+      <>
+        <JoinScreen />
+        <Toasts />
+      </>
+    );
+  }
 
   if (!game) {
     return (
@@ -228,6 +247,10 @@ function TopBar({ onHelp }: { onHelp: () => void }) {
       <span className="ellipsis" style={{ maxWidth: 260 }} title={game.center.name}>{project?.name ?? game.center.name}</span>
       <span className="clock" data-testid="sim-clock" title={fmtDate(now)}>{fmtClock(now, true)}</span>
       <span className="small muted">{fmtDate(now)}</span>
+      {store.isPlayerClient ? (
+        <span className="chip">{rt.clock.running ? `läuft ${rt.clock.speed}×` : 'pausiert'}</span>
+      ) : (
+      <>
       <button
         className={`btn ${rt.clock.running ? '' : 'primary'}`}
         onClick={() => store.cmdQuiet('toggleRunning')}
@@ -243,6 +266,9 @@ function TopBar({ onHelp }: { onHelp: () => void }) {
           </button>
         ))}
       </div>
+      </>
+      )}
+      <PlayerChips game={game} />
       <span className="chip" title="Wetterlage">{WEATHER_LABEL[rt.weather]}</span>
       <span className="chip">{DIFFICULTY[game.center.settings.difficulty].label}</span>
       <span className="spacer" />
@@ -256,7 +282,7 @@ function TopBar({ onHelp }: { onHelp: () => void }) {
         {saveStatus === 'gespeichert' ? '✓ gespeichert' : saveStatus === 'speichert' ? 'speichert …' : saveStatus === 'fehler' ? '⚠ Speicherfehler' : '● ungespeichert'}
       </span>
       <button className="btn small" onClick={onHelp} title="Hilfe (?)">?</button>
-      <button className="btn small" onClick={() => void store.close()} title="Speichern und zur Leitstellenauswahl">Beenden</button>
+      {!store.isPlayerClient && <button className="btn small" onClick={() => void store.close()} title="Speichern und zur Leitstellenauswahl">Beenden</button>}
     </header>
   );
 }

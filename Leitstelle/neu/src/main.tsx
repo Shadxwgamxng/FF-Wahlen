@@ -13,8 +13,12 @@ applyStyle();
 (window as unknown as { leitwarte: typeof store }).leitwarte = store;
 
 // ?fenster=karte|fahrzeuge|einsaetze|funk → Zweitfenster (z. B. für einen weiteren Bildschirm), ?fenster=tablet → Tablet im LAN
-const popout = new URLSearchParams(location.search).get('fenster');
-if (popout) store.startSyncRemote();
+const params = new URLSearchParams(location.search);
+const popout = params.get('fenster');
+// ?spieler=1 (…/mitspielen): Mitspieler mit voller Oberfläche, die Simulation läuft beim Gastgeber
+const player = params.has('spieler');
+if (player) store.isPlayerClient = true;
+if (popout || player) store.startSyncRemote();
 else store.startSyncMain();
 
 createRoot(document.getElementById('root')!).render(<StrictMode>{popout === 'tablet' ? <TabletApp /> : popout ? <PopoutApp kind={popout} /> : <App />}</StrictMode>);

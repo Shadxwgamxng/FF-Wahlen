@@ -1,3 +1,4 @@
+import { OwnerTag } from '../../players';
 import { useState } from 'react';
 import type { EventKind, GameState, OrgKind } from '../../../model/types';
 import { vehicleAvailability, outOfServiceReason } from '../../../sim/availability';
@@ -23,6 +24,7 @@ export function CallList({ game, selectedId, onSelect }: { game: GameState; sele
             <div className="grow" style={{ minWidth: 0 }}>
               <div className="row">
                 <b className="grow">{c.state === 'klingelt' ? 'Eingehender Notruf' : `In Abfrage – ${c.caller.name}`}</b>
+                <OwnerTag owner={c.owner} />
                 <span className="mono small">{fmtAgo(now, c.receivedAt)}</span>
               </div>
               {c.state === 'klingelt' ? (
@@ -60,6 +62,7 @@ export function IncidentList({ game, selectedId, onSelect, onNewManual }: { game
                 <div className="row">
                   <b className="mono">{kw?.code}</b>
                   <span className="grow ellipsis small">{kw?.label}</span>
+                  <OwnerTag owner={i.owner} />
                   {radio && <span className="status-badge" style={{ background: 'var(--radio)' }} title="Offener Sprechwunsch">5</span>}
                 </div>
                 <div className="small ellipsis">{i.address}</div>

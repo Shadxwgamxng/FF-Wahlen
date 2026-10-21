@@ -1,3 +1,4 @@
+import { OwnerBanner, OwnerTag } from '../../players';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Call, EinsatzMask, GameState, Incident, LatLng } from '../../../model/types';
 import { CATEGORY_LABELS } from '../../../data/keywords';
@@ -65,8 +66,11 @@ export function Maske(p: Props) {
 
   const create = () => {
     if (!call) return;
-    const r = store.cmd('createIncidentFromCall', call.id, call.mask);
-    if (r.ok && r.id) p.onIncidentCreated(r.id);
+    void store.cmdAsync('createIncidentFromCall', call.id, call.mask).then(async (r) => {
+      // Mitspieler: neuen Einsatz erst öffnen, wenn er vom Gastgeber angekommen ist
+      if (r.ok && r.id) await store.nextState();
+      if (r.ok && r.id) p.onIncidentCreated(r.id);
+    });
   };
   // Strg+Enter in der Maske
   const createRef = useRef(create);
@@ -90,7 +94,7 @@ export function Maske(p: Props) {
   const closeInc = async () => {
     if (!inc) return;
     if (inc.vehicleIds.length === 0 && !(await confirmDialog('Einsatz ohne alarmierte Kräfte abschließen (abbrechen)?', { confirmLabel: 'Abschließen' }))) return;
-    if (store.cmd('closeIncident', inc.id).ok) p.onClose();
+    if ((await store.cmdAsync('closeIncident', inc.id)).ok) p.onClose();
   };
 
   return (
@@ -102,8 +106,10 @@ export function Maske(p: Props) {
         <span className="grow" />
         {call && <span className="mono small muted">Eingang {fmtClock(call.receivedAt, true)} ({fmtAgo(now, call.receivedAt)})</span>}
         {inc && <span className="mono small muted">angelegt {fmtClock(inc.createdAt)} · Alarm {inc.firstAlarmAt ? fmtClock(inc.firstAlarmAt) : '–'} · Eintreffen {inc.firstArrivalAt ? fmtClock(inc.firstArrivalAt) : '–'}</span>}
+        {(inc ?? call) && <OwnerTag owner={(inc ?? call)!.owner} />}
         <button className="btn small" onClick={p.onClose} title="Maske schließen (Esc) – Karte anzeigen">Zur Karte ✕</button>
       </div>
+      {inc ? <OwnerBanner kind="incident" id={inc.id} owner={inc.owner} /> : call && <OwnerBanner kind="call" id={call.id} owner={call.owner} />}
 
       {call && call.state === 'klingelt' ? (
         <div className="col" style={{ alignItems: 'center', justifyContent: 'center', flex: 1 }}>

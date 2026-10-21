@@ -14,7 +14,8 @@
     "test:e2e": "node e2e/smoke.mjs",
     "lan": "npm run build && node server/lan.mjs",
     "lan:start": "node server/lan.mjs",
-    "test:lan": "node e2e/lan.mjs"
+    "test:lan": "node e2e/lan.mjs",
+    "test:mehrspieler": "node e2e/mehrspieler.mjs"
   },
   "dependencies": {
     "immer": "^11.1.21",

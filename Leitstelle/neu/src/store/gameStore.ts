@@ -8,6 +8,7 @@ import { repairReferences } from '../persistence/schema';
 import { newId } from '../model/ids';
 import { SyncBus } from './syncBus';
 import type { DiasTree } from '../dias/model';
+import { getActor, withActor } from '../sim/actor';
 
 /**
  * Zentraler Spielzustand. Einzige Stelle, an der der Zustand ersetzt wird.
@@ -31,6 +32,16 @@ export interface Toast {
 const TICK_MS = 250;
 const AUTOSAVE_MS = 20_000;
 const AUTOSNAPSHOT_MS = 10 * 60_000;
+
+const PLAYER_KEY = 'leitwarte.spieler';
+function loadPlayer(): { id: string; name: string } | null {
+  try {
+    const p = JSON.parse(localStorage.getItem(PLAYER_KEY) ?? 'null');
+    return p && typeof p.id === 'string' && typeof p.name === 'string' ? p : null;
+  } catch {
+    return null;
+  }
+}
 
 export class GameStore {
   state: GameState | null = null;
@@ -110,8 +121,10 @@ export class GameStore {
         this.channel?.post({ t: 'funkStatus', status: this.funkStatus } satisfies SyncMsg);
       } else if (m.t === 'needPlaces') this.sendPlaces();
       else if (m.t === 'cmd') {
-        const r = this.cmdLocal(m.name as CommandName, m.args, !m.quiet);
-        this.channel?.post({ t: 'result', to: m.from, result: r } satisfies SyncMsg);
+        // Befehl eines Mitspielers: mit dessen Namen ausführen (Zuständigkeit), ohne Gastgeberrechte
+        const actor = m.player ? { ...m.player, host: false } : this.hostActor();
+        const r = withActor(actor, () => this.cmdLocal(m.name as CommandName, m.args, false));
+        this.channel?.post({ t: 'result', to: m.from, result: r, req: m.req } satisfies SyncMsg);
       } else if (m.t === 'ui') this.uiListeners.forEach((l) => l(m.action));
       else if (m.t === 'ptt') this.pttListeners.forEach((l) => l(m.on, m.group));
     });
@@ -141,7 +154,7 @@ export class GameStore {
     if (!this.lanTimer && this.channel.peers > 0)
       this.lanTimer = setTimeout(() => {
         this.lanTimer = null;
-        this.channel?.postLan(this.stateMsg());
+        this.channel?.postLan(this.lanStateMsg());
       }, 500);
   }
 
@@ -151,7 +164,34 @@ export class GameStore {
     return { t: 'state', mode: this.mode, project: this.project, placesVersion: this.placesVersion(s?.center), state: s ? { ...s, center: center! } : null };
   }
 
+  /** Zuletzt an LAN-Geräte gesendete, selten geänderte Teile der Leitstelle (Vergleich per Referenz) */
+  private lanStatic: unknown[] | null = null;
+
+  private staticParts(c: CenterConfig): unknown[] {
+    return Object.entries(c)
+      .filter(([k]) => k !== 'vehicles' && k !== 'hospitals' && k !== 'places')
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([, v]) => v);
+  }
+
+  /**
+   * Zustand für andere Geräte (Internet/VPN): die Leitstellenkonfiguration nur, wenn sie sich geändert hat,
+   * sonst nur Fahrzeuge, Kliniken und Laufzeit (spart über 80 % Daten).
+   */
+  private lanStateMsg(): SyncMsg {
+    const s = this.state;
+    if (!s) return this.stateMsg();
+    const parts = this.staticParts(s.center);
+    const same = this.lanStatic && this.lanStatic.length === parts.length && parts.every((p, i) => p === this.lanStatic![i]);
+    if (!same) {
+      this.lanStatic = parts;
+      return this.stateMsg();
+    }
+    return { t: 'delta', mode: this.mode, project: this.project, vehicles: s.center.vehicles, hospitals: s.center.hospitals, runtime: s.runtime };
+  }
+
   private broadcastNow() {
+    this.lanStatic = null;
     this.channel?.post(this.stateMsg());
   }
 
@@ -170,6 +210,21 @@ export class GameStore {
         this.diasReceiver?.(m.tree);
         return;
       }
+      if (m.t === 'delta') {
+        // Teilzustand: nur mit bekannter Leitstelle anwendbar, sonst vollen Zustand anfordern
+        if (!this.state || this.project?.id !== m.project?.id) {
+          this.channel?.post({ t: 'hello' } satisfies SyncMsg);
+          return;
+        }
+        lastSeen = Date.now();
+        this.mainAlive = true;
+        this.mode = m.mode;
+        this.state = { ...this.state, center: { ...this.state.center, vehicles: m.vehicles, hospitals: m.hospitals }, runtime: m.runtime };
+        this.version++;
+        for (const l of this.listeners) l();
+        this.stateWaiters.splice(0).forEach((w) => w());
+        return;
+      }
       if (m.t === 'state') {
         lastSeen = Date.now();
         this.mainAlive = true;
@@ -185,16 +240,24 @@ export class GameStore {
         }
         this.version++;
         for (const l of this.listeners) l();
+        this.stateWaiters.splice(0).forEach((w) => w());
       } else if (m.t === 'places') {
         this.placesCache = { version: m.version, places: m.places };
         this.placesRequested = null;
         if (this.state) this.state = { ...this.state, center: { ...this.state.center, places: m.places } };
       } else if (m.t === 'result' && m.to === this.windowId) {
         const r = m.result;
+        if (m.req !== undefined) {
+          const p = this.pending.get(m.req);
+          this.pending.delete(m.req);
+          p?.(r);
+        }
         if (!r.ok) this.toast('fehler', r.error);
         else if (r.message) this.toast('ok', r.message);
         this.emit();
       } else if (m.t === 'funkStatus') {
+        // Mitspieler haben ihren eigenen Funkzustand
+        if (this.isPlayerClient) return;
         this.funkStatus = m.status;
         this.emitLocal();
       } else if (m.t === 'bye') {
@@ -235,7 +298,8 @@ export class GameStore {
 
   /** Sendetaste gedrückt/losgelassen – Mikrofon und Erkennung laufen immer am Hauptfenster (Leitstand-PC) */
   sendPtt(on: boolean, group: string | null) {
-    if (this.role === 'remote') this.channel?.post({ t: 'ptt', on, group } satisfies SyncMsg);
+    // Mitspieler sprechen am eigenen PC; Tablet und Zweitfenster senden an den Leitstand-PC
+    if (this.role === 'remote' && !this.isPlayerClient) this.channel?.post({ t: 'ptt', on, group } satisfies SyncMsg);
     else this.pttListeners.forEach((l) => l(on, group));
   }
 
@@ -264,10 +328,63 @@ export class GameStore {
     return this.dispatch(name, args as unknown[], false);
   }
 
+  /** Dieser Spieler (Mehrspieler); auf dem Gastgeber der Gastgeber selbst */
+  player: { id: string; name: string } | null = loadPlayer();
+  /** Mitspieler-Ansicht (volle Oberfläche, Simulation läuft beim Gastgeber) */
+  isPlayerClient = false;
+  private reqSeq = 0;
+  private pending = new Map<number, (r: CommandResult) => void>();
+  private stateWaiters: (() => void)[] = [];
+
+  hostActor() {
+    return this.player ? { ...this.player, host: true } : { id: 'host', name: 'Gastgeber', host: true };
+  }
+
+  setPlayerName(name: string) {
+    this.player = { id: this.player?.id ?? newId('sp'), name: name.trim() || 'Spieler' };
+    try {
+      localStorage.setItem(PLAYER_KEY, JSON.stringify(this.player));
+    } catch {
+      /* nur für diese Sitzung */
+    }
+    this.emitLocal();
+  }
+
+  /** Befehl mit Ergebnis – auch von Mitspielern (Ergebnis kommt vom Gastgeber zurück) */
+  cmdAsync<K extends CommandName>(name: K, ...args: CommandArgs<K>): Promise<CommandResult> {
+    if (this.role !== 'remote') return Promise.resolve(this.dispatch(name, args as unknown[], true));
+    const req = ++this.reqSeq;
+    return new Promise((resolve) => {
+      this.pending.set(req, (r) => {
+        if (!r.ok) this.toast('fehler', r.error);
+        else if (r.message) this.toast('ok', r.message);
+        resolve(r);
+      });
+      this.channel?.post({ t: 'cmd', from: this.windowId, name, args: args as unknown[], quiet: true, req, player: this.isPlayerClient ? (this.player ?? undefined) : undefined } satisfies SyncMsg);
+      setTimeout(() => {
+        if (this.pending.delete(req)) resolve({ ok: false, error: 'Keine Antwort vom Gastgeber.' });
+      }, 8000);
+    });
+  }
+
+  /** wartet auf den nächsten Zustand vom Gastgeber (Mitspieler); auf dem Gastgeber sofort */
+  nextState(): Promise<void> {
+    if (this.role !== 'remote') return Promise.resolve();
+    return new Promise((r) => {
+      this.stateWaiters.push(r);
+      setTimeout(r, 2000);
+    });
+  }
+
   private dispatch(name: CommandName, args: unknown[], toast: boolean): CommandResult {
     if (this.role === 'remote') {
       if (!(name in COMMANDS)) return { ok: false, error: 'Unbekannter Befehl.' };
-      this.channel?.post({ t: 'cmd', from: this.windowId, name, args, quiet: !toast } satisfies SyncMsg);
+      if (this.isPlayerClient && toast) {
+        // Mitspieler: Fehlermeldungen des Gastgebers anzeigen
+        void this.cmdAsync(name as never, ...(args as never[]));
+        return { ok: true };
+      }
+      this.channel?.post({ t: 'cmd', from: this.windowId, name, args, quiet: !toast, player: this.isPlayerClient ? (this.player ?? undefined) : undefined } satisfies SyncMsg);
       // Ergebnis kommt asynchron vom Hauptfenster; IDs neu angelegter Objekte sind hier nicht bekannt
       return { ok: true };
     }
@@ -275,6 +392,8 @@ export class GameStore {
   }
 
   private cmdLocal(name: CommandName, args: unknown[], toast: boolean): CommandResult {
+    // eigener Befehl am Gastgeber: als Gastgeber (bei Mitspielerbefehlen ist der Spieler schon gesetzt)
+    if (!getActor()) return withActor(this.hostActor(), () => this.run((s) => execCommand(s, name, args), { toast }));
     return this.run((s) => execCommand(s, name, args), { toast });
   }
 
@@ -483,11 +602,12 @@ type SyncMsg =
   | { t: 'bye' }
   | { t: 'state'; mode?: GameStore['mode']; project: GameStore['project']; placesVersion: string; state: GameState | null }
   | { t: 'places'; version: string; places: CenterConfig['places'] }
-  | { t: 'cmd'; from: string; name: string; args: unknown[]; quiet: boolean }
-  | { t: 'result'; to: string; result: CommandResult }
+  | { t: 'cmd'; from: string; name: string; args: unknown[]; quiet: boolean; req?: number; player?: { id: string; name: string } }
+  | { t: 'result'; to: string; result: CommandResult; req?: number }
   | { t: 'ui'; action: UiAction }
   | { t: 'diasReq' }
   | { t: 'dias'; tree: DiasTree | null }
+  | { t: 'delta'; mode: GameStore['mode']; project: GameStore['project']; vehicles: CenterConfig['vehicles']; hospitals: CenterConfig['hospitals']; runtime: GameState['runtime'] }
   | { t: 'ptt'; on: boolean; group: string | null }
   | { t: 'funkStatus'; status: FunkStatus };
 

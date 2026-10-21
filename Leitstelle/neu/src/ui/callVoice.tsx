@@ -5,6 +5,7 @@ import { hashSeed } from '../voice/details/types';
 import { createRecognizer, germanVoices, speakAs, stopSpeaking, type Recognizer } from '../voice/speech';
 import { getConsent } from '../voice/transcripts';
 import { store } from '../store/gameStore';
+import { isMine } from './players';
 
 /**
  * Freisprechen bei echten Notrufen im Spiel: Sobald ein Notruf angenommen ist, ist am Leitstand-PC das
@@ -69,7 +70,8 @@ export function voiceCallOf(c: Call): VoiceCall {
 
 /** Der Notruf, mit dem gerade gesprochen wird: zuletzt angenommener in Abfrage */
 const activeCall = (): Call | null => {
-  const calls = store.state?.runtime.calls.filter((c) => c.state === 'in_abfrage') ?? [];
+  // nur eigene Notrufe (Mehrspieler: jeder spricht mit seinen Anrufern)
+  const calls = store.state?.runtime.calls.filter((c) => c.state === 'in_abfrage' && isMine(c.owner)) ?? [];
   return calls.sort((a, b) => (b.acceptedAt ?? 0) - (a.acceptedAt ?? 0))[0] ?? null;
 };
 
@@ -82,7 +84,7 @@ interface Turn {
 interface Session {
   /** Notruf-ID oder "pol:<Einsatz-ID>" beim Telefonat mit der Polizei */
   callId: string;
-  respond: (text: string) => Turn;
+  respond: (text: string) => Promise<Turn>;
   rec: Recognizer | null;
   /** Anrufer spricht gerade */
   speaking: boolean;
@@ -94,13 +96,13 @@ interface Session {
 }
 
 /** Gesprächspartner am Telefon: laufender Notruf, sonst ein offenes Telefonat mit der Polizei */
-function activeTarget(): { key: string; respond: (text: string) => Turn; greeting?: string } | null {
+function activeTarget(): { key: string; respond: (text: string) => Promise<Turn>; greeting?: string } | null {
   const c = activeCall();
   if (c) {
     let sim: CallerSim | null = null;
     return {
       key: c.id,
-      respond: (text) => {
+      respond: async (text) => {
         sim ??= new CallerSim(voiceCallOf(c));
         const turn = sim.respond(text);
         // neu festgelegte Detailangaben des Anrufers (x_…) im Spielstand merken
@@ -112,14 +114,15 @@ function activeTarget(): { key: string; respond: (text: string) => Turn; greetin
       },
     };
   }
-  const inc = store.state?.runtime.incidents.find((i) => i.police?.open);
+  const inc = store.state?.runtime.incidents.find((i) => i.police?.open && isMine(i.owner));
   if (!inc) return null;
   const first = inc.police?.lines.filter((l) => l.from === 'polizei').at(-1)?.text;
   return {
     key: `pol:${inc.id}`,
     greeting: first,
-    respond: (text) => {
-      store.cmdQuiet('policeTalk', inc.id, text);
+    respond: async (text) => {
+      await store.cmdAsync('policeTalk', inc.id, text);
+      await store.nextState();
       const p = store.state?.runtime.incidents.find((i) => i.id === inc.id)?.police;
       const last = p?.lines[p.lines.length - 1];
       return { text: last?.from === 'polizei' ? last.text : '', ended: !p?.open, persona: { rate: 1.05, pitch: 0.95 } };
@@ -174,7 +177,7 @@ export function CallVoiceController() {
       if (session !== s || !text.trim()) return;
       s.busy = true;
       s.errors = 0;
-      const turn = s.respond(text);
+      const turn = await s.respond(text);
       if (turn.text) {
         s.speaking = true;
         setStatus({ state: 'spricht', interim: '' });

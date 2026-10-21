@@ -157,7 +157,14 @@ export function FunkController() {
         return;
       }
       if (!f || f.counter <= lastSpoken) return;
-      const fresh = f.log.filter((l) => l.id > lastSpoken && l.from === 'fahrzeug');
+      // Mitspieler hören nur ihre geschaltete Rufgruppe; der Leitstand-PC alles (auch für das Tablet)
+      let myGroup = '';
+      try {
+        myGroup = localStorage.getItem('leitwarte.pc.rufgruppe') ?? '';
+      } catch {
+        /* ohne Speicher: alles */
+      }
+      const fresh = f.log.filter((l) => l.id > lastSpoken && l.from === 'fahrzeug' && (!store.isPlayerClient || !myGroup || !l.group || l.group === myGroup));
       lastSpoken = f.counter;
       if (!getPrefs().tts) return;
       queue.push(...fresh);

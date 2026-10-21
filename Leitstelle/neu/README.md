@@ -96,6 +96,7 @@ Wählst du ein zu kleines Stichwort, fordern die Kräfte vor Ort nach. Lagen kö
 | Erstellen: Wachen, Krankenhäuser und POIs (Pflege & Medizin, Handel & Gastro, Öffentlich, Gewerbe & Freizeit) aus OpenStreetMap übernehmen, danach Fahrzeuge je Wache mit Pflichtangaben anlegen | ✅ |
 | Polizei wird nicht selbst disponiert: „Polizei anrufen“, Einsatz teilen, Anforderung sprechen oder tippen | ✅ |
 | Fahrzeugbilder auf der Karte (mit/ohne Blaulicht, blinkend bei Sondersignal) | ✅ |
+| Mehrspieler über das Internet (Radmin VPN/Hamachi): Freunde treten über …/mitspielen bei, Zuständigkeit je Notruf/Einsatz mit Übernehmen, jeder spricht am eigenen PC – siehe docs/MEHRSPIELER.md | ✅ |
 | Sprechfunk: Rufgruppe schalten, Sendetaste (Tablet, PC, F8), Status 5 erst nach Ansprechen, Aufträge (Status, Lage, Einsatz, Transportziel, Einrücken), Antworten der Besatzung per Sprachausgabe | ✅ |
 | Signaltöne (Web Audio) und Sprachausgabe (Web Speech API des Browsers) | ✅ optional, ohne externe Dienste |
 | Editor: Leitstelle, Gebiete (Polygon), Organisationen mit Funkrufgruppen, Wachen, Fahrzeugtypen, Fahrzeuge, Wartung, Dienstzeiten, Stichwörter, AAO, Kliniken, Nachbarleitstellen/externe Kräfte, Straßennamen, Simulationseinstellungen | ✅ |

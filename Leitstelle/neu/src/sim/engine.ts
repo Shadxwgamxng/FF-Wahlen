@@ -31,6 +31,7 @@ import { SIM_START, emptyVehicleRuntime } from '../data/sampleCenter';
 import { groupDeployment, groupName, isGroupStation, isGroupVehicle, turnoutFactor } from './alarmGroups';
 import { emptyMask, maskAddress } from '../model/mask';
 import { arrivalReport } from './lagemeldung';
+import { getActor } from './actor';
 import { geocode, reverseGeocode, describePlace } from '../geo/places';
 
 /**
@@ -710,6 +711,8 @@ export function acceptCall(state: GameState, callId: string): CommandResult {
   if (c.state !== 'klingelt') return fail('Notruf wurde bereits angenommen oder beendet.');
   c.state = 'in_abfrage';
   c.acceptedAt = state.runtime.clock.now;
+  const who = getActor();
+  if (who) c.owner = { id: who.id, name: who.name };
   state.runtime.stats.callsAnswered++;
   state.runtime.stats.callWaitMsTotal += c.acceptedAt - c.receivedAt;
   log(state, 'notruf', `Notruf angenommen nach ${Math.round((c.acceptedAt - c.receivedAt) / 1000)} s.`, { callId });
@@ -1035,6 +1038,9 @@ export function createIncidentFromCall(state: GameState, callId: string, mask?: 
     for (let i = 0; i < pCount; i++) created.patients.push(newPatient(state, rng, c.scenarioId, i + 1));
     return created;
   });
+  const who = getActor();
+  if (c.owner) inc.owner = c.owner;
+  else if (who) inc.owner = { id: who.id, name: who.name };
   rt.incidents.push(inc);
   c.state = 'abgeschlossen';
   c.closedAt = rt.clock.now;
@@ -1096,7 +1102,9 @@ export function createManualIncident(state: GameState, keywordId: string, positi
   rt.counters.incident++;
   const id = `i_${rt.counters.incident}`;
   const rule = state.center.aao.find((a) => a.keywordId === kw.id);
+  const who = getActor();
   rt.incidents.push({
+    ...(who ? { owner: { id: who.id, name: who.name } } : {}),
     id,
     number: `${new Date(rt.clock.now).getUTCFullYear()}-${String(rt.counters.incident).padStart(5, '0')}`,
     callId: null,
@@ -1445,4 +1453,32 @@ export function restartSimulation(state: GameState): CommandResult {
   state.runtime = fresh.runtime;
   state.center = fresh.center;
   return ok('Simulation neu gestartet.');
+}
+
+/** Mehrspieler: Notruf oder Einsatz übernehmen (Zuständigkeit wechselt zum ausführenden Spieler) */
+export function takeOver(state: GameState, kind: 'call' | 'incident', id: string): CommandResult {
+  const who = getActor();
+  if (!who) return fail('Kein Spieler.');
+  const target = kind === 'call' ? state.runtime.calls.find((c) => c.id === id) : state.runtime.incidents.find((i) => i.id === id);
+  if (!target) return fail('Nicht gefunden.');
+  const before = target.owner?.name;
+  target.owner = { id: who.id, name: who.name };
+  log(state, 'system', `${who.name} übernimmt ${kind === 'call' ? 'den Notruf' : 'den Einsatz'}${before ? ` von ${before}` : ''}.`, kind === 'incident' ? { incidentId: id } : { callId: id });
+  return ok(`Übernommen.`);
+}
+
+/** Mehrspieler: Lebenszeichen eines Spielers (Echtzeit) */
+export function playerSeen(state: GameState, at: number): CommandResult {
+  const who = getActor();
+  if (!who) return ok();
+  const list = (state.runtime.players ??= []);
+  const p = list.find((x) => x.id === who.id);
+  if (p) {
+    p.name = who.name;
+    p.seenAt = at;
+    p.host = who.host;
+  } else list.push({ id: who.id, name: who.name, seenAt: at, host: who.host });
+  // länger als 30 s still: entfernt
+  state.runtime.players = list.filter((x) => at - x.seenAt < 30_000);
+  return ok();
 }

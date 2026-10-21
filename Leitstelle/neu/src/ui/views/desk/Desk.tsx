@@ -86,11 +86,13 @@ export function Desk({ game }: { game: GameState }) {
   const createManual = () => {
     if (!manual?.pos) return store.toast('fehler', 'Bitte den Einsatzort in der Karte anklicken.');
     if (!manual.keywordId) return store.toast('fehler', 'Bitte ein Stichwort wählen.');
-    const r = store.cmd('createManualIncident', manual.keywordId!, manual.pos!, manual.address, manual.description);
-    if (r.ok && r.id) {
-      setManual(null);
-      openIncident(r.id);
-    }
+    void store.cmdAsync('createManualIncident', manual.keywordId!, manual.pos!, manual.address, manual.description).then(async (r) => {
+      if (r.ok && r.id) await store.nextState();
+      if (r.ok && r.id) {
+        setManual(null);
+        openIncident(r.id);
+      }
+    });
   };
 
   return (

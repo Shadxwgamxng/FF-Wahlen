@@ -3,6 +3,7 @@ import * as E from '../sim/engine';
 import { radioCall, radioTalk } from '../sim/funk';
 import { policeCallClose, policeCallOpen, policeShare, policeTalk } from '../sim/polizei';
 import type { CommandResult } from '../sim/engine';
+import { getActor } from '../sim/actor';
 
 /**
  * Benannte, serialisierbare Spielbefehle. Die Oberfläche ruft Befehle über ihren Namen auf
@@ -46,6 +47,8 @@ export const COMMANDS = {
   setVehicleServiceStatus: E.setVehicleServiceStatus,
   startLocating: E.startLocating,
   updateCallMask: E.updateCallMask,
+  takeOver: E.takeOver,
+  playerSeen: E.playerSeen,
   voiceTurn: E.voiceTurn,
   toggleRunning: (s: GameState): CommandResult => E.setRunning(s, !s.runtime.clock.running),
 } satisfies Record<string, (s: GameState, ...args: never[]) => CommandResult>;
@@ -54,8 +57,27 @@ export type CommandName = keyof typeof COMMANDS;
 type Fn = (typeof COMMANDS)[CommandName];
 export type CommandArgs<K extends CommandName> = (typeof COMMANDS)[K] extends (s: GameState, ...a: infer A) => CommandResult ? A : never;
 
+/** Befehle, deren erstes Argument ein Notruf bzw. ein Einsatz ist (Zuständigkeit im Mehrspieler) */
+const CALL_CMDS = new Set<string>(['askQuestion', 'setCallKeyword', 'setCallMeldebild', 'createIncidentFromCall', 'updateCallMask', 'closeCallWithoutIncident', 'forwardCall', 'linkCallToIncident', 'startLocating', 'applyLocate', 'setCallDias', 'applyDiasResult', 'voiceTurn']);
+const INC_CMDS = new Set<string>(['alarmVehicles', 'alarmGroups', 'releaseAllOnScene', 'closeIncident', 'requestBackup', 'changeIncidentKeyword', 'correctIncidentLocation', 'policeCallOpen', 'policeCallClose', 'policeShare', 'policeTalk']);
+/** Zeit, Neustart und Übungsszenarien steuert nur der Gastgeber */
+const HOST_ONLY = new Set<string>(['toggleRunning', 'setRunning', 'setSpeed', 'restartSimulation', 'injectScenarioCall']);
+
+function guard(state: GameState, name: string, args: unknown[]): string | null {
+  const who = getActor();
+  if (!who) return null;
+  if (!who.host && HOST_ONLY.has(name)) return 'Das darf nur der Gastgeber.';
+  const id = typeof args[0] === 'string' ? args[0] : null;
+  if (!id) return null;
+  const owner = CALL_CMDS.has(name) ? state.runtime.calls.find((c) => c.id === id)?.owner : INC_CMDS.has(name) ? state.runtime.incidents.find((i) => i.id === id)?.owner : undefined;
+  if (owner && owner.id !== who.id) return `Wird von ${owner.name} bearbeitet – zuerst „Übernehmen“.`;
+  return null;
+}
+
 export function execCommand(state: GameState, name: CommandName, args: unknown[]): CommandResult {
   const fn = COMMANDS[name] as Fn | undefined;
   if (!fn) return { ok: false, error: `Unbekannter Befehl ${name}` };
+  const blocked = guard(state, name, args);
+  if (blocked) return { ok: false, error: blocked };
   return (fn as (s: GameState, ...a: unknown[]) => CommandResult)(state, ...args);
 }

@@ -412,6 +412,8 @@ export interface Call {
   redialOf: ID | null;
   /** Folgeanruf (Doppelmeldung) zu einem bereits angelegten Einsatz */
   duplicateOfIncidentId: ID | null;
+  /** Mehrspieler: wer den Notruf bearbeitet */
+  owner?: { id: string; name: string };
   /** Anschlussart des Anrufers (bestimmt die Genauigkeit der Ortung) */
   phoneType: 'festnetz' | 'mobil';
   /** Laufende bzw. abgeschlossene Ortung */
@@ -502,6 +504,8 @@ export interface Incident {
   activeVehicleIds: ID[];
   backupRequests: { at: number; text: string; requirements: AaoRequirement[] }[];
   escalation: { at: number; requirements: AaoRequirement[]; text: string; triggered: boolean; extraPatients: number } | null;
+  /** Mehrspieler: wer den Einsatz bearbeitet */
+  owner?: { id: string; name: string };
   /** Telefonat mit der Polizeileitstelle (sim/polizei.ts) */
   police?: { open: boolean; shared: boolean; lines: { at: number; from: 'leitstelle' | 'polizei'; text: string }[]; sent: string[]; pending?: { count: number; reason?: string } };
   log: { at: number; text: string }[];
@@ -621,6 +625,8 @@ export interface Runtime {
   calls: Call[];
   incidents: Incident[];
   radio: RadioMessage[];
+  /** Mehrspieler: verbundene Spieler (zuletzt gesehen, Echtzeit ms) */
+  players?: { id: string; name: string; seenAt: number; host: boolean }[];
   /** Sprechfunkverkehr (fehlt in älteren Spielständen) */
   funk?: FunkState;
   events: LogEvent[];

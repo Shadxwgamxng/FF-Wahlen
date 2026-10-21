@@ -52,6 +52,10 @@ async function sendIndex(res) {
 const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url ?? '/', 'http://x');
+    if (url.pathname === '/mitspielen' || url.pathname === '/mitspielen/') {
+      res.writeHead(302, { Location: '/?spieler=1' });
+      return res.end();
+    }
     if (url.pathname === '/tablet' || url.pathname === '/tablet/') {
       res.writeHead(302, { Location: '/?fenster=tablet' });
       return res.end();
@@ -107,6 +111,7 @@ server.listen(PORT, HOST, () => {
   for (const ip of ips) {
     console.log(`  Leitstand:       http://${ip}:${PORT}/`);
     console.log(`  Tablet:          http://${ip}:${PORT}/tablet`);
+    console.log(`  Mitspieler:      http://${ip}:${PORT}/mitspielen`);
   }
   console.log('\nBeenden mit Strg+C.\n');
 });

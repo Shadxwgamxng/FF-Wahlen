@@ -1,3 +1,4 @@
+import { PlayerNameField } from '../players';
 import { StyleSwitch } from '../components/StyleSwitch';
 import { useEffect, useState } from 'react';
 import { projects, type ProjectRecord } from '../../persistence/db';
@@ -91,7 +92,7 @@ export function StartScreen() {
   return (
     <div className="start" data-testid="start-screen">
       <div className="hero">
-        <div className="row"><h1 className="grow">LEITWARTE</h1><StyleSwitch /></div>
+        <div className="row"><h1 className="grow">LEITWARTE</h1><PlayerNameField /><StyleSwitch /></div>
         <div className="muted">Leitstellen-Simulation für Feuerwehr, Rettungsdienst und Partnerorganisationen – Einzelspieler im Browser, Daten bleiben lokal.</div>
       </div>
       {error && <div className="errbox">{error}</div>}
