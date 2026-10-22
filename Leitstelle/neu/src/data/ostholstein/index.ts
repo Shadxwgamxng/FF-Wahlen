@@ -35,8 +35,11 @@ const shortPlace = (name: string) =>
     .replace(/\s*\(.*\)$/, '')
     .trim() || name;
 
-/** Wachen, die es als eigene Wehr nicht gibt (in OpenStreetMap trotzdem eingetragen) */
-const NOT_A_UNIT = [/Altratjensdorf/];
+/**
+ * Wachen, die es als eigene Wehr nicht (mehr) gibt (in OpenStreetMap trotzdem eingetragen). Laut Nutzer:
+ * Wulfsdorf, Sulsdorf und Techelwitz gibt es nicht; "FF Gemeinde Gremersdorf" ist FF Giddendorf-Seegalendorf-Gremersdorf.
+ */
+const NOT_A_UNIT = [/Altratjensdorf/, /Wulfsdorf/, /Sulsdorf/, /Techelwitz/, /Gemeinde Gremersdorf/];
 
 const KIND: Record<Exclude<WacheDef['kind'], 'luft'>, { kind: Station['kind']; org: string; turnout: number }> = {
   ff: { kind: 'feuerwehrhaus', org: 'org_ff', turnout: 300 },

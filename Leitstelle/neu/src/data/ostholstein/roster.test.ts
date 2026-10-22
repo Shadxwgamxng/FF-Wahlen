@@ -34,11 +34,13 @@ const at = (iso: string) => Date.parse(iso);
 describe('Fahrzeugliste Ostholstein (roster)', () => {
   it('liest alle Einträge der vollständigen Liste und kommt auf eine plausible Fahrzeugzahl', () => {
     const rows = parseCsv(ROSTER_INPUT.fahrzeuge).length;
-    expect(rows).toBe(492);
+    expect(rows).toBe(536);
     // jeder Eintrag ist Fahrzeug, zusammengeführt oder (mit Grund) weggelassen
     const mergedAway = roster.merged.filter((m) => m.reason.startsWith('=') || m.reason.startsWith('doppelt')).length;
     expect(roster.vehicles.length + roster.omitted.length + mergedAway).toBe(rows);
-    expect(roster.vehicles.length).toBe(490);
+    expect(roster.vehicles.length).toBe(534);
+    expect(one('Florian Ostholstein 42/41-06').wache).toBe('FF Wangels OF Grammdorf');
+    expect(one('Florian Ostholstein 42/41-05').wache).toBe('FF Giddendorf-Seegalendorf-Gremersdorf');
     for (const o of roster.omitted) expect(o.reason.length, o.callsign).toBeGreaterThan(10);
   });
 
@@ -134,6 +136,30 @@ describe('Fahrzeugliste Ostholstein (roster)', () => {
     expect(roster.omitted.map((o) => `${o.wache}|${o.type}`)).toEqual(['FF Timmendorfer Strand OF Hemmelsdorf|MZF']);
     // JUH RW Bad Schwartau: alle einmal
     for (const cs of ['Akkon Ostholstein 92/83-01', 'Akkon Ostholstein 92/83-02', 'Akkon Ostholstein 92/83-03', 'Akkon Ostholstein 92/82-01', 'Rettung Ostholstein 92/85-01']) expect(one(cs).wache).toBe('JUH RW Bad Schwartau');
+  });
+
+  it('Ortswehren aus den Antworten des Nutzers', () => {
+    const at = (w: string) => roster.vehicles.filter((v) => v.wache === w).map((v) => `${v.callsign} ${v.typeLabel}`).sort();
+    expect(at('Feuerwehr Fehmarn Hauptamtliche Wache')).toEqual([
+      'Florian Ostholstein 31/10-01 KdoW',
+      'Florian Ostholstein 31/10-02 KdoW',
+      'Florian Ostholstein 31/18-01 MTW',
+      'Florian Ostholstein 31/48-01 HLF 20',
+      'Florian Ostholstein 31/48-02 HLF 10',
+    ]);
+    expect(at('FF Bosau OF Bosau')).toEqual(['Florian Ostholstein 74/44-01 LF 10/6', 'Florian Ostholstein 74/78-01 MZB']);
+    expect(one('Florian Ostholstein 74/78-01').typeId).toBe('oh_mzb');
+    expect(one('Florian Ostholstein 03/76-01')).toMatchObject({ wache: 'FF Fehmarn OF Bisdorf-Hinrichsdorf', typeId: 'oh_gwl1' });
+    expect(one('Florian Ostholstein 77/42-02')).toMatchObject({ wache: 'FF Ahrensbök OF Gnissau', typeId: 'oh_lf8' });
+    expect(one('Florian Ostholstein 58/41-06').organizationId).toBe('org_ff');
+    // Wasserrettungsstationen mit angenommenem Rettungsboot
+    for (const w of ['DLRG WRS Burg auf Fehmarn', 'DLRG WRS Ostermade', 'DLRG WRS Großenbrode']) {
+      const v = roster.vehicles.filter((x) => x.wache === w);
+      expect(v.map((x) => x.typeId), w).toEqual(['oh_rboot_wr']);
+      expect(v[0].callsign, w).toMatch(/^Pelikan Ostholstein \d\d\/78-\d\d$/);
+    }
+    // gibt es nicht bzw. dieselbe Wehr: OSM-Einträge entfallen
+    for (const n of ['Freiwillige Feuerwehr Wulfsdorf', 'Freiwillige Feuerwehr Gemeinde Gremersdorf', 'Feuerwache Techelwitz']) expect(center.stations.some((s) => s.name === n), n).toBe(false);
   });
 
   it('Wache "unbekannt" aus Hinweis bzw. Ortskennziffer und Sonderzuordnungen', () => {
@@ -292,8 +318,8 @@ describe('Beispielleitstelle Ostholstein mit echten Fahrzeugen', () => {
     expect(c.vehicles.some((v) => v.stationId === st.id && v.callsign === 'Florian Ostholstein 30/41-03')).toBe(true);
     // keine weitere Feuerwehr-Station in unmittelbarer Nähe (früher: leere "Ortswehr Petersdorf" 111 m daneben)
     expect(c.stations.filter((s) => s.kind !== 'rettungswache' && s.kind !== 'polizei' && distanceMeters(s.position, st.position) < 200)).toHaveLength(1);
-    // die zweite Ortswehr (Sulsdorf) bleibt als leerer OSM-Standort
-    expect(c.stations.some((s) => s.name === 'Ortswehr Sulsdorf')).toBe(true);
+    // Sulsdorf gibt es laut Nutzer nicht (mehr): OSM-Eintrag entfällt
+    expect(c.stations.some((s) => s.name === 'Ortswehr Sulsdorf')).toBe(false);
   });
 
   it('Phantom-Dubletten: gleichnamige OSM-Einträge derselben Wache in der Nähe entfallen', () => {
