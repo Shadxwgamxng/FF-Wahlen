@@ -1,7 +1,7 @@
 import type { CenterConfig, LatLng, Station, Vehicle } from '../../model/types';
 import type { County } from '../../geo/osm';
 import { extractFacilities } from '../../geo/osm';
-import { buildPlaceIndex, geocode, type OverpassElement } from '../../geo/places';
+import { buildPlaceIndex, type OverpassElement } from '../../geo/places';
 import { extractPois } from '../../geo/pois';
 import { buildCenter, defaultOrganizations } from '../centerFactory';
 import { emptyVehicleRuntime } from '../sampleCenter';
@@ -17,13 +17,13 @@ export { gemeindeOf, okzOf } from './gemeinden';
 /**
  * Beispielleitstelle "Kreis Ostholstein" mit echten Fahrzeugen und Wachen.
  *  - Fahrzeuge und Wachen nach öffentlichen Quellen: bos-fahrzeuge.info, Websites der Wehren,
- *    brianpeschke.de und Rettungsdienst Holstein (Listen Stand Oktober 2026, siehe *.csv und roster.ts).
+ *    brianpeschke.de und Rettungsdienst Holstein (vollständige Liste Stand Oktober 2026: fahrzeuge-komplett.csv, wachen.csv).
  *    Fahrzeuge ohne veröffentlichten Funkrufnamen bekommen einen Rufnamen nach dem Schema
  *    "Florian Ostholstein 61/48-01" (Ortskennziffer / Fahrzeugkenner - laufende Nummer).
  *  - Kreisgrenze: mitgeliefert (OSM-Relation 27025, über Nominatim abgerufen)
- *  - Adressen, Standorte der Wachen, Polizei, Kliniken: werden beim ersten Start live über die
- *    Overpass-API geladen (kostenlos, Daten © OpenStreetMap-Mitwirkende, ODbL). Wachen, die dort
- *    fehlen, stehen an ihrer Adresse bzw. an der in wachen.ts hinterlegten Position (ebenfalls aus OSM).
+ *  - Wachen an den Koordinaten aus wachen.csv (Adresse bzw. Ortsmitte); der OSM-Eintrag derselben Wache wird übernommen.
+ *  - Adressen, Polizei, Kliniken: werden beim ersten Start live über die Overpass-API geladen
+ *    (kostenlos, Daten © OpenStreetMap-Mitwirkende, ODbL).
  *  - Polizei ist nicht in den Listen: je Polizeistation ein Streifenwagen (Anforderung per Telefon).
  */
 
@@ -75,12 +75,6 @@ export interface StationPlacement {
 /** Zuordnung der Wachen zu Positionen beim letzten Aufbau (für Tests und Auswertung) */
 export let lastPlacements: StationPlacement[] = [];
 
-/** Adresse "Straße Nr, PLZ Ort (Ortsteil)" → Teile für geocode() */
-function splitAddress(address: string): { street: string; nr: string; city: string } | null {
-  const m = /^(.+?)\s+(\d+\s*[a-zA-Z]?)\s*,\s*(?:\d{5}\s+)?(.+?)(?:\s*\(.*\))?$/.exec(address.trim());
-  return m ? { street: m[1].trim(), nr: m[2].replace(/\s+/g, '').toLowerCase(), city: m[3].trim() } : null;
-}
-
 export function createOstholsteinCenter(elements: OverpassElement[]): CenterConfig {
   const orgs = defaultOrganizations().filter((o) => o.id !== 'org_bf');
   const RG: Record<string, [string, string]> = {
@@ -100,7 +94,7 @@ export function createOstholsteinCenter(elements: OverpassElement[]): CenterConf
   const c = buildCenter({ catalogId: 'sh', name: 'IRLS Süd – Kreis Ostholstein (Beispiel)', operator: 'Beispiel (nicht offiziell)', counties: [OSTHOLSTEIN], organizations: orgs, places, facilities });
   c.stations = c.stations.filter((s) => !NOT_A_UNIT.some((r) => r.test(s.name)));
   c.description =
-    'Beispielleitstelle auf dem echten Kreis Ostholstein: echte Kreisgrenze, echte Adressen und Standorte aus OpenStreetMap. Fahrzeuge und Wachen nach öffentlichen Quellen (bos-fahrzeuge.info, Websites der Wehren, brianpeschke.de, Rettungsdienst Holstein; Stand der Listen Oktober 2026). Polizei wird telefonisch angefordert.';
+    'Beispielleitstelle auf dem echten Kreis Ostholstein: echte Kreisgrenze, echte Adressen und Standorte aus OpenStreetMap. Fahrzeuge und Wachen nach öffentlichen Quellen (bos-fahrzeuge.info, Websites der Wehren, brianpeschke.de, Rettungsdienst Holstein; Stand der vollständigen Liste Oktober 2026). Polizei wird telefonisch angefordert.';
   c.state = 'Schleswig-Holstein';
   c.sharing.tags = ['beispiel', 'ostholstein'];
   c.vehicleTypes = ostholsteinVehicleTypes();
@@ -114,6 +108,8 @@ export function createOstholsteinCenter(elements: OverpassElement[]): CenterConf
   const vehicleCount = new Map<string, number>();
   for (const v of roster.vehicles) vehicleCount.set(v.wache, (vehicleCount.get(v.wache) ?? 0) + 1);
 
+  // OSM-Eintrag derselben Wache übernehmen (statt doppelt anzulegen): genannter OSM-Name im Umkreis von 3 km,
+  // sonst ein Eintrag gleicher Art direkt an der Position aus der Liste
   const findOsm = (def: WacheDef): Station | undefined => {
     const kinds = OSM_KINDS[def.kind];
     if (!kinds) return undefined;
@@ -125,29 +121,23 @@ export function createOstholsteinCenter(elements: OverpassElement[]): CenterConf
         .sort((a, b) => a.d - b.d)[0]?.s;
     if (def.osm) {
       const names = def.osm.map((n) => n.toLowerCase());
-      return near(
+      const named = near(
         free.filter((s) => names.includes(baseName(s.name))),
         3000,
       );
+      if (named) return named;
     }
-    if (def.osmNear) return near(free, 150);
-    return undefined;
+    return near(free, 150);
   };
 
+  // Position aus der Wachenliste; ist dort nur die Ortsmitte bekannt, gilt ein passender OSM-Eintrag
   const place = (rs: RosterStation): { position: LatLng; source: PositionSource; osm?: Station } => {
     const def = rs.def;
     const osm = findOsm(def);
-    if (osm) {
-      // Adresse aus den Listen weicht deutlich vom OSM-Eintrag ab: Adresse gilt
-      if (def.posKind === 'adr' && distanceMeters(osm.position, def.pos) > 300) return { position: def.pos, source: 'adresse', osm };
-      return { position: osm.position, source: 'osm', osm };
-    }
-    const a = splitAddress(rs.address);
-    const g = a && places ? geocode(places, a.street, a.nr, a.city) : null;
-    if (g?.exact && inCounty(g.position) && distanceMeters(g.position, def.pos) < 3000) return { position: g.position, source: 'adresse' };
-    if (inCounty(def.pos)) return { position: def.pos, source: def.posKind === 'ort' ? 'ortsmitte' : 'tabelle' };
+    if (def.posKind === 'ort' && osm) return { position: osm.position, source: 'osm', osm };
+    if (inCounty(def.pos)) return { position: def.pos, source: def.posKind === 'ort' ? 'ortsmitte' : def.posKind === 'osm' ? 'osm' : 'adresse', osm };
     const gem = gemeindeOf(def.pos);
-    return { position: gem ? gemeindeCenter(gem) : c.mapCenter, source: 'gemeinde' };
+    return { position: gem ? gemeindeCenter(gem) : c.mapCenter, source: 'gemeinde', osm };
   };
 
   // Rettungshubschrauber (extern, Luftrettungszentrum Siblin)

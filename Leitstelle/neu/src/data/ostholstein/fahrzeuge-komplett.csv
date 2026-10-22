@@ -21,8 +21,6 @@ DLRG Haffkrug-Scharbeutz;Pelikan Ostholstein 80/18-02;MTW;DLRG;OH-VZ 7777;;Fahrz
 DLRG OG Lübecker Bucht;Adler Ostholstein 89/18-01;MTW;DLRG;;;Wachen-Eintrag;aus dem Wachen-Eintrag der Datenbank;https://bos-fahrzeuge.info/wachen/26636/DLRG_OG_Luebecker_Bucht
 DLRG OG Lübecker Bucht;Adler Ostholstein 89/19-01;MTW klein;DLRG;;;Wachen-Eintrag;aus dem Wachen-Eintrag der Datenbank;https://bos-fahrzeuge.info/wachen/26636/DLRG_OG_Luebecker_Bucht
 DLRG WRS Lübecker Bucht;Adler Scharbeutz 15-03 - UTV;UTV;DLRG;SHG-LR 21 E;2020;Fahrzeug-Datenbank;;https://bos-fahrzeuge.info/einsatzfahrzeuge/172334/Adler_Scharbeutz_15-03_-_UTV
-unbekannt;Pelikan Ostholstein 67/18-xx;MTW;DLRG;OH-WR 1913;;Fahrzeug-Datenbank;"Wache unbekannt; Kennzahl 67 = Eutin, vermutlich DLRG Eutin";https://bos-fahrzeuge.info/einsatzfahrzeuge/214616/Pelikan_Ostholstein_6718-xx
-unbekannt;Pelikan Ostholstein 74/18-01;MTW;DLRG;OH-WR 1970;2022;Fahrzeug-Datenbank;"Wache unbekannt; Kennzahl 74 = Bosau, vermutlich DLRG Bosau";https://bos-fahrzeuge.info/einsatzfahrzeuge/200392/Pelikan_Ostholstein_7418-01
 DRK KV Ostholstein-Plön;Rotkreuz Ostholstein 01/10-10;PKW Führung;DRK;;;Wachen-Eintrag;aus dem Wachen-Eintrag der Datenbank;https://bos-fahrzeuge.info/wachen/58349/DRK_KV_Ostholstein-Ploen
 DRK KV Ostholstein-Plön;Rotkreuz Ostholstein 01/10-11;KdoW;DRK;OH-KS 1892;;Fahrzeug-Datenbank;;https://bos-fahrzeuge.info/einsatzfahrzeuge/225225/Rotkreuz_Ostholstein_0110-11
 DRK KV Ostholstein-Plön;Rotkreuz Ostholstein 01/11-01;ELW;DRK;OH-RK 10;;Fahrzeug-Datenbank;;https://bos-fahrzeuge.info/einsatzfahrzeuge/214614/Rotkreuz_Ostholstein_0111-01
@@ -67,8 +65,10 @@ DRK RW Neustadt in Holstein;Rotkreuz Ostholstein 61/83-01;RTW;DRK;;;Nachrecherch
 DRK RW Neustadt in Holstein;Rotkreuz Ostholstein 61/83-02;RTW;DRK;;;Nachrecherche;Tages-RTW;https://www.brianpeschke.de/rd/sh/oh/neustadt.html
 DRK RW Neustadt in Holstein;Rotkreuz Ostholstein 61/83-03;RTW;DRK;;;Nachrecherche;Tages-RTW;https://www.brianpeschke.de/rd/sh/oh/neustadt.html
 DRK RW Neustadt in Holstein;Rotkreuz Ostholstein 61/83-04;RTW;DRK;;;Nachrecherche;Tages-RTW;https://www.brianpeschke.de/rd/sh/oh/neustadt.html
+DRK RW Neustadt in Holstein;Rotkreuz Ostholstein 61/85-01;KTW;Rettungsdienst (kommunal);OH-RD 6702;;Fahrzeug-Datenbank;;https://bos-fahrzeuge.info/einsatzfahrzeuge/188499/Rotkreuz_Ostholstein_6185-01
 DRK RW Neustadt in Holstein;Rotkreuz Ostholstein 61/85-02;KTW;DRK;;;Wachen-Eintrag;aus dem Wachen-Eintrag der Datenbank;https://bos-fahrzeuge.info/wachen/25967/DRK_RW_Neustadt_in_Holstein
 DRK RW Neustadt in Holstein;Rotkreuz Ostholstein 61/85-03;KTW;DRK;;;Wachen-Eintrag;aus dem Wachen-Eintrag der Datenbank;https://bos-fahrzeuge.info/wachen/25967/DRK_RW_Neustadt_in_Holstein
+DRK RW Oldenburg in Holstein;Rettung Ostholstein 40/82-01;NEF;Rettungsdienst (kommunal);OH-RD 6710;2022;Fahrzeug-Datenbank;;https://bos-fahrzeuge.info/einsatzfahrzeuge/214852/Rettung_Ostholstein_4082-01
 DRK RW Oldenburg in Holstein;Rotkreuz Ostholstein 40/82-01;NEF;DRK;;;Wachen-Eintrag;aus dem Wachen-Eintrag der Datenbank;https://bos-fahrzeuge.info/wachen/30214/DRK_RW_Oldenburg_in_Holstein
 DRK RW Oldenburg in Holstein;Rotkreuz Ostholstein 40/83-01;RTW;DRK;;;Nachrecherche;"24h; Adresse: Mühlenkamp 18, 23758 Oldenburg in Holstein";https://www.brianpeschke.de/rd/sh/oh/oldenburg.html
 DRK RW Oldenburg in Holstein;Rotkreuz Ostholstein 40/83-02;RTW;DRK;;;Nachrecherche;24h;https://www.brianpeschke.de/rd/sh/oh/oldenburg.html
@@ -78,7 +78,6 @@ DRK RW Oldenburg in Holstein;Rotkreuz Ostholstein 40/83-05;RTW;DRK;;;Nachrecherc
 DRK RW Oldenburg in Holstein;Rotkreuz Ostholstein 40/85-01;KTW;DRK;;;Wachen-Eintrag;aus dem Wachen-Eintrag der Datenbank;https://bos-fahrzeuge.info/wachen/30214/DRK_RW_Oldenburg_in_Holstein
 DRK RW Oldenburg in Holstein;Rotkreuz Ostholstein 40/85-02;KTW;DRK;;;Wachen-Eintrag;aus dem Wachen-Eintrag der Datenbank;https://bos-fahrzeuge.info/wachen/30214/DRK_RW_Oldenburg_in_Holstein
 DRK RW Oldenburg in Holstein;Rotkreuz Ostholstein 40/85-03;KTW;DRK;;;Wachen-Eintrag;aus dem Wachen-Eintrag der Datenbank;https://bos-fahrzeuge.info/wachen/30214/DRK_RW_Oldenburg_in_Holstein
-unbekannt;Rotkreuz Ostholstein 89/19-01;MTW;DRK;OH-RK 42;;Fahrzeug-Datenbank;"Wache unbekannt; Kennzahl 89 = Timmendorfer Strand, vermutlich DRK OV Timmendorfer Strand";https://bos-fahrzeuge.info/einsatzfahrzeuge/86638/Rotkreuz_Ostholstein_8919-01
 FF Ahrensbök OF Ahrensbök;Florian Ostholstein 03/14-01;MZF;Freiwillige Feuerwehr;;;Wachen-Eintrag;"aus dem Wachen-Eintrag der Datenbank; LZ-G";https://bos-fahrzeuge.info/wachen/9880/FF_Ahrensboek_OF_Ahrensboek
 FF Ahrensbök OF Ahrensbök;Florian Ostholstein 03/54-02;GW-G;Freiwillige Feuerwehr;;;Wachen-Eintrag;"aus dem Wachen-Eintrag der Datenbank; LZ-G";https://bos-fahrzeuge.info/wachen/9880/FF_Ahrensboek_OF_Ahrensboek
 FF Ahrensbök OF Ahrensbök;Florian Ostholstein 77/14-01;MZF;Freiwillige Feuerwehr;;;Wachen-Eintrag;aus dem Wachen-Eintrag der Datenbank;https://bos-fahrzeuge.info/wachen/9880/FF_Ahrensboek_OF_Ahrensboek
@@ -89,7 +88,6 @@ FF Ahrensbök OF Ahrensbök;Florian Ostholstein 77/67-01;GW-L1;Freiwillige Feuer
 FF Altenkrempe OF Altenkrempe;Florian Ostholstein 56/18-02;MTW;Freiwillige Feuerwehr;;;Wachen-Eintrag;aus dem Wachen-Eintrag der Datenbank;https://bos-fahrzeuge.info/wachen/25557/FF_Altenkrempe_OF_Altenkrempe
 FF Altenkrempe OF Altenkrempe;Florian Ostholstein 56/41-01;TSF-W;Freiwillige Feuerwehr;;;Wachen-Eintrag;aus dem Wachen-Eintrag der Datenbank;https://bos-fahrzeuge.info/wachen/25557/FF_Altenkrempe_OF_Altenkrempe
 FF Altenkrempe OF Altenkrempe;Florian Ostholstein 56/47-01;LF 10;Freiwillige Feuerwehr;OH-FA 1930;2024;Fahrzeug-Datenbank;;https://bos-fahrzeuge.info/einsatzfahrzeuge/213553/Florian_Ostholstein_5647-01
-FF Bad Malente-Gremsmühlen;Florian Ostholstein 03/71-01;CBRN ErkW;Freiwillige Feuerwehr;;;Wachen-Eintrag;"aus dem Wachen-Eintrag der Datenbank; LZ-G; Konflikt: Rufname auch bei FF Oldenburg (CBRN-Erkunder LZ-G) genannt";https://bos-fahrzeuge.info/wachen/21703/FF_Bad_Malente-Gremsmuehlen
 FF Bad Malente-Gremsmühlen;Florian Ostholstein 64/11-01;ELW 1;Freiwillige Feuerwehr;;;Wachen-Eintrag;aus dem Wachen-Eintrag der Datenbank;https://bos-fahrzeuge.info/wachen/21703/FF_Bad_Malente-Gremsmuehlen
 FF Bad Malente-Gremsmühlen;Florian Ostholstein 64/14-01;MZF;Freiwillige Feuerwehr;;;Wachen-Eintrag;"aus dem Wachen-Eintrag der Datenbank; Konflikt: Rufname bei FF Benz und FF Bad Malente-Gremsmühlen genannt";https://bos-fahrzeuge.info/wachen/21703/FF_Bad_Malente-Gremsmuehlen
 FF Bad Malente-Gremsmühlen;Florian Ostholstein 64/18-01;MTW;Freiwillige Feuerwehr;;;Wachen-Eintrag;aus dem Wachen-Eintrag der Datenbank;https://bos-fahrzeuge.info/wachen/21703/FF_Bad_Malente-Gremsmuehlen
@@ -168,7 +166,7 @@ FF Fehmarn OF Meeschendorf;Florian Ostholstein 30/14-01;MZF;Freiwillige Feuerweh
 FF Fehmarn OF Meeschendorf;Florian Ostholstein 30/43-01;LF 10/6;Freiwillige Feuerwehr;OH-RF 110;;Fahrzeug-Datenbank;;https://bos-fahrzeuge.info/einsatzfahrzeuge/200857/Florian_Ostholstein_3043-01
 FF Fehmarn OF Puttgarden-Todendorf;Florian Ostholstein 30/14-03;MTF;Freiwillige Feuerwehr;OH-PT 112;;Fahrzeug-Datenbank;;https://bos-fahrzeuge.info/einsatzfahrzeuge/147673/Florian_Ostholstein_3014-03
 FF Fehmarn OF Puttgarden-Todendorf;Florian Ostholstein 30/48-02;HLF 20/16;Freiwillige Feuerwehr;;;Nachrecherche;Adresse: Marienleuchter Weg 4, 23769 Fehmarn;https://ff-fehmarn.de/ff-puttgarden-todendorf/
-FF Fehmarn OF Süderort;nicht veröffentlicht;LF 10;Freiwillige Feuerwehr;;;Nachrecherche;"Gerätehaus in Avendorf; Rufname vermutlich Florian Ostholstein 30/4x-xx";https://ff-fehmarn.de/ff-suederort/
+FF Fehmarn OF Süderort;Florian Ostholstein 30/44-02;LF 10;Freiwillige Feuerwehr;;;Korrektur Nutzer;Gerätehaus in Avendorf;https://ff-fehmarn.de/ff-suederort/
 FF Fehmarn OF Süderort;nicht veröffentlicht;MZF;Freiwillige Feuerwehr;;2025;Nachrecherche;;https://ff-fehmarn.de/ff-suederort/
 FF Fehmarn OF Westfehmarn;Florian Ostholstein 30/18-01;MTW;Freiwillige Feuerwehr;;;Wachen-Eintrag;aus dem Wachen-Eintrag der Datenbank;https://bos-fahrzeuge.info/wachen/40253/FF_Fehmarn_OF_Westfehmarn
 FF Fehmarn OF Westfehmarn;Florian Ostholstein 30/41-03;TSF-W;Freiwillige Feuerwehr;OH-2031;2001;Fahrzeug-Datenbank;;https://bos-fahrzeuge.info/einsatzfahrzeuge/56736/Florian_Ostholstein_3041-03
@@ -195,6 +193,7 @@ FF Grömitz OF Grömitz;Florian Ostholstein 55/32-01;DLA;Freiwillige Feuerwehr;O
 FF Grömitz OF Grömitz;Florian Ostholstein 55/46-01;LF 16/12;Freiwillige Feuerwehr;OH-207;2000;Fahrzeug-Datenbank;;https://bos-fahrzeuge.info/einsatzfahrzeuge/162082/Florian_Ostholstein_5546-01
 FF Grömitz OF Grömitz;Florian Ostholstein 55/47-02;LF 20;Freiwillige Feuerwehr;OH-KS 5330;2023;Fahrzeug-Datenbank;;https://bos-fahrzeuge.info/einsatzfahrzeuge/214467/Florian_Ostholstein_5547-02
 FF Grömitz OF Grömitz;Florian Ostholstein 55/48-01;HLF 10;Freiwillige Feuerwehr;OH-FF 45;2014;Fahrzeug-Datenbank;;https://bos-fahrzeuge.info/einsatzfahrzeuge/162335/Florian_Ostholstein_5548-01
+FF Grömitz OF Grömitz;Florian Ostholstein 55/MTW-JFW;MTW;Jugendfeuerwehr;OH-JF 550;;Fahrzeug-Datenbank;;https://bos-fahrzeuge.info/einsatzfahrzeuge/214456/Florian_Ostholstein_55MTW-JFW
 FF Grömitz OF Grömitz;Florian Ostholstein 55/MTW-Musikzug;MTW;Freiwillige Feuerwehr;OH-GG 1113;;Fahrzeug-Datenbank;;https://bos-fahrzeuge.info/einsatzfahrzeuge/225157/Florian_Ostholstein_55MTW-Musikzug
 FF Grömitz OF Guttau;Florian Ostholstein 55/14-03;MZF;Freiwillige Feuerwehr;OH-FG 1911;;Fahrzeug-Datenbank;;https://bos-fahrzeuge.info/einsatzfahrzeuge/214548/Florian_Ostholstein_5514-03
 FF Grömitz OF Guttau;Florian Ostholstein 55/41-04;MLF;Freiwillige Feuerwehr;OH-GU 1911;2016;Fahrzeug-Datenbank;;https://bos-fahrzeuge.info/einsatzfahrzeuge/191492/Florian_Ostholstein_5541-04
@@ -222,6 +221,11 @@ FF Heiligenhafen;Florian Ostholstein 35/46-01;LF 20;Freiwillige Feuerwehr;OH-FF 
 FF Heiligenhafen;Florian Ostholstein 35/48-01;HLF 20;Freiwillige Feuerwehr;OH-FF 3548;2015;Fahrzeug-Datenbank;;https://bos-fahrzeuge.info/einsatzfahrzeuge/194258/Florian_Ostholstein_3548-01
 FF Heiligenhafen;Florian Ostholstein 35/51-01;Rüstwagen;Freiwillige Feuerwehr;OH-2015;2004;Fahrzeug-Datenbank;;https://bos-fahrzeuge.info/einsatzfahrzeuge/51347/Florian_Ostholstein_3551-01
 FF Heiligenhafen;Florian Ostholstein 35/67-01;GW-L;Freiwillige Feuerwehr;OH-FF 354;2012;Fahrzeug-Datenbank;;https://bos-fahrzeuge.info/einsatzfahrzeuge/194188/Florian_Ostholstein_3567-01
+FF Heiligenhafen;Florian Ostholstein 35/68-01;GW-L2;Freiwillige Feuerwehr;;;Korrektur Nutzer;;
+FF Heringsdorf OF Fargemiel;nicht veröffentlicht;LF 10;Freiwillige Feuerwehr;;;Korrektur Nutzer;;
+FF Heringsdorf OF Heringsdorf;nicht veröffentlicht;HLF 10;Freiwillige Feuerwehr;;;Korrektur Nutzer;;
+FF Heringsdorf OF Heringsdorf;nicht veröffentlicht;MZF;Freiwillige Feuerwehr;;;Korrektur Nutzer;;
+FF Heringsdorf OF Heringsdorf;nicht veröffentlicht;GW-Bahnrettung;Freiwillige Feuerwehr;;;Korrektur Nutzer;;
 FF Kasseedorf OF Griebel-Vinzier;Florian Ostholstein 54/20-03;TLF 8/18;Freiwillige Feuerwehr;;;Wachen-Eintrag;aus dem Wachen-Eintrag der Datenbank;https://bos-fahrzeuge.info/wachen/52333/FF_Kasseedorf_OF_Griebel-Vinzier
 FF Kasseedorf OF Griebel-Vinzier;Florian Ostholstein 54/41-03;TSF-W;Freiwillige Feuerwehr;;;Wachen-Eintrag;aus dem Wachen-Eintrag der Datenbank;https://bos-fahrzeuge.info/wachen/52333/FF_Kasseedorf_OF_Griebel-Vinzier
 FF Kasseedorf OF Kasseedorf;Florian Ostholstein 54/14-01;MZF;Freiwillige Feuerwehr;;;Wachen-Eintrag;aus dem Wachen-Eintrag der Datenbank;https://bos-fahrzeuge.info/wachen/18960/FF_Kasseedorf_OF_Kasseedorf
@@ -239,6 +243,7 @@ FF Kreuzfeld;Florian Ostholstein 64/40-05;TSF-Sonder;Freiwillige Feuerwehr;;;Wac
 FF Kreuzfeld;Florian Ostholstein 64/48-01;HLF 10;Freiwillige Feuerwehr;;;Wachen-Eintrag;aus dem Wachen-Eintrag der Datenbank;https://bos-fahrzeuge.info/wachen/54220/FF_Kreuzfeld
 FF Lensahn OF Lensahn;Florian Ostholstein 47/10-01;KdoW;Freiwillige Feuerwehr;OH-FL 4710;2017;Fahrzeug-Datenbank;;https://bos-fahrzeuge.info/einsatzfahrzeuge/192763/Florian_Ostholstein_4710-01
 FF Lensahn OF Lensahn;Florian Ostholstein 47/11-01;ELW 1;Freiwillige Feuerwehr;OH-FL 4711;2019;Fahrzeug-Datenbank;;https://bos-fahrzeuge.info/einsatzfahrzeuge/192399/Florian_Ostholstein_4711-01
+FF Lensahn OF Lensahn;Florian Ostholstein 47/18-03;Mannschaftstransportwagen;Jugendfeuerwehr;OH-FL 4718;2016;Fahrzeug-Datenbank;;https://bos-fahrzeuge.info/einsatzfahrzeuge/228059/Florian_Ostholstein_4718-03
 FF Lensahn OF Lensahn;Florian Ostholstein 47/18-04;MTW;Freiwillige Feuerwehr;OH-JF 1964;2010;Fahrzeug-Datenbank;;https://bos-fahrzeuge.info/einsatzfahrzeuge/137481/Florian_Ostholstein_4718-04
 FF Lensahn OF Lensahn;Florian Ostholstein 47/32-01;DLK 23/12;Freiwillige Feuerwehr;;;Wachen-Eintrag;aus dem Wachen-Eintrag der Datenbank;https://bos-fahrzeuge.info/wachen/19450/FF_Lensahn_OF_Lensahn
 FF Lensahn OF Lensahn;Florian Ostholstein 47/41-10;TSF-W;Freiwillige Feuerwehr;OH-FL 4741;1997;Fahrzeug-Datenbank;;https://bos-fahrzeuge.info/einsatzfahrzeuge/192398/Florian_Ostholstein_4741-10
@@ -268,8 +273,8 @@ FF Neustadt in Holstein;Florian Ostholstein 61/48-02;HLF 20/16;Freiwillige Feuer
 FF Neustadt in Holstein;Florian Ostholstein 61/64-01;Wechselladerfahrzeug;Freiwillige Feuerwehr;OH-FF 6164;2019;Fahrzeug-Datenbank;;https://bos-fahrzeuge.info/einsatzfahrzeuge/162984/Florian_Ostholstein_6164-01
 FF Nüchel;Florian Ostholstein 64/18-02;MTW;Freiwillige Feuerwehr;;;Wachen-Eintrag;aus dem Wachen-Eintrag der Datenbank;https://bos-fahrzeuge.info/wachen/21705/FF_Nuechel
 FF Nüchel;Florian Ostholstein 64/41-03;TSF-W;Freiwillige Feuerwehr;;;Wachen-Eintrag;aus dem Wachen-Eintrag der Datenbank;https://bos-fahrzeuge.info/wachen/21705/FF_Nuechel
-FF Oldenburg in Holstein;Florian Ostholstein 03/18-01;MTW;Freiwillige Feuerwehr;;;Wachen-Eintrag;"aus dem Wachen-Eintrag der Datenbank; LZ-G";https://bos-fahrzeuge.info/wachen/24077/FF_Oldenburg_in_Holstein
 FF Oldenburg in Holstein;Florian Ostholstein 03/54-01;GW-G;Freiwillige Feuerwehr;;;Wachen-Eintrag;"aus dem Wachen-Eintrag der Datenbank; LZ-G";https://bos-fahrzeuge.info/wachen/24077/FF_Oldenburg_in_Holstein
+FF Oldenburg in Holstein;Florian Ostholstein 03/71-01;CBRN ErkW;Freiwillige Feuerwehr;;;Korrektur Nutzer;LZ-G;https://bos-fahrzeuge.info/wachen/24077/FF_Oldenburg_in_Holstein
 FF Oldenburg in Holstein;Florian Ostholstein 40/10-01;KdoW;Freiwillige Feuerwehr;;;Wachen-Eintrag;aus dem Wachen-Eintrag der Datenbank;https://bos-fahrzeuge.info/wachen/24077/FF_Oldenburg_in_Holstein
 FF Oldenburg in Holstein;Florian Ostholstein 40/11-01;ELW 1;Freiwillige Feuerwehr;;;Wachen-Eintrag;aus dem Wachen-Eintrag der Datenbank;https://bos-fahrzeuge.info/wachen/24077/FF_Oldenburg_in_Holstein
 FF Oldenburg in Holstein;Florian Ostholstein 40/14-01;MZF;Freiwillige Feuerwehr;;;Wachen-Eintrag;aus dem Wachen-Eintrag der Datenbank;https://bos-fahrzeuge.info/wachen/24077/FF_Oldenburg_in_Holstein
@@ -335,6 +340,7 @@ FF Sierksdorf OF Sierksdorf;Florian Ostholstein 59/11-01;ELW 1;Freiwillige Feuer
 FF Sierksdorf OF Sierksdorf;Florian Ostholstein 59/22-01;TLF 16/25;Freiwillige Feuerwehr;OH-2674;1988;Fahrzeug-Datenbank;;https://bos-fahrzeuge.info/einsatzfahrzeuge/214585/Florian_Ostholstein_5922-01
 FF Sierksdorf OF Sierksdorf;Florian Ostholstein 59/48-01;HLF 20/16;Freiwillige Feuerwehr;;;Nachrecherche;;https://sierksdorf.feuerwehr112.org/fahrzeuge/
 FF Sieversdorf;Florian Ostholstein 64/41-02;TSF-W;Freiwillige Feuerwehr;;;Wachen-Eintrag;aus dem Wachen-Eintrag der Datenbank;https://bos-fahrzeuge.info/wachen/21702/FF_Sieversdorf
+FF Stockelsdorf Jugendfeuerwehr;Florian Ostholstein 83/18-03;MTW;Jugendfeuerwehr;OH-JF 83;2008;Fahrzeug-Datenbank;;https://bos-fahrzeuge.info/einsatzfahrzeuge/108535/Florian_Ostholstein_8318-03
 FF Stockelsdorf OF Curau;Florian Ostholstein 83/18-02;MTW;Freiwillige Feuerwehr;;;Wachen-Eintrag;aus dem Wachen-Eintrag der Datenbank;https://bos-fahrzeuge.info/wachen/7169/FF_Stockelsdorf_OF_Curau
 FF Stockelsdorf OF Curau;Florian Ostholstein 83/48-03;LF 10;Freiwillige Feuerwehr;OH-FC 1897;2013;Fahrzeug-Datenbank;;https://bos-fahrzeuge.info/einsatzfahrzeuge/108440/Florian_Ostholstein_8348-03
 FF Stockelsdorf OF Eckhorst;Florian Ostholstein 83/11-02;ELW 1;Freiwillige Feuerwehr;;;Wachen-Eintrag;aus dem Wachen-Eintrag der Datenbank;https://bos-fahrzeuge.info/wachen/9492/FF_Stockelsdorf_OF_Eckhorst
@@ -383,6 +389,11 @@ FF Timmendorfer Strand OF Timmendorfer Strand;Florian Ostholstein 89/14-02;MZF;F
 FF Timmendorfer Strand OF Timmendorfer Strand;Florian Ostholstein 89/32-01;DLAK 23/12;Freiwillige Feuerwehr;;2015;Nachrecherche;;https://www.feuerwehren-gemeinde-timmendorfer-strand.de/Die-Wehren/Timmendorfer-Strand/Fahrzeuge-Technik-/DLK-23-12/
 FF Timmendorfer Strand OF Timmendorfer Strand;Florian Ostholstein 89/47-01;LF 10;Freiwillige Feuerwehr;;2015;Nachrecherche;"Konflikt: bos-fahrzeuge.info führt 89/47-01 für das neue LF 10 (2026) in Hemmelsdorf; evtl. umnummeriert";https://www.feuerwehren-gemeinde-timmendorfer-strand.de/Die-Wehren/Timmendorfer-Strand/Fahrzeuge-Technik-/LF-10/
 FF Timmendorfer Strand OF Timmendorfer Strand;Florian Ostholstein 89/48-02;LF 16/12;Freiwillige Feuerwehr;;1997;Nachrecherche;;https://www.feuerwehren-gemeinde-timmendorfer-strand.de/Die-Wehren/Timmendorfer-Strand/Fahrzeuge-Technik-/LF-16-12/
+FF Wangels OF Döhnsdorf-Weißenhaus;nicht veröffentlicht;MTW;Freiwillige Feuerwehr;;;Korrektur Nutzer;;
+FF Wangels OF Döhnsdorf-Weißenhaus;nicht veröffentlicht;LF 10;Freiwillige Feuerwehr;;;Korrektur Nutzer;;
+FF Wangels OF Hansühn-Testorf;nicht veröffentlicht;HLF;Freiwillige Feuerwehr;;;Korrektur Nutzer;;
+FF Wangels OF Hansühn-Testorf;nicht veröffentlicht;TLF 24/50;Freiwillige Feuerwehr;;;Korrektur Nutzer;;
+FF Wangels OF Hansühn-Testorf;nicht veröffentlicht;MZF;Freiwillige Feuerwehr;;;Korrektur Nutzer;;
 FF Wangels OF Wangels;Florian Ostholstein 42/14-02;MZF;Freiwillige Feuerwehr;;;Wachen-Eintrag;aus dem Wachen-Eintrag der Datenbank;https://bos-fahrzeuge.info/wachen/25556/FF_Wangels_OF_Wangels
 FF Wangels OF Wangels;Florian Ostholstein 42/18-02;MTW;Freiwillige Feuerwehr;;;Wachen-Eintrag;aus dem Wachen-Eintrag der Datenbank;https://bos-fahrzeuge.info/wachen/25556/FF_Wangels_OF_Wangels
 FF Wangels OF Wangels;Florian Ostholstein 42/41-01;TSF-W;Freiwillige Feuerwehr;;;Wachen-Eintrag;"aus dem Wachen-Eintrag der Datenbank; Fahrzeug steht in der alten Wache der FF Grammdorf";https://bos-fahrzeuge.info/wachen/25556/FF_Wangels_OF_Wangels
@@ -419,12 +430,9 @@ JUH RW Bad Schwartau;Akkon Ostholstein 92/83-01;RTW;Johanniter;OH-R 7600;;Fahrze
 JUH RW Bad Schwartau;Akkon Ostholstein 92/83-02;RTW;Johanniter;;;Nachrecherche;"24h; Adresse: Fünfhausen 1, 23611 Bad Schwartau; Quelle nennt noch DRK als Betreiber, heute JUH";https://www.brianpeschke.de/rd/sh/oh/badschwartau.html
 JUH RW Bad Schwartau;Akkon Ostholstein 92/83-03;RTW;Johanniter;OH-R 1401;;Fahrzeug-Datenbank;;https://bos-fahrzeuge.info/einsatzfahrzeuge/211779/Akkon_Ostholstein_9283-03
 JUH RW Bad Schwartau;Akkon Ostholstein 92/85-01;KTW;Johanniter;;;Wachen-Eintrag;aus dem Wachen-Eintrag der Datenbank;https://bos-fahrzeuge.info/wachen/4451/JUH_RW_Bad_Schwartau
+JUH RW Bad Schwartau;Rettung Ostholstein 92/85-01;KTW;Rettungsdienst (kommunal);OH-RD 6706;2022;Fahrzeug-Datenbank;;https://bos-fahrzeuge.info/einsatzfahrzeuge/189704/Rettung_Ostholstein_9285-01
 JUH RW Cismar;Akkon Ostholstein 55/83-01;RTW;Johanniter;;;Nachrecherche;"24h; Adresse: Bäderstraße 23a, 23743 Grömitz-Cismar";https://www.brianpeschke.de/rd/sh/oh/cismar.html
 JUH RW Cismar;Akkon Ostholstein 55/83-02;RTW;Johanniter;OH-JU 480;;Fahrzeug-Datenbank;;https://bos-fahrzeuge.info/einsatzfahrzeuge/214452/Akkon_Ostholstein_5583-02
-FF Grömitz OF Grömitz;Florian Ostholstein 55/MTW-JFW;MTW;Jugendfeuerwehr;OH-JF 550;;Fahrzeug-Datenbank;;https://bos-fahrzeuge.info/einsatzfahrzeuge/214456/Florian_Ostholstein_55MTW-JFW
-FF Lensahn OF Lensahn;Florian Ostholstein 47/18-03;Mannschaftstransportwagen;Jugendfeuerwehr;OH-FL 4718;2016;Fahrzeug-Datenbank;;https://bos-fahrzeuge.info/einsatzfahrzeuge/228059/Florian_Ostholstein_4718-03
-FF Stockelsdorf Jugendfeuerwehr;Florian Ostholstein 83/18-03;MTW;Jugendfeuerwehr;OH-JF 83;2008;Fahrzeug-Datenbank;;https://bos-fahrzeuge.info/einsatzfahrzeuge/108535/Florian_Ostholstein_8318-03
-THW OV Oldenburg in Holstein;Florian Ostholstein 03/74-01;GW-Dekon P;Kreis Ostholstein (KatS);OH-KS 8;2008;Fahrzeug-Datenbank;;https://bos-fahrzeuge.info/einsatzfahrzeuge/180919/Florian_Ostholstein_0374-01
 Luftrettungszentrum Siblin;Christoph 12;RTH (EC 135);Luftrettung;;;Nachrecherche;"Siblin, Gemeinde Ahrensbök, an der L 184 zwischen Siblin und Barghorst; Träger rdh., Piloten Bundespolizei, Notfallsanitäter JUH, Notärzte Klinikum Eutin";https://www.bbk.bund.de/DE/Themen/Ergaenzende-Ausstattung/Zivilschutzhubschrauber/Christoph-12/christoph-12_node.html
 MHD Timmendorfer Strand;Johannes Ostholstein 89/15-02;Kraftrad;Malteser;OH-MH 890;;Fahrzeug-Datenbank;;https://bos-fahrzeuge.info/einsatzfahrzeuge/202582/Johannes_Ostholstein_8915-02
 MHD Timmendorfer Strand;Johannes Ostholstein 89/18-01;MTW;Malteser;OH-MH 8918;;Fahrzeug-Datenbank;;https://bos-fahrzeuge.info/einsatzfahrzeuge/178473/Johannes_Ostholstein_8918-01
@@ -433,25 +441,18 @@ MHD Timmendorfer Strand;Johannes Ostholstein 89/98-01;Betreuungslastkraftwagen;M
 PF Schashagen OF Schashagen;Florian Ostholstein 58/18-01;MTW;Pflichtfeuerwehr;;;Wachen-Eintrag;aus dem Wachen-Eintrag der Datenbank;https://bos-fahrzeuge.info/wachen/25817/PF_Schashagen_OF_Schashagen
 PF Schashagen OF Schashagen;Florian Ostholstein 58/41-01;MLF;Pflichtfeuerwehr;;;Wachen-Eintrag;aus dem Wachen-Eintrag der Datenbank;https://bos-fahrzeuge.info/wachen/25817/PF_Schashagen_OF_Schashagen
 PF Schashagen OF Schashagen;Florian Ostholstein 58/50-01;RW 1;Pflichtfeuerwehr;OH-8008;;Fahrzeug-Datenbank;;https://bos-fahrzeuge.info/einsatzfahrzeuge/191489/Florian_Ostholstein_5850-01
-DRK RW Neustadt in Holstein;Rotkreuz Ostholstein 61/85-01;KTW;Rettungsdienst (kommunal);OH-RD 6702;;Fahrzeug-Datenbank;;https://bos-fahrzeuge.info/einsatzfahrzeuge/188499/Rotkreuz_Ostholstein_6185-01
-DRK RW Oldenburg in Holstein;Rettung Ostholstein 40/82-01;NEF;Rettungsdienst (kommunal);OH-RD 6710;2022;Fahrzeug-Datenbank;;https://bos-fahrzeuge.info/einsatzfahrzeuge/214852/Rettung_Ostholstein_4082-01
-JUH RW Bad Schwartau;Rettung Ostholstein 92/85-01;KTW;Rettungsdienst (kommunal);OH-RD 6706;2022;Fahrzeug-Datenbank;;https://bos-fahrzeuge.info/einsatzfahrzeuge/189704/Rettung_Ostholstein_9285-01
 rdh. RW Ahrensbök;Rettung Ostholstein 77/83-01;RTW;Rettungsdienst (kommunal);;;Nachrecherche;"24h; Adresse: Poststraße 3, 23623 Ahrensbök";https://www.brianpeschke.de/rd/sh/oh/ahrensboek.html
 rdh. RW Ahrensbök;Rettung Ostholstein 77/83-02;RTW;Rettungsdienst (kommunal);;;Nachrecherche;Tages-RTW (laut Quelle nur Mai–Sept.);https://www.brianpeschke.de/rd/sh/oh/ahrensboek.html
 rdh. RW Burg auf Fehmarn;Rettung Ostholstein 33/82-01;NEF;Rettungsdienst (kommunal);;;Nachrecherche;"24h; rdh bestätigt 1 NEF in Burg";https://www.brianpeschke.de/rd/sh/oh/burgnef.html
 rdh. RW Burg auf Fehmarn;Rettung Ostholstein 33/83-01;RTW;Rettungsdienst (kommunal);;;Nachrecherche;"24h; Adresse: Mummendorfer Weg 12, 23769 Fehmarn; Quelle nennt noch ASB (Sama), heute rdh";https://www.brianpeschke.de/rd/sh/oh/burgneu.html
 rdh. RW Burg auf Fehmarn;Rettung Ostholstein 33/83-02;RTW;Rettungsdienst (kommunal);;;Nachrecherche;Tages-RTW, nur Saison Mai–Sept.;https://www.brianpeschke.de/rd/sh/oh/burgneu.html
-rdh. RW Eutin;Rettung Ostholstein 67/82-01;NEF;Rettungsdienst (kommunal);;;Nachrecherche;"24h, am Klinikum Eutin; Quelle nennt Kennwort Rotkreuz; evtl. identisch mit „NEF OH-R 4300“ der Liste";https://www.brianpeschke.de/rd/sh/oh/eutinnef.html
+rdh. RW Eutin;Rettung Ostholstein 67/82-01;NEF;Rettungsdienst (kommunal);OH-R 4300;;Nachrecherche;24h, am Klinikum Eutin;https://www.brianpeschke.de/rd/sh/oh/eutinnef.html
 rdh. RW Eutin;Rettung Ostholstein 67/83-01;RTW;Rettungsdienst (kommunal);OH-R 5600;2021;Fahrzeug-Datenbank;;https://bos-fahrzeuge.info/einsatzfahrzeuge/199467/Rettung_Ostholstein_6783-01
-rdh. RW Eutin;Rettung Ostholstein 67/83-02;RTW;Rettungsdienst (kommunal);;;Nachrecherche;"24h; Adresse: Hospitalstraße 5, 23701 Eutin; evtl. identisch mit „67/83-xx“ der Liste";https://www.brianpeschke.de/rd/sh/oh/eutin.html
-rdh. RW Eutin;Rettung Ostholstein 67/83-03;RTW;Rettungsdienst (kommunal);;;Nachrecherche;Tages-RTW;https://www.brianpeschke.de/rd/sh/oh/eutin.html
-rdh. RW Eutin;Rettung Ostholstein 67/83-04;RTW;Rettungsdienst (kommunal);;;Nachrecherche;Tages-RTW Mo–Fr;https://www.brianpeschke.de/rd/sh/oh/eutin.html
-rdh. RW Eutin;Rettung Ostholstein 67/83-05;RTW;Rettungsdienst (kommunal);;;Nachrecherche;Tages-RTW Mo–Fr;https://www.brianpeschke.de/rd/sh/oh/eutin.html
-rdh. RW Eutin;Rettung Ostholstein 67/83-xx;RTW;Rettungsdienst (kommunal);OH-RD 670;;Fahrzeug-Datenbank;;https://bos-fahrzeuge.info/einsatzfahrzeuge/165394/Rettung_Ostholstein_6783-xx
+rdh. RW Eutin;Rettung Ostholstein 67/83-02;RTW;Rettungsdienst (kommunal);OH-RD 670;;Nachrecherche;24h;https://www.brianpeschke.de/rd/sh/oh/eutin.html
 rdh. RW Eutin;Rettung Ostholstein 67/85-01;KTW;Rettungsdienst (kommunal);;;Nachrecherche;tagsüber;https://www.brianpeschke.de/rd/sh/oh/eutin.html
+rdh. RW Eutin;Rettung Ostholstein 67/85-02;KTW;Rettungsdienst (kommunal);OH-RD 7400;;Korrektur Nutzer;einer der 4 KTW der RW Eutin;https://bos-fahrzeuge.info/einsatzfahrzeuge/226641/Rettung_Ostholstein_KTW_OH-RD_7400
 rdh. RW Eutin;Rettung Ostholstein 67/85-03;KTW;Rettungsdienst (kommunal);;;Wachen-Eintrag;aus dem Wachen-Eintrag der Datenbank;https://bos-fahrzeuge.info/wachen/12284/rdh_RW_Eutin
 rdh. RW Eutin;Rettung Ostholstein 67/85-04;KTW;Rettungsdienst (kommunal);OH-RD 6720;2024;Fahrzeug-Datenbank;;https://bos-fahrzeuge.info/einsatzfahrzeuge/223147/Rettung_Ostholstein_6785-04
-rdh. RW Eutin;Rettung Ostholstein XX/83-0X;RTW;Rettungsdienst (kommunal);OH-R 5301;2021;Fahrzeug-Datenbank;;https://bos-fahrzeuge.info/einsatzfahrzeuge/178399/Rettung_Ostholstein_XX83-0X
 rdh. RW Heiligenhafen;Rettung Ostholstein 35/83-01;RTW;Rettungsdienst (kommunal);OH-R 6724;2025;Fahrzeug-Datenbank;;https://bos-fahrzeuge.info/einsatzfahrzeuge/212126/Rettung_Ostholstein_3583-01
 rdh. RW Heiligenhafen;Rettung Ostholstein 35/83-02;RTW;Rettungsdienst (kommunal);;;Nachrecherche;"Tages-RTW; Adresse: Tollbrettkoppel 15, 23774 Heiligenhafen";https://www.brianpeschke.de/rd/sh/oh/heiligenhafen.html
 rdh. RW Heiligenhafen;Rettung Ostholstein 35/85-01;KTW;Rettungsdienst (kommunal);;;Wachen-Eintrag;aus dem Wachen-Eintrag der Datenbank;https://bos-fahrzeuge.info/wachen/16543/rdh_RW_Heiligenhafen
@@ -467,11 +468,6 @@ rdh. RW Timmendorfer Strand;Rettung Ostholstein 89/83-02;RTW;Rettungsdienst (kom
 rdh. RW Timmendorfer Strand;Rettung Ostholstein 89/83-03;RTW;Rettungsdienst (kommunal);;;Nachrecherche;Tages-RTW, nur Saison;https://www.brianpeschke.de/rd/sh/oh/timmendorfer.html
 rdh. RW Timmendorfer Strand;Rettung Ostholstein 89/85-01;KTW;Rettungsdienst (kommunal);;;Wachen-Eintrag;aus dem Wachen-Eintrag der Datenbank;https://bos-fahrzeuge.info/wachen/13831/rdh_RW_Timmendorfer_Strand
 rdh. RW Timmendorfer Strand;Rettung Ostholstein RTW (OH-RD 6800);RTW;Rettungsdienst (kommunal);OH-RD 6800;2025;Fahrzeug-Datenbank;;https://bos-fahrzeuge.info/einsatzfahrzeuge/225098/Rettung_Ostholstein_RTW_OH-RD_6800
-unbekannt;Rettung Ostholstein 01/10-02;KdoW;Rettungsdienst (kommunal);OH-RD 1102;;Fahrzeug-Datenbank;"Wache unbekannt; Kennzahl 01 = Kreisebene, vermutlich Leitung rdh. (Gutenbergstraße 1, 23611 Bad Schwartau)";https://bos-fahrzeuge.info/einsatzfahrzeuge/225207/Rettung_Ostholstein_0110-02
-unbekannt;Rettung Ostholstein 01/10-03;KdoW;Rettungsdienst (kommunal);OH-R 5700;;Fahrzeug-Datenbank;"Wache unbekannt; Kennzahl 01 = Kreisebene, vermutlich Leitung rdh. (Gutenbergstraße 1, 23611 Bad Schwartau)";https://bos-fahrzeuge.info/einsatzfahrzeuge/206450/Rettung_Ostholstein_0110-03
-unbekannt;Rettung Ostholstein KTW (OH-RD 7400);KTW;Rettungsdienst (kommunal);OH-RD 7400;;Fahrzeug-Datenbank;"Wache unbekannt; vermutlich eines der KTW mit Rufnamen in der Liste (doppelt)";https://bos-fahrzeuge.info/einsatzfahrzeuge/226641/Rettung_Ostholstein_KTW_OH-RD_7400
-unbekannt;Rettung Ostholstein NEF (OH-R 4300);NEF;Rettungsdienst (kommunal);OH-R 4300;;Fahrzeug-Datenbank;"Wache unbekannt; vermutlich eines der 5 NEF mit Rufnamen in der Liste (doppelt)";https://bos-fahrzeuge.info/einsatzfahrzeuge/203914/Rettung_Ostholstein_NEF_OH-R_4300
-unbekannt;Rettung Ostholstein xx/83-xx;RTW;Rettungsdienst (kommunal);OH-RD 7000;2025;Fahrzeug-Datenbank;"Wache unbekannt; vermutlich einer der RTW mit Rufnamen in der Liste (doppelt)";https://bos-fahrzeuge.info/einsatzfahrzeuge/218408/Rettung_Ostholstein_xx83-xx
 THW OV Eutin;Heros Eutin 21/10;Mannschaftstransportwagen;THW;THW-86676;2017;Fahrzeug-Datenbank;;https://bos-fahrzeuge.info/einsatzfahrzeuge/219887/Heros_Eutin_2110
 THW OV Eutin;Heros Eutin 24/55;MzGW;THW;THW-91334;2021;Fahrzeug-Datenbank;;https://bos-fahrzeuge.info/einsatzfahrzeuge/214911/Heros_Eutin_2455
 THW OV Eutin;Heros Eutin 42/71;Bergeräumgerät/Baumaschine (THW);THW;k.A.;2017;Fahrzeug-Datenbank;;https://bos-fahrzeuge.info/einsatzfahrzeuge/156372/Heros_Eutin_4271
@@ -488,4 +484,10 @@ THW OV Neustadt in Holstein;Heros Neustadt/Holstein 86/21;PKW-OV;THW;THW-81301;2
 THW OV Neustadt in Holstein;Heros Neustadt/Holstein 86/25;MTW-OV;THW;THW-91438;;Fahrzeug-Datenbank;;https://bos-fahrzeuge.info/einsatzfahrzeuge/215467/Heros_NeustadtHolstein_8625
 THW OV Neustadt in Holstein;Heros Neustadt/Holstein 86/31;Mannschaftslastwagen;THW;THW-85813;1992;Fahrzeug-Datenbank;;https://bos-fahrzeuge.info/einsatzfahrzeuge/6594/Heros_NeustadtHolstein_8631
 THW OV Neustadt in Holstein;Heros Neustadt/Holstein 86/Gabelstapler;Selbstfahrende Arbeitsmaschine;THW;k.A.;;Fahrzeug-Datenbank;;https://bos-fahrzeuge.info/einsatzfahrzeuge/156939/Heros_NeustadtHolstein_86Gabelstapler
+THW OV Oldenburg in Holstein;Florian Ostholstein 03/74-01;GW-Dekon P;Kreis Ostholstein (KatS);OH-KS 8;2008;Fahrzeug-Datenbank;;https://bos-fahrzeuge.info/einsatzfahrzeuge/180919/Florian_Ostholstein_0374-01
 THW OV Oldenburg in Holstein;Heros Oldenburg 24/55;MzGW;THW;THW-91287;2025;Fahrzeug-Datenbank;;https://bos-fahrzeuge.info/einsatzfahrzeuge/226269/Heros_Oldenburg_2455
+unbekannt;Pelikan Ostholstein 67/18-xx;MTW;DLRG;OH-WR 1913;;Fahrzeug-Datenbank;"Wache unbekannt; Kennzahl 67 = Eutin, vermutlich DLRG Eutin";https://bos-fahrzeuge.info/einsatzfahrzeuge/214616/Pelikan_Ostholstein_6718-xx
+unbekannt;Pelikan Ostholstein 74/18-01;MTW;DLRG;OH-WR 1970;2022;Fahrzeug-Datenbank;"Wache unbekannt; Kennzahl 74 = Bosau, vermutlich DLRG Bosau";https://bos-fahrzeuge.info/einsatzfahrzeuge/200392/Pelikan_Ostholstein_7418-01
+unbekannt;Rettung Ostholstein 01/10-02;KdoW;Rettungsdienst (kommunal);OH-RD 1102;;Fahrzeug-Datenbank;"Wache unbekannt; Kennzahl 01 = Kreisebene, vermutlich Leitung rdh. (Gutenbergstraße 1, 23611 Bad Schwartau)";https://bos-fahrzeuge.info/einsatzfahrzeuge/225207/Rettung_Ostholstein_0110-02
+unbekannt;Rettung Ostholstein 01/10-03;KdoW;Rettungsdienst (kommunal);OH-R 5700;;Fahrzeug-Datenbank;"Wache unbekannt; Kennzahl 01 = Kreisebene, vermutlich Leitung rdh. (Gutenbergstraße 1, 23611 Bad Schwartau)";https://bos-fahrzeuge.info/einsatzfahrzeuge/206450/Rettung_Ostholstein_0110-03
+unbekannt;Rotkreuz Ostholstein 89/19-01;MTW;DRK;OH-RK 42;;Fahrzeug-Datenbank;"Wache unbekannt; Kennzahl 89 = Timmendorfer Strand, vermutlich DRK OV Timmendorfer Strand";https://bos-fahrzeuge.info/einsatzfahrzeuge/86638/Rotkreuz_Ostholstein_8919-01

@@ -1,8 +1,6 @@
 import type { ServiceWindow } from '../../model/types';
 import { parseCsv } from '../../persistence/csv';
-import fahrzeugeCsv from './fahrzeuge.csv?raw';
-import ergaenzungenCsv from './fahrzeuge-ergaenzungen.csv?raw';
-import adressenCsv from './wachen-adressen.csv?raw';
+import fahrzeugeCsv from './fahrzeuge-komplett.csv?raw';
 import { gemeindenByOkz, okzOf } from './gemeinden';
 import { KENNER, normTypeLabel, resolveType, type TypeGroup } from './fahrzeugtypen';
 import { ORG_SHORT, WACHE_ALIAS, WACHEN, type WacheDef } from './wachen';
@@ -10,9 +8,9 @@ import { ORG_SHORT, WACHE_ALIAS, WACHEN, type WacheDef } from './wachen';
 /**
  * Fahrzeuge und Wachen der Beispielleitstelle Ostholstein aus den öffentlichen Listen
  * (bos-fahrzeuge.info, Websites der Wehren, brianpeschke.de, Rettungsdienst Holstein).
- * Reines Modul ohne OSM-Bezug: liest die CSV-Dateien, führt Liste und Ergänzungen zusammen,
- * löst Dubletten auf, ordnet Typen, Organisationen und Dienstzeiten zu und vergibt Rufnamen
- * für Fahrzeuge ohne veröffentlichten Funkrufnamen.
+ * Reines Modul ohne OSM-Bezug: liest die vollständige Fahrzeugliste (fahrzeuge-komplett.csv, mit
+ * Korrekturen des Nutzers), löst Dubletten auf, ordnet Typen, Organisationen und Dienstzeiten zu und
+ * vergibt Rufnamen für Fahrzeuge ohne veröffentlichten Funkrufnamen. Die Wachen stehen in wachen.csv.
  */
 
 export interface RosterRow {
@@ -24,7 +22,8 @@ export interface RosterRow {
   baujahr: string;
   quelle: string;
   hinweis: string;
-  liste: 'liste' | 'ergaenzung';
+  /** Herkunft laut Liste (Fahrzeug-Datenbank, Wachen-Eintrag, Nachrecherche, Korrektur Nutzer) */
+  herkunft: string;
 }
 
 export interface RosterVehicle {
@@ -41,14 +40,14 @@ export interface RosterVehicle {
   serviceWindows: ServiceWindow[];
   /** nie alarmiert (Info-/Werbefahrzeug, Jugendfeuerwehr, Musikzug) */
   outOfService: boolean;
-  /** Hinweis aus der Ergänzungsliste */
+  /** Hinweis aus der Liste */
   note: string;
   source: string;
 }
 
 export interface RosterStation {
   def: WacheDef;
-  /** Adresse aus wachen-adressen.csv, dem Hinweis der Liste oder der Wachentabelle */
+  /** Adresse aus wachen.csv bzw. dem Hinweis der Liste */
   address: string;
   /** Ortskennziffer (für erzeugte Rufnamen) */
   okz: string;
@@ -72,39 +71,29 @@ export interface Roster {
 
 export interface RosterInput {
   fahrzeuge: string;
-  ergaenzungen: string;
-  adressen: string;
 }
 
-export const ROSTER_INPUT: RosterInput = { fahrzeuge: fahrzeugeCsv, ergaenzungen: ergaenzungenCsv, adressen: adressenCsv };
+export const ROSTER_INPUT: RosterInput = { fahrzeuge: fahrzeugeCsv };
 
-// ---------------------------------------------------------------- Regeln für Dubletten (Hinweise der Ergänzungsliste)
+// ---------------------------------------------------------------- Regeln für Dubletten (Hinweise der Liste)
 
 /** Einträge der Liste, die einem Fahrzeug mit Rufnamen entsprechen: Kennzeichen übernehmen, Eintrag einmal führen */
 const MERGE_INTO: Record<string, string> = {
-  'Rettung Ostholstein 67/83-xx': 'Rettung Ostholstein 67/83-02',
   'Rettung Ostholstein RTW (OH-RD 6800)': 'Rettung Ostholstein 89/83-01',
-  'Rettung Ostholstein NEF (OH-R 4300)': 'Rettung Ostholstein 67/82-01',
 };
 
-/** Weggelassene Einträge: [Wache, Rufname oder Typ, Liste, Grund] */
-const DROP: [string | null, string, RosterRow['liste'] | null, string][] = [
-  [null, 'Rettung Ostholstein XX/83-0X', null, 'einer der Tages-RTW 67/83-03 bis -05 der RW Eutin (Dublette)'],
-  [null, 'Rettung Ostholstein xx/83-xx', null, 'nicht zuzuordnen, vermutlich Dublette eines bekannten RTW'],
-  ['FF Timmendorfer Strand OF Hemmelsdorf', 'MZF', 'ergaenzung', 'vermutlich identisch mit MTW 89/18-01 der Liste'],
-  ['FF Fehmarn OF Burg auf Fehmarn', 'DLK (F32 TLK)', 'ergaenzung', 'Bronto F32 TLK ist eine Teleskopmastbühne – vermutlich identisch mit TMB 33/36-01 der Liste'],
-];
+/** Weggelassene Einträge: [Wache, Rufname oder Typ, Grund] */
+const DROP: [string | null, string, string][] = [['FF Timmendorfer Strand OF Hemmelsdorf', 'MZF', 'vermutlich identisch mit MTW 89/18-01 der Liste']];
 
 /** Eintrag einer anderen Wache zuordnen */
 const MOVE_TO: Record<string, string> = {
-  'Rettung Ostholstein KTW (OH-RD 7400)': 'rdh. RW Eutin',
-  // Führungsdienst Rettungsdienst (Kreisebene) an der Lehrrettungswache Eutin
-  'Rettung Ostholstein 01/10-02': 'rdh. RW Eutin',
-  'Rettung Ostholstein 01/10-03': 'rdh. RW Eutin',
+  // "Kennzahl 01 = Kreisebene, vermutlich Leitung rdh." (Führungsdienst Rettungsdienst)
+  'Rettung Ostholstein 01/10-02': 'rdh. Leitung Bad Schwartau',
+  'Rettung Ostholstein 01/10-03': 'rdh. Leitung Bad Schwartau',
 };
 
-/** Rufname ist doppelt vergeben: Dieser Eintrag (Wache|Rufname|Liste) bekommt die nächste freie Nummer */
-const RENUMBER = new Set(['FF Timmendorfer Strand|Florian Ostholstein 89/47-01|ergaenzung']);
+/** Rufname ist doppelt vergeben: Dieser Eintrag (Wache|Rufname) bekommt die nächste freie Nummer */
+const RENUMBER = new Set(['FF Timmendorfer Strand OF Timmendorfer Strand|Florian Ostholstein 89/47-01']);
 
 /** Präfix im Funkrufnamen je Organisation (für erzeugte Rufnamen) */
 const PREFIX_BY_ORG: [RegExp, string][] = [
@@ -159,9 +148,10 @@ const mode = (xs: string[]): string | undefined => {
   return [...n.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0];
 };
 
-function typeGroup(def: WacheDef, organisation: string): TypeGroup {
+function typeGroup(def: WacheDef, organisation: string, callsign: string): TypeGroup {
   if (def.kind === 'rw' || def.kind === 'luft') return 'rd';
-  if (/Feuerwehr|Rettungshunde/i.test(organisation)) return 'ff';
+  // Feuerwehrfahrzeug an fremdem Standort (GW-Dekon P "Florian … 03/74-01" beim THW Oldenburg)
+  if (/Feuerwehr|Rettungshunde/i.test(organisation) || /^Florian\b/.test(callsign)) return 'ff';
   if (/THW/i.test(organisation)) return 'thw';
   if (/DLRG/i.test(organisation)) return 'dlrg';
   if (/Rettungsdienst/i.test(organisation)) return 'rd';
@@ -171,7 +161,7 @@ function typeGroup(def: WacheDef, organisation: string): TypeGroup {
 function organizationOf(def: WacheDef, group: TypeGroup, typeId: string): string {
   if (def.kind === 'luft') return 'org_ext';
   // jeder RTW fährt im Rettungsdienst (auch der RTW eines Ortsvereins)
-  if (typeId === 'rtw') return 'org_rd';
+  if (typeId === 'rtw' || typeId === 'oh_rtwt1') return 'org_rd';
   if (def.kind === 'rw') return typeId === 'nef' ? 'org_na' : typeId === 'ktw' || typeId === 'oh_mzrtw' ? 'org_ktp' : 'org_rd';
   // Feuerwehrfahrzeuge an anderen Standorten (GW-Dekon P beim THW Oldenburg) bleiben Feuerwehr
   if (group === 'ff' && def.kind !== 'kats') return 'org_ff';
@@ -186,7 +176,7 @@ export function buildRoster(input: RosterInput = ROSTER_INPUT): Roster {
   const defs = new Map(WACHEN.map((d) => [d.name, d]));
   const omitted: RosterNote[] = [];
   const merged: RosterNote[] = [];
-  const row = (r: Record<string, string>, liste: RosterRow['liste']): RosterRow => ({
+  const row = (r: Record<string, string>): RosterRow => ({
     wache: WACHE_ALIAS[r.wache?.trim()] ?? r.wache?.trim() ?? '',
     funkrufname: r.funkrufname?.trim() ?? '',
     fahrzeugtyp: r.fahrzeugtyp?.trim() ?? '',
@@ -195,15 +185,15 @@ export function buildRoster(input: RosterInput = ROSTER_INPUT): Roster {
     baujahr: r.baujahr?.trim() ?? '',
     quelle: r.quelle?.trim() ?? '',
     hinweis: r.hinweis?.trim() ?? '',
-    liste,
+    herkunft: r.herkunft?.trim() ?? '',
   });
-  let rows = [...parseCsv(input.fahrzeuge).map((r) => row(r, 'liste')), ...parseCsv(input.ergaenzungen).map((r) => row(r, 'ergaenzung'))];
+  let rows = parseCsv(input.fahrzeuge).map(row);
   const note = (r: RosterRow, reason: string): RosterNote => ({ wache: r.wache, callsign: r.funkrufname, type: r.fahrzeugtyp, reason });
 
   // weglassen
   rows = rows.filter((r) => {
-    const d = DROP.find(([w, what, l]) => (w === null || w === r.wache) && (what === r.funkrufname || what === r.fahrzeugtyp) && (l === null || l === r.liste));
-    if (d) omitted.push(note(r, d[3]));
+    const d = DROP.find(([w, what]) => (w === null || w === r.wache) && (what === r.funkrufname || what === r.fahrzeugtyp));
+    if (d) omitted.push(note(r, d[2]));
     return !d;
   });
   // Dubletten zusammenführen (gleicher Rufname bzw. ausdrückliche Zuordnung)
@@ -213,7 +203,6 @@ export function buildRoster(input: RosterInput = ROSTER_INPUT): Roster {
     target.kennzeichen ||= r.kennzeichen;
     target.baujahr ||= r.baujahr;
     target.hinweis ||= r.hinweis;
-    if (r.liste === 'ergaenzung' && r.hinweis) target.hinweis = r.hinweis;
   };
   const pendingMerge: RosterRow[] = [];
   for (const r of rows) {
@@ -222,7 +211,7 @@ export function buildRoster(input: RosterInput = ROSTER_INPUT): Roster {
       continue;
     }
     const key = `${r.funkrufname}`;
-    const renumber = RENUMBER.has(`${r.wache}|${r.funkrufname}|${r.liste}`);
+    const renumber = RENUMBER.has(`${r.wache}|${r.funkrufname}`);
     if (isRealCallsign(r.funkrufname) && !renumber && byCallsign.has(key)) {
       const t = byCallsign.get(key)!;
       mergeInto(t, r);
@@ -271,7 +260,7 @@ export function buildRoster(input: RosterInput = ROSTER_INPUT): Roster {
 
   // Typen, Organisation, Dienstzeiten
   const typed = resolved.flatMap((r) => {
-    const group = typeGroup(r.def, r.organisation);
+    const group = typeGroup(r.def, r.organisation, r.funkrufname);
     const typeId = resolveType(r.fahrzeugtyp, group);
     if (!typeId) {
       omitted.push(note(r, `Fahrzeugtyp „${r.fahrzeugtyp}“ unbekannt`));
@@ -293,7 +282,7 @@ export function buildRoster(input: RosterInput = ROSTER_INPUT): Roster {
     if (KNOWN_PREFIXES.has(w)) return w;
     return PREFIX_BY_ORG.find(([re]) => re.test(r.organisation))?.[1] ?? 'Florian';
   };
-  const real = typed.filter((x) => isRealCallsign(x.r.funkrufname) && !RENUMBER.has(`${x.r.wache}|${x.r.funkrufname}|${x.r.liste}`));
+  const real = typed.filter((x) => isRealCallsign(x.r.funkrufname) && !RENUMBER.has(`${x.r.wache}|${x.r.funkrufname}`));
   const kennerOf = (typeId: string, prefix: string) =>
     mode(real.filter((x) => x.typeId === typeId && prefixOf(x.r) === prefix).map((x) => SCHEMA.exec(x.r.funkrufname)?.[2]).filter((k): k is string => !!k)) ??
     mode(real.filter((x) => x.typeId === typeId).map((x) => SCHEMA.exec(x.r.funkrufname)?.[2]).filter((k): k is string => !!k)) ??
@@ -322,7 +311,7 @@ export function buildRoster(input: RosterInput = ROSTER_INPUT): Roster {
 
   const vehicles: RosterVehicle[] = [];
   for (const { r, group, typeId } of typed) {
-    const renumber = RENUMBER.has(`${r.wache}|${r.funkrufname}|${r.liste}`);
+    const renumber = RENUMBER.has(`${r.wache}|${r.funkrufname}`);
     const realCs = isRealCallsign(r.funkrufname) && !renumber;
     const callsign = realCs ? r.funkrufname : generate(r, r.def, typeId);
     if (renumber) merged.push(note(r, `Rufname doppelt – neu: ${callsign}`));
@@ -344,13 +333,12 @@ export function buildRoster(input: RosterInput = ROSTER_INPUT): Roster {
     });
   }
 
-  // Wachen mit Adresse (wachen-adressen.csv, sonst Hinweis, sonst Tabelle)
-  const adressen = new Map(parseCsv(input.adressen).map((a) => [a.wache?.trim(), a.adresse?.trim() ?? '']));
+  // Wachen mit Adresse (wachen.csv, sonst Hinweis)
   const hintAddr = new Map<string, string>();
   for (const { r } of typed) if (!hintAddr.has(r.wache) && hintAddress(r.hinweis)) hintAddr.set(r.wache, hintAddress(r.hinweis));
   const stations: RosterStation[] = WACHEN.map((def) => ({
     def,
-    address: (def.kind === 'luft' ? def.address : undefined) || adressen.get(def.adr ?? def.name) || hintAddr.get(def.name) || def.address || '',
+    address: def.address || hintAddr.get(def.name) || '',
     okz: okzOfWache.get(def.name)!,
   }));
 

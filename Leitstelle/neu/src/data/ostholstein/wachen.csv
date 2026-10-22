@@ -16,7 +16,7 @@ DRK RW Neustadt in Holstein;DRK;Am Kiebitzberg 8, 23730 Neustadt in Holstein;54.
 DRK RW Oldenburg in Holstein;DRK;Mühlenkamp 18, 23758 Oldenburg;54.291029;10.879817;Adresse;10;https://bos-fahrzeuge.info/wachen/30214/DRK_RW_Oldenburg_in_Holstein;
 FF Ahrensbök OF Ahrensbök;Freiwillige Feuerwehr;Poststraße 3, 23623 Ahrensbök;54.012185;10.570325;Adresse;7;https://bos-fahrzeuge.info/wachen/9880/FF_Ahrensboek_OF_Ahrensboek;
 FF Altenkrempe OF Altenkrempe;Freiwillige Feuerwehr;Milchstraße 27, 23730 Hasselburg;54.139193;10.822989;Adresse (PLZ);3;https://bos-fahrzeuge.info/wachen/25557/FF_Altenkrempe_OF_Altenkrempe;
-FF Bad Malente-Gremsmühlen;Freiwillige Feuerwehr;Lütjenburger Straße 100, 23714 Malente;54.189185;10.565701;Adresse;9;https://bos-fahrzeuge.info/wachen/21703/FF_Bad_Malente-Gremsmuehlen;
+FF Bad Malente-Gremsmühlen;Freiwillige Feuerwehr;Lütjenburger Straße 100, 23714 Malente;54.189185;10.565701;Adresse;8;https://bos-fahrzeuge.info/wachen/21703/FF_Bad_Malente-Gremsmuehlen;
 FF Bad Schwartau OF Bad Schwartau-Rensefeld;Freiwillige Feuerwehr;Fünfhausen 3-5, 23611 Bad Schwartau;53.921237;10.691089;Adresse;12;https://bos-fahrzeuge.info/wachen/4450/FF_Bad_Schwartau_OF_Bad_Schwartau-Rensefeld;
 FF Bad Schwartau OF Groß Parin;Freiwillige Feuerwehr;Groß Parin 7A, 23611 Bad Schwartau;53.938369;10.693954;Adresse (PLZ);2;https://bos-fahrzeuge.info/wachen/23302/FF_Bad_Schwartau_OF_Gross_Parin;
 FF Benz;Freiwillige Feuerwehr;Waldweg, 23714 Malente;54.207077;10.633042;Straße;1;https://bos-fahrzeuge.info/wachen/54224/FF_Benz;
@@ -50,7 +50,9 @@ FF Grömitz OF Lenste;Freiwillige Feuerwehr;Langenredder 31, 23743 Grömitz;54.1
 FF Grömitz OF Suxdorf-Nienhagen;Freiwillige Feuerwehr;Suxdorf 15, 23743 Grömitz;54.165917;10.919546;Adresse;2;https://bos-fahrzeuge.info/wachen/53653/FF_Groemitz_OF_Suxdorf-Nienhagen;
 FF Göhl;Freiwillige Feuerwehr;Edisonstraße 25, 23758 Göhl;54.280492;10.947607;Adresse;4;https://bos-fahrzeuge.info/wachen/25775/FF_Goehl;
 FF Harmsdorf;Freiwillige Feuerwehr;Hauptstraße 60, 23738 Harmsdorf;54.2414;10.832851;Adresse;2;https://bos-fahrzeuge.info/wachen/34580/FF_Harmsdorf;
-FF Heiligenhafen;Freiwillige Feuerwehr;Feldstraße 16, 23774 Heiligenhafen;54.367757;10.971385;Adresse;13;https://bos-fahrzeuge.info/wachen/12332/FF_Heiligenhafen;
+FF Heiligenhafen;Freiwillige Feuerwehr;Feldstraße 16, 23774 Heiligenhafen;54.367757;10.971385;Adresse;14;https://bos-fahrzeuge.info/wachen/12332/FF_Heiligenhafen;
+FF Heringsdorf OF Fargemiel;Freiwillige Feuerwehr;Fargemiel, 23777 Heringsdorf;54.274480;11.033373;OSM-Standort;1;Korrektur Nutzer (Position OpenStreetMap);
+FF Heringsdorf OF Heringsdorf;Freiwillige Feuerwehr;23777 Heringsdorf;54.302343;11.006079;OSM-Standort;3;Korrektur Nutzer (Position OpenStreetMap);
 FF Kasseedorf OF Griebel-Vinzier;Freiwillige Feuerwehr;Vinzierer Weg 3a, 23717 Kasseedorf;54.134159;10.697934;Adresse;2;https://bos-fahrzeuge.info/wachen/52333/FF_Kasseedorf_OF_Griebel-Vinzier;
 FF Kasseedorf OF Kasseedorf;Freiwillige Feuerwehr;Oldenburger Straße 4, 23717 Kasseedorf;54.165075;10.722868;Adresse;3;https://bos-fahrzeuge.info/wachen/18960/FF_Kasseedorf_OF_Kasseedorf;
 FF Kasseedorf OF Sagau;Freiwillige Feuerwehr;Stendorfer Weg 10, 23717 Kasseedorf;54.165633;10.684842;Adresse;2;https://bos-fahrzeuge.info/wachen/52332/FF_Kasseedorf_OF_Sagau;
@@ -105,6 +107,8 @@ FF Timmendorfer Strand OF Groß Timmendorf;Freiwillige Feuerwehr;Dorfstraße 30,
 FF Timmendorfer Strand OF Hemmelsdorf;Freiwillige Feuerwehr;Seestraße 5, 23669 Timmendorfer Strand;53.972028;10.772399;Adresse;4;https://bos-fahrzeuge.info/wachen/25460/FF_Timmendorfer_Strand_OF_Hemmelsdorf;
 FF Timmendorfer Strand OF Niendorf/Ostsee;Freiwillige Feuerwehr;Niobeweg 2, 23669 Timmendorfer Strand;53.98812;10.833713;Adresse;4;https://bos-fahrzeuge.info/wachen/22086/FF_Timmendorfer_Strand_OF_NiendorfOstsee;
 FF Timmendorfer Strand OF Timmendorfer Strand;Freiwillige Feuerwehr;Bäderrandstraße 6, 23669 Timmendorfer Strand;53.987623;10.80059;Adresse;5;https://bos-fahrzeuge.info/wachen/25459/FF_Timmendorfer_Strand_OF_Timmendorfer_Strand;
+FF Wangels OF Döhnsdorf-Weißenhaus;Freiwillige Feuerwehr;Döhnsdorf, 23758 Wangels;54.294873;10.730189;nur Ortsmitte;2;Korrektur Nutzer (Ortsmitte Döhnsdorf, OpenStreetMap);Gerätehaus-Adresse unbekannt
+FF Wangels OF Hansühn-Testorf;Freiwillige Feuerwehr;Ostseestraße 17, 23758 Wangels;54.254874;10.755953;Adresse;3;Korrektur Nutzer (Position OpenStreetMap);
 FF Wangels OF Wangels;Freiwillige Feuerwehr;Birkenweg 8, 23758 Wangels;54.288498;10.896964;Adresse (PLZ);4;https://bos-fahrzeuge.info/wachen/25556/FF_Wangels_OF_Wangels;
 FTZ Kreis Ostholstein;Freiwillige Feuerwehr;Bäderstraße 47, 23738 Lensahn;54.217273;10.895533;Adresse;15;https://bos-fahrzeuge.info/wachen/23285/FTZ_Kreis_Ostholstein;
 JUH OV Eutin;Johanniter;Max-Planck-Straße 7, 23701 Eutin;54.125078;10.635597;Adresse;12;https://bos-fahrzeuge.info/wachen/17704/JUH_OV_Eutin;
@@ -113,15 +117,15 @@ JUH RW Cismar;Johanniter;Bäderstraße 23a, 23743 Cismar;54.188683;10.982282;Adr
 Luftrettungszentrum Siblin;Luftrettung;an der L 184 zwischen Siblin und Barghorst, 23623 Ahrensbök;54.048365;10.558927;nur Ortsmitte;1;https://de.wikipedia.org/wiki/Christoph_12;keine Hausnummer veröffentlicht
 MHD Timmendorfer Strand;Malteser;Poststraße 30, 23669 Timmendorfer Strand;53.996197;10.782677;Adresse;4;https://bos-fahrzeuge.info/wachen/59735/MHD_Timmendorfer_Strand;
 PF Schashagen OF Schashagen;Pflichtfeuerwehr;Bliesdorfer Straße 29a, 23730 Schashagen;54.135459;10.888897;Adresse;3;https://bos-fahrzeuge.info/wachen/25817/PF_Schashagen_OF_Schashagen;
-THW OV Eutin;THW;Industriestraße 2, 23701 Eutin;54.126837;10.618642;Adresse;8;https://bos-fahrzeuge.info/wachen/13394/THW_OV_Eutin;
-THW OV Neustadt in Holstein;THW;Am Holm 74, 23730 Neustadt in Holstein;54.093699;10.793963;Adresse;8;https://bos-fahrzeuge.info/wachen/13397/THW_OV_Neustadt_in_Holstein;
-THW OV Oldenburg in Holstein;Kreis Ostholstein (KatS);Am Vossberg 10, 23758 Oldenburg in Holstein;54.291966;10.915209;Adresse;2;https://bos-fahrzeuge.info/wachen/13398/THW_OV_Oldenburg_in_Holstein;Hier steht auch der GW-Dekon P des Kreises (Florian Ostholstein 03/74-01)
 rdh. RW Ahrensbök;Rettungsdienst (kommunal);Poststraße 3, 23623 Ahrensbök;54.012185;10.570325;Adresse;2;https://rettungsdienst-holstein.de/unsere-wachen/;
 rdh. RW Burg auf Fehmarn;Rettungsdienst (kommunal);Mummendorfer Weg 12, 23769 Fehmarn;54.441462;11.175805;Adresse;3;https://rettungsdienst-holstein.de/unsere-wachen/;
-rdh. RW Eutin;Rettungsdienst (kommunal);Hospitalstraße 5, 23701 Eutin;54.134654;10.606064;Adresse;11;https://bos-fahrzeuge.info/wachen/12284/rdh_RW_Eutin;
+rdh. RW Eutin;Rettungsdienst (kommunal);Hospitalstraße 5, 23701 Eutin;54.134654;10.606064;Adresse;7;https://bos-fahrzeuge.info/wachen/12284/rdh_RW_Eutin;
 rdh. RW Heiligenhafen;Rettungsdienst (kommunal);Tollbrettkoppel 15, 23774 Heiligenhafen;54.366839;11.003322;Adresse;3;https://bos-fahrzeuge.info/wachen/16543/rdh_RW_Heiligenhafen;
 rdh. RW Malente;Rettungsdienst (kommunal);Lütjenburger Straße 82, 23714 Malente;54.185782;10.563846;Adresse;3;https://bos-fahrzeuge.info/wachen/59884/rdh_RW_Malente;
 rdh. RW Petersdorf;Rettungsdienst (kommunal);Bojendorfer Weg 10, 23769 Fehmarn;54.479891;11.065611;Adresse;1;https://rettungsdienst-holstein.de/unsere-wachen/;
 rdh. RW Scharbeutz;Rettungsdienst (kommunal);Dr.-Gildemeister-Straße 6-8, 23684 Scharbeutz;54.037141;10.659966;Adresse (PLZ);1;https://bos-fahrzeuge.info/wachen/67026/rdh_RW_Scharbeutz;"Außenwache der rdh. Timmendorfer Strand auf dem Bauhof; RTW zuerst nur Sommersaison, inzwischen ganzjährig (laut Datenbank)"
 rdh. RW Schönwalde;Rettungsdienst (kommunal);Bungsbergstraße 10, 23744 Schönwalde am Bungsberg;54.192176;10.757312;Adresse;1;https://rettungsdienst-holstein.de/unsere-wachen/;
 rdh. RW Timmendorfer Strand;Rettungsdienst (kommunal);Bäderrandstraße 10, 23669 Timmendorfer Strand;53.990919;10.780767;Adresse;6;https://bos-fahrzeuge.info/wachen/13831/rdh_RW_Timmendorfer_Strand;
+THW OV Eutin;THW;Industriestraße 2, 23701 Eutin;54.126837;10.618642;Adresse;8;https://bos-fahrzeuge.info/wachen/13394/THW_OV_Eutin;
+THW OV Neustadt in Holstein;THW;Am Holm 74, 23730 Neustadt in Holstein;54.093699;10.793963;Adresse;8;https://bos-fahrzeuge.info/wachen/13397/THW_OV_Neustadt_in_Holstein;
+THW OV Oldenburg in Holstein;Kreis Ostholstein (KatS);Am Vossberg 10, 23758 Oldenburg in Holstein;54.291966;10.915209;Adresse;2;https://bos-fahrzeuge.info/wachen/13398/THW_OV_Oldenburg_in_Holstein;Hier steht auch der GW-Dekon P des Kreises (Florian Ostholstein 03/74-01)

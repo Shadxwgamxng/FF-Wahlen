@@ -32,14 +32,13 @@ const vehicle = (cs: string) => center.vehicles.find((v) => v.callsign === cs)!;
 const at = (iso: string) => Date.parse(iso);
 
 describe('Fahrzeugliste Ostholstein (roster)', () => {
-  it('liest alle Einträge beider Listen und kommt auf eine plausible Fahrzeugzahl', () => {
-    const rows = parseCsv(ROSTER_INPUT.fahrzeuge).length + parseCsv(ROSTER_INPUT.ergaenzungen).length;
-    expect(rows).toBe(262 + 69);
+  it('liest alle Einträge der vollständigen Liste und kommt auf eine plausible Fahrzeugzahl', () => {
+    const rows = parseCsv(ROSTER_INPUT.fahrzeuge).length;
+    expect(rows).toBe(492);
     // jeder Eintrag ist Fahrzeug, zusammengeführt oder (mit Grund) weggelassen
     const mergedAway = roster.merged.filter((m) => m.reason.startsWith('=') || m.reason.startsWith('doppelt')).length;
     expect(roster.vehicles.length + roster.omitted.length + mergedAway).toBe(rows);
-    expect(roster.vehicles.length).toBeGreaterThan(290);
-    expect(roster.vehicles.length).toBeLessThan(340);
+    expect(roster.vehicles.length).toBe(490);
     for (const o of roster.omitted) expect(o.reason.length, o.callsign).toBeGreaterThan(10);
   });
 
@@ -104,64 +103,69 @@ describe('Fahrzeugliste Ostholstein (roster)', () => {
     expect(caps('oh_gkw1')).toContain('thw_bergung');
   });
 
-  it('Dubletten nach den Hinweisen der Ergänzungsliste', () => {
-    // 67/83-xx der Liste = 67/83-02 der Ergänzung
+  it('Dubletten und Korrekturen des Nutzers', () => {
+    // RW Eutin: nur RTW 67/83-01 und -02 (Kennzeichen OH-RD 670 vom früheren "67/83-xx"), vier KTW, NEF mit OH-R 4300
+    const eutin = roster.vehicles.filter((v) => v.wache === 'rdh. RW Eutin');
+    expect(eutin.filter((v) => v.typeId === 'rtw').map((v) => v.callsign)).toEqual(['Rettung Ostholstein 67/83-01', 'Rettung Ostholstein 67/83-02']);
     expect(one('Rettung Ostholstein 67/83-02').identifier).toBe('OH-RD 670');
-    expect(byCs('Rettung Ostholstein 67/83-xx')).toHaveLength(0);
-    // XX/83-0X ist einer der Tages-RTW
-    expect(roster.omitted.some((o) => o.callsign === 'Rettung Ostholstein XX/83-0X')).toBe(true);
+    expect(eutin.filter((v) => v.typeId === 'ktw').map((v) => v.callsign).sort()).toEqual(['Rettung Ostholstein 67/85-01', 'Rettung Ostholstein 67/85-02', 'Rettung Ostholstein 67/85-03', 'Rettung Ostholstein 67/85-04']);
+    expect(one('Rettung Ostholstein 67/85-02')).toMatchObject({ identifier: 'OH-RD 7400', organizationId: 'org_ktp' });
+    expect(one('Rettung Ostholstein 67/82-01')).toMatchObject({ identifier: 'OH-R 4300', wache: 'rdh. RW Eutin', organizationId: 'org_na' });
+    for (const cs of ['Rettung Ostholstein 67/83-03', 'Rettung Ostholstein 67/83-xx', 'Rettung Ostholstein XX/83-0X', 'Rettung Ostholstein xx/83-xx']) expect(byCs(cs), cs).toHaveLength(0);
     // RTW OH-RD 6800 = 89/83-01
     expect(one('Rettung Ostholstein 89/83-01').identifier).toBe('OH-RD 6800');
     expect(roster.vehicles.filter((v) => v.wache === 'rdh. RW Timmendorfer Strand' && v.typeId === 'rtw')).toHaveLength(3);
-    // NEF OH-R 4300 = 67/82-01 (Eutin)
-    expect(one('Rettung Ostholstein 67/82-01')).toMatchObject({ identifier: 'OH-R 4300', wache: 'rdh. RW Eutin', organizationId: 'org_na' });
-    // xx/83-xx nicht zuzuordnen
-    expect(roster.omitted.some((o) => o.callsign === 'Rettung Ostholstein xx/83-xx')).toBe(true);
-    // KTW OH-RD 7400 → RW Eutin, nächste freie 67/85-NN
-    const ktw = roster.vehicles.find((v) => v.identifier === 'OH-RD 7400')!;
-    expect(ktw).toMatchObject({ callsign: 'Rettung Ostholstein 67/85-02', wache: 'rdh. RW Eutin', generated: true, organizationId: 'org_ktp' });
-    // 89/47-01: Hemmelsdorf behält die Nummer, das LF 10 der Hauptwache bekommt 89/47-02
+    // CBRN-Erkunder 03/71-01 (LZ-G) bei der FF Oldenburg, nicht Malente
+    expect(one('Florian Ostholstein 03/71-01')).toMatchObject({ wache: 'FF Oldenburg in Holstein', typeId: 'oh_cbrn' });
+    expect(byCs('Florian Ostholstein 03/18-01')).toHaveLength(0);
+    // Süderort: LF 10 = 30/44-02; Heiligenhafen: GW-L2 35/68-01
+    expect(one('Florian Ostholstein 30/44-02')).toMatchObject({ wache: 'FF Fehmarn OF Süderort', typeId: 'lf10' });
+    expect(one('Florian Ostholstein 35/68-01')).toMatchObject({ wache: 'FF Heiligenhafen', typeId: 'gwl' });
+    // neue Wehren in Wangels und Heringsdorf
+    const at = (w: string) => roster.vehicles.filter((v) => v.wache === w).map((v) => v.typeLabel).sort();
+    expect(at('FF Wangels OF Hansühn-Testorf')).toEqual(['HLF', 'MZF', 'TLF 24/50']);
+    expect(at('FF Wangels OF Döhnsdorf-Weißenhaus')).toEqual(['LF 10', 'MTW']);
+    expect(at('FF Heringsdorf OF Heringsdorf')).toEqual(['GW-Bahnrettung', 'HLF 10', 'MZF']);
+    expect(at('FF Heringsdorf OF Fargemiel')).toEqual(['LF 10']);
+    // 89/47-01: Hemmelsdorf behält die Nummer, das LF 10 der Hauptwache bekommt die nächste freie
     expect(one('Florian Ostholstein 89/47-01').wache).toBe('FF Timmendorfer Strand OF Hemmelsdorf');
-    expect(one('Florian Ostholstein 89/47-02')).toMatchObject({ wache: 'FF Timmendorfer Strand', typeId: 'lf10' });
+    expect(one('Florian Ostholstein 89/47-03')).toMatchObject({ wache: 'FF Timmendorfer Strand OF Timmendorfer Strand', typeId: 'lf10', generated: true });
     // MZF Hemmelsdorf (evtl. identisch mit MTW 89/18-01) entfällt
-    expect(roster.vehicles.filter((v) => v.wache === 'FF Timmendorfer Strand OF Hemmelsdorf').map((v) => v.typeLabel).sort()).toEqual(['LF 10', 'MTW']);
+    expect(roster.omitted.map((o) => `${o.wache}|${o.type}`)).toEqual(['FF Timmendorfer Strand OF Hemmelsdorf|MZF']);
     // JUH RW Bad Schwartau: alle einmal
     for (const cs of ['Akkon Ostholstein 92/83-01', 'Akkon Ostholstein 92/83-02', 'Akkon Ostholstein 92/83-03', 'Akkon Ostholstein 92/82-01', 'Rettung Ostholstein 92/85-01']) expect(one(cs).wache).toBe('JUH RW Bad Schwartau');
-    // "FF Stadt Fehmarn OF Landkirchen" = "FF Fehmarn OF Landkirchen"
-    expect(roster.vehicles.filter((v) => v.wache === 'FF Fehmarn OF Landkirchen').map((v) => v.callsign).sort()).toEqual([
-      'Florian Ostholstein 30/11-01',
-      'Florian Ostholstein 30/47-01',
-      'Florian Ostholstein 30/48-03',
-    ]);
-    expect(roster.stations.some((s) => s.def.name.includes('Stadt Fehmarn'))).toBe(false);
   });
 
-  it('Wache "unbekannt" aus der Ortskennziffer, Kreisebene und Sonderzuordnungen', () => {
+  it('Wache "unbekannt" aus Hinweis bzw. Ortskennziffer und Sonderzuordnungen', () => {
     expect(one('Pelikan Ostholstein 74/18-01').wache).toBe('DLRG Bosau');
-    expect(roster.vehicles.find((v) => v.identifier === 'OH-WR 1913')).toMatchObject({ wache: 'DLRG Eutin', callsign: 'Pelikan Ostholstein 67/18-02', generated: true });
+    expect(roster.vehicles.find((v) => v.identifier === 'OH-WR 1913')).toMatchObject({ wache: 'DLRG Eutin', generated: true });
+    expect(roster.vehicles.find((v) => v.identifier === 'OH-WR 1913')!.callsign).toMatch(/^Pelikan Ostholstein 67\/18-\d\d$/);
     expect(one('Rotkreuz Ostholstein 89/19-01').wache).toBe('DRK OV Timmendorfer Strand');
-    for (const cs of ['Rettung Ostholstein 01/10-02', 'Rettung Ostholstein 01/10-03']) expect(one(cs)).toMatchObject({ wache: 'rdh. RW Eutin', typeId: 'elrd', organizationId: 'org_rd' });
+    // Kreisebene: Leitung rdh. (Bad Schwartau)
+    for (const cs of ['Rettung Ostholstein 01/10-02', 'Rettung Ostholstein 01/10-03']) expect(one(cs)).toMatchObject({ wache: 'rdh. Leitung Bad Schwartau', typeId: 'elrd', organizationId: 'org_rd' });
     expect(roster.vehicles.some((v) => v.wache === 'unbekannt')).toBe(false);
     // GW-Dekon P der Feuerwehr beim THW Oldenburg: bleibt Feuerwehr mit Florian-Rufnamen
     expect(one('Florian Ostholstein 03/74-01')).toMatchObject({ wache: 'THW OV Oldenburg in Holstein', organizationId: 'org_ff', typeId: 'oh_dekonp' });
     // ASB "Sama/Kater 35/…" in Heiligenhafen
     expect(roster.stations.find((s) => s.def.name === 'ASB RV Ostholstein')!.address).toMatch(/Heiligenhafen/);
     expect(one('Sama Ostholstein 35/92-01').organizationId).toBe('org_kats');
-    // Jugendfeuerwehr gehört zur Wehr
-    expect(one('Florian Ostholstein 83/18-03')).toMatchObject({ wache: 'FF Stockelsdorf OF Stockelsdorf', outOfService: true });
+    // Jugendfeuerwehr: eigene Wache laut Liste, dauerhaft außer Dienst
+    expect(one('Florian Ostholstein 83/18-03')).toMatchObject({ wache: 'FF Stockelsdorf Jugendfeuerwehr', outOfService: true });
+    // RTW T1 eines Ortsvereins fährt im Rettungsdienst
+    expect(one('Rotkreuz Ostholstein 42/83-01').organizationId).toBe('org_rd');
   });
 
   it('Rufnamen ohne Veröffentlichung: Ortskennziffer der Wache und häufigster Kenner des Typs', () => {
-    // FF Oldenburg (OKZ 40): 3 HLF → 40/48-01..03 (Kenner 48 wie die echten HLF 20)
-    const old = roster.vehicles.filter((v) => v.wache === 'FF Oldenburg in Holstein');
-    expect(old.filter((v) => v.typeId === 'hlf20').map((v) => v.callsign)).toEqual(['Florian Ostholstein 40/48-01', 'Florian Ostholstein 40/48-02', 'Florian Ostholstein 40/48-03']);
-    expect(old.find((v) => v.typeId === 'kdow')!.callsign).toBe('Florian Ostholstein 40/10-01');
-    expect(old.find((v) => v.typeId === 'oh_dlak')!.callsign).toBe('Florian Ostholstein 40/32-01');
-    // Burg auf Fehmarn: Ortskennzahl 33
-    const burg = roster.vehicles.filter((v) => v.wache === 'FF Fehmarn OF Burg auf Fehmarn' && v.generated);
-    expect(burg.length).toBeGreaterThan(5);
-    for (const v of burg) expect(v.callsign).toMatch(/ 33\/\d\d-\d\d$/);
-    expect(burg.find((v) => v.typeId === 'oh_lf20kats')!.callsign).toBe('Florian Ostholstein 33/47-01');
+    // Heringsdorf und Wangels (OKZ 42): Kenner wie bei den echten Fahrzeugen gleichen Typs
+    expect(roster.vehicles.filter((v) => v.wache === 'FF Heringsdorf OF Heringsdorf').map((v) => v.callsign).sort()).toEqual([
+      'Florian Ostholstein 42/14-01',
+      'Florian Ostholstein 42/48-01',
+      'Florian Ostholstein 42/52-01',
+    ]);
+    for (const v of roster.vehicles.filter((x) => /Wangels OF (Hansühn|Döhnsdorf)|Heringsdorf/.test(x.wache))) expect(v).toMatchObject({ generated: true, organizationId: 'org_ff' });
+    expect(one('Florian Ostholstein 42/48-02')).toMatchObject({ wache: 'FF Wangels OF Hansühn-Testorf', typeId: 'hlf20' });
+    // MZF Süderort ohne Rufnamen: OKZ 30 (Fehmarn)
+    expect(roster.vehicles.find((v) => v.wache === 'FF Fehmarn OF Süderort' && v.typeLabel === 'MZF')!.callsign).toMatch(/^Florian Ostholstein 30\/14-\d\d$/);
     // THW ohne veröffentlichten Rufnamen: OKZ der Gemeinde (Eutin 67)
     expect(roster.vehicles.filter((v) => v.wache === 'THW OV Eutin' && v.generated).every((v) => /^Heros Ostholstein 67\//.test(v.callsign))).toBe(true);
   });
@@ -179,10 +183,9 @@ describe('Fahrzeugliste Ostholstein (roster)', () => {
     expect(nef.serviceWindows).toEqual([{ fromHour: 0, toHour: 24, weekdays: [], months: [5, 6, 7, 8, 9] }]);
     expect(inServiceWindow(nef, at('2026-07-13T03:00:00Z'))).toBe(true);
     expect(inServiceWindow(nef, at('2026-10-19T12:00:00Z'))).toBe(false);
-    const rtw = vehicle('Rettung Ostholstein 67/83-04');
-    expect(rtw.serviceWindows).toEqual([{ fromHour: 7, toHour: 19, weekdays: [1, 2, 3, 4, 5] }]);
-    expect(inServiceWindow(rtw, at('2026-10-19T10:00:00Z'))).toBe(true); // Montag
-    expect(inServiceWindow(rtw, at('2026-10-18T10:00:00Z'))).toBe(false); // Sonntag
+    const rtw = vehicle('Rotkreuz Ostholstein 61/83-02');
+    expect(rtw.serviceWindows).toEqual([{ fromHour: 7, toHour: 19, weekdays: [] }]);
+    expect(inServiceWindow(rtw, at('2026-10-18T10:00:00Z'))).toBe(true); // auch sonntags
     expect(inServiceWindow(rtw, at('2026-10-19T20:00:00Z'))).toBe(false);
     // ohne Hinweis rund um die Uhr
     expect(vehicle('Rettung Ostholstein 67/83-01').serviceWindows).toEqual([]);
@@ -237,7 +240,7 @@ describe('Beispielleitstelle Ostholstein mit echten Fahrzeugen', () => {
     for (const s of center.stations.filter((x) => x.organizationId !== 'org_ext')) expect(resp.has(s.id), s.name).toBe(true);
   });
 
-  it('jede Wache aus den Daten genau einmal, im Kreis und am richtigen Ort', () => {
+  it('jede Wache aus den Daten genau einmal, im Kreis und an ihrer Koordinate', () => {
     expect(placements).toHaveLength(WACHEN.length);
     expect(new Set(placements.map((p) => p.stationId)).size).toBe(WACHEN.length);
     for (const p of placements) {
@@ -245,35 +248,34 @@ describe('Beispielleitstelle Ostholstein mit echten Fahrzeugen', () => {
       const def = WACHEN.find((d) => d.name === p.wache)!;
       expect(st.name).toBe(def.name);
       expect(pointInArea(st.position, OSTHOLSTEIN), def.name).toBe(true);
-      // OSM-Treffer liegt beim erwarteten Standort und in derselben Gemeinde
-      expect(distanceMeters(st.position, def.pos), def.name).toBeLessThan(300);
+      // genaue Adressen stehen genau dort; Ortsmitten dürfen auf den OSM-Eintrag der Wache rücken
+      expect(distanceMeters(st.position, def.pos), def.name).toBeLessThan(def.posKind === 'ort' ? 3000 : 1);
       expect(gemeindeOf(st.position)?.name, def.name).toBe(gemeindeOf(def.pos)?.name);
     }
-    // in den Testdaten (Kreissüden) über OSM gefunden
-    for (const name of ['FF Bad Malente-Gremsmühlen', 'FF Süsel OF Süsel', 'FF Timmendorfer Strand', 'FF Bad Schwartau OF Groß Parin', 'FF Eutin OF Neudorf', 'FF Bujendorf', 'rdh. RW Eutin'])
-      expect(placements.find((p) => p.wache === name)!.source, name).toBe('osm');
+    // OSM-Eintrag derselben Wache übernommen (kein doppelter Standort)
+    for (const name of ['FF Bad Malente-Gremsmühlen', 'FF Süsel OF Süsel', 'FF Bad Schwartau OF Groß Parin', 'FF Eutin OF Neudorf', 'rdh. RW Eutin'])
+      expect(placements.find((p) => p.wache === name)!.osmName, name).toBeDefined();
   });
 
-  it('Sonderfälle der Zuordnung (Teilstrings, unbenannte Wachen)', () => {
-    // Malente: Feuerwache Lütjenburger Straße 100, nicht Malkwitz
+  it('Sonderfälle der Zuordnung (Teilstrings, gleiche Adressen, Wachen ohne Daten)', () => {
     expect(distanceMeters(stationNamed('FF Bad Malente-Gremsmühlen').position, [54.1892, 10.5657])).toBeLessThan(100);
     expect(stationNamed('FF Bad Malente-Gremsmühlen').address).toBe('Lütjenburger Straße 100, 23714 Malente');
-    // Burg auf Fehmarn: Osterstraße, nicht Oldenburg
     const burg = stationNamed('FF Fehmarn OF Burg auf Fehmarn');
     expect(burg.address).toBe('Osterstraße 52, 23769 Fehmarn');
     expect(gemeindeOf(burg.position)?.name).toBe('Fehmarn');
-    // Süsel: An der Bäderstraße, nicht Gothendorf
     expect(distanceMeters(stationNamed('FF Süsel OF Süsel').position, [54.08024, 10.7031])).toBeLessThan(100);
-    // Groß Parin (Bad Schwartau), nicht Klein Parin (Stockelsdorf)
     expect(gemeindeOf(stationNamed('FF Bad Schwartau OF Groß Parin').position)?.name).toBe('Bad Schwartau');
-    expect(center.stations.some((s) => s.name === 'Freiwillige Feuerwehr Klein Parin')).toBe(true);
-    // Neudorf: doppelter OSM-Eintrag entfällt
+    expect(gemeindeOf(stationNamed('FF Stockelsdorf OF Klein Parin').position)?.name).toBe('Stockelsdorf');
     expect(center.stations.some((s) => s.name === 'Freiwillige Feuerwehr Neudorf')).toBe(false);
-    expect(stationNamed('FF Timmendorfer Strand').address).toBe('Wache an der B 76, 23669 Timmendorfer Strand');
-    // OSM-Wachen ohne Daten bleiben, aber leer
-    const empty = center.stations.find((s) => s.name === 'Freiwillige Feuerwehr Pansdorf')!;
-    expect(empty).toBeDefined();
-    expect(center.vehicles.some((v) => v.stationId === empty.id)).toBe(false);
+    expect(stationNamed('FF Timmendorfer Strand OF Timmendorfer Strand').address).toBe('Bäderrandstraße 6, 23669 Timmendorfer Strand');
+    expect(stationNamed('DLRG Haffkrug-Scharbeutz').address).toBe('Fuchsberg 1b, 23683 Scharbeutz');
+    // mehrere Wachen an derselben Adresse bleiben getrennt
+    expect(stationNamed('ASB RV Ostholstein').id).not.toBe(stationNamed('rdh. RW Heiligenhafen').id);
+    expect(stationNamed('rdh. RW Ahrensbök').id).not.toBe(stationNamed('FF Ahrensbök OF Ahrensbök').id);
+    // OSM-Feuerwehren ohne Gegenstück in den Daten bleiben, aber leer
+    const names = new Set(WACHEN.map((d) => d.name));
+    const osmOnly = center.stations.filter((s) => (s.kind === 'feuerwehrhaus' || s.kind === 'feuerwache') && !names.has(s.name));
+    for (const st of osmOnly) expect(center.vehicles.some((v) => v.stationId === st.id), st.name).toBe(false);
   });
 
   it('Westfehmarn: Gerätehaus "Ortswehr Petersdorf" aus OSM, kein zweiter leerer Standort daneben', () => {
@@ -283,7 +285,7 @@ describe('Beispielleitstelle Ostholstein mit echten Fahrzeugen', () => {
     ];
     const c = createOstholsteinCenter([...ELEMENTS, ...petersdorf]);
     const p = lastPlacements.find((x) => x.wache === 'FF Fehmarn OF Westfehmarn')!;
-    expect(p.source).toBe('osm');
+    expect(p.osmName).toBeDefined();
     const st = c.stations.find((s) => s.id === p.stationId)!;
     expect(distanceMeters(st.position, [54.48144, 11.06678])).toBeLessThan(20);
     expect(st.address).toBe('Ostlandstraße 4, 23769 Fehmarn');
@@ -307,7 +309,8 @@ describe('Beispielleitstelle Ostholstein mit echten Fahrzeugen', () => {
     const ids = new Set(center.stations.map((s) => s.id));
     for (const a of center.areas) for (const id of a.responsibleStationIds) expect(ids.has(id), id).toBe(true);
     // allgemein: gleichnamig nahe → entfällt, gleichnamig weit weg oder anderer Name → bleibt; unbenannte OSM-Feuerwehren bleiben
-    expect(center.stations.some((s) => s.name === 'Feuerwehr Malente')).toBe(true);
+    // das unbenannte OSM-Feuerwehrhaus an der Lütjenburger Straße 100 ist die FF Bad Malente-Gremsmühlen selbst
+    expect(center.stations.some((s) => s.name === 'Feuerwehr Malente')).toBe(false);
     const extra: OverpassElement[] = [
       { type: 'node', id: 990000001, lat: 54.1452, lon: 10.6152, tags: { emergency: 'ambulance_station', name: 'Rettungswache Eutin' } },
       { type: 'node', id: 990000002, lat: 54.2152, lon: 10.6152, tags: { emergency: 'ambulance_station', name: 'Rettungswache Eutin' } },
