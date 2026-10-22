@@ -263,7 +263,7 @@ describe('Beispielleitstelle Ostholstein mit echten Fahrzeugen', () => {
     for (const s of center.stations) expect(s.capacity, s.name).toBeGreaterThanOrEqual(center.vehicles.filter((v) => v.stationId === s.id).length);
     // Zuständigkeit: alle eigenen Wachen im Kreis
     const resp = new Set(center.areas[0].responsibleStationIds);
-    for (const s of center.stations.filter((x) => x.organizationId !== 'org_ext')) expect(resp.has(s.id), s.name).toBe(true);
+    for (const s of center.stations.filter((x) => x.organizationId !== 'org_ext' && x.organizationId !== 'org_nb')) expect(resp.has(s.id), s.name).toBe(true);
   });
 
   it('jede Wache aus den Daten genau einmal, im Kreis und an ihrer Koordinate', () => {
@@ -356,7 +356,7 @@ describe('Beispielleitstelle Ostholstein mit echten Fahrzeugen', () => {
   });
 
   it('jeder RTW gehört zum Rettungsdienst (RD_OH), auch an einem Ortsverein', () => {
-    const rtw = center.vehicles.filter((v) => v.typeId === 'rtw');
+    const rtw = center.vehicles.filter((v) => v.typeId === 'rtw' && !v.external);
     expect(rtw.length).toBeGreaterThan(10);
     for (const v of rtw) expect(v.organizationId, v.callsign).toBe('org_rd');
     const akkon = vehicle('Akkon Ostholstein 67/83-11');
@@ -398,8 +398,9 @@ describe('Beispielleitstelle Ostholstein mit echten Fahrzeugen', () => {
     expect(center.vehicles.some((v) => v.typeId === 'pol_grukw')).toBe(true);
     expect(center.stations.some((s) => s.id === 'st_kats' || s.id === 'st_thw')).toBe(false);
     for (const t of ['itw', 'iktw', 'srtw', 'sktw', 'psnv']) expect(center.vehicles.some((v) => v.typeId === t), t).toBe(false);
-    // nur echte Fahrzeuge (Liste) und Polizei
-    expect(center.vehicles.length).toBe(roster.vehicles.length + center.vehicles.filter((v) => v.organizationId === 'org_pol').length);
+    // nur echte Fahrzeuge (Liste), Polizei und externe Rettungsmittel der Nachbarn bzw. weitere RTH (Christoph 12 steht in der Liste)
+    const externalOnly = center.vehicles.filter((v) => v.external && v.callsign !== 'Christoph 12').length;
+    expect(center.vehicles.length).toBe(roster.vehicles.length + center.vehicles.filter((v) => v.organizationId === 'org_pol').length + externalOnly);
   });
 
   it('Organisationen und Funkrufgruppen', () => {
@@ -503,5 +504,29 @@ describe('Ortswehren und Hauptwehr', () => {
     const p = suggestForIncident(g, g.runtime.incidents[0]).proposal.map((x) => x.vehicleId);
     expect(p.length).toBe(1);
     expect(t1.has(p[0])).toBe(false);
+  });
+});
+
+describe('Kliniken und externe Rettungsmittel', () => {
+  it('Kliniken nach Recherche (AMEOS statt Sana), außerhalb nur UKSH Lübeck und Kiel', () => {
+    const names = center.hospitals.map((h) => h.name);
+    expect(names).toContain('AMEOS Klinikum Eutin');
+    expect(names).toContain('Schön Klinik Neustadt');
+    expect(names.filter((n) => !pointInArea(center.hospitals.find((h) => h.name === n)!.position, OSTHOLSTEIN)).sort()).toEqual(['UKSH Campus Kiel', 'UKSH Campus Lübeck']);
+    expect(names.some((n) => /Sana/.test(n))).toBe(false);
+    expect(center.hospitals.find((h) => h.name === 'UKSH Campus Lübeck')!.departments).toContain('verbrennung');
+    expect(center.hospitals.find((h) => h.name === 'Schön Klinik Neustadt')!.departments).toEqual(expect.arrayContaining(['neurologie', 'kardiologie', 'unfallchirurgie']));
+  });
+
+  it('Nachbarn an der Kreisgrenze und Rettungshubschrauber: extern mit Verzug, nicht zuständig im Kreis', () => {
+    const ext = center.vehicles.filter((v) => v.external);
+    const cs = ext.map((v) => v.callsign);
+    for (const c of ['Florian Lübeck 10/82-01', 'Florian Lübeck 30/83-01', 'Rettung Plön 40/83-01', 'Akkon Plön 80/83-01', 'Christoph 12', 'Christoph 42', 'Christoph Hansa', 'Christoph 92']) expect(cs, c).toContain(c);
+    for (const v of ext) expect(v.external!.requestDelaySeconds, v.callsign).toBeGreaterThan(0);
+    expect(vehicle('Christoph 42').serviceWindows).toEqual([]);
+    expect(vehicle('Christoph Hansa').serviceWindows).toEqual([{ fromHour: 8, toHour: 21, weekdays: [] }]);
+    expect(vehicle('Christoph 92').typeId).toBe('oh_ith');
+    const resp = new Set(center.areas[0].responsibleStationIds);
+    for (const v of ext) expect(resp.has(v.stationId), v.callsign).toBe(false);
   });
 });

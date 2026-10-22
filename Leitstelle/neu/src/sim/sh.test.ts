@@ -67,7 +67,7 @@ describe('Katalog Schleswig-Holstein in der Beispielleitstelle Ostholstein', () 
     for (const r of g.center.aao) for (const { capability } of r.requirements) if (!provided.has(capability)) missing.add(capability);
     // In den Listen nicht enthalten (kommen im Ernstfall aus Nachbarbereichen): ITW/Inkubator, Schwerlast-RTW/-KTW,
     // Infektions-KTW, Höhenrettungsgruppe, Kriseninterventionsteam
-    expect([...missing].sort()).toEqual(['hoehenretter', 'inkubator', 'intensiv', 'ktw_infekt', 'ktw_schwerlast', 'psnv', 'rtw_schwerlast']);
+    expect([...missing].sort()).toEqual(['hoehenretter', 'inkubator', 'ktw_infekt', 'ktw_schwerlast', 'psnv', 'rtw_schwerlast']);
   });
 
   it('Weiterleitung beendet den Notruf ohne Einsatz', () => {

@@ -102,6 +102,7 @@ export const OSTHOLSTEIN_TYPES: VehicleType[] = [
   t('oh_blkw', 'BLKW', 'Betreuungslastkraftwagen', 'katastrophenschutz', ['betreuung'], 3, 50),
   t('oh_krad', 'Krad', 'Kraftrad (Motorrad-Sanitäter)', 'katastrophenschutz', ['first_responder'], 1, 75),
   t('oh_mtw_wr', 'MTW', 'Mannschaftstransportwagen Wasserrettung (DLRG)', 'katastrophenschutz', ['wasserrettung', 'mannschaft'], 9, 65),
+  t('oh_ith', 'ITH', 'Intensivtransporthubschrauber', 'rettungsdienst', ['intensiv', 'notarzt', 'rth'], 3, 230, { airborne: true }),
   t('oh_rboot_wr', 'Rettungsboot', 'Rettungsboot Wasserrettung (DLRG)', 'katastrophenschutz', ['wasserrettung'], 4, 40),
   t('oh_utv_wr', 'UTV', 'Strandfahrzeug Wasserrettung (DLRG)', 'katastrophenschutz', ['wasserrettung'], 2, 40),
 

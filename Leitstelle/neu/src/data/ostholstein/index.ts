@@ -11,6 +11,8 @@ import { gemeindeCenter, gemeindeOf } from './gemeinden';
 import { ostholsteinVehicleTypes } from './fahrzeugtypen';
 import { buildRoster, type RosterStation } from './roster';
 import type { WacheDef } from './wachen';
+import { ostholsteinHospitals } from './kliniken';
+import { EXTERNAL_STATIONS, NEIGHBORS } from './nachbarn';
 
 export { gemeindeOf, okzOf } from './gemeinden';
 
@@ -117,6 +119,8 @@ export function createOstholsteinCenter(elements: OverpassElement[]): CenterConf
     org_ext: ['Luftrettung', 'LR_SH'],
   };
   for (const o of orgs) o.radioGroup = { name: RG[o.id]?.[0] ?? o.name, code: RG[o.id]?.[1] ?? 'GRP' };
+  // Rettungsdienst der Nachbarn an der Kreisgrenze (Lübeck, Plön) – Anforderung über die Nachbarleitstelle
+  orgs.push({ id: 'org_nb', name: 'Rettungsdienst Nachbarkreise (Lübeck, Plön)', kind: 'rettungsdienst', responsibilities: 'RTW/NEF an der Kreisgrenze, Anforderung mit Verzug', color: '#94a3b8', radioGroup: { name: 'Rettungsdienst Nachbarn', code: 'RD_NB' } });
 
   const places = buildPlaceIndex(elements, { areas: [OSTHOLSTEIN], maxPerKind: { w: 20000, g: 5000, o: 3000, k: 1200, s: 6000, b: 1500, l: 3000, x: 2500 } });
   const facilities = extractFacilities(elements).filter((f) => pointInArea(f.position, OSTHOLSTEIN));
@@ -172,7 +176,7 @@ export function createOstholsteinCenter(elements: OverpassElement[]): CenterConf
   // Rettungshubschrauber (extern, Luftrettungszentrum Siblin)
   const luft = roster.stations.find((s) => s.def.kind === 'luft')!;
   const rthStation: Station = { id: 'st_rth', name: luft.def.name, kind: 'sonstige', organizationId: 'org_ext', position: luft.def.pos, address: luft.address, capacity: 1, turnoutSeconds: 120 };
-  c.neighbors.push({ id: 'nb_luft', name: 'Luftrettung Schleswig-Holstein', position: rthStation.position, note: 'Rettungshubschrauber Christoph 12 zur Unterstützung (Anforderung mit Verzug).' });
+  c.neighbors.push(...NEIGHBORS.map((n) => ({ ...n })));
   stationOf.set(luft.def.name, rthStation);
   placements.push({ wache: luft.def.name, stationId: rthStation.id, source: 'osm' });
 
@@ -226,7 +230,18 @@ export function createOstholsteinCenter(elements: OverpassElement[]): CenterConf
   const sameWache = (s: Station) =>
     osmNames.has(baseName(s.name)) && placedDefs.some((p) => p.kinds.includes(s.kind) && p.keys.has(wacheKey(s.name)) && distanceMeters(p.st.position, s.position) <= 5000);
   c.stations = c.stations.filter((s) => claimed.has(s.id) || !sameWache(s));
-  c.stations.push(...added, rthStation);
+  // externe Wachen: Nachbarn an der Kreisgrenze und weitere Rettungshubschrauber
+  const external: Station[] = EXTERNAL_STATIONS.map((x) => ({
+    id: x.id,
+    name: x.name,
+    kind: x.neighborId === 'nb_luft' ? 'sonstige' : 'rettungswache',
+    organizationId: x.neighborId === 'nb_luft' ? 'org_ext' : 'org_nb',
+    position: x.position,
+    address: x.address,
+    capacity: x.vehicles.length,
+    turnoutSeconds: x.neighborId === 'nb_luft' ? 120 : 60,
+  }));
+  c.stations.push(...added, rthStation, ...external);
   // Ortswehren: Hauptwehr der Gemeinde (wird bei Brand mitalarmiert)
   const byName = new Map(c.stations.map((st) => [st.name, st]));
   const names = new Set(byName.keys());
@@ -234,7 +249,7 @@ export function createOstholsteinCenter(elements: OverpassElement[]): CenterConf
     const main = st.kind === 'feuerwehrhaus' || st.kind === 'feuerwache' ? mainWehrOf(st.name, names) : null;
     if (main) st.mainStationId = byName.get(main)!.id;
   }
-  for (const a of c.areas) a.responsibleStationIds = c.stations.filter((s) => s.organizationId !== 'org_ext' && pointInArea(s.position, a)).map((s) => s.id);
+  for (const a of c.areas) a.responsibleStationIds = c.stations.filter((s) => s.organizationId !== 'org_ext' && s.organizationId !== 'org_nb' && pointInArea(s.position, a)).map((s) => s.id);
   lastPlacements = placements;
 
   // ---------------------------------------------------------------- Fahrzeuge
@@ -255,6 +270,19 @@ export function createOstholsteinCenter(elements: OverpassElement[]): CenterConf
     });
   }
 
+  for (const x of EXTERNAL_STATIONS) {
+    const st = external.find((e) => e.id === x.id)!;
+    for (const v of x.vehicles)
+      add(st, {
+        callsign: v.callsign,
+        typeId: v.typeId,
+        organizationId: st.organizationId,
+        identifier: '',
+        serviceWindows: v.windows ?? [],
+        external: { neighborId: x.neighborId, requestDelaySeconds: x.delay },
+      });
+  }
+
   // Polizei (nicht in den Listen, Anforderung per Telefon): Streifenwagen je Polizeistation, Führung und Einsatzgruppe
   const police = c.stations.filter((s) => s.kind === 'polizei');
   police.forEach((st, i) => add(st, { callsign: `Heros Ostholstein ${i + 1}/11 (${shortPlace(st.name)})`, typeId: 'fustw', organizationId: st.organizationId, identifier: '', serviceWindows: [] }));
@@ -267,6 +295,8 @@ export function createOstholsteinCenter(elements: OverpassElement[]): CenterConf
   for (const st of police) st.capacity = vehicles.filter((v) => v.stationId === st.id).length + 2;
 
   c.vehicles = vehicles;
+  // Kliniken: feste Liste (OSM führt teils alte Namen, z. B. Sana statt AMEOS)
+  c.hospitals = ostholsteinHospitals();
   c.pois = extractPois(elements, undefined, (p) => pointInArea(p, OSTHOLSTEIN));
   c.settings.seed = 20261019;
   return c;
