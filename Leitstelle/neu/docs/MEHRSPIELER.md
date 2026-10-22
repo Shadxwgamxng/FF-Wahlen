@@ -38,4 +38,5 @@ Ohne diesen Schritt geht alles außer Sprechen (Funksprüche lassen sich tippen,
 - Datenmenge: Die Leitstellenkonfiguration wird nur bei Änderungen übertragen, sonst nur Fahrzeuge und Laufzeit (komprimiert etwa 10 KB pro halbe Sekunde).
 - Funk: Jeder hört die Fahrzeuge seiner geschalteten Rufgruppe; der Gastgeber hört alle (auch für das Tablet).
 - Spielstände speichert nur der Gastgeber.
+- Fahrzeugbilder lädt nur der Gastgeber hoch. Mitspieler bekommen sie beim Beitreten und nach jeder Änderung automatisch.
 - Der LAN-Server hat keine Anmeldung. Nur in eurem privaten VPN-Netz verwenden, keine Portfreigabe ins offene Internet.

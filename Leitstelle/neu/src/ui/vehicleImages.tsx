@@ -8,7 +8,8 @@ import type { GameState, Vehicle } from '../model/types';
  * Bei Fahrt mit Sondersignal wechseln beide (Blinken).
  *
  * Gespeichert lokal im Browser (IndexedDB, je Leitstelle ein Eintrag) – nicht im Spielstand, damit der
- * Abgleich mit Zweitfenstern und Tablet klein bleibt. Bilder werden beim Hochladen verkleinert.
+ * laufende Abgleich klein bleibt. Bilder werden beim Hochladen verkleinert. Mitspieler bekommen die Bilder
+ * vom Gastgeber einmal beim Verbinden und nach jeder Änderung und legen sie in ihrem Browser ab.
  */
 
 export type ImageKind = 'normal' | 'blaulicht';
@@ -61,8 +62,27 @@ async function loadNow(pid: string | null) {
       data = {};
     }
   }
-  if (projectId === pid) rebuild();
+  if (projectId === pid) {
+    rebuild();
+    store.broadcastImages();
+  }
 }
+
+store.imagesProvider = () => (projectId ? { projectId, images: data } : null);
+// Mitspieler: Bilder des Gastgebers übernehmen und speichern (auch für eigene Zweitfenster)
+store.imagesReceiver = (m) =>
+  void serial(async () => {
+    try {
+      await kvStore.put(key(m.projectId), m.images);
+    } catch {
+      /* nur im Speicher */
+    }
+    if (m.projectId !== (projectId ?? store.project?.id)) return;
+    projectId = m.projectId;
+    data = m.images;
+    rebuild();
+    channel?.postMessage({ projectId: m.projectId });
+  });
 
 channel?.addEventListener('message', (e) => {
   if (e.data?.projectId && e.data.projectId === projectId) void load(projectId);
@@ -150,6 +170,7 @@ export async function setVehicleImages(vehicleId: string, files: Partial<Record<
     data = next;
     rebuild();
     channel?.postMessage({ projectId: pid });
+    store.broadcastImages();
   });
 }
 

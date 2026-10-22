@@ -87,6 +87,17 @@ export class GameStore {
     return { enabled: this.lan, connected: Boolean(this.channel?.lanConnected), peers: this.channel?.peers ?? 0 };
   }
 
+  /** Liefert die Fahrzeugbilder für Mitspieler (setzt ui/vehicleImages) */
+  imagesProvider: (() => VehicleImagesMsg | null) | null = null;
+  /** Empfängt die Fahrzeugbilder vom Gastgeber (Mitspieler) */
+  imagesReceiver: ((m: VehicleImagesMsg) => void) | null = null;
+
+  /** Gastgeber: Fahrzeugbilder an die Mitspieler im LAN verteilen (nach Änderung bzw. auf Anfrage) */
+  broadcastImages() {
+    const m = this.role === 'main' ? this.imagesProvider?.() : null;
+    if (m) this.channel?.postLan({ t: 'bilder', ...m } satisfies SyncMsg);
+  }
+
   /** Hauptgerät: neue bzw. gelöschte Notrufabfrage an andere Geräte verteilen */
   broadcastDias(tree: DiasTree | null) {
     if (this.role === 'main') this.channel?.postLan({ t: 'dias', tree } satisfies SyncMsg);
@@ -113,6 +124,10 @@ export class GameStore {
     this.channel.on((m) => {
       if (m.t === 'diasReq') {
         void (this.diasProvider?.() ?? Promise.resolve(null)).then((tree) => this.channel?.post({ t: 'dias', tree } satisfies SyncMsg));
+        return;
+      }
+      if (m.t === 'bilderReq') {
+        this.broadcastImages();
         return;
       }
       if (m.t === 'hello') {
@@ -211,12 +226,20 @@ export class GameStore {
     let lastSeen = Date.now();
     this.channel.onStatus = () => {
       // nach (Wieder-)Verbindung mit dem LAN-Server sofort den Zustand anfordern
-      if (this.channel?.lanConnected) this.channel.post({ t: 'hello' } satisfies SyncMsg);
+      if (this.channel?.lanConnected) {
+        this.channel.post({ t: 'hello' } satisfies SyncMsg);
+        // Mitspieler: Fahrzeugbilder liegen nur beim Gastgeber
+        if (this.isPlayerClient) this.channel.postLan({ t: 'bilderReq' } satisfies SyncMsg);
+      }
       this.emitLocal();
     };
     this.channel.on((m) => {
       if (m.t === 'dias') {
         this.diasReceiver?.(m.tree);
+        return;
+      }
+      if (m.t === 'bilder') {
+        if (this.isPlayerClient) this.imagesReceiver?.(m);
         return;
       }
       if (m.t === 'delta') {
@@ -694,6 +717,12 @@ export class GameStore {
 /** to: Spieler-ID des PCs, der die Aktion ausführt (fehlt = Gastgeber bzw. eigener PC); via 'funk': angenommener Sprechwunsch */
 export type UiAction = { kind: 'openIncident' | 'openCall' | 'focus'; id?: string; pos?: [number, number]; to?: string; via?: 'funk' };
 
+/** Fahrzeugbilder einer Leitstelle (data-URLs je Fahrzeug, ohne/mit Blaulicht) */
+export interface VehicleImagesMsg {
+  projectId: string;
+  images: Record<string, { normal?: string; blaulicht?: string }>;
+}
+
 type SyncMsg =
   | { t: 'hello' }
   | { t: 'needPlaces' }
@@ -704,6 +733,8 @@ type SyncMsg =
   | { t: 'result'; to: string; result: CommandResult; req?: number }
   | { t: 'ui'; action: UiAction }
   | { t: 'diasReq' }
+  | { t: 'bilderReq' }
+  | ({ t: 'bilder' } & VehicleImagesMsg)
   | { t: 'dias'; tree: DiasTree | null }
   | { t: 'delta'; mode: GameStore['mode']; project: GameStore['project']; vehicles: CenterConfig['vehicles']; hospitals: CenterConfig['hospitals']; runtime: GameState['runtime'] }
   | { t: 'ptt'; on: boolean; group: string | null; to?: string }

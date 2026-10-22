@@ -163,6 +163,42 @@ try {
   await host.waitForFunction((c) => (window.leitwarte.state.runtime.funk?.log ?? []).some((l) => l.from === 'fahrzeug' && l.text.startsWith(`Hier ${c}`)), cs, { timeout: 10000 });
   log(`Annas Tablet (gehört zu Anna): Sendetaste → Annas PC erkennt den Funkspruch → ${cs} antwortet; Gastgeber-Mikrofon bleibt aus`);
 
+  // Fahrzeugbilder: Gastgeber lädt hoch, Mitspieler sehen sie (Übertragung über den LAN-Server)
+  const png = (rgb) => {
+    // kleines einfarbiges PNG ohne Hilfsbibliothek
+    const { deflateSync, crc32 } = require('node:zlib');
+    const w = 40, h = 20;
+    const raw = Buffer.concat(Array.from({ length: h }, () => Buffer.from([0, ...Array.from({ length: w }, () => rgb).flat()])));
+    const chunk = (t, d) => {
+      const len = Buffer.alloc(4); len.writeUInt32BE(d.length);
+      const crc = Buffer.alloc(4); crc.writeUInt32BE(crc32(Buffer.concat([Buffer.from(t), d])) >>> 0);
+      return Buffer.concat([len, Buffer.from(t), d, crc]);
+    };
+    const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(w, 0); ihdr.writeUInt32BE(h, 4); ihdr.set([8, 2, 0, 0, 0], 8);
+    return { name: 'bild.png', mimeType: 'image/png', buffer: Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ihdr), chunk('IDAT', deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]) };
+  };
+  const rtw = await host.evaluate(() => window.leitwarte.state.center.vehicles.find((v) => v.callsign.startsWith('Rettung')).callsign);
+  await host.getByRole('button', { name: 'Datei', exact: true }).click();
+  await host.getByRole('menuitem', { name: /bearbeiten/ }).click();
+  await host.getByRole('navigation', { name: 'Bereiche' }).getByRole('button', { name: 'Fahrzeuge', exact: true }).click();
+  const row = host.locator('tr', { hasText: rtw }).first();
+  for (const [k, rgb] of [['normal', [200, 0, 0]], ['blaulicht', [0, 0, 255]]]) {
+    const fc = host.waitForEvent('filechooser');
+    await row.getByTestId(`veh-img-${k}`).click();
+    await (await fc).setFiles(png(rgb));
+    await row.getByTestId(`veh-img-${k}`).locator('img').waitFor({ timeout: 10000 });
+  }
+  await host.getByTestId('start-play').first().click();
+  await host.getByTestId('desk').waitFor({ timeout: 20000 });
+  await ben.locator('[data-testid="veh-img-inline"] img').first().waitFor({ timeout: 15000 });
+  // ein später beitretender Mitspieler bekommt die Bilder beim Verbinden
+  const carla = await open('Carla', `${BASE}/mitspielen`);
+  await carla.getByTestId('join-name').fill('Carla');
+  await carla.getByTestId('join-ok').click();
+  await carla.getByTestId('desk').waitFor({ timeout: 20000 });
+  await carla.locator('[data-testid="veh-img-inline"] img').first().waitFor({ timeout: 15000 });
+  log(`Fahrzeugbilder: Gastgeber lädt Bilder für ${rtw} hoch – Ben sieht sie sofort, Carla nach dem Beitreten`);
+
   assert(errors.length === 0, `Keine JavaScript-Fehler: ${errors.join(' | ')}`);
   log('Keine JavaScript-Fehler bei Gastgeber und Mitspielern');
   console.log('\nMehrspieler-Test: alle Schritte erfolgreich.');
