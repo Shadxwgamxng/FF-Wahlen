@@ -1,0 +1,23 @@
+Tonaufnahmen für LEITWARTE
+==========================
+
+Diese Dateien werden NICHT ins Git-Repository übernommen (siehe .gitignore),
+sie liegen nur lokal bzw. im ZIP-Paket. Fehlt eine Datei, spielt das Spiel
+einen synthetischen Ersatzton.
+
+  anruf.mp3          Telefonklingeln, läuft in Schleife, solange ein Notruf wartet
+                     (eine Klingelperiode, nahtlos wiederholbar)
+  sprechwunsch.mp3   optional: eigener Sprechwunsch-Ton. Ohne Datei ertönt ein
+                     nachgebildetes Status-Telegramm (FMS, 1200/1800 Hz)
+  martinshorn-1.mp3  Martinshorn, wird leise und gedämpft unter Funksprüche von
+  martinshorn-2.mp3  Fahrzeugen auf Einsatzfahrt gelegt (je Fahrzeug fest eine
+                     der beiden Aufnahmen)
+
+Quellen:
+  anruf.mp3          BBC Sound Effects 07042244 "Telephone, constant ring (Push button telephone)"
+  martinshorn-1.mp3  BBC Sound Effects 07015074 "German police car on constant run, with martinhorn"
+  martinshorn-2.mp3  archive.org "MartinshornKlingeltonDownloadenHD"
+  (BBC-Aufnahmen: RemArc-Lizenz, nur private/nichtkommerzielle Nutzung)
+
+Eigene Aufnahmen können einfach unter demselben Namen abgelegt werden
+(MP3, nach "npm run build" bzw. Neustart von "npm run lan" aktiv).

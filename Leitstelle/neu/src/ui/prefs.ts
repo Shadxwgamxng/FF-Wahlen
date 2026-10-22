@@ -12,10 +12,12 @@ export interface Prefs {
   /** Adresse des lokalen OSRM-Routing-Servers */
   routingUrl: string;
   routingEnabled: boolean;
+  /** Martinshorn leise im Hintergrund, wenn Fahrzeuge auf Einsatzfahrt funken */
+  funkHorn: boolean;
 }
 
 const KEY = 'leitwarte.prefs';
-const DEFAULTS: Prefs = { sound: true, volume: 0.4, tts: true, ttsRate: 1.1, mapDark: true, uiStyle: 'behoerde', routingUrl: 'http://localhost:5000', routingEnabled: true };
+const DEFAULTS: Prefs = { sound: true, volume: 0.4, tts: true, ttsRate: 1.1, mapDark: true, uiStyle: 'behoerde', routingUrl: 'http://localhost:5000', routingEnabled: true, funkHorn: true };
 
 let prefs: Prefs = load();
 const listeners = new Set<() => void>();

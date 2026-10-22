@@ -149,7 +149,8 @@ Stichwörter:  code;bezeichnung;kategorie;prioritaet;bedarf   (bedarf z. B. loes
       <div className="card col">
         <h3>Arbeitsplatz</h3>
         <label className="check"><input type="checkbox" checked={prefs.sound} onChange={(e) => setPrefs({ sound: e.target.checked })} /> Signaltöne</label>
-        <label className="row small">Lautstärke <input type="range" min={0} max={1} step={0.05} value={prefs.volume} onChange={(e) => setPrefs({ volume: Number(e.target.value) })} /> <button className="btn small" onClick={() => sounds.ring()}>Test</button></label>
+        <label className="row small">Lautstärke <input type="range" min={0} max={1} step={0.05} value={prefs.volume} onChange={(e) => setPrefs({ volume: Number(e.target.value) })} /> <button className="btn small" onClick={() => sounds.ring()}>Telefon</button> <button className="btn small" onClick={() => sounds.radio()}>Sprechwunsch</button></label>
+        <label className="check"><input type="checkbox" checked={prefs.funkHorn} onChange={(e) => setPrefs({ funkHorn: e.target.checked })} /> Martinshorn im Hintergrund, wenn Fahrzeuge auf Einsatzfahrt funken</label>
         <label className="check">
           <input type="checkbox" checked={prefs.tts} disabled={!ttsAvailable()} onChange={(e) => setPrefs({ tts: e.target.checked })} /> Funksprüche vorlesen (TTS)
           {!ttsAvailable() && <span className="dim small">(nicht verfügbar)</span>}

@@ -32,6 +32,9 @@ const MIME = {
   '.ico': 'image/x-icon',
   '.map': 'application/json; charset=utf-8',
   '.woff2': 'font/woff2',
+  '.mp3': 'audio/mpeg',
+  '.ogg': 'audio/ogg',
+  '.wav': 'audio/wav',
 };
 
 try {

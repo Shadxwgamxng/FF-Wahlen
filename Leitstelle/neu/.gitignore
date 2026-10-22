@@ -4,3 +4,6 @@ e2e/screenshots
 e2e/video
 src/**/_review_*.test.ts
 src/**/_real*.test.ts
+# eigene Tonaufnahmen bleiben lokal (siehe public/sounds/LIESMICH.txt)
+public/sounds/*
+!public/sounds/LIESMICH.txt

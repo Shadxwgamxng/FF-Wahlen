@@ -99,6 +99,7 @@ Wählst du ein zu kleines Stichwort, fordern die Kräfte vor Ort nach. Lagen kö
 | Mehrspieler über das Internet (ZeroTier, auch Radmin VPN/Hamachi): Freunde treten über …/mitspielen bei, Tablets lassen sich einem Spieler zuordnen, Zuständigkeit je Notruf/Einsatz mit Übernehmen, jeder spricht am eigenen PC – siehe docs/MEHRSPIELER.md | ✅ |
 | Sprechfunk: Rufgruppe schalten, Sendetaste (Tablet, PC, F8), Status 5 erst nach Ansprechen, Aufträge (Status, Lage, Einsatz, Transportziel, Einrücken), Antworten der Besatzung per Sprachausgabe | ✅ |
 | Signaltöne (Web Audio) und Sprachausgabe (Web Speech API des Browsers) | ✅ optional, ohne externe Dienste |
+| Echte Tonaufnahmen (Telefon klingelt bis zur Annahme, Martinshorn leise unter Funksprüchen auf Einsatzfahrt, Sprechwunsch als Status-Telegramm) | ✅ Dateien in `public/sounds/` – nur lokal/im ZIP, nicht im Repo (siehe `public/sounds/LIESMICH.txt`) |
 | Editor: Leitstelle, Gebiete (Polygon), Organisationen mit Funkrufgruppen, Wachen, Fahrzeugtypen, Fahrzeuge, Wartung, Dienstzeiten, Stichwörter, AAO, Kliniken, Nachbarleitstellen/externe Kräfte, Straßennamen, Simulationseinstellungen | ✅ |
 | Speichern/Laden (IndexedDB), Autosave, manuelle und automatische Spielstände, Kopien | ✅ |
 | JSON-Export/-Import (versioniert, validiert, Teilreparatur), CSV-Import für Wachen, Fahrzeuge und Stichwörter | ✅ |

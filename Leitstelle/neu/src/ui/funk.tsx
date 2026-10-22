@@ -5,7 +5,7 @@ import { hashSeed } from '../voice/details/types';
 import { createRecognizer, germanVoices, speakAs, type Recognizer } from '../voice/speech';
 import { getConsent, giveConsent } from '../voice/transcripts';
 import { store, useStore } from '../store/gameStore';
-import { squelch } from './audio';
+import { squelch, startHorn } from './audio';
 import { getPrefs } from './prefs';
 import { fmtClock } from './components/common';
 import type { CommandResult } from '../sim/engine';
@@ -197,7 +197,10 @@ export function FunkController() {
       busy = true;
       store.setFunkStatus({ receiving: true });
       squelch();
+      // Fahrzeug auf Einsatzfahrt: Martinshorn leise im Hintergrund
+      const horn = onEmergencyRun(line.vehicleId) ? await startHorn(line.vehicleId!) : null;
       await speakAs(line.speech ?? line.text, voiceFor(line.vehicleId), pickVoice(line.vehicleId), 'funk');
+      horn?.stop(0.15);
       squelch(0.1);
       busy = false;
       // zwischen zwei Funksprüchen bleibt "receiving" stehen (keine Lücke fürs Freisprechen)
@@ -229,6 +232,12 @@ export function FunkController() {
     };
   }, []);
   return null;
+}
+
+/** Fährt das Fahrzeug gerade mit Sondersignal zum Einsatz oder ins Krankenhaus? */
+export function onEmergencyRun(vehicleId?: string, state: GameState | null = store.state): boolean {
+  const move = vehicleId ? state?.center.vehicles.find((v) => v.id === vehicleId)?.rt.move : undefined;
+  return !!move?.emergency && move.purpose !== 'rueckfahrt';
 }
 
 /** Jede Besatzung klingt etwas anders (Tonhöhe, Stimme) – gleiches Fahrzeug, gleiche Stimme */
