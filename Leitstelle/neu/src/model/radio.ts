@@ -17,14 +17,14 @@ export function heardGroups(pcGroup: string | null | undefined, tabletGroup: str
   return s;
 }
 
-/** Funkzeile hörbar? Zeilen ohne Rufgruppe (z. B. nach "Ansprechen" per Klick) immer */
+/** Funkzeile hörbar? Nur aus einer geschalteten Rufgruppe – ohne Gruppe hört der Platz nichts */
 export function hearsLine(line: { group?: string }, heard: Set<string>): boolean {
-  return !line.group || heard.has(line.group);
+  return !!line.group && heard.has(line.group);
 }
 
 /** Fahrzeug in einer gehörten Rufgruppe? (Ton für Sprechwunsch) */
 export function hearsVehicle(c: CenterConfig, vehicleId: string | undefined, heard: Set<string>): boolean {
-  if (!vehicleId) return true;
+  if (!vehicleId) return heard.size > 0;
   const v = c.vehicles.find((x) => x.id === vehicleId);
   const g = v ? radioGroupOf(c, v)?.code : undefined;
   return !!g && heard.has(g);

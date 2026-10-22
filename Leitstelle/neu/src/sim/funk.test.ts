@@ -123,12 +123,13 @@ describe('Funk: Sprechwunsch (Status 5)', () => {
     expect(last(g).text).toBe('Hier Florian Ostholstein 61-48-01, Einsatzstelle abgearbeitet, Kräfte können entlassen werden, kommen.');
   });
 
-  it('Antwort nach "Ansprechen" per Klick bleibt ohne Rufgruppe (für jeden PC hörbar)', () => {
+  it('Ansprechen per Klick läuft in der Rufgruppe des Fahrzeugs', () => {
     const g = game();
     sprechwunsch(g, hlf(g), {});
     radioCall(g, hlf(g).id);
     expect(last(g).from).toBe('fahrzeug');
-    expect(last(g).group).toBeUndefined();
+    expect(last(g).group).toBe(radioGroupOf(g.center, hlf(g))!.code);
+    expect(g.runtime.funk!.log.filter((l) => l.from === 'leitstelle').at(-1)!.group).toBe(radioGroupOf(g.center, hlf(g))!.code);
     // per Sprechtaste: Antwort in der geschalteten Gruppe
     radioTalk(g, 'Florian Ostholstein 61-48-01, Lagemeldung', 'FW_OH');
     expect(last(g).group).toBe('FW_OH');

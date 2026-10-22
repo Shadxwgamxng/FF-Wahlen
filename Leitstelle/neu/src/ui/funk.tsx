@@ -57,9 +57,36 @@ export function heardNow(): Set<string> {
   return heardGroups(loadSaved(PC_GROUP_KEY), store.tabletGroup());
 }
 
-/** Gemerkte Rufgruppe (je Gerät) */
+const GROUP_EVENT = 'leitwarte-rufgruppe';
+
+/** Rufgruppe am PC schalten (z. B. beim Ansprechen eines Fahrzeugs: in dessen Gruppe wechseln) */
+export function joinPcGroup(code: string) {
+  try {
+    localStorage.setItem(PC_GROUP_KEY, code);
+  } catch {
+    /* nur für diese Sitzung */
+  }
+  window.dispatchEvent(new CustomEvent(GROUP_EVENT, { detail: { key: PC_GROUP_KEY, code } }));
+}
+
+/** Gemerkte Rufgruppe (je Gerät); folgt auch Umschaltungen aus anderen Fenstern */
 export function useSavedGroup(key: string): [string | null, (c: string) => void] {
   const [code, setCode] = useState(() => loadSaved(key));
+  useEffect(() => {
+    const own = (e: Event) => {
+      const d = (e as CustomEvent<{ key: string; code: string }>).detail;
+      if (d?.key === key) setCode(d.code);
+    };
+    const other = (e: StorageEvent) => {
+      if (e.key === key) setCode(e.newValue);
+    };
+    window.addEventListener(GROUP_EVENT, own);
+    window.addEventListener('storage', other);
+    return () => {
+      window.removeEventListener(GROUP_EVENT, own);
+      window.removeEventListener('storage', other);
+    };
+  }, [key]);
   const set = (c: string) => {
     setCode(c);
     try {
@@ -67,6 +94,7 @@ export function useSavedGroup(key: string): [string | null, (c: string) => void]
     } catch {
       /* nur für diese Sitzung */
     }
+    window.dispatchEvent(new CustomEvent(GROUP_EVENT, { detail: { key, code: c } }));
   };
   return [code, set];
 }

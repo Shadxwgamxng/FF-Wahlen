@@ -520,5 +520,6 @@ function execOrder(state: GameState, v: Vehicle, order: Order, justRevealed: boo
 export function radioCall(state: GameState, vehicleId: string): CommandResult {
   const v = state.center.vehicles.find((x) => x.id === vehicleId);
   if (!v) return fail('Fahrzeug nicht gefunden.');
-  return radioTalk(state, `${v.callsign} von Leitstelle, kommen`, null);
+  // Ansprechen per Klick: in der Rufgruppe des Fahrzeugs (die Oberfläche schaltet sie dafür)
+  return radioTalk(state, `${v.callsign} von Leitstelle, kommen`, radioGroupOf(state.center, v)?.code ?? null);
 }

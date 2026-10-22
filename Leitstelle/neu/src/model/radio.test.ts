@@ -18,11 +18,12 @@ describe('Rufgruppen hören', () => {
     expect(heardGroups('', null).size).toBe(0);
   });
 
-  it('Funkzeilen nur aus gehörten Gruppen, Zeilen ohne Gruppe immer', () => {
+  it('Funkzeilen nur aus gehörten Gruppen – ohne geschaltete Gruppe nichts', () => {
     const heard = heardGroups('FW-1', null);
     expect(hearsLine({ group: 'FW-1' }, heard)).toBe(true);
     expect(hearsLine({ group: 'RD-2' }, heard)).toBe(false);
-    expect(hearsLine({}, heard)).toBe(true);
+    expect(hearsLine({}, heard)).toBe(false);
+    expect(hearsLine({}, heardGroups(null, null))).toBe(false);
     expect(hearsLine({ group: 'FW-1' }, heardGroups(null, null))).toBe(false);
   });
 

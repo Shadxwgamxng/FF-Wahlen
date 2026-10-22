@@ -4,7 +4,8 @@ import { hospitalOptions } from '../../../sim/dispatch';
 import { formatDuration } from '../../../sim/geo';
 import { store } from '../../../store/gameStore';
 import { fmtClock } from '../../components/common';
-import { FunkBar, radioSend } from '../../funk';
+import { FunkBar, joinPcGroup, radioSend } from '../../funk';
+import { radioGroupOf } from '../../../model/radio';
 
 const KIND_LABEL: Record<RadioMessage['kind'], string> = {
   transportziel: 'Transportziel',
@@ -23,7 +24,13 @@ export function RadioActions({ game, msg }: { game: GameState; msg: RadioMessage
 function UnrevealedActions({ msg }: { msg: RadioMessage }) {
   return (
     <div className="row wrap">
-      <button className="btn small primary" onClick={() => void radioSend(store.cmdAsync('radioCall', msg.vehicleId))} data-testid="ansprechen">
+      <button className="btn small primary" onClick={() => {
+          // in die Rufgruppe des Fahrzeugs wechseln, damit man die Antwort hört
+          const v = store.state?.center.vehicles.find((x) => x.id === msg.vehicleId);
+          const g = v && store.state ? radioGroupOf(store.state.center, v)?.code : undefined;
+          if (g) joinPcGroup(g);
+          void radioSend(store.cmdAsync('radioCall', msg.vehicleId));
+        }} data-testid="ansprechen">
         Ansprechen
       </button>
     </div>
