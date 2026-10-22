@@ -223,7 +223,7 @@ export const SH_MELDEBILDER: Meldebild[] = [
   { id: "mb_sh_213", label: "Verkehrsunfall, Person eingeklemmt", category: "vu", keywordCode: "TH 00 Y" },
   { id: "mb_sh_214", label: "Verkehrsunfall, Fahrzeug auf Dach / Bergung", category: "vu", keywordCode: "TH 00" },
   { id: "mb_sh_215", label: "Verkehrsunfall mit Gefahrgut", category: "vu", keywordCode: "TH 00 X" },
-  { id: "mb_sh_216", label: "Verkehrsunfall, viele Verletzte", category: "vu", keywordCode: "TH 00 R0" },
+  { id: "mb_sh_216", label: "Verkehrsunfall, viele Verletzte", category: "vu", keywordCode: "TH 00 R5" },
   { id: "mb_sh_217", label: "Person eingeklemmt (Maschine, Baustelle)", category: "th", keywordCode: "TH 00 Y" },
   { id: "mb_sh_218", label: "Person in Höhe / Tiefe", category: "th", keywordCode: "TH SRHT" },
   { id: "mb_sh_219", label: "Tragehilfe für Rettungsdienst", category: "th", keywordCode: "KBF STANDARD LF" },

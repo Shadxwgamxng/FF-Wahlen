@@ -15,7 +15,7 @@ export function RequirementsEditor({ value, onChange }: { value: AaoRequirement[
     <div className="col" style={{ gap: 4 }}>
       {value.map((r, i) => (
         <div key={i} className="row">
-          <input type="number" min={1} max={20} value={r.count} onChange={(e) => onChange(value.map((x, j) => (j === i ? { ...x, count: Number(e.target.value) } : x)))} style={{ width: 64 }} aria-label="Anzahl" />
+          <input type="number" min={1} max={99} title="99 = alle Fahrzeuge mit dieser Fähigkeit" value={r.count} onChange={(e) => onChange(value.map((x, j) => (j === i ? { ...x, count: Number(e.target.value) } : x)))} style={{ width: 64 }} aria-label="Anzahl" />
           <span>×</span>
           <select value={r.capability} onChange={(e) => onChange(value.map((x, j) => (j === i ? { ...x, capability: e.target.value } : x)))} aria-label="Fähigkeit">
             {Object.entries(CAPABILITIES).map(([k, l]) => (
@@ -78,7 +78,7 @@ export function KeywordsView({ game }: { game: GameState }) {
             {
               label: 'Abdeckung',
               render: (a) => {
-                const missing = a.requirements.filter((r) => provided(r.capability) < r.count);
+                const missing = a.requirements.filter((r) => r.count < 99 && provided(r.capability) < r.count);
                 return missing.length ? <span className="field-error small">fehlt: {reqText(missing)}</span> : <span style={{ color: 'var(--ok)' }}>✓</span>;
               },
             },

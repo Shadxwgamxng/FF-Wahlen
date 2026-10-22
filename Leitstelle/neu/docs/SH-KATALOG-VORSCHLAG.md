@@ -31,7 +31,7 @@ Die Wiki-Seite legt **nicht** fest, welche Fahrzeuge ein Stichwort alarmiert. Di
 | NOTF ADIP / ADIP G | 1 RTW + 1 Schwerlast-RTW (G: + 1 LF Tragehilfe) | ja |
 | NOTF INKUB | 1 ITW (Inkubator) + 1 NEF | ja |
 | NOTF BAB 01…23 | wie NOTF 01…23 | ja |
-| NOTF (BAB) R0 … R4 | MANV-Stufen, siehe unten | ja |
+| NOTF (BAB) R5 … R150 | Großeinsatz Rettungsdienst, siehe unten | ja |
 | NOTF VERL 01 / 11 / RTH / ITW / ECMO | RTW / RTW+NEF / RTH / ITW / ITW | ja |
 | NOTF VERL ARZT / VEF | RTW (Klinikarzt fährt mit) / RTW + NEF (als VEF) | ja |
 
@@ -40,17 +40,19 @@ Die Wiki-Seite legt **nicht** fest, welche Fahrzeuge ein Stichwort alarmiert. Di
 - `X` (hochinfektiös): zusätzlich deutlich längere Bindung.
 - `First`: zusätzlich 1 First Responder.
 
-### MANV-Stufen (Ergänzung R0–R4, gilt für alle GSA)
+### Großeinsatz Rettungsdienst (Ergänzung R5 … R150, gilt für alle GSA)
 
-| Ergänzung | Verletzte | Zusätzliche Kräfte |
+Die Stufe nennt die obere Grenze der Verletztenzahl (wie in DIAS): R5 = 3–5, R10 = 6–10, R15 = 11–15, R20 = 16–20, R30, R40, R50, R75, R100, R125, R150.
+
+Faustregel: 1 RTW je 2 Verletzte (höchstens 15), 1 NEF je 5 Verletzte (höchstens 6), ab R10 ein Einsatzleiter Rettungsdienst, ab R20 zusätzlich ein Organisatorischer Leiter.
+
+Einheiten der Hilfsorganisationen (jeweils die ganze Komponente, in der AAO als Anzahl 99 = „alle“):
+
+| ab | Komponente | Fahrzeuge |
 |---|---|---|
-| R0 | 3–6 | 4 RTW, 2 NEF, 1 Führung RD (ELRD/OrgL) |
-| R1 | 7–10 | 6 RTW, 3 NEF, 2 Führung RD, 1 GW-San |
-| R2 | 11–25 | 10 RTW, 4 NEF, 2 Führung RD, 2 GW-San |
-| R3 | 26–50 | 15 RTW, 6 NEF, 3 Führung RD, 4 GW-San |
-| R4 | > 50 | 20 RTW, 8 NEF, 3 Führung RD, 6 GW-San |
-
-Ab R2 reicht die Beispielleitstelle allein nicht aus. Das ist beabsichtigt, du musst dann Nachbarn bzw. den KatS heranziehen.
+| R10 | Transportkomponente 1 (T1) | alle RTW der Ortsvereine |
+| R15 | + Transportkomponente 2 (T2) | alle KTW der Ortsvereine (KTW Typ 4, NKTW, KTW-B …) |
+| R20 | + Betreuungsgruppe und Patientenablage | alle GW-Betreuung/BLKW und GW-San |
 
 ### Krankenbeförderung (KBF), alle ohne Sondersignal
 
@@ -83,7 +85,7 @@ Ab R2 reicht die Beispielleitstelle allein nicht aus. Das ist beabsichtigt, du m
 - `Y` (Menschenleben in Gefahr): + 1 RTW, 1 NEF, 1 LF.
 - `X` (Gefahrstoff): + 1 GW-G, 1 GW-A.
 - `XY`: beides zusammen.
-- `XR0`–`XR4`: X plus die MANV-Stufe.
+- `XR5`–`XR150`: X plus die Stufe Großeinsatz Rettungsdienst.
 - `BAHN`: gleiche Fahrzeuge wie ohne `BAHN`. Bahnspezifisches (Notfallmanager, Erdung) bildet das Spiel nicht ab.
 - `Übung`: gleiche Fahrzeuge, ohne Sondersignal, keine Patienten.
 
@@ -107,13 +109,13 @@ Ab R2 reicht die Beispielleitstelle allein nicht aus. Das ist beabsichtigt, du m
 | TH G 00 | ELW 1, 2 HLF, 1 RW, 1 GW-L |
 | TH G 00 Y | wie TH G 00 + 2 RTW, 1 NEF |
 
-Für alle TH-Stichwörter gelten bei `R0`–`R4`, `X`, `Übung` und `BAHN` dieselben Regeln wie bei Feuer.
+Für alle TH-Stichwörter gelten bei `R5`–`R150`, `X`, `Übung` und `BAHN` dieselben Regeln wie bei Feuer.
 
 ### Polizeilagen (POL), Bereitstellung des Rettungsdienstes
 
 | Stichwort | Fahrzeuge |
 |---|---|
-| POL AMOK / TERROR / LEBE / GEISEL | 2 RTW, 1 NEF, 1 Führung RD, Polizei-Führung und -Gruppe; dazu `R0`–`R4` als MANV-Stufen |
+| POL AMOK / TERROR / LEBE / GEISEL | 2 RTW, 1 NEF, 1 Führung RD, Polizei-Führung und -Gruppe; dazu `R5`–`R150` als Stufen Großeinsatz Rettungsdienst |
 | POL BOMBE / USBV | 1 LF, 1 RTW, 1 Streife (Bereitstellung) |
 | POL SEK | 1 RTW, 1 NEF (Bereitstellung) |
 

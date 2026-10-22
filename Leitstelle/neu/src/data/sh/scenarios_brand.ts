@@ -345,7 +345,7 @@ export const SH_SCENARIOS_BRAND: ScenarioDef[] = [
   },
   {
     id: 'sh_brand_unterkunft_verletzte', name: 'Brand Unterkunft mit mehreren Verletzten', category: 'brand', catalogs: ['sh'],
-    keyword: 'FEU 2 R0', sh: { keyword: 'FEU 2 R0', meldebild: 'Brand Mehrfamilienhaus, Personen eingeschlossen' },
+    keyword: 'FEU 2 R5', sh: { keyword: 'FEU 2 R5', meldebild: 'Brand Mehrfamilienhaus, Personen eingeschlossen' },
     weight: 0.12, location: 'wohn', time: { night: 2 },
     openings: [
       'In der Ferienwohnanlage brennt es im Treppenhaus, mehrere Leute husten und kommen kaum raus!',
@@ -365,7 +365,7 @@ export const SH_SCENARIOS_BRAND: ScenarioDef[] = [
     escalation: { prob: 0.25, needs: [need('rtw', 2), need('notarzt', 1), need('psnv', 1)], text: 'Weitere Bewohner mit Rauchgasvergiftung aufgefunden, zusätzliche Rettungsmittel und PSNV erforderlich.', extraPatients: 2 },
     variants: [
       {
-        label: 'Saisonarbeiterunterkunft, viele Verletzte', weight: 0.4, keyword: 'FEU G 00 R1', sh: { keyword: 'FEU G 00 R1', meldebild: 'Brand Mehrfamilienhaus, Personen eingeschlossen' },
+        label: 'Saisonarbeiterunterkunft, viele Verletzte', weight: 0.4, keyword: 'FEU G 00 R10', sh: { keyword: 'FEU G 00 R10', meldebild: 'Brand Mehrfamilienhaus, Personen eingeschlossen' },
         openings: ['Auf dem Hof brennt die Unterkunft der Erntehelfer, da wohnen über zwanzig Leute, viele sind verletzt!'],
         facts: {
           what: 'Brand in einer Sammelunterkunft mit vielen Verletzten.',

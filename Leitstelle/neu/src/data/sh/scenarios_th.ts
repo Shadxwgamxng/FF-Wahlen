@@ -433,7 +433,7 @@ export const SH_SCENARIOS_TH: ScenarioDef[] = [
   // ------------------------------------------------------------------ VERKEHRSUNFALL MANV
   {
     id: 'sh_vu_manv', name: 'Verkehrsunfall mit mehreren Verletzten', category: 'vu', catalogs: ['sh'],
-    keyword: 'TH 00 R0', sh: { keyword: 'TH 00 R0', meldebild: 'Verkehrsunfall, viele Verletzte' },
+    keyword: 'TH 00 R5', sh: { keyword: 'TH 00 R5', meldebild: 'Verkehrsunfall, viele Verletzte' },
     weight: 0.2, location: 'strasse', time: { day: 1.4 }, weather: { nebel: 2, regen: 1.5, schnee: 2 },
     openings: [
       'Hier hat es schwer gekracht, mehrere Leute sitzen blutend am Straßenrand!',
@@ -452,7 +452,7 @@ export const SH_SCENARIOS_TH: ScenarioDef[] = [
     escalation: { prob: 0.25, needs: [need('rtw', 2), need('san_gross', 1)], text: 'Mehr Verletzte als gemeldet, Erhöhung der MANV-Stufe.', extraPatients: 3 },
     variants: [
       {
-        label: 'Reisebus verunglückt', weight: 0.35, keyword: 'TH 00 R1', sh: { keyword: 'TH 00 R1', meldebild: 'Verkehrsunfall, viele Verletzte' },
+        label: 'Reisebus verunglückt', weight: 0.35, keyword: 'TH 00 R10', sh: { keyword: 'TH 00 R10', meldebild: 'Verkehrsunfall, viele Verletzte' },
         openings: ['Ein Reisebus ist von der Straße abgekommen und liegt auf der Seite im Graben, da sind viele Verletzte!'],
         facts: { vehicles: 'Ein Reisebus, auf der Seite liegend.', trapped: true, injured: range(7, 10) },
         workMin: [150, 240],

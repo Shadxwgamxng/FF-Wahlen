@@ -29,7 +29,7 @@ DIAS schreibt einige Stichwörter anders als der Katalog Schleswig-Holstein. `sr
 
 - `THHÖHE` → `TH SRHT`
 - `FEU Y` → `FEU 00 Y`
-- `R5`/`R10`/`R15`/`R20` → `R0`/`R1`/`R2`/`R2`
+- `R5`/`R10`/`R15`/`R20` … werden direkt übernommen (der SH-Katalog nutzt dieselben Stufen)
 - Zusätze wie `NAIK` oder `FIRST` werden weggelassen
 
 Diese Fälle setzen kein Stichwort und zeigen einen Hinweis:

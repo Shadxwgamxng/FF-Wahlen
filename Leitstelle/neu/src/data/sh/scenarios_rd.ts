@@ -177,7 +177,7 @@ export const SH_SCENARIOS_RD: ScenarioDef[] = [
     escalation: { prob: 0.2, needs: [need('th', 1), need('polizei', 1)], text: 'Fahrbahn voller Trümmer und Betriebsstoffe, Feuerwehr zur Absicherung und weitere Polizei nachgefordert.' },
     variants: [
       {
-        label: 'Auffahrunfall am Stauende, mehrere Verletzte', weight: 0.25, keyword: 'NOTF BAB R0', sh: { keyword: 'NOTF BAB R0', meldebild: 'Verkehrsunfall, viele Verletzte' },
+        label: 'Auffahrunfall am Stauende, mehrere Verletzte', weight: 0.25, keyword: 'NOTF BAB R5', sh: { keyword: 'NOTF BAB R5', meldebild: 'Verkehrsunfall, viele Verletzte' },
         openings: ['Auf der A1 am Stauende sind mehrere Autos ineinandergekracht, hier laufen überall Verletzte rum!'],
         facts: {
           what: 'Auffahrunfall am Stauende mit mehreren Fahrzeugen.',
@@ -194,7 +194,7 @@ export const SH_SCENARIOS_RD: ScenarioDef[] = [
   // ------------------------------------------------------------------ MANV
   {
     id: 'sh_manv_festival', name: 'Viele Verletzte auf einem Open-Air-Festival', category: 'rd', catalogs: ['sh'],
-    keyword: 'NOTF R1', sh: { keyword: 'NOTF R1' },
+    keyword: 'NOTF R10', sh: { keyword: 'NOTF R10' },
     weight: 0.08, location: 'oeffentlich',
     openings: [
       'Hier ist die Sanitätsleitung vom Festival, vor der Hauptbühne hat es ein Gedränge gegeben, wir haben bestimmt acht Verletzte!',

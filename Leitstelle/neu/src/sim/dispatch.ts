@@ -56,10 +56,20 @@ export function coverage(state: GameState, reqs: AaoRequirement[], vehicles: Veh
   return (total - open) / total;
 }
 
+/** Bedarf ab dieser Anzahl bedeutet "ganze Komponente" (z. B. alle RTW der Ortsvereine bei Großeinsatz Rettungsdienst) */
+export const ALL_OF_CAPABILITY = 99;
+
+/** "Ganze Komponente" auflösen: so viele, wie die Leitstelle Fahrzeuge mit der Fähigkeit hat (ohne dauerhaft außer Dienst) */
+export function resolveAll(state: GameState, reqs: AaoRequirement[]): AaoRequirement[] {
+  return reqs
+    .map((r) => (r.count < ALL_OF_CAPABILITY ? r : { ...r, count: state.center.vehicles.filter((v) => !v.outOfService && capsOf(state, v).includes(r.capability)).length }))
+    .filter((r) => r.count > 0);
+}
+
 export function aaoRequirements(state: GameState, inc: Incident): AaoRequirement[] {
   const rule = state.center.aao.find((a) => a.keywordId === inc.keywordId);
   const backups = inc.backupRequests.map((b) => b.requirements);
-  return mergeRequirements(rule?.requirements ?? [], ...backups);
+  return resolveAll(state, mergeRequirements(rule?.requirements ?? [], ...backups));
 }
 
 export interface Candidate {

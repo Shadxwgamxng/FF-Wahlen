@@ -270,7 +270,8 @@ export interface LwResult {
   reasons: string[];
 }
 
-const R_LEVEL = (n: number) => (n > 50 ? 'R4' : n > 25 ? 'R3' : n > 10 ? 'R2' : n > 6 ? 'R1' : 'R0');
+/** Großeinsatz-Stufe zur Verletztenzahl (R5 … R150, obere Grenze der Stufe) */
+const R_LEVEL = (n: number) => `R${[5, 10, 15, 20, 30, 40, 50, 75, 100, 125, 150].find((m) => n <= m) ?? 150}`;
 
 function withModifiers(base: string, mods: { x?: boolean; y?: boolean; r?: string | null }): string[] {
   const out: string[] = [];

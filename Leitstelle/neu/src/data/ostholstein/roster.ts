@@ -161,7 +161,7 @@ function typeGroup(def: WacheDef, organisation: string, callsign: string): TypeG
 function organizationOf(def: WacheDef, group: TypeGroup, typeId: string): string {
   if (def.kind === 'luft') return 'org_ext';
   // jeder RTW fährt im Rettungsdienst (auch der RTW eines Ortsvereins)
-  if (typeId === 'rtw' || typeId === 'oh_rtwt1') return 'org_rd';
+  if (typeId === 'rtw' || typeId === 'oh_rtwt1' || typeId === 'oh_rtw_hiorg') return 'org_rd';
   if (def.kind === 'rw') return typeId === 'nef' ? 'org_na' : typeId === 'ktw' || typeId === 'oh_mzrtw' ? 'org_ktp' : 'org_rd';
   // Feuerwehrfahrzeuge an anderen Standorten (GW-Dekon P beim THW Oldenburg) bleiben Feuerwehr
   if (group === 'ff' && def.kind !== 'kats') return 'org_ff';
@@ -261,7 +261,9 @@ export function buildRoster(input: RosterInput = ROSTER_INPUT): Roster {
   // Typen, Organisation, Dienstzeiten
   const typed = resolved.flatMap((r) => {
     const group = typeGroup(r.def, r.organisation, r.funkrufname);
-    const typeId = resolveType(r.fahrzeugtyp, group);
+    const resolvedType = resolveType(r.fahrzeugtyp, group);
+    // RTW und KTW der Ortsvereine bilden die Transportkomponenten 1 und 2 (Großeinsatz Rettungsdienst)
+    const typeId = r.def.kind === 'kats' && resolvedType === 'rtw' ? 'oh_rtw_hiorg' : r.def.kind === 'kats' && resolvedType === 'ktw' ? 'oh_ktw_hiorg' : resolvedType;
     if (!typeId) {
       omitted.push(note(r, `Fahrzeugtyp „${r.fahrzeugtyp}“ unbekannt`));
       return [];

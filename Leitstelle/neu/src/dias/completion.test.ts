@@ -53,7 +53,7 @@ describe('LEITWARTE-Ergänzung der Notrufabfrage', () => {
     const med = [s('q00001', 0), s('q00002', 1)];
     expect(pickKeyword(deriveResult(tree, med, { answers: { atmung: 'nein', personen: '1' } }).candidates, codes)).toBe('NOTF 11');
     expect(pickKeyword(deriveResult(tree, med, { answers: { atmung: 'normal', bewusst: 'ja', personen: '1' } }).candidates, codes)).toBe('NOTF 01');
-    expect(pickKeyword(deriveResult(tree, med, { answers: { personen: '7-10' } }).candidates, codes)).toBe('NOTF R1');
+    expect(pickKeyword(deriveResult(tree, med, { answers: { personen: '7-10' } }).candidates, codes)).toBe('NOTF R10');
     const fire = [s('q00001', 1), s('q00004', 0), s('q00005', 0)];
     expect(pickKeyword(deriveResult(tree, fire, { answers: { groesse: 'mittel', gefahr: 'ja' } }).candidates, codes)).toBe('FEU 00 Y');
     expect(pickKeyword(deriveResult(tree, fire, { answers: { groesse: 'gross', gefahr: 'nein', gefahrstoff: 'ja' } }).candidates, codes)).toBe('FEU G 00 X');

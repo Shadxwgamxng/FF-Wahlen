@@ -430,3 +430,31 @@ describe('Beispielleitstelle Ostholstein mit echten Fahrzeugen', () => {
     expect(dep.every((v) => v.stationId === st.id)).toBe(true);
   });
 });
+
+describe('Großeinsatz Rettungsdienst mit den Einheiten der Hilfsorganisationen', () => {
+  it('ab R10 alle RTW der Ortsvereine (T1), ab R15 alle KTW (T2), ab R20 alle GW-San und GW-Betreuung', async () => {
+    const { suggestForIncident } = await import('../../sim/dispatch');
+    const caps = (typeId: string) => center.vehicleTypes.find((t) => t.id === typeId)!.capabilities;
+    const all = (cap: string) => center.vehicles.filter((v) => !v.outOfService && caps(v.typeId).includes(cap)).map((v) => v.id).sort();
+    // T1 = RTW der Ortsvereine, T2 = KTW der Ortsvereine
+    expect(all('t1').length).toBeGreaterThanOrEqual(5);
+    for (const id of all('t1')) expect(center.stations.find((s) => s.id === center.vehicles.find((v) => v.id === id)!.stationId)!.kind).toBe('kats');
+    expect(all('t2').length).toBeGreaterThanOrEqual(10);
+    expect(all('betreuung').length).toBeGreaterThanOrEqual(4);
+    expect(all('pat_ablage').length).toBeGreaterThanOrEqual(4);
+    const proposal = (code: string) => {
+      const g = createGame(structuredClone(center));
+      const kw = g.center.keywords.find((k) => k.code === code)!;
+      const st = g.center.stations.find((s) => s.name === 'FF Eutin OF Eutin')!;
+      createManualIncident(g, kw.id, st.position, 'Am Priwall 12, 23701 Eutin', 'Test');
+      return new Set(suggestForIncident(g, g.runtime.incidents[0]).proposal.map((p) => p.vehicleId));
+    };
+    const r10 = proposal('NOTF R10');
+    for (const id of all('t1')) expect(r10.has(id), id).toBe(true);
+    expect(all('t2').every((id) => r10.has(id))).toBe(false);
+    const r15 = proposal('NOTF R15');
+    for (const id of [...all('t1'), ...all('t2')]) expect(r15.has(id), id).toBe(true);
+    const r20 = proposal('NOTF R20');
+    for (const id of [...all('t1'), ...all('t2'), ...all('betreuung'), ...all('pat_ablage')]) expect(r20.has(id), id).toBe(true);
+  });
+});

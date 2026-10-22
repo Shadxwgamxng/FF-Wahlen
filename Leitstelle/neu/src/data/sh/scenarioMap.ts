@@ -70,7 +70,7 @@ export const SH_SCENARIO_MAP: Record<string, ShTruth & { variants?: Record<numbe
   vu_eingeklemmt: { keyword: 'TH 00 Y', meldebild: 'Verkehrsunfall, Person eingeklemmt' },
   vu_motorrad: { keyword: 'NOTF 11', meldebild: 'Verkehrsunfall, Motorrad' },
   vu_lkw: { keyword: 'TH 00 Y', meldebild: 'Verkehrsunfall, Person eingeklemmt' },
-  vu_bus: { keyword: 'TH 00 R1', meldebild: 'Verkehrsunfall, viele Verletzte' },
+  vu_bus: { keyword: 'TH 00 R10', meldebild: 'Verkehrsunfall, viele Verletzte' },
   vu_rad: { keyword: 'NOTF 01', meldebild: 'Verkehrsunfall, Fahrrad' },
   vu_baum: {
     keyword: 'TH 00 Y',
@@ -109,7 +109,7 @@ export const SH_SCENARIO_MAP: Record<string, ShTruth & { variants?: Record<numbe
   rd_schnitt: { keyword: 'NOTF 01', meldebild: 'Schnittverletzung' },
   rd_psych: { keyword: 'NOTF 01', meldebild: 'Psychischer Ausnahmezustand' },
   rd_kind: { keyword: 'NOTF 11', meldebild: 'Pädiatrischer Notfall, allgemein' },
-  rd_manv: { keyword: 'NOTF R1' },
+  rd_manv: { keyword: 'NOTF R10' },
   rd_hitze: { keyword: 'NOTF 01', meldebild: 'Thermische Notfälle, allgemein' },
 
   // ------------------------------------------------------------------ KRANKENTRANSPORT

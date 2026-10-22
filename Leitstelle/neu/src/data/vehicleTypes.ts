@@ -42,6 +42,10 @@ export const CAPABILITIES: Record<string, string> = {
   thw_fuehrung: 'THW-Führung / Fachberatung',
   inkubator: 'Inkubator-Transport',
   psnv: 'Psychosoziale Notfallversorgung',
+  t1: 'Transportkomponente 1 (RTW der Hilfsorganisationen)',
+  t2: 'Transportkomponente 2 (KTW der Hilfsorganisationen)',
+  betreuung: 'Betreuungsgruppe (GW-Betreuung)',
+  pat_ablage: 'Patientenablage (GW-San)',
 };
 
 const ff = (
@@ -114,7 +118,7 @@ export const DEFAULT_VEHICLE_TYPES: VehicleType[] = [
   },
   ff('fr', 'FR', 'First Responder (Helfer vor Ort)', ['first_responder'], 2, 65, 'sonstige'),
   ff('psnv', 'KIT', 'Fahrzeug Krisenintervention / PSNV', ['psnv'], 4, 60, 'sonstige'),
-  ff('gwsan', 'GW-San', 'Gerätewagen Sanität', ['san_gross'], 4, 55, 'katastrophenschutz'),
+  ff('gwsan', 'GW-San', 'Gerätewagen Sanität', ['san_gross', 'pat_ablage'], 4, 55, 'katastrophenschutz'),
   ff('elrd', 'ELRD', 'Einsatzleiter Rettungsdienst', ['rd_fuehrung'], 2, 75, 'rettungsdienst'),
   ff('orgl', 'OrgL RD', 'Organisatorischer Leiter Rettungsdienst', ['rd_fuehrung'], 2, 70, 'rettungsdienst'),
   {

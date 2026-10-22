@@ -221,7 +221,8 @@ const CAP_SHORT: Record<string, string> = {
   notarzt: 'Notarzt', intensiv: 'ITW', san_gross: 'GW-San', rd_fuehrung: 'ELRD/OrgL', rth: 'RTH', polizei: 'Streife',
   polizei_fuehrung: 'Polizeiführung', polizei_gruppe: 'Polizei-Gruppe', thw_bergung: 'THW-Bergung', thw_pumpen: 'THW-Pumpen', tier: 'GW-Tier',
 };
-export const reqText = (reqs: AaoRequirement[]) => reqs.map((r) => `${r.count}× ${capLabel(r.capability)}`).join(', ');
+/** Bedarfe als Text; 99 = ganze Komponente ("alle") */
+export const reqText = (reqs: AaoRequirement[]) => reqs.map((r) => `${r.count >= 99 ? 'alle' : `${r.count}×`} ${capLabel(r.capability)}`).join(', ');
 
 // ---------------------------------------------------------------------------
 // Simulationsschritt

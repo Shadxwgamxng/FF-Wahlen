@@ -39,8 +39,8 @@ const NOTES: Record<string, string> = {
   'Szenario selbst entsprechend VA SNA vergeben!': 'Stichwort laut Abfrage selbst festlegen.',
 };
 
-/** Verletztenzahl R5/R10/R15/R20 (DIAS) → MANV-Stufen R0–R4 des Katalogs */
-const R_MAP: Record<string, string> = { R5: 'R0', R10: 'R1', R15: 'R2', R20: 'R2' };
+/** Ältere MANV-Stufen R0–R4 → Großeinsatz-Stufen R5 … R150 des Katalogs (DIAS nutzt die neuen direkt) */
+const R_MAP: Record<string, string> = { R0: 'R5', R1: 'R10', R2: 'R20', R3: 'R50', R4: 'R75' };
 const MODIFIER = /^(Y|X|XY|R\d+|XR\d+|ÜBUNG)$/;
 const CLASSES = [['FEU', 'K'], ['FEU', 'G'], ['TH', 'K'], ['TH', 'G'], ['FEU'], ['TH']];
 
@@ -85,7 +85,7 @@ export function mapDiasKeyword(dias: string, catalogCodes: Iterable<string>): Ke
   if (tokens[0] === 'NOTF' && /^\d\d$/.test(tokens[1] ?? '') && tokens[2] === 'BAB') tokens = ['NOTF', 'BAB', tokens[1], ...tokens.slice(3)];
   const full = find(tokens.join(' ')) ?? find(insert00(tokens)?.join(' '));
   if (full) return { code: full, exact: false };
-  // Unbekanntes Objektwort vor Zusätzen weglassen, Zusätze behalten: "TH G FLUG2 R5" → "TH G 00 R0"
+  // Unbekanntes Objektwort vor Zusätzen weglassen, Zusätze behalten: "TH G FLUG2 R5" → "TH G 00 R5"
   const firstMod = tokens.findIndex((t, i) => i > 0 && MODIFIER.test(t));
   if (firstMod > 1 && !['K', 'G', '00'].includes(tokens[firstMod - 1])) {
     const t = [...tokens.slice(0, firstMod - 1), ...tokens.slice(firstMod)];

@@ -20,20 +20,48 @@ const add = (...lists: Needs[]): Needs => {
 
 const RD = (rtw: number, nef: number): Needs => add([['rtw', rtw], ['notarzt', nef]]);
 
-/** Massenanfall von Verletzten je Stufe */
-const MANV: Record<string, Needs> = {
-  R0: [['rtw', 4], ['notarzt', 2], ['rd_fuehrung', 1]],
-  R1: [['rtw', 6], ['notarzt', 3], ['rd_fuehrung', 2], ['san_gross', 1]],
-  R2: [['rtw', 10], ['notarzt', 4], ['rd_fuehrung', 2], ['san_gross', 2]],
-  R3: [['rtw', 15], ['notarzt', 6], ['rd_fuehrung', 3], ['san_gross', 4]],
-  R4: [['rtw', 20], ['notarzt', 8], ['rd_fuehrung', 3], ['san_gross', 6]],
-};
-const MANV_TEXT: Record<string, string> = { R0: '3–6 Verletzte', R1: '7–10 Verletzte', R2: '11–25 Verletzte', R3: '26–50 Verletzte', R4: 'über 50 Verletzte' };
+/**
+ * Großeinsatz Rettungsdienst (MANV) je Stufe R5 … R150 (obere Grenze der Verletztenzahl, wie in DIAS).
+ * Faustregel: 1 RTW je 2 Verletzte (höchstens 15), 1 Notarzt je 5 Verletzte (höchstens 6),
+ * ab R10 Einsatzleiter Rettungsdienst, ab R20 zusätzlich Organisatorischer Leiter.
+ * Einheiten der Hilfsorganisationen (jeweils die ganze Komponente, ALL): ab R10 Transportkomponente 1
+ * (RTW der Ortsvereine), ab R15 zusätzlich Transportkomponente 2 (KTW der Ortsvereine), ab R20 zusätzlich
+ * Betreuungsgruppe und Patientenablage (GW-Betreuung, GW-San).
+ */
+export const MANV_LEVELS: [string, number, number][] = [
+  ['R5', 3, 5],
+  ['R10', 6, 10],
+  ['R15', 11, 15],
+  ['R20', 16, 20],
+  ['R30', 21, 30],
+  ['R40', 31, 40],
+  ['R50', 41, 50],
+  ['R75', 51, 75],
+  ['R100', 76, 100],
+  ['R125', 101, 125],
+  ['R150', 126, 150],
+];
+/** Bedarf "ganze Komponente": alle Fahrzeuge der Leitstelle mit dieser Fähigkeit (ALL_OF_CAPABILITY in sim/dispatch.ts) */
+const ALL = 99;
+const MANV: Record<string, Needs> = Object.fromEntries(
+  MANV_LEVELS.map(([r, , max]) => {
+    const needs: Needs = [
+      ['rtw', Math.min(15, Math.ceil(max / 2))],
+      ['notarzt', Math.min(6, Math.ceil(max / 5))],
+    ];
+    if (max >= 10) needs.push(['rd_fuehrung', max >= 20 ? 2 : 1], ['t1', ALL]);
+    if (max >= 15) needs.push(['t2', ALL]);
+    if (max >= 20) needs.push(['betreuung', ALL], ['pat_ablage', ALL]);
+    return [r, needs];
+  }),
+);
+const MANV_TEXT: Record<string, string> = Object.fromEntries(MANV_LEVELS.map(([r, min, max]) => [r, `${min}–${max} Verletzte`]));
+const MANV_CODES = MANV_LEVELS.map(([r]) => r);
 
 const Y: Needs = [['loeschen', 1], ['rtw', 1], ['notarzt', 1]];
 const X: Needs = [['gefahrgut', 1], ['atemschutz', 1]];
 
-const FULL = ['', 'R0', 'R1', 'R2', 'R3', 'R4', 'Übung', 'X', 'XR0', 'XR1', 'XR2', 'XR3', 'XR4', 'XY', 'Y'];
+const FULL = ['', ...MANV_CODES, 'Übung', 'X', ...MANV_CODES.map((r) => `X${r}`), 'XY', 'Y'];
 
 interface Mod {
   suffix: string;
@@ -49,10 +77,10 @@ function modifier(eg: string): Mod {
   if (eg === 'Y') return { suffix: ' – Menschenleben in Gefahr', needs: Y, urgent: true };
   if (eg === 'X') return { suffix: ' – Gefahrstoffaustritt', needs: X, urgent: true };
   if (eg === 'XY') return { suffix: ' – Gefahrstoff und Menschenleben in Gefahr', needs: add(X, Y), urgent: true };
-  if (/^R\d$/.test(eg)) return { suffix: ` – MANV ${MANV_TEXT[eg]}`, needs: MANV[eg], urgent: true };
-  if (/^XR\d$/.test(eg)) {
+  if (MANV[eg]) return { suffix: ` – Großeinsatz Rettungsdienst ${MANV_TEXT[eg]}`, needs: MANV[eg], urgent: true };
+  if (/^XR\d+$/.test(eg) && MANV[eg.slice(1)]) {
     const r = eg.slice(1);
-    return { suffix: ` – Gefahrstoff, MANV ${MANV_TEXT[r]}`, needs: add(X, MANV[r]), urgent: true };
+    return { suffix: ` – Gefahrstoff, Großeinsatz Rettungsdienst ${MANV_TEXT[r]}`, needs: add(X, MANV[r]), urgent: true };
   }
   throw new Error(`Unbekannte Ergänzung ${eg}`);
 }
@@ -107,10 +135,10 @@ for (const [ew, r, n, l] of NOTF_RD) {
 one('NOTF ADIP', 'Notfall: schwergewichtiger Patient (über 180 kg)', 'rd', 1, [['rtw_schwerlast', 1]]);
 one('NOTF ADIP G', 'Notfall: schwergewichtiger Patient (über 230 kg) mit Tragehilfe', 'rd', 1, [['rtw_schwerlast', 1], ['loeschen', 1]]);
 for (const [ew, r, n, l] of NOTF_RD) one(`NOTF BAB ${ew}`, `${l} – Autobahn/Schnellstraße`, 'vu', 1, add(RD(r, n), [['polizei', 1]]));
-for (const r of ['R0', 'R1', 'R2', 'R3', 'R4']) one(`NOTF BAB ${r}`, `MANV auf Autobahn/Schnellstraße – ${MANV_TEXT[r]}`, 'vu', 1, add(MANV[r], [['th', 1], ['polizei', 1]]));
+for (const r of MANV_CODES) one(`NOTF BAB ${r}`, `Großeinsatz Rettungsdienst auf Autobahn/Schnellstraße – ${MANV_TEXT[r]}`, 'vu', 1, add(MANV[r], [['th', 1], ['polizei', 1]]));
 one('NOTF INKUB', 'Notfall: Transport im Inkubator (Neugeborenes)', 'rd', 1, [['inkubator', 1], ['notarzt', 1]]);
 withCovid('NOTF K', 'Notfall ohne Sondersignal: 1 RTW', 'rd', 2, RD(1, 0), { emergency: false });
-for (const r of ['R0', 'R1', 'R2', 'R3', 'R4']) one(`NOTF ${r}`, `Massenanfall von Verletzten – ${MANV_TEXT[r]}`, 'rd', 1, MANV[r]);
+for (const r of MANV_CODES) one(`NOTF ${r}`, `Großeinsatz Rettungsdienst – ${MANV_TEXT[r]}`, 'rd', 1, MANV[r]);
 one('NOTF RTH', 'Notfall: nur Rettungshubschrauber', 'rd', 1, [['rth', 1]]);
 one('NOTF SOKO KIT', 'Notfall: Krisenintervention (Kriseninterventionsteam)', 'rd', 2, [['psnv', 1]], { note: 'in der Praxis abgelöst durch PSNV-B' });
 one('NOTF SOKO Fuss', 'Notfall: Sanitäts-Fußtrupp (z. B. Großveranstaltung)', 'rd', 2, [['san_gross', 1]]);
@@ -177,7 +205,7 @@ family('FEU', 'WALD', 'Wald- und Vegetationsbrand Standard', 'brand', 1, [['fueh
 family('FEU', '2', 'Brand Stufe 2', 'brand', 1, FEU2, FULL);
 one('FEU 2 SCHIFF', 'Brand Stufe 2 auf einem Schiff', 'brand', 1, add(FEU2, WATER));
 one('FEU 2 SCHIFF Y', 'Brand Stufe 2 auf einem Schiff – Menschenleben in Gefahr', 'brand', 1, add(FEU2, WATER, Y));
-const STAGE = ['', 'R0', 'R1', 'R2', 'R3', 'R4', 'Übung'];
+const STAGE = ['', ...MANV_CODES, 'Übung'];
 family('FEU', '3', 'Brand Stufe 3', 'brand', 1, FEU3, STAGE);
 family('FEU', '4', 'Brand Stufe 4', 'brand', 1, FEU4, STAGE);
 family('FEU', '5', 'Brand Stufe 5', 'brand', 1, FEU5, STAGE);
@@ -235,7 +263,7 @@ family('TH G', 'BAHN', 'Technische Hilfe größer Standard im Gleisbereich', 'th
 const POL_LARGE: Needs = [['rtw', 2], ['notarzt', 1], ['rd_fuehrung', 1], ['polizei_fuehrung', 1], ['polizei_gruppe', 1]];
 const polFamily = (ew: string, l: string, base: Needs) => {
   one(`POL ${ew}`, `Polizeilage: ${l}`, 'pol', 1, base);
-  for (const r of ['R0', 'R1', 'R2', 'R3', 'R4']) one(`POL ${ew} ${r}`, `Polizeilage: ${l} – MANV ${MANV_TEXT[r]}`, 'pol', 1, add(base, MANV[r]));
+  for (const r of MANV_CODES) one(`POL ${ew} ${r}`, `Polizeilage: ${l} – Großeinsatz Rettungsdienst ${MANV_TEXT[r]}`, 'pol', 1, add(base, MANV[r]));
 };
 polFamily('AMOK', 'Amoklage', POL_LARGE);
 polFamily('BOMBE', 'Bombendrohung (Bereitstellung)', [['loeschen', 1], ['rtw', 1], ['polizei', 1]]);
