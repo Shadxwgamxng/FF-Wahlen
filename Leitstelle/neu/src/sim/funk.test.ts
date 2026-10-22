@@ -310,4 +310,19 @@ describe('Erste Lagemeldung beim Eintreffen', () => {
     expect(m.handled).toBe(true);
     expect(v.rt.status).toBe('einsatzort');
   });
+
+  it('Krankentransport: keine Lagemeldung beim Eintreffen', async () => {
+    const E = await import('./engine');
+    const { suggestForIncident } = await import('./dispatch');
+    const g = game();
+    const kw = g.center.keywords.find((k) => k.category === 'ktp')!;
+    const st = g.center.stations[0];
+    E.createManualIncident(g, kw.id, [st.position[0] + 0.02, st.position[1] + 0.02], 'Teststraße 1', 'Krankentransport');
+    const inc = g.runtime.incidents[0];
+    E.alarmVehicles(g, inc.id, suggestForIncident(g, inc).proposal.map((p) => p.vehicleId));
+    for (let i = 0; i < 300 && !inc.firstArrivalAt; i++) E.tick(g, 10_000);
+    expect(inc.firstArrivalAt).toBeTruthy();
+    expect(g.runtime.radio.some((r) => r.incidentId === inc.id && r.kind === 'lage')).toBe(false);
+    expect(g.center.vehicles.some((v) => inc.activeVehicleIds.includes(v.id) && v.rt.status === 'sprechwunsch' && v.rt.statusBeforeSpeak === 'einsatzort')).toBe(false);
+  });
 });

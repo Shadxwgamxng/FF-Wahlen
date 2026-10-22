@@ -453,11 +453,15 @@ function arrive(state: GameState, v: Vehicle) {
         // Ungehörte Ausrückmeldungen der Wehren sind mit dem Eintreffen überholt
         for (const r of state.runtime.radio) if (r.incidentId === inc.id && !r.handled && r.revealed === false && r.kind === 'lage' && r.text.includes('rückt aus mit')) r.handled = true;
         // Erste Lagemeldung: das erste Fahrzeug drückt Status 5 und meldet nach dem Ansprechen die Lage
-        const bound = state.center.vehicles.filter((x) => inc.activeVehicleIds.includes(x.id));
-        const missing = openRequirements(state, nonMedical(inc.needs), bound).length > 0;
-        v.rt.statusBeforeSpeak = 'einsatzort';
-        setStatus(state, v, 'sprechwunsch');
-        radio(state, { vehicleId: v.id, incidentId: inc.id, kind: 'lage', text: arrivalReport(state, inc, missing) });
+        // (nicht beim Krankentransport – dort gibt es vor Ort nichts zu melden)
+        const isKtp = state.center.keywords.find((k) => k.id === inc.keywordId)?.category === 'ktp';
+        if (!isKtp) {
+          const bound = state.center.vehicles.filter((x) => inc.activeVehicleIds.includes(x.id));
+          const missing = openRequirements(state, nonMedical(inc.needs), bound).length > 0;
+          v.rt.statusBeforeSpeak = 'einsatzort';
+          setStatus(state, v, 'sprechwunsch');
+          radio(state, { vehicleId: v.id, incidentId: inc.id, kind: 'lage', text: arrivalReport(state, inc, missing) });
+        }
       }
       if (inc.state === 'abarbeitung_beendet') {
         radio(state, { vehicleId: v.id, incidentId: inc.id, kind: 'lage', text: 'Eingetroffen, Einsatzstelle bereits abgearbeitet – erbitten Entlassung.' });

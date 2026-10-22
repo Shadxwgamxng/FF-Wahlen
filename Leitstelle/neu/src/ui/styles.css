@@ -528,3 +528,11 @@ html[data-style='behoerde'] .list-item.ringing { animation: ring-b 1s steps(1) i
 html[data-style='modern'] .menubar { background: #0c1118; border-bottom-color: #1a222c; }
 html[data-style='modern'] .statusbar { background: #0c1118; border-top-color: #1a222c; }
 html[data-style='modern'] .panel-head { background: #121821; border-bottom-color: #1f2833; }
+
+/* Alarmieren-Knopf: in beiden Stilen rot, blinkt sobald etwas zum Alarmieren ausgewählt ist */
+html .btn.alarm, html[data-style] .btn.alarm { background: #c4161c; border-color: #7a0b10; color: #fff; font-weight: 700; box-shadow: none; }
+html .btn.alarm:hover:not(:disabled), html[data-style] .btn.alarm:hover:not(:disabled) { background: #e01f26; border-color: #7a0b10; }
+html .btn.alarm:not(:disabled), html[data-style] .btn.alarm:not(:disabled) { animation: alarm-blink 0.9s steps(1, end) infinite; }
+html .btn.alarm:disabled, html[data-style] .btn.alarm:disabled { opacity: .55; }
+@keyframes alarm-blink { 0% { background: #c4161c; } 50% { background: #ff4d4f; box-shadow: 0 0 8px #ff4d4f; } }
+@media (prefers-reduced-motion: reduce) { html[data-style] .btn.alarm:not(:disabled) { animation-duration: 1.8s; } }
