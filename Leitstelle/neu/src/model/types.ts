@@ -145,6 +145,8 @@ export interface ServiceWindow {
   toHour: number;
   /** Wochentage 0=So … 6=Sa; leer = jeden Tag */
   weekdays: number[];
+  /** Monate 1=Jan … 12=Dez (Saison); leer/fehlend = ganzjährig */
+  months?: number[];
 }
 
 export interface MaintenanceWindow {
@@ -167,6 +169,8 @@ export interface Vehicle {
   equipment: string[];
   /** Leer = rund um die Uhr im Dienst */
   serviceWindows: ServiceWindow[];
+  /** Dauerhaft außer Dienst (z. B. Info-/Werbefahrzeug, Jugendfeuerwehr): wird nie disponiert */
+  outOfService?: boolean;
   maintenance: MaintenanceWindow[];
   /** Extern (Nachbarleitstelle / Luftrettung) – Alarmierung über Anforderung */
   external?: { neighborId: ID; requestDelaySeconds: number };

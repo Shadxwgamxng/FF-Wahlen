@@ -18,13 +18,13 @@ Beim ersten Mal muss das Mikrofon im Funkpanel am PC freigegeben werden (gleiche
 
 Drückt ein Fahrzeug Status 5, ist zunächst nur der Sprechwunsch zu sehen. Was die Besatzung will, erfährst du erst, wenn du sie ansprichst:
 
-> **Leitstelle:** Florian Ostholstein 61-48-01 von Leitstelle, kommen.
-> **Fahrzeug:** Hier Florian Ostholstein 61-48-01, Nachforderung: Polizei zur Einsatzstelle, kommen.
+> **Leitstelle:** Florian Ostholstein 61/48-01 von Leitstelle, kommen.
+> **Fahrzeug:** Hier Florian Ostholstein 61/48-01, Nachforderung: Polizei zur Einsatzstelle, kommen.
 > **Leitstelle:** Verstanden, Polizei wird alarmiert, Ende.
 
 Mit „Verstanden …“ ist die Meldung quittiert.
 
-**Erste Lagemeldung:** Das erste Fahrzeug an der Einsatzstelle drückt Status 5. Nach dem Ansprechen meldet es die tatsächliche Lage aus dem Szenario, z. B. „Hier Rettung Ostholstein 61-83-01, eingetroffen. Leblose Person. Patient ohne Atmung, Reanimation eingeleitet. Patient etwa 80 Jahre. Weitere Rückmeldung folgt, kommen.“ Passt dein Stichwort nicht zur Lage, merkst du es hier. Reichen die Kräfte nicht, kündigt es die Nachforderung an. Auch „Lagemeldung“ auf Nachfrage beschreibt vor Ort die tatsächliche Lage. Die nachgeforderten Kräfte alarmierst du wie gewohnt in der Einsatzmaske.
+**Erste Lagemeldung:** Das erste Fahrzeug an der Einsatzstelle drückt Status 5. Nach dem Ansprechen meldet es die tatsächliche Lage aus dem Szenario, z. B. „Hier Rotkreuz Ostholstein 61/83-01, eingetroffen. Leblose Person. Patient ohne Atmung, Reanimation eingeleitet. Patient etwa 80 Jahre. Weitere Rückmeldung folgt, kommen.“ Passt dein Stichwort nicht zur Lage, merkst du es hier. Reichen die Kräfte nicht, kündigt es die Nachforderung an. Auch „Lagemeldung“ auf Nachfrage beschreibt vor Ort die tatsächliche Lage. Die nachgeforderten Kräfte alarmierst du wie gewohnt in der Einsatzmaske.
 
 ## Aufträge an Fahrzeuge
 
@@ -40,7 +40,7 @@ Nach dem Rufnamen (oder als Folgesatz an das zuletzt angesprochene Fahrzeug):
 | „Verstanden, Ende“ | offene Meldung quittiert |
 | „Anrufer meldet Person aus Wasser geborgen, jetzt unter Reanimationsmaßnahmen“, „Zur Info: …“ | Lagemitteilung: Die Besatzung wiederholt sie sinngemäß und bestätigt („Person aus Wasser geborgen, wird nun reanimiert, das haben wir verstanden, kommen“). Auf Anfahrt nennt sie dazu die Ankunftszeit. Die Mitteilung steht im Einsatzprotokoll. |
 
-Rufnamen werden in vielen Schreibweisen erkannt. Die führende Null musst du nicht sprechen: „61 48 eins“ reicht für 61-48-01. Ebenso „einundsechzig achtundvierzig eins“, „null eins“ oder zusammengezogene Zahlen der Erkennung („6148 1“, „61481“). Auch die Besatzungen sprechen ihren Rufnamen so: „einundsechzig achtundvierzig eins“. Kurze Rufnamen („Christoph 12“) nur zusammen mit dem Organisationswort.
+Rufnamen werden in vielen Schreibweisen erkannt. Die führende Null musst du nicht sprechen: „61 48 eins“ reicht für 61/48-01. Ebenso „einundsechzig achtundvierzig eins“, „null eins“ oder zusammengezogene Zahlen der Erkennung („6148 1“, „61481“). Auch die Besatzungen sprechen ihren Rufnamen so: „einundsechzig achtundvierzig eins“. Kurze Rufnamen („Christoph 12“, „Adler Scharbeutz 15-03“) nur zusammen mit dem Organisationswort. Gleiche Zahlen bei verschiedenen Organisationen (z. B. „Florian Ostholstein 67/18-01“ und „Akkon Ostholstein 67/18-01“) unterscheidet das Präfix; bei THW-Rufnamen hilft der Ort („Heros Eutin 24/55“). Präfixe werden auch in Schreibweisen der Spracherkennung erkannt: „Rot Kreuz“/„Rotes Kreuz“ = Rotkreuz, „Akon“ = Akkon, „Christof“ = Christoph.
 
 ## Grenzen
 

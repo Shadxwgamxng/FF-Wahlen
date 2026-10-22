@@ -84,7 +84,10 @@ export const schemas = {
     stationId: z.string(),
     identifier: z.string().default(''),
     equipment: z.array(z.string()).default([]),
-    serviceWindows: z.array(z.object({ fromHour: z.number().int().min(0).max(23), toHour: z.number().int().min(1).max(24), weekdays: z.array(z.number().int().min(0).max(6)) })).default([]),
+    serviceWindows: z
+      .array(z.object({ fromHour: z.number().int().min(0).max(23), toHour: z.number().int().min(1).max(24), weekdays: z.array(z.number().int().min(0).max(6)), months: z.array(z.number().int().min(1).max(12)).optional() }))
+      .default([]),
+    outOfService: z.boolean().optional(),
     maintenance: z.array(z.object({ id, from: z.number(), to: z.number(), reason: z.string() })).default([]),
     external: z.object({ neighborId: z.string(), requestDelaySeconds: z.number().min(0) }).optional(),
     radioGroup: z.object({ name: z.string(), code: z.string() }).optional(),

@@ -125,9 +125,10 @@ describe('Beispielleitstelle Ostholstein', () => {
     expect(OSTHOLSTEIN.polygons.length).toBeGreaterThanOrEqual(2);
     const c = createOstholsteinCenter(ELEMENTS);
     expect(c.areas[0].osmRelationId).toBe(27025);
-    expect(c.stations.find((s) => s.name === 'Freiwillige Feuerwehr Eutin')).toBeDefined();
-    const eutinFf = c.stations.find((s) => s.name === 'Freiwillige Feuerwehr Eutin')!;
-    expect(c.vehicles.filter((v) => v.stationId === eutinFf.id).map((v) => v.typeId)).toContain('dlk');
+    const eutinFf = c.stations.find((s) => s.name === 'FF Eutin OF Eutin')!;
+    expect(eutinFf).toBeDefined();
+    // echte Ausstattung: Drehleiter DLA 67/32-01
+    expect(c.vehicles.find((v) => v.stationId === eutinFf.id && v.typeId === 'oh_dla')?.callsign).toBe('Florian Ostholstein 67/32-01');
     expect(c.vehicles.some((v) => v.callsign === 'Christoph 12')).toBe(true);
     expect(c.organizations.every((o) => o.radioGroup.code)).toBe(true);
     const g = createGame(c);

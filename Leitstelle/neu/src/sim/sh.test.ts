@@ -47,25 +47,27 @@ describe('Funkrufnamen Ostholstein', () => {
     expect(okzOf({ name: 'Kreisfeuerwehrverband Ostholstein', position: [54.21728, 10.89575] })).toBe('01');
   });
 
-  it('Schema OKZ-Kenner-Nr, eindeutig, Hauptort bekommt die 01', () => {
+  it('echte Funkrufnamen im Schema OKZ/Kenner-NN, eindeutig', () => {
     const c = createOstholsteinCenter(ELEMENTS);
-    const signs = c.vehicles.map((v) => v.callsign).filter((s) => /^(Florian|Rettung) /.test(s));
-    expect(signs.length).toBeGreaterThan(50);
-    for (const s of signs) expect(s).toMatch(/^(Florian|Rettung) Ostholstein \d\d-\d\d-\d\d$/);
-    expect(new Set(signs).size).toBe(signs.length);
-    const neustadt = c.stations.find((s) => s.name === 'Freiwillige Feuerwehr Neustadt in Holstein')!;
-    expect(c.vehicles.find((v) => v.stationId === neustadt.id && v.typeId === 'hlf10')?.callsign).toBe('Florian Ostholstein 61-48-01');
+    const signs = c.vehicles.map((v) => v.callsign).filter((s) => /^(Florian|Rettung|Rotkreuz|Akkon|Sama|Kater|Pelikan|Johannes) Ostholstein /.test(s));
+    expect(signs.length).toBeGreaterThan(250);
+    for (const s of signs) expect(s).toMatch(/^\S+ Ostholstein \d\d\/\d\d-\d\d$/);
+    expect(new Set(c.vehicles.map((v) => v.callsign)).size).toBe(c.vehicles.length);
+    const neustadt = c.stations.find((s) => s.name === 'FF Neustadt in Holstein')!;
+    expect(c.vehicles.find((v) => v.stationId === neustadt.id && v.typeId === 'hlf20')?.callsign).toBe('Florian Ostholstein 61/48-01');
   });
 });
 
 describe('Katalog Schleswig-Holstein in der Beispielleitstelle Ostholstein', () => {
-  it('jede im SH-Katalog geforderte Fähigkeit ist mit Fahrzeugen der Leitstelle abgedeckt', () => {
+  it('jede im SH-Katalog geforderte Fähigkeit ist mit echten Fahrzeugen abgedeckt – bis auf Sonderfahrzeuge, die es im Kreis nicht gibt', () => {
     const g = ostholstein(1);
     expect(g.center.catalogId).toBe('sh');
-    const provided = new Set(g.center.vehicles.flatMap((v) => g.center.vehicleTypes.find((t) => t.id === v.typeId)?.capabilities ?? []));
+    const provided = new Set(g.center.vehicles.filter((v) => !v.outOfService).flatMap((v) => g.center.vehicleTypes.find((t) => t.id === v.typeId)?.capabilities ?? []));
     const missing = new Set<string>();
-    for (const r of g.center.aao) for (const { capability } of r.requirements) if (!provided.has(capability)) missing.add(`${capability} (${g.center.keywords.find((k) => k.id === r.keywordId)?.code})`);
-    expect([...missing]).toEqual([]);
+    for (const r of g.center.aao) for (const { capability } of r.requirements) if (!provided.has(capability)) missing.add(capability);
+    // In den Listen nicht enthalten (kommen im Ernstfall aus Nachbarbereichen): ITW/Inkubator, Schwerlast-RTW/-KTW,
+    // Infektions-KTW, Höhenrettungsgruppe, Kriseninterventionsteam
+    expect([...missing].sort()).toEqual(['hoehenretter', 'inkubator', 'intensiv', 'ktw_infekt', 'ktw_schwerlast', 'psnv', 'rtw_schwerlast']);
   });
 
   it('Weiterleitung beendet den Notruf ohne Einsatz', () => {
@@ -114,6 +116,13 @@ describe('Katalog Schleswig-Holstein in der Beispielleitstelle Ostholstein', () 
           const plan = proposalWithGroups(g, inc, s);
           if (plan.groups.length) alarmGroups(g, inc.id, plan.groups.map((x) => x.station.id));
           if (plan.vehicleIds.length) alarmVehicles(g, inc.id, plan.vehicleIds);
+          // Bedarf, den kein Fahrzeug der Leitstelle erfüllen kann (z. B. KIT, Schwerlast-KTW): wie im Spiel
+          // an den Nachbarbereich abgeben und den Einsatz (vorzeitig) abschließen
+          const caps = new Set(g.center.vehicles.flatMap((v) => g.center.vehicleTypes.find((t) => t.id === v.typeId)?.capabilities ?? []));
+          if (inc.state === 'neu' && !plan.groups.length && !plan.vehicleIds.length && s.open.length && s.open.every((o) => !caps.has(o.capability) || o.capability.startsWith('polizei'))) {
+            expect(closeIncident(g, inc.id, true).ok).toBe(true);
+            continue;
+          }
           // Polizei wird telefonisch angefordert
           if (s.open.some((o) => o.capability.startsWith('polizei')) && !inc.police?.sent.length) {
             policeShare(g, inc.id);

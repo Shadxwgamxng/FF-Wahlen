@@ -14,7 +14,7 @@ function game(): GameState {
   c.settings.randomBreakdowns = false;
   return createGame(c);
 }
-const hlf = (g: GameState) => g.center.vehicles.find((v) => v.callsign === 'Florian Ostholstein 61-48-01')!;
+const hlf = (g: GameState) => g.center.vehicles.find((v) => v.callsign === 'Florian Ostholstein 61/48-01')!;
 const lines = (g: GameState) => g.runtime.funk?.log ?? [];
 const last = (g: GameState) => lines(g)[lines(g).length - 1];
 
@@ -27,7 +27,7 @@ function sprechwunsch(g: GameState, v: Vehicle, msg: Partial<RadioMessage>): Rad
 
 describe('Funk: Zahlen und Rufnamen', () => {
   it('liest gesprochene Zahlenfolgen', () => {
-    expect(spokenNumbers('Florian Ostholstein 61-48-01')).toEqual([61, 48, 1]);
+    expect(spokenNumbers('Florian Ostholstein 61/48-01')).toEqual([61, 48, 1]);
     expect(spokenNumbers('61 48 1 kommen')).toEqual([61, 48, 1]);
     expect(spokenNumbers('614801')).toEqual([61, 48, 1]);
     expect(spokenNumbers('einundsechzig achtundvierzig null eins')).toEqual([61, 48, 1]);
@@ -38,7 +38,7 @@ describe('Funk: Zahlen und Rufnamen', () => {
     const g = game();
     const v = hlf(g);
     for (const t of [
-      'Florian Ostholstein 61-48-01 von Leitstelle, kommen',
+      'Florian Ostholstein 61/48-01 von Leitstelle, kommen',
       'Florian 61 48 1',
       'Florian Ostholstein 61 48 eins von Leitstelle kommen',
       'einundsechzig achtundvierzig eins kommen',
@@ -47,9 +47,11 @@ describe('Funk: Zahlen und Rufnamen', () => {
       'Florian Ostholstein 6148 1 kommen',
       'Florian Ostholstein 61481',
       'Florian Ostholstein 61-48-1',
+      'Florian Ostholstein 61/48-1',
+      'Florian Ostholstein 61 Strich 48 01',
     ])
       expect(findCallsign(g, t)?.id, t).toBe(v.id);
-    // "61-48-11" ist ein anderes Fahrzeug als "61-48-1"
+    // "61/48-11" ist ein anderes Fahrzeug als "61/48-1"
     expect(findCallsign(g, 'Florian Ostholstein 6148 11')?.callsign ?? null).not.toBe(v.callsign);
     expect(findCallsign(g, 'Leitstelle an alle')).toBeNull();
     // kurze Rufnamen nur mit Organisationswort
@@ -58,9 +60,13 @@ describe('Funk: Zahlen und Rufnamen', () => {
   });
 
   it('Sprachausgabe liest Rufnamen als Zahlwörter', () => {
-    expect(toSpeech('Hier Florian Ostholstein 61-48-01, hört, kommen.')).toBe('Hier Florian Ostholstein einundsechzig achtundvierzig eins, hört, kommen.');
-    expect(toSpeech('Rettung Ostholstein 76-83-02 an 3 Einsatzstellen')).toBe('Rettung Ostholstein sechsundsiebzig dreiundachtzig zwo an 3 Einsatzstellen');
+    expect(toSpeech('Hier Florian Ostholstein 61/48-01, hört, kommen.')).toBe('Hier Florian Ostholstein einundsechzig achtundvierzig eins, hört, kommen.');
+    expect(toSpeech('Rettung Ostholstein 67/83-02 an 3 Einsatzstellen')).toBe('Rettung Ostholstein siebenundsechzig dreiundachtzig zwo an 3 Einsatzstellen');
+    expect(toSpeech('Hier Akkon Ostholstein 92/82-01, kommen.')).toBe('Hier Akkon Ostholstein zweiundneunzig zweiundachtzig eins, kommen.');
+    // alte Schreibweise mit Bindestrichen wird weiterhin gelesen
+    expect(toSpeech('Florian Ostholstein 61-48-01')).toBe('Florian Ostholstein einundsechzig achtundvierzig eins');
     expect(toSpeech('Heros 3/11')).toBe('Heros drei elf');
+    expect(toSpeech('Heros Neustadt/Holstein 31/34')).toBe('Heros Neustadt Holstein einunddreißig vierunddreißig');
   });
 
   it('Zahlwörter 0–99', () => {
@@ -70,7 +76,7 @@ describe('Funk: Zahlen und Rufnamen', () => {
 
   it('Round-Trip: Sprachausgabe ergibt wieder die Rufnamenzahlen', () => {
     for (const [cs, seq] of [
-      ['Florian Ostholstein 61-48-01', [61, 48, 1]],
+      ['Florian Ostholstein 61/48-01', [61, 48, 1]],
       ['Florian Ostholstein 76-48-02', [76, 48, 2]],
       ['Rettung Ostholstein 83-21-12', [83, 21, 12]],
       ['Florian Ostholstein 10-30-99', [10, 30, 99]],
@@ -85,7 +91,49 @@ describe('Funk: Zahlen und Rufnamen', () => {
     for (const t of ['sechs eins vier acht null eins kommen', 'Florian Ostholstein sechs eins vier acht null eins von Leitstelle', 'Florian 6 1 4 8 0 1'])
       expect(findCallsign(g, t)?.id, t).toBe(v.id);
     // exakte Gruppen haben Vorrang, ziffernweise ändert bestehende Treffer nicht
-    expect(findCallsign(g, 'Florian Ostholstein 61-48-01')?.id).toBe(v.id);
+    expect(findCallsign(g, 'Florian Ostholstein 61/48-01')?.id).toBe(v.id);
+  });
+});
+
+describe('Funk: echte Rufnamen Ostholstein', () => {
+  const by = (g: GameState, cs: string) => g.center.vehicles.find((v) => v.callsign === cs)!;
+
+  it('Präfixe der Hilfsorganisationen – auch in Schreibweisen der Spracherkennung', () => {
+    const g = game();
+    const cases: [string, string][] = [
+      ['Akkon Ostholstein 92/83-01 kommen', 'Akkon Ostholstein 92/83-01'],
+      ['Akon Ostholstein 92 83 1 kommen', 'Akkon Ostholstein 92/83-01'],
+      ['Rot Kreuz Ostholstein 40/83-05', 'Rotkreuz Ostholstein 40/83-05'],
+      ['Rotes Kreuz 40 83 5 von Leitstelle', 'Rotkreuz Ostholstein 40/83-05'],
+      ['Christof zwölf kommen', 'Christoph 12'],
+      ['Heros Eutin 24/55', 'Heros Eutin 24/55'],
+      ['Heros Oldenburg 24/55', 'Heros Oldenburg 24/55'],
+      ['Heros Neustadt Holstein 31/34', 'Heros Neustadt/Holstein 31/34'],
+      // genau so getippt wie angezeigt (Schrägstrich zwischen den Ortswörtern)
+      ['Heros Neustadt/Holstein 31/34', 'Heros Neustadt/Holstein 31/34'],
+      ['Heros Neustadt/Holstein 21/10 von Leitstelle kommen', 'Heros Neustadt/Holstein 21/10'],
+      ['Heros Neustadt/Holstein 86/25', 'Heros Neustadt/Holstein 86/25'],
+      ['Heros Eutin 21/10 kommen', 'Heros Eutin 21/10'],
+      ['Adler Scharbeutz 15-03', 'Adler Scharbeutz 15-03 - UTV'],
+      ['Pelikan Ostholstein 74/18-01', 'Pelikan Ostholstein 74/18-01'],
+      ['Johannes Ostholstein 89/18-01', 'Johannes Ostholstein 89/18-01'],
+    ];
+    for (const [said, cs] of cases) {
+      expect(by(g, cs), cs).toBeDefined();
+      expect(findCallsign(g, said)?.callsign, said).toBe(cs);
+    }
+  });
+
+  it('gleiche Zahlen bei verschiedenen Organisationen: nur mit Präfix eindeutig', () => {
+    const g = game();
+    // Florian 67/18-01 (FF Eutin) und Akkon 67/18-01 (JUH Eutin)
+    expect(by(g, 'Florian Ostholstein 67/18-01')).toBeDefined();
+    expect(by(g, 'Akkon Ostholstein 67/18-01')).toBeDefined();
+    expect(findCallsign(g, 'Florian Ostholstein 67/18-01')?.callsign).toBe('Florian Ostholstein 67/18-01');
+    expect(findCallsign(g, 'Akkon 67 18 01')?.callsign).toBe('Akkon Ostholstein 67/18-01');
+    expect(findCallsign(g, '67 18 01 kommen')).toBeNull();
+    // gleiche THW-Rufnummer in zwei Ortsverbänden ohne Ortsangabe: mehrdeutig
+    expect(findCallsign(g, 'Heros 24/55')).toBeNull();
   });
 });
 
@@ -95,10 +143,10 @@ describe('Funk: Sprechwunsch (Status 5)', () => {
     const v = hlf(g);
     const m = sprechwunsch(g, v, { kind: 'nachforderung', text: 'Nachforderung: 1× Streife', requirements: [{ capability: 'polizei', count: 1 }] });
     const grp = radioGroupOf(g.center, v)!.code;
-    expect(radioTalk(g, 'Florian Ostholstein 61-48-01 von Leitstelle, kommen', grp).ok).toBe(true);
+    expect(radioTalk(g, 'Florian Ostholstein 61/48-01 von Leitstelle, kommen', grp).ok).toBe(true);
     expect(m.revealed).toBe(true);
     expect(last(g).from).toBe('fahrzeug');
-    expect(last(g).text).toBe('Hier Florian Ostholstein 61-48-01, Nachforderung: Polizei zur Einsatzstelle, kommen.');
+    expect(last(g).text).toBe('Hier Florian Ostholstein 61/48-01, Nachforderung: Polizei zur Einsatzstelle, kommen.');
     expect(last(g).speech).toContain('einundsechzig achtundvierzig eins,');
     radioTalk(g, 'Verstanden, Polizei wird alarmiert, Ende.', grp);
     expect(m.handled).toBe(true);
@@ -109,7 +157,7 @@ describe('Funk: Sprechwunsch (Status 5)', () => {
   it('Fahrzeug in anderer Rufgruppe antwortet nicht', () => {
     const g = game();
     const m = sprechwunsch(g, hlf(g), {});
-    radioTalk(g, 'Florian Ostholstein 61-48-01 kommen', 'RD_OH');
+    radioTalk(g, 'Florian Ostholstein 61/48-01 kommen', 'RD_OH');
     expect(m.revealed).toBe(false);
     expect(last(g).from).toBe('system');
     expect(last(g).text).toMatch(/Keine Antwort/);
@@ -120,7 +168,7 @@ describe('Funk: Sprechwunsch (Status 5)', () => {
     const m = sprechwunsch(g, hlf(g), { text: 'Einsatzstelle abgearbeitet, Kräfte können entlassen werden.' });
     expect(radioCall(g, hlf(g).id).ok).toBe(true);
     expect(m.revealed).toBe(true);
-    expect(last(g).text).toBe('Hier Florian Ostholstein 61-48-01, Einsatzstelle abgearbeitet, Kräfte können entlassen werden, kommen.');
+    expect(last(g).text).toBe('Hier Florian Ostholstein 61/48-01, Einsatzstelle abgearbeitet, Kräfte können entlassen werden, kommen.');
   });
 
   it('Ansprechen per Klick läuft in der Rufgruppe des Fahrzeugs', () => {
@@ -131,7 +179,7 @@ describe('Funk: Sprechwunsch (Status 5)', () => {
     expect(last(g).group).toBe(radioGroupOf(g.center, hlf(g))!.code);
     expect(g.runtime.funk!.log.filter((l) => l.from === 'leitstelle').at(-1)!.group).toBe(radioGroupOf(g.center, hlf(g))!.code);
     // per Sprechtaste: Antwort in der geschalteten Gruppe
-    radioTalk(g, 'Florian Ostholstein 61-48-01, Lagemeldung', 'FW_OH');
+    radioTalk(g, 'Florian Ostholstein 61/48-01, Lagemeldung', 'FW_OH');
     expect(last(g).group).toBe('FW_OH');
   });
 
@@ -143,17 +191,17 @@ describe('Funk: Sprechwunsch (Status 5)', () => {
     const inc = g.runtime.incidents[0];
     const grp = radioGroupOf(g.center, v)!.code;
     // ohne Sprechwunsch: kein Einsatz
-    const r0 = radioTalk(g, 'Florian Ostholstein 61-48-01 von Leitstelle, kommen', grp);
+    const r0 = radioTalk(g, 'Florian Ostholstein 61/48-01 von Leitstelle, kommen', grp);
     expect(r0.ok && r0.id).toBeFalsy();
     sprechwunsch(g, v, { incidentId: inc.id });
-    const r1 = radioTalk(g, 'Florian Ostholstein 61-48-01 von Leitstelle, kommen', grp);
+    const r1 = radioTalk(g, 'Florian Ostholstein 61/48-01 von Leitstelle, kommen', grp);
     expect(r1.ok && r1.id).toBe(inc.id);
     // Folgesatz deckt nichts mehr auf
     const r2 = radioTalk(g, 'Verstanden, Ende', grp);
     expect(r2.ok && r2.id).toBeFalsy();
     // falsche Rufgruppe: nichts aufgedeckt
     sprechwunsch(g, v, { incidentId: inc.id });
-    const r3 = radioTalk(g, 'Florian Ostholstein 61-48-01 kommen', 'RD_OH');
+    const r3 = radioTalk(g, 'Florian Ostholstein 61/48-01 kommen', 'RD_OH');
     expect(r3.ok && r3.id).toBeFalsy();
   });
 
@@ -175,8 +223,8 @@ describe('Funk: Sprechwunsch (Status 5)', () => {
     const g = game();
     radioTalk(g, 'Kommen Sie mal bitte', 'FW_OH');
     expect(last(g).from).toBe('system');
-    radioTalk(g, 'Florian Ostholstein 61-48-01 von Leitstelle', 'FW_OH');
-    expect(last(g).text).toBe('Hier Florian Ostholstein 61-48-01, hört, kommen.');
+    radioTalk(g, 'Florian Ostholstein 61/48-01 von Leitstelle', 'FW_OH');
+    expect(last(g).text).toBe('Hier Florian Ostholstein 61/48-01, hört, kommen.');
     radioTalk(g, 'Geben Sie mir Ihren Status', 'FW_OH');
     expect(last(g).text).toMatch(/^Status 2, /);
   });
@@ -185,11 +233,11 @@ describe('Funk: Sprechwunsch (Status 5)', () => {
 describe('Funk: Aufträge der Leitstelle', () => {
   it('erkennt Aufträge', () => {
     const g = game();
-    expect(detectOrder(g, 'Florian 61-48-01, Status?')?.k).toBe('status');
+    expect(detectOrder(g, 'Florian 61/48-01, Status?')?.k).toBe('status');
     expect(detectOrder(g, 'geben Sie eine Lagemeldung')?.k).toBe('lage');
     expect(detectOrder(g, 'Sie können einrücken')?.k).toBe('einruecken');
     expect(detectOrder(g, 'verstanden, Ende')?.k).toBe('quittung');
-    expect(detectOrder(g, 'Florian 61-48-01 kommen')).toBeNull();
+    expect(detectOrder(g, 'Florian 61/48-01 kommen')).toBeNull();
   });
 
   it('Einsatz übernehmen, Lagemeldung, Einrücken', () => {
@@ -198,12 +246,12 @@ describe('Funk: Aufträge der Leitstelle', () => {
     const kw = g.center.keywords.find((k) => k.category === 'brand')!;
     expect(createManualIncident(g, kw.id, v.rt.position, 'Kirchhofsallee 10, 23730 Neustadt in Holstein', 'Test').ok).toBe(true);
     const inc = g.runtime.incidents[0];
-    radioTalk(g, 'Florian Ostholstein 61-48-01, übernehmen Sie den Einsatz in der Kirchhofsallee, kommen', 'FW_OH');
+    radioTalk(g, 'Florian Ostholstein 61/48-01, übernehmen Sie den Einsatz in der Kirchhofsallee, kommen', 'FW_OH');
     expect(v.rt.incidentId).toBe(inc.id);
     expect(last(g).text).toMatch(/übernehmen Einsatz Kirchhofsallee 10.*Ende\.$/);
-    radioTalk(g, 'Florian Ostholstein 61-48-01, Lagemeldung', 'FW_OH');
+    radioTalk(g, 'Florian Ostholstein 61/48-01, Lagemeldung', 'FW_OH');
     expect(last(g).text).toMatch(/Anfahrt zur Einsatzstelle Kirchhofsallee 10/);
-    radioTalk(g, 'Florian Ostholstein 61-48-01, rücken Sie ein', 'FW_OH');
+    radioTalk(g, 'Florian Ostholstein 61/48-01, rücken Sie ein', 'FW_OH');
     expect(v.rt.incidentId).toBeNull();
     expect(last(g).text).toMatch(/rücken ein, Ende\.$/);
   });
@@ -215,7 +263,7 @@ describe('Funk: keine Aufträge an das falsche Fahrzeug', () => {
     const v = hlf(g);
     const kw = g.center.keywords.find((k) => k.category === 'brand')!;
     createManualIncident(g, kw.id, v.rt.position, 'Kirchhofsallee 10, 23730 Neustadt in Holstein', 'Test');
-    radioTalk(g, 'Florian Ostholstein 61-48-01, übernehmen Sie den Einsatz in der Kirchhofsallee', 'FW_OH');
+    radioTalk(g, 'Florian Ostholstein 61/48-01, übernehmen Sie den Einsatz in der Kirchhofsallee', 'FW_OH');
     expect(v.rt.incidentId).not.toBeNull();
     radioTalk(g, 'Florian Ostholstein 9948 01, rücken Sie ein', 'FW_OH');
     expect(v.rt.incidentId).not.toBeNull();
@@ -225,8 +273,8 @@ describe('Funk: keine Aufträge an das falsche Fahrzeug', () => {
 
   it('Fragen nach Verfügbarkeit oder Lage entlassen nicht', () => {
     const g = game();
-    expect(detectOrder(g, 'Florian 61-48-01, sind Sie frei für einen neuen Einsatz?')?.k).not.toBe('einruecken');
-    expect(detectOrder(g, 'Florian 61-48-01, wie ist die Lage am Einsatz Kirchhofsallee?')?.k).toBe('lage');
+    expect(detectOrder(g, 'Florian 61/48-01, sind Sie frei für einen neuen Einsatz?')?.k).not.toBe('einruecken');
+    expect(detectOrder(g, 'Florian 61/48-01, wie ist die Lage am Einsatz Kirchhofsallee?')?.k).toBe('lage');
     expect(detectOrder(g, 'Sie sind entlassen, rücken Sie ein')?.k).toBe('einruecken');
   });
 
@@ -261,27 +309,29 @@ describe('Freisprechen beim Notruf', () => {
 describe('Funk: Lagemitteilung an ein Fahrzeug', () => {
   it('Besatzung wiederholt die Mitteilung sinngemäß und bestätigt', () => {
     const g = game();
-    const nef = g.center.vehicles.find((v) => v.callsign === 'Rettung Ostholstein 61-82-01')!;
+    const nef = g.center.vehicles.find((v) => v.callsign === 'Rotkreuz Ostholstein 61/82-01')!;
     expect(nef).toBeDefined();
-    radioTalk(g, 'Rettung Ostholstein 61-82-01 von Leitstelle, Anrufer meldet Person aus Wasser geborgen, jetzt unter Reanimationsmaßnahmen, kommen', 'RD_OH');
+    expect(radioGroupOf(g.center, nef)?.code).toBe('NA_OH');
+    radioTalk(g, 'Rotkreuz Ostholstein 61/82-01 von Leitstelle, Anrufer meldet Person aus Wasser geborgen, jetzt unter Reanimationsmaßnahmen, kommen', 'NA_OH');
     expect(last(g).from).toBe('fahrzeug');
-    expect(last(g).text).toBe('Hier Rettung Ostholstein 61-82-01, Person aus Wasser geborgen, wird nun reanimiert, ' + last(g).text.split(', ').slice(-2).join(', '));
+    expect(last(g).text).toBe('Hier Rotkreuz Ostholstein 61/82-01, Person aus Wasser geborgen, wird nun reanimiert, ' + last(g).text.split(', ').slice(-2).join(', '));
     expect(last(g).text).toMatch(/wird nun reanimiert, (das haben wir verstanden|verstanden|haben wir mitgeschrieben|ist verstanden), kommen\.$/);
   });
 
   it('auch als Folgesatz nach dem Anruf; Ankunftszeit auf Anfahrt', () => {
     const g = game();
-    const nef = g.center.vehicles.find((v) => v.callsign === 'Rettung Ostholstein 61-82-01')!;
+    const nef = g.center.vehicles.find((v) => v.callsign === 'Rotkreuz Ostholstein 61/82-01')!;
     const kw = g.center.keywords.find((k) => k.category === 'rd')!;
     createManualIncident(g, kw.id, [nef.rt.position[0] + 0.03, nef.rt.position[1]], 'Kirchhofsallee 10, 23730 Neustadt in Holstein', 'Test');
-    radioTalk(g, 'Rettung Ostholstein 61-82-01, übernehmen Sie den Einsatz Kirchhofsallee', 'RD_OH');
+    // Spracherkennung schreibt "Rotes Kreuz"
+    radioTalk(g, 'Rotes Kreuz Ostholstein 61/82-01, übernehmen Sie den Einsatz Kirchhofsallee', 'NA_OH');
     expect(nef.rt.incidentId).not.toBeNull();
-    radioTalk(g, 'Rettung Ostholstein 61-82-01 von Leitstelle kommen', 'RD_OH');
+    radioTalk(g, 'Rotkreuz Ostholstein 61/82-01 von Leitstelle kommen', 'NA_OH');
     expect(last(g).text).toMatch(/hört, kommen\.$/);
-    radioTalk(g, 'Zur Info: Patient ist jetzt wieder ansprechbar, kommen', 'RD_OH');
+    radioTalk(g, 'Zur Info: Patient ist jetzt wieder ansprechbar, kommen', 'NA_OH');
     expect(last(g).text).toMatch(/^Patient ist nun wieder ansprechbar, .*(vor Ort|rücken gleich aus), kommen\.$/);
     const inc = g.runtime.incidents[0];
-    expect(inc.log.some((l) => /Leitstelle an Rettung Ostholstein 61-82-01: Zur Info: Patient ist jetzt wieder ansprechbar/.test(l.text))).toBe(true);
+    expect(inc.log.some((l) => /Leitstelle an Rotkreuz Ostholstein 61\/82-01: Zur Info: Patient ist jetzt wieder ansprechbar/.test(l.text))).toBe(true);
   });
 });
 

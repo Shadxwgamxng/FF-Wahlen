@@ -8,7 +8,7 @@ import { acknowledgeRadio, alarmVehicles, assignHospital, capLabel, log, release
  *
  * Ablauf wie im BOS-Funk:
  *  - Fahrzeug drückt Status 5 (Sprechwunsch). Was es will, ist erst bekannt, wenn die Leitstelle es anspricht:
- *    "Florian Ostholstein 61-48-01 von Leitstelle, kommen" → "Hier Florian Ostholstein 61-48-01,
+ *    "Florian Ostholstein 61/48-01 von Leitstelle, kommen" → "Hier Florian Ostholstein 61/48-01,
  *    Nachforderung: Polizei zur Einsatzstelle, kommen" → "Verstanden, Ende" (quittiert).
  *  - Die Leitstelle kann Fahrzeuge auch von sich aus anfunken und Aufträge geben: Status abfragen,
  *    Lagemeldung, Einsatz übernehmen, Transportziel, Einrücken.
@@ -69,11 +69,17 @@ export function numberToWords(n: number): string {
   return unit ? `${PREFIX_WORDS[unit]}und${TEN_WORDS[n - unit]}` : TEN_WORDS[n];
 }
 
-/** Text in Kleinbuchstaben mit einheitlichen Leerzeichen */
-export const normalizeFunk = (text: string) => ` ${text.toLowerCase().replace(/[.,;:!?()„“"'«»]/g, ' ').replace(/\s+/g, ' ').trim()} `;
+/** Text in Kleinbuchstaben mit einheitlichen Leerzeichen; Schrägstrich zwischen Wörtern trennt ("Neustadt/Holstein" → "neustadt holstein") */
+export const normalizeFunk = (text: string) =>
+  ` ${text
+    .toLowerCase()
+    .replace(/[.,;:!?()„“"'«»]/g, ' ')
+    .replace(/([a-zäöüß])\/(?=[a-zäöüß])/g, '$1 ')
+    .replace(/\s+/g, ' ')
+    .trim()} `;
 
 /**
- * Gesprochene Zahlenfolge: "61-48-01", "61 48 1", "614801", "einundsechzig achtundvierzig null eins" → [61, 48, 1].
+ * Gesprochene Zahlenfolge: "61/48-01", "61-48-01", "61 48 1", "614801", "einundsechzig achtundvierzig null eins" → [61, 48, 1].
  * "null" vor einer einzelnen Ziffer gehört zu ihr ("null eins" = 1).
  */
 export function spokenNumbers(text: string): number[] {
@@ -107,6 +113,36 @@ export function spokenNumbers(text: string): number[] {
 
 const callsignNumbers = (callsign: string) => (callsign.replace(/\(.*\)/, '').match(/\d+/g) ?? []).map(Number);
 const callsignWord = (callsign: string) => callsign.trim().split(/\s+/)[0].toLowerCase();
+/** Ortswörter im Rufnamen nach dem Präfix ("Heros Eutin 21/10" → eutin; "Ostholstein" zählt nicht) */
+const callsignPlaceWords = (callsign: string) =>
+  callsign
+    .replace(/\(.*\)/, '')
+    .toLowerCase()
+    .split(/[^a-zäöüß]+/)
+    .slice(1)
+    .filter((w) => w.length >= 4 && w !== 'ostholstein');
+
+/**
+ * Schreibweisen der Spracherkennung für Rufnamen-Präfixe vereinheitlichen
+ * ("Rot Kreuz", "Rotes Kreuz" → rotkreuz, "Akon" → akkon, "Christof" → christoph …).
+ */
+const PREFIX_ALIASES: [RegExp, string][] = [
+  [/ (rot|rotes|roten|rot-) ?-?kreuz /g, ' rotkreuz '],
+  [/ rot-kreuz /g, ' rotkreuz '],
+  [/ (akon|acon|akkon|accon|ackon) /g, ' akkon '],
+  [/ (samma|sahma|samah) /g, ' sama '],
+  [/ (pelican|pelikahn|pellikan) /g, ' pelikan '],
+  [/ (heroes|herros|herus) /g, ' heros '],
+  [/ (christof|christoff|kristof|kristoph|christopher) /g, ' christoph '],
+  [/ (florion|floriam|florjan) /g, ' florian '],
+  [/ (johanis|johannis|johanes) /g, ' johannes '],
+  [/ (katar|kada) /g, ' kater '],
+];
+export function canonicalCallsignWords(norm: string): string {
+  let t = norm;
+  for (const [re, by] of PREFIX_ALIASES) t = t.replace(re, by);
+  return t;
+}
 
 /** Ziffernfolgen aus 1–3 aufeinanderfolgenden Zahlen ohne Trenner: [6148, 1] → "6148", "61481", "1" */
 function joinedWindows(nums: number[]): Set<string> {
@@ -143,24 +179,27 @@ export function findCallsign(state: GameState, text: string): Vehicle | null {
  */
 export function matchCallsign(state: GameState, text: string): { vehicle: Vehicle | null; attempted: boolean; ambiguous: boolean } {
   const nums = spokenNumbers(text);
-  const norm = normalizeFunk(text);
+  const norm = canonicalCallsignWords(normalizeFunk(text));
   const hits: { v: Vehicle; score: number }[] = [];
   const digits = digitWindows(nums);
   for (const v of state.center.vehicles) {
     const seq = callsignNumbers(v.callsign);
     const word = callsignWord(v.callsign);
     const named = norm.includes(` ${word} `);
+    // Ortswort im Rufnamen genannt ("Heros Eutin 21/10" neben "Heros Neustadt/Holstein 21/10")
+    const placeBonus = callsignPlaceWords(v.callsign).filter((w) => norm.includes(` ${w} `)).length * 2;
+    const bonus = (named ? 5 : 0) + placeBonus;
     if (seq.length && containsSeq(nums, seq)) {
       // kurze Rufnamen ("Christoph 12", "Heros 3/11") nur zusammen mit dem Organisationswort
       if (seq.length < 3 && !named) continue;
-      hits.push({ v, score: seq.length * 10 + (named ? 5 : 0) });
+      hits.push({ v, score: seq.length * 10 + bonus });
     } else if (seq.length === 3 && joinedWindows(nums).has(seq.join(''))) {
-      // Erkennung hat Zahlen zusammengezogen: "6148 1" oder "61481" = 61-48-1 (statt "null eins")
-      hits.push({ v, score: 29 + (named ? 5 : 0) });
+      // Erkennung hat Zahlen zusammengezogen: "6148 1" oder "61481" = 61/48-1 (statt "null eins")
+      hits.push({ v, score: 29 + bonus });
     } else if (seq.length === 3 && (digits.has(seq.join('')) || digits.has(seq.map((n) => String(n).padStart(2, '0')).join('')))) {
-      // ziffernweise gesprochen: "sieben sechs vier acht null eins" = 76-48-01
-      hits.push({ v, score: 28 + (named ? 5 : 0) });
-    } else if (!seq.length && norm.includes(` ${v.callsign.toLowerCase()} `)) hits.push({ v, score: 50 });
+      // ziffernweise gesprochen: "sieben sechs vier acht null eins" = 76/48-01
+      hits.push({ v, score: 28 + bonus });
+    } else if (!seq.length && norm.includes(` ${canonicalCallsignWords(normalizeFunk(v.callsign)).trim()} `)) hits.push({ v, score: 50 });
   }
   hits.sort((a, b) => b.score - a.score);
   const words = new Set(state.center.vehicles.map((v) => callsignWord(v.callsign)));
@@ -170,10 +209,12 @@ export function matchCallsign(state: GameState, text: string): { vehicle: Vehicl
   return { vehicle: hits[0].v, attempted: true, ambiguous: false };
 }
 
-/** Text für die Sprachausgabe: Rufnamengruppen als Zahlwörter ("61-48-01" = einundsechzig achtundvierzig eins), ohne Bindestriche */
+/** Text für die Sprachausgabe: Rufnamengruppen als Zahlwörter ("61/48-01" = einundsechzig achtundvierzig eins), ohne Bindestriche */
 export function toSpeech(text: string): string {
   return text
     .replace(/(\d+)[-/](\d+)(?:-(\d+))?/g, (_, a: string, b: string, c?: string) => [a, b, c].filter(Boolean).map((x) => numberToWords(Number(x))).join(' '))
+    // "Heros Neustadt/Holstein" – Schrägstrich zwischen Wörtern nicht vorlesen
+    .replace(/([a-zäöüß])\/([a-zäöüß])/gi, '$1 $2')
     .replace(/×/g, ' ')
     .replace(/–/g, ',');
 }
@@ -287,7 +328,7 @@ const FRAME_WORDS = new Set(['von', 'für', 'fuer', 'hier', 'leitstelle', 'komme
 
 /**
  * Inhalt eines Funkspruchs ohne Rufnamen und Funkfloskeln:
- * "Florian Ostholstein 61-82-01 von Leitstelle, Anrufer meldet …, kommen" → "Anrufer meldet …"
+ * "Florian Ostholstein 61/82-01 von Leitstelle, Anrufer meldet …, kommen" → "Anrufer meldet …"
  */
 export function messageContent(text: string): string {
   let t = text.trim().replace(/[.!]+\s*$/, '');
@@ -424,7 +465,7 @@ export function radioTalk(state: GameState, text: string, group: string | null =
         ? 'Rufname nicht eindeutig – bitte den vollständigen Rufnamen nennen.'
         : cs.attempted
           ? 'Rufname nicht erkannt – kein Fahrzeug mit diesem Rufnamen. Bitte wiederholen.'
-          : 'Kein Rufname erkannt – bitte das Fahrzeug mit Rufnamen ansprechen, z. B. „Florian Ostholstein 61-48-01 von Leitstelle, kommen“.',
+          : 'Kein Rufname erkannt – bitte das Fahrzeug mit Rufnamen ansprechen, z. B. „Florian Ostholstein 61/48-01 von Leitstelle, kommen“.',
     });
     f.lastVehicleId = undefined;
     return ok();

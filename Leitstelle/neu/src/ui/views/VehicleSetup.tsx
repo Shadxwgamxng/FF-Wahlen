@@ -144,7 +144,7 @@ function StationCard({ game, station }: { game: GameState; station: Station }) {
             </label>
             <label>
               Funkrufname*
-              <input value={d.callsign} onChange={(e) => set({ callsign: e.target.value })} placeholder="z. B. Florian Ostholstein 61-48-01" data-testid="vs-callsign" />
+              <input value={d.callsign} onChange={(e) => set({ callsign: e.target.value })} placeholder="z. B. Florian Ostholstein 61/48-01" data-testid="vs-callsign" />
             </label>
             <label>
               Kennzeichen*

@@ -9,13 +9,16 @@ import type { GameState, Vehicle } from '../model/types';
 
 export const hourOf = (t: number) => new Date(t).getUTCHours();
 export const weekdayOf = (t: number) => new Date(t).getUTCDay();
+/** Monat 1–12 (UTC wie hourOf) */
+export const monthOf = (t: number) => new Date(t).getUTCMonth() + 1;
 
 export function inServiceWindow(v: Vehicle, now: number): boolean {
   if (v.serviceWindows.length === 0) return true;
   const h = hourOf(now);
   const wd = weekdayOf(now);
+  const mo = monthOf(now);
   return v.serviceWindows.some(
-    (w) => (w.weekdays.length === 0 || w.weekdays.includes(wd)) && h >= w.fromHour && h < w.toHour,
+    (w) => (!w.months?.length || w.months.includes(mo)) && (w.weekdays.length === 0 || w.weekdays.includes(wd)) && h >= w.fromHour && h < w.toHour,
   );
 }
 
@@ -25,6 +28,7 @@ export function activeMaintenance(v: Vehicle, now: number) {
 
 /** Grund, warum ein Fahrzeug planmäßig außer Dienst ist – oder null */
 export function outOfServiceReason(v: Vehicle, now: number): string | null {
+  if (v.outOfService) return 'Dauerhaft außer Dienst';
   const m = activeMaintenance(v, now);
   if (m) return `Wartung: ${m.reason}`;
   if (v.rt.breakdownUntil === -1) return 'Manuell außer Dienst';

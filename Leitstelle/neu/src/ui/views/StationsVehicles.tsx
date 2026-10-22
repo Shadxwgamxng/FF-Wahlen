@@ -57,6 +57,15 @@ export function StationsView({ game }: { game: GameState }) {
 }
 
 const WD = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
+const MON = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
+
+/** Monate einer Dienstzeit als Text: zusammenhängend "Mai–Sep", sonst "Jan, Mär"; leer = ganzjährig */
+export function monthsLabel(months: number[] | undefined): string {
+  const m = [...new Set(months ?? [])].filter((x) => x >= 1 && x <= 12).sort((a, b) => a - b);
+  if (!m.length || m.length === 12) return '';
+  const contiguous = m.every((x, i) => i === 0 || x === m[i - 1] + 1);
+  return contiguous && m.length > 2 ? `${MON[m[0] - 1]}–${MON[m[m.length - 1] - 1]}` : m.map((x) => MON[x - 1]).join(', ');
+}
 
 function WindowsEditor({ value, onChange }: { value: ServiceWindow[]; onChange: (v: ServiceWindow[]) => void }) {
   return (
@@ -79,6 +88,7 @@ function WindowsEditor({ value, onChange }: { value: ServiceWindow[]; onChange: 
             </label>
           ))}
           <span className="dim small">{w.weekdays.length === 0 ? '(täglich)' : ''}</span>
+          {monthsLabel(w.months) && <span className="small">nur {monthsLabel(w.months)}</span>}
           <button className="btn small danger" onClick={() => onChange(value.filter((_, j) => j !== i))}>Entfernen</button>
         </div>
       ))}
@@ -132,7 +142,13 @@ export function VehiclesView({ game }: { game: GameState }) {
           {
             label: 'Dienstzeit',
             render: (v) =>
-              v.serviceWindows.length === 0 ? <span className="dim">24/7</span> : v.serviceWindows.map((w) => `${w.fromHour}–${w.toHour} ${w.weekdays.length ? w.weekdays.map((d) => WD[d]).join('') : 'tgl.'}`).join(', '),
+              v.outOfService ? (
+                <span className="dim">dauerhaft außer Dienst</span>
+              ) : v.serviceWindows.length === 0 ? (
+                <span className="dim">24/7</span>
+              ) : (
+                v.serviceWindows.map((w) => `${w.fromHour}–${w.toHour} ${w.weekdays.length ? w.weekdays.map((d) => WD[d]).join('') : 'tgl.'}${monthsLabel(w.months) ? ` ${monthsLabel(w.months)}` : ''}`).join(', ')
+              ),
           },
           {
             label: 'Verfügbarkeit',
@@ -179,6 +195,17 @@ export function VehiclesView({ game }: { game: GameState }) {
             render: (d) => (c.vehicles.some((v) => v.id === d.id) ? <VehicleImageCell vehicleId={d.id} /> : <span className="small dim">–</span>),
           },
           { key: 'serviceWindows', label: 'Dienstzeiten', type: 'custom', render: (d, set) => <WindowsEditor value={d.serviceWindows} onChange={(serviceWindows) => set({ serviceWindows })} /> },
+          {
+            key: 'outOfService',
+            label: 'Dauerhaft außer Dienst',
+            type: 'custom',
+            render: (d, set) => (
+              <label className="check small">
+                <input type="checkbox" checked={!!d.outOfService} onChange={(e) => set({ outOfService: e.target.checked || undefined })} />
+                nie alarmieren (z. B. Info-/Werbefahrzeug, Jugendfeuerwehr)
+              </label>
+            ),
+          },
           {
             key: 'maintenance',
             label: 'Wartung / Ausfall',
