@@ -50,6 +50,18 @@ const OSM_KINDS: Partial<Record<WacheDef['kind'], Station['kind'][]>> = { ff: ['
 
 const baseName = (n: string) => n.replace(/\s*\(\d+\)$/, '').trim().toLowerCase();
 
+/**
+ * Ortsteil des Wachennamens für den Dublettenabgleich: ohne Organisation und Wachenart, bei Ortsfeuerwehren
+ * nur der Ortsteil ("rdh. RW Malente", "Rettungswache Malente" → "malente"; "FF Eutin OF Neudorf" → "neudorf").
+ */
+export const wacheKey = (name: string) =>
+  baseName(name)
+    .replace(/\s*\(.*\)$/, '')
+    .replace(/^.*\bof\s+/, '')
+    .replace(/^((rdh\.|drk|juh|asb|mhd)\s+)?(freiwill?ige feuerwehr|feuerwehrhaus|feuerwache|feuerwehr|ortswehr|ff|pf|lehrrettungswache|rettungswache|rw)\s+/, '')
+    .replace(/[\s-]+/g, ' ')
+    .trim();
+
 /** Woher die Position einer Wache stammt */
 export type PositionSource = 'osm' | 'adresse' | 'tabelle' | 'ortsmitte' | 'gemeinde';
 
@@ -160,7 +172,9 @@ export function createOstholsteinCenter(elements: OverpassElement[]): CenterConf
     if (def.kind === 'luft') continue;
     const k = KIND[def.kind];
     const { position, source, osm } = place(rs);
-    const capacity = Math.max(1, vehicleCount.get(def.name) ?? 0);
+    // Reserve für den Editor: zwei Stellplätze mehr als Fahrzeuge, Feuerwehr und Rettungswache mindestens vier
+    const n = vehicleCount.get(def.name) ?? 0;
+    const capacity = def.kind === 'ff' || def.kind === 'rw' ? Math.max(4, n + 2) : n + 2;
     let st: Station;
     if (osm) {
       claimed.add(osm.id);
@@ -181,6 +195,18 @@ export function createOstholsteinCenter(elements: OverpassElement[]): CenterConf
       s.kind === 'polizei' ||
       !claimedStations.some((m) => (m.kind === 'rettungswache') === (s.kind === 'rettungswache') && distanceMeters(m.position, s.position) < 120),
   );
+  // Weitere OSM-Einträge gleicher Art und gleichen Namens wie eine Wache aus den Daten (bzw. deren OSM-Treffer)
+  // im Umkreis von 5 km sind dieselbe Wache (z. B. zweimal "Rettungswache Malente", einmal ohne Adresse).
+  // Nur in OSM benannte Einträge – unbenannte heißen nur nach dem Ort ("Feuerwehr Süsel (2)").
+  const osmNames = new Set(elements.filter((e) => e.tags?.name && (e.tags.amenity === 'fire_station' || e.tags.emergency === 'ambulance_station')).map((e) => baseName(e.tags!.name)));
+  const placedDefs = roster.stations.flatMap((rs) => {
+    const st = stationOf.get(rs.def.name);
+    const kinds = OSM_KINDS[rs.def.kind];
+    return st && kinds ? [{ st, kinds, keys: new Set([rs.def.name, ...(rs.def.osm ?? [])].map(wacheKey).filter(Boolean)) }] : [];
+  });
+  const sameWache = (s: Station) =>
+    osmNames.has(baseName(s.name)) && placedDefs.some((p) => p.kinds.includes(s.kind) && p.keys.has(wacheKey(s.name)) && distanceMeters(p.st.position, s.position) <= 5000);
+  c.stations = c.stations.filter((s) => claimed.has(s.id) || !sameWache(s));
   c.stations.push(...added, rthStation);
   for (const a of c.areas) a.responsibleStationIds = c.stations.filter((s) => s.organizationId !== 'org_ext' && pointInArea(s.position, a)).map((s) => s.id);
   lastPlacements = placements;
@@ -212,7 +238,7 @@ export function createOstholsteinCenter(elements: OverpassElement[]): CenterConf
     add(firstPol, { callsign: 'Heros Ostholstein 1/1 (Führung)', typeId: 'pol_fueh', organizationId: firstPol.organizationId, identifier: '', serviceWindows: [] });
     add(firstPol, { callsign: 'Heros Ostholstein 1/40 (Einsatzgruppe)', typeId: 'pol_grukw', organizationId: firstPol.organizationId, identifier: '', serviceWindows: [] });
   }
-  for (const st of police) st.capacity = vehicles.filter((v) => v.stationId === st.id).length;
+  for (const st of police) st.capacity = vehicles.filter((v) => v.stationId === st.id).length + 2;
 
   c.vehicles = vehicles;
   c.pois = extractPois(elements, undefined, (p) => pointInArea(p, OSTHOLSTEIN));

@@ -5,7 +5,7 @@ import type { OverpassElement } from '../geo/places';
 import type { GameState, RadioMessage, Vehicle } from '../model/types';
 import { radioGroupOf } from '../model/radio';
 import { createGame, createManualIncident } from './engine';
-import { detectOrder, findCallsign, matchHospital, normalizeFunk, numberToWords, numberWord, radioCall, radioTalk, spokenNumbers, toSpeech } from './funk';
+import { detectOrder, findCallsign, matchCallsign, matchHospital, normalizeFunk, numberToWords, numberWord, radioCall, radioTalk, spokenNumbers, toSpeech } from './funk';
 
 const ELEMENTS: OverpassElement[] = JSON.parse(readFileSync(new URL('../../e2e/fixtures/overpass-ostholstein-sued.json', import.meta.url), 'utf8')).elements;
 
@@ -81,8 +81,41 @@ describe('Funk: Zahlen und Rufnamen', () => {
       ['Rettung Ostholstein 83-21-12', [83, 21, 12]],
       ['Florian Ostholstein 10-30-99', [10, 30, 99]],
       ['Heros 3/11', [3, 11]],
+      ['Florian Ostholstein 00/07-01', [0, 7, 1]],
     ] as const)
       expect(spokenNumbers(toSpeech(cs)), cs).toEqual(seq);
+    // Gruppe "00" wird "null null" gesprochen (sonst "null sieben" = 7)
+    expect(toSpeech('Florian Ostholstein 00/07-01')).toBe('Florian Ostholstein null null sieben eins');
+  });
+
+  it('Round-Trip für alle Fahrzeuge der Leitstelle Ostholstein: gesprochen und getippt eindeutig', () => {
+    const g = game();
+    const seqOf = (cs: string) => (cs.replace(/\(.*\)/, '').match(/\d+/g) ?? []).map(Number);
+    const fails: string[] = [];
+    for (const v of g.center.vehicles) {
+      expect(spokenNumbers(toSpeech(v.callsign.replace(/\(.*\)/, ''))), v.callsign).toEqual(seqOf(v.callsign));
+      for (const said of [`${toSpeech(v.callsign)} von Leitstelle, kommen`, `${v.callsign} von Leitstelle, kommen`]) {
+        const r = matchCallsign(g, said);
+        if (r.vehicle?.id !== v.id) fails.push(`${said} → ${r.vehicle?.callsign ?? (r.ambiguous ? 'mehrdeutig' : 'nichts')}`);
+      }
+    }
+    expect(fails).toEqual([]);
+    // Rufname der Kreisebene mit Gruppe 00
+    const kreis = g.center.vehicles.find((v) => v.callsign === 'Florian Ostholstein 00/07-01')!;
+    expect(kreis).toBeDefined();
+    expect(findCallsign(g, 'Florian Ostholstein null null sieben eins von Leitstelle kommen')?.id).toBe(kreis.id);
+    expect(findCallsign(g, '00/07-01 von Leitstelle kommen')?.id).toBe(kreis.id);
+    expect(findCallsign(g, 'Florian Ostholstein 00/07-01')?.id).toBe(kreis.id);
+  });
+
+  it('genannter, aber falscher Präfix wird bestraft: exakter Treffer mit passendem Präfix gewinnt', () => {
+    const g = game();
+    // früher: "1111" zusammengezogen = Rotkreuz 01/11-01 (29 Punkte) vor Heros 11/11 (25)
+    expect(findCallsign(g, 'Heros Ostholstein 11/11 kommen')?.callsign).toBe('Heros Ostholstein 11/11 (Malente)');
+    expect(findCallsign(g, 'Heros Ostholstein elf elf kommen')?.callsign).toBe('Heros Ostholstein 11/11 (Malente)');
+    // mit dem richtigen Präfix weiterhin über die zusammengezogene Form
+    expect(findCallsign(g, 'Rotkreuz Ostholstein 1111 kommen')?.callsign).toBe('Rotkreuz Ostholstein 01/11-01');
+    expect(findCallsign(g, 'Rotkreuz Ostholstein 01/11-01')?.callsign).toBe('Rotkreuz Ostholstein 01/11-01');
   });
 
   it('erkennt ziffernweise gesprochene Rufnamen', () => {

@@ -170,6 +170,8 @@ function typeGroup(def: WacheDef, organisation: string): TypeGroup {
 
 function organizationOf(def: WacheDef, group: TypeGroup, typeId: string): string {
   if (def.kind === 'luft') return 'org_ext';
+  // jeder RTW fährt im Rettungsdienst (auch der RTW eines Ortsvereins)
+  if (typeId === 'rtw') return 'org_rd';
   if (def.kind === 'rw') return typeId === 'nef' ? 'org_na' : typeId === 'ktw' || typeId === 'oh_mzrtw' ? 'org_ktp' : 'org_rd';
   // Feuerwehrfahrzeuge an anderen Standorten (GW-Dekon P beim THW Oldenburg) bleiben Feuerwehr
   if (group === 'ff' && def.kind !== 'kats') return 'org_ff';

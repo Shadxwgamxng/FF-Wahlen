@@ -6,8 +6,9 @@ import { exportCenter, importJson, validateStoredGame } from '../../persistence/
 import { groupDeployment, groupStations, isGroupStation } from '../../sim/alarmGroups';
 import { inServiceWindow, vehicleAvailability } from '../../sim/availability';
 import { createGame, createManualIncident, setVehicleServiceStatus } from '../../sim/engine';
+import { saveVehicle } from '../../sim/editorOps';
 import { distanceMeters, pointInArea } from '../../sim/geo';
-import { createOstholsteinCenter, lastPlacements, OSTHOLSTEIN } from './index';
+import { createOstholsteinCenter, lastPlacements, OSTHOLSTEIN, wacheKey } from './index';
 import { gemeindeOf } from './gemeinden';
 import { normTypeLabel, OSTHOLSTEIN_TYPES, ostholsteinVehicleTypes, resolveType } from './fahrzeugtypen';
 import { buildRoster, isRealCallsign, parseServiceWindows, ROSTER_INPUT } from './roster';
@@ -291,6 +292,64 @@ describe('Beispielleitstelle Ostholstein mit echten Fahrzeugen', () => {
     expect(c.stations.filter((s) => s.kind !== 'rettungswache' && s.kind !== 'polizei' && distanceMeters(s.position, st.position) < 200)).toHaveLength(1);
     // die zweite Ortswehr (Sulsdorf) bleibt als leerer OSM-Standort
     expect(c.stations.some((s) => s.name === 'Ortswehr Sulsdorf')).toBe(true);
+  });
+
+  it('Phantom-Dubletten: gleichnamige OSM-Einträge derselben Wache in der Nähe entfallen', () => {
+    expect(wacheKey('rdh. RW Malente')).toBe('malente');
+    expect(wacheKey('Rettungswache Malente (2)')).toBe('malente');
+    expect(wacheKey('FF Eutin OF Neudorf')).toBe('neudorf');
+    expect(wacheKey('Freiwillige Feuerwehr Eutin-Neudorf')).toBe('eutin neudorf');
+    // Malente: OSM-Node 3287130686 ohne Adresse (2,6 km neben der Wache an der Lütjenburger Straße 82)
+    const rwMalente = stationNamed('rdh. RW Malente');
+    expect(center.stations.some((s) => s.name === 'Rettungswache Malente')).toBe(false);
+    expect(center.stations.filter((s) => s.kind === 'rettungswache' && distanceMeters(s.position, rwMalente.position) < 5000)).toHaveLength(1);
+    // Zuständigkeitsbereiche nur mit vorhandenen Wachen
+    const ids = new Set(center.stations.map((s) => s.id));
+    for (const a of center.areas) for (const id of a.responsibleStationIds) expect(ids.has(id), id).toBe(true);
+    // allgemein: gleichnamig nahe → entfällt, gleichnamig weit weg oder anderer Name → bleibt; unbenannte OSM-Feuerwehren bleiben
+    expect(center.stations.some((s) => s.name === 'Feuerwehr Malente')).toBe(true);
+    const extra: OverpassElement[] = [
+      { type: 'node', id: 990000001, lat: 54.1452, lon: 10.6152, tags: { emergency: 'ambulance_station', name: 'Rettungswache Eutin' } },
+      { type: 'node', id: 990000002, lat: 54.2152, lon: 10.6152, tags: { emergency: 'ambulance_station', name: 'Rettungswache Eutin' } },
+      { type: 'node', id: 990000003, lat: 54.1402, lon: 10.6252, tags: { emergency: 'ambulance_station', name: 'Rettungswache Fissau' } },
+      { type: 'node', id: 990000004, lat: 54.0102, lon: 10.7552, tags: { amenity: 'fire_station', name: 'Feuerwehr Scharbeutz' } },
+    ];
+    const c = createOstholsteinCenter([...ELEMENTS, ...extra]);
+    const eutin = c.stations.find((s) => s.name === 'rdh. RW Eutin')!;
+    const near = (lat: number, lon: number) => c.stations.find((s) => distanceMeters(s.position, [lat, lon]) < 10);
+    expect(near(54.1452, 10.6152), 'Dublette 1,3 km neben RW Eutin').toBeUndefined();
+    expect(near(54.2152, 10.6152), 'gleicher Name, 9 km entfernt').toBeDefined();
+    expect(near(54.1402, 10.6252), 'anderer Name').toBeDefined();
+    expect(near(54.0102, 10.7552), 'Feuerwehr Scharbeutz (Daten: FF Scharbeutz OF Scharbeutz)').toBeUndefined();
+    expect(c.stations.filter((s) => s.kind === 'rettungswache' && distanceMeters(s.position, eutin.position) < 3000).map((s) => s.name)).toContain('rdh. RW Eutin');
+    const cids = new Set(c.stations.map((s) => s.id));
+    for (const a of c.areas) for (const id of a.responsibleStationIds) expect(cids.has(id), id).toBe(true);
+  });
+
+  it('jeder RTW gehört zum Rettungsdienst (RD_OH), auch an einem Ortsverein', () => {
+    const rtw = center.vehicles.filter((v) => v.typeId === 'rtw');
+    expect(rtw.length).toBeGreaterThan(10);
+    for (const v of rtw) expect(v.organizationId, v.callsign).toBe('org_rd');
+    const akkon = vehicle('Akkon Ostholstein 67/83-11');
+    expect(center.stations.find((s) => s.id === akkon.stationId)!.name).toBe('JUH OV Eutin');
+    expect(center.organizations.find((o) => o.id === akkon.organizationId)!.radioGroup.code).toBe('RD_OH');
+  });
+
+  it('Wachen haben Stellplätze in Reserve: Editor kann Fahrzeuge hinzufügen', () => {
+    const count = (id: string) => center.vehicles.filter((v) => v.stationId === id).length;
+    for (const p of placements) {
+      const st = center.stations.find((s) => s.id === p.stationId)!;
+      if (st.organizationId === 'org_ext') continue;
+      const def = WACHEN.find((d) => d.name === p.wache)!;
+      expect(st.capacity, st.name).toBe(def.kind === 'ff' || def.kind === 'rw' ? Math.max(4, count(st.id) + 2) : count(st.id) + 2);
+    }
+    for (const st of center.stations.filter((s) => s.kind === 'polizei')) expect(st.capacity, st.name).toBe(count(st.id) + 2);
+    const g = createGame(structuredClone(center));
+    const st = g.center.stations.find((s) => s.name === 'FF Neustadt in Holstein')!;
+    const tpl = g.center.vehicles.find((v) => v.stationId === st.id)!;
+    expect(saveVehicle(g, { ...structuredClone(tpl), id: 'v_neu1', callsign: 'Florian Ostholstein 99/99-01' }, true)).toBeNull();
+    expect(saveVehicle(g, { ...structuredClone(tpl), id: 'v_neu2', callsign: 'Florian Ostholstein 99/99-02' }, true)).toBeNull();
+    expect(saveVehicle(g, { ...structuredClone(tpl), id: 'v_neu3', callsign: 'Florian Ostholstein 99/99-03' }, true)).toMatch(/keinen freien Stellplatz/);
   });
 
   it('Christoph 12 einmal, extern am Luftrettungszentrum Siblin', () => {

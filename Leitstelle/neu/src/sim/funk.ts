@@ -182,13 +182,16 @@ export function matchCallsign(state: GameState, text: string): { vehicle: Vehicl
   const norm = canonicalCallsignWords(normalizeFunk(text));
   const hits: { v: Vehicle; score: number }[] = [];
   const digits = digitWindows(nums);
+  const words = new Set(state.center.vehicles.map((v) => callsignWord(v.callsign)));
+  // genannte Präfixe ("Heros", "Rotkreuz" …): Fahrzeuge mit anderem Präfix nur mit Abschlag
+  const namedWords = [...words].filter((w) => w.length >= 4 && norm.includes(` ${w} `));
   for (const v of state.center.vehicles) {
     const seq = callsignNumbers(v.callsign);
     const word = callsignWord(v.callsign);
     const named = norm.includes(` ${word} `);
     // Ortswort im Rufnamen genannt ("Heros Eutin 21/10" neben "Heros Neustadt/Holstein 21/10")
     const placeBonus = callsignPlaceWords(v.callsign).filter((w) => norm.includes(` ${w} `)).length * 2;
-    const bonus = (named ? 5 : 0) + placeBonus;
+    const bonus = (named ? 5 : namedWords.length ? -10 : 0) + placeBonus;
     if (seq.length && containsSeq(nums, seq)) {
       // kurze Rufnamen ("Christoph 12", "Heros 3/11") nur zusammen mit dem Organisationswort
       if (seq.length < 3 && !named) continue;
@@ -202,8 +205,7 @@ export function matchCallsign(state: GameState, text: string): { vehicle: Vehicl
     } else if (!seq.length && norm.includes(` ${canonicalCallsignWords(normalizeFunk(v.callsign)).trim()} `)) hits.push({ v, score: 50 });
   }
   hits.sort((a, b) => b.score - a.score);
-  const words = new Set(state.center.vehicles.map((v) => callsignWord(v.callsign)));
-  const attempted = hits.length > 0 || [...words].some((w) => w.length >= 4 && norm.includes(` ${w} `)) || nums.filter((n) => n >= 10).length >= 2 || nums.some((n) => n >= 1000) || digits.size > 0;
+  const attempted = hits.length > 0 || namedWords.length > 0 || nums.filter((n) => n >= 10).length >= 2 || nums.some((n) => n >= 1000) || digits.size > 0;
   if (!hits.length) return { vehicle: null, attempted, ambiguous: false };
   if (hits.length > 1 && hits[0].score === hits[1].score) return { vehicle: null, attempted: true, ambiguous: true };
   return { vehicle: hits[0].v, attempted: true, ambiguous: false };
@@ -212,7 +214,13 @@ export function matchCallsign(state: GameState, text: string): { vehicle: Vehicl
 /** Text für die Sprachausgabe: Rufnamengruppen als Zahlwörter ("61/48-01" = einundsechzig achtundvierzig eins), ohne Bindestriche */
 export function toSpeech(text: string): string {
   return text
-    .replace(/(\d+)[-/](\d+)(?:-(\d+))?/g, (_, a: string, b: string, c?: string) => [a, b, c].filter(Boolean).map((x) => numberToWords(Number(x))).join(' '))
+    // Gruppe "00" (Kreisebene, "00/07-01") als "null null" – sonst zöge die Erkennung "null sieben" zu 7 zusammen
+    .replace(/(\d+)[-/](\d+)(?:-(\d+))?/g, (_, a: string, b: string, c?: string) =>
+      [a, b, c]
+        .filter(Boolean)
+        .map((x) => (/^00+$/.test(x!) ? 'null null' : numberToWords(Number(x))))
+        .join(' '),
+    )
     // "Heros Neustadt/Holstein" – Schrägstrich zwischen Wörtern nicht vorlesen
     .replace(/([a-zäöüß])\/([a-zäöüß])/gi, '$1 $2')
     .replace(/×/g, ' ')
