@@ -34,11 +34,11 @@ const at = (iso: string) => Date.parse(iso);
 describe('Fahrzeugliste Ostholstein (roster)', () => {
   it('liest alle Einträge der vollständigen Liste und kommt auf eine plausible Fahrzeugzahl', () => {
     const rows = parseCsv(ROSTER_INPUT.fahrzeuge).length;
-    expect(rows).toBe(536);
+    expect(rows).toBe(532);
     // jeder Eintrag ist Fahrzeug, zusammengeführt oder (mit Grund) weggelassen
     const mergedAway = roster.merged.filter((m) => m.reason.startsWith('=') || m.reason.startsWith('doppelt')).length;
     expect(roster.vehicles.length + roster.omitted.length + mergedAway).toBe(rows);
-    expect(roster.vehicles.length).toBe(534);
+    expect(roster.vehicles.length).toBe(530);
     expect(one('Florian Ostholstein 42/41-06').wache).toBe('FF Wangels OF Grammdorf');
     expect(one('Florian Ostholstein 42/41-05').wache).toBe('FF Giddendorf-Seegalendorf-Gremersdorf');
     for (const o of roster.omitted) expect(o.reason.length, o.callsign).toBeGreaterThan(10);
@@ -117,6 +117,12 @@ describe('Fahrzeugliste Ostholstein (roster)', () => {
     // RTW OH-RD 6800 = 89/83-01
     expect(one('Rettung Ostholstein 89/83-01').identifier).toBe('OH-RD 6800');
     expect(roster.vehicles.filter((v) => v.wache === 'rdh. RW Timmendorfer Strand' && v.typeId === 'rtw')).toHaveLength(3);
+    // Oldenburg: nur zwei RTW, alle Rufnamen fest „Rotkreuz Ostholstein“
+    const oldenburg = roster.vehicles.filter((v) => v.wache === 'DRK RW Oldenburg in Holstein');
+    expect(oldenburg.filter((v) => v.typeId === 'rtw').map((v) => v.callsign)).toEqual(['Rotkreuz Ostholstein 40/83-01', 'Rotkreuz Ostholstein 40/83-02']);
+    expect(oldenburg.every((v) => v.callsign.startsWith('Rotkreuz Ostholstein '))).toBe(true);
+    expect(one('Rotkreuz Ostholstein 40/82-01').identifier).toBe('OH-RD 6710');
+    expect(byCs('Rettung Ostholstein 40/82-01')).toHaveLength(0);
     // CBRN-Erkunder 03/71-01 (LZ-G) bei der FF Oldenburg, nicht Malente
     expect(one('Florian Ostholstein 03/71-01')).toMatchObject({ wache: 'FF Oldenburg in Holstein', typeId: 'oh_cbrn' });
     expect(byCs('Florian Ostholstein 03/18-01')).toHaveLength(0);

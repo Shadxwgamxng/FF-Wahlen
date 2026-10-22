@@ -136,8 +136,8 @@ describe('Funk: echte Rufnamen Ostholstein', () => {
     const cases: [string, string][] = [
       ['Akkon Ostholstein 92/83-01 kommen', 'Akkon Ostholstein 92/83-01'],
       ['Akon Ostholstein 92 83 1 kommen', 'Akkon Ostholstein 92/83-01'],
-      ['Rot Kreuz Ostholstein 40/83-05', 'Rotkreuz Ostholstein 40/83-05'],
-      ['Rotes Kreuz 40 83 5 von Leitstelle', 'Rotkreuz Ostholstein 40/83-05'],
+      ['Rot Kreuz Ostholstein 40/83-02', 'Rotkreuz Ostholstein 40/83-02'],
+      ['Rotes Kreuz 40 83 2 von Leitstelle', 'Rotkreuz Ostholstein 40/83-02'],
       ['Christof zwölf kommen', 'Christoph 12'],
       ['Heros Eutin 24/55', 'Heros Eutin 24/55'],
       ['Heros Oldenburg 24/55', 'Heros Oldenburg 24/55'],
