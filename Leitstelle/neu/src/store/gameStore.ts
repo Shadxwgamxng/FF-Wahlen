@@ -1,7 +1,7 @@
 import { produce, setAutoFreeze } from 'immer';
 import { useSyncExternalStore } from 'react';
 import type { CenterConfig, GameState } from '../model/types';
-import { createGame, ensureVehicleRuntime, tick, type CommandResult } from '../sim/engine';
+import { createGame, ensureVehicleRuntime, locatesDue, processLocates, tick, type CommandResult } from '../sim/engine';
 import { projects, snapshots, type ProjectRecord } from '../persistence/db';
 import { COMMANDS, execCommand, type CommandArgs, type CommandName } from './commands';
 import { repairReferences } from '../persistence/schema';
@@ -647,6 +647,11 @@ export class GameStore {
     if (s && s.runtime.clock.running) {
       const dt = elapsed * s.runtime.clock.speed;
       this.state = produce(s, (d) => tick(d as GameState, dt));
+      this.dirty = true;
+      this.emit();
+    } else if (s && this.role === 'main' && locatesDue(s)) {
+      // Ortung läuft in Echtzeit – auch bei angehaltener Simulation
+      this.state = produce(s, (d) => processLocates(d as GameState));
       this.dirty = true;
       this.emit();
     }

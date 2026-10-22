@@ -436,6 +436,8 @@ export interface Call {
 export interface CallLocate {
   startedAt: number;
   readyAt: number;
+  /** Ergebnis fertig (Echtzeit, ms) – unabhängig von Pause und Spieltempo */
+  readyAtReal?: number;
   status: 'laeuft' | 'ok' | 'fehler';
   position?: LatLng;
   /** Ungenauigkeitsradius in Metern (Mobilfunk) */

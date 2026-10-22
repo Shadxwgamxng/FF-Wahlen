@@ -3,7 +3,7 @@ import { buildPlaceIndex, type OverpassElement } from '../geo/places';
 import { buildCenter, defaultOrganizations } from '../data/centerFactory';
 import { emptyMask } from '../model/mask';
 import type { GameState } from '../model/types';
-import { acceptCall, alarmVehicles, applyLocate, correctIncidentLocation, createGame, createIncidentFromCall, injectScenarioCall, setCallKeyword, startLocating, tick, locationCorrect, resolveMaskLocation, updateCallMask } from './engine';
+import { acceptCall, alarmVehicles, applyLocate, correctIncidentLocation, createGame, createIncidentFromCall, injectScenarioCall, setCallKeyword, startLocating, tick, locationCorrect, setLocateClock, processLocates, locatesDue, resolveMaskLocation, updateCallMask } from './engine';
 import { suggestForIncident } from './dispatch';
 import { saveVehicle } from './editorOps';
 import { emptyVehicleRuntime } from '../data/sampleCenter';
@@ -75,20 +75,49 @@ describe('Einsatzmaske', () => {
       expect(startLocating(g, c.id).ok).toBe(true);
       expect(c.locate!.status).toBe('laeuft');
       for (let i = 0; i < 6; i++) tick(g, 5_000);
-      if (c.phoneType === 'festnetz' && c.locate!.status === 'ok') {
+      // Ergebnis nach Echtzeit, nicht nach Spielzeit
+      expect(c.locate!.status).toBe('laeuft');
+      setLocateClock(() => Date.now() + 6_001);
+      processLocates(g);
+      setLocateClock(null);
+      expect(c.locate!.status).toBe('ok');
+      if (c.phoneType === 'festnetz' && c.locate!.accuracyM === 0) {
         seenFest = true;
-        expect(c.locate!.accuracyM).toBe(0);
         expect(applyLocate(g, c.id).ok).toBe(true);
         expect(c.mask.street).toBe(c.location.street);
         expect(createIncidentFromCall(g, c.id, c.mask).ok).toBe(true);
       }
-      if (c.phoneType === 'mobil' && c.locate!.status === 'ok') {
+      if (c.phoneType === 'mobil') {
         seenMobil = true;
         expect(c.locate!.accuracyM).toBeGreaterThanOrEqual(15);
         expect(c.locate!.street).toBeTruthy();
       }
     }
     expect(seenFest && seenMobil).toBe(true);
+  });
+
+  it('Ortung: immer ein Ergebnis nach 3–6 Sekunden Echtzeit, auch bei angehaltener Simulation', () => {
+    const g = game();
+    let real = 1_000_000;
+    setLocateClock(() => real);
+    try {
+      for (let k = 0; k < 30; k++) {
+        const c = call(g);
+        expect(startLocating(g, c.id).ok).toBe(true);
+        const wait = c.locate!.readyAtReal! - real;
+        expect(wait).toBeGreaterThanOrEqual(3000);
+        expect(wait).toBeLessThanOrEqual(6000);
+        real += 2_999;
+        expect(locatesDue(g)).toBe(false);
+        real += 3_001;
+        expect(locatesDue(g)).toBe(true);
+        processLocates(g); // ohne tick: Simulation steht
+        expect(c.locate!.status).toBe('ok');
+        expect(c.locate!.position).toBeTruthy();
+      }
+    } finally {
+      setLocateClock(null);
+    }
   });
 });
 

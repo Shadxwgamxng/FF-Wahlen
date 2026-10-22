@@ -13,6 +13,7 @@ import type {
   VehicleTimes,
   EinsatzMask,
   Weather,
+  CallLocate,
 } from '../model/types';
 import { SCHEMA_VERSION } from '../model/types';
 import { Rng } from './rng';
@@ -885,44 +886,64 @@ export function updateCallMask(state: GameState, callId: string, patch: Partial<
   return ok();
 }
 
-/** Startet die Ortung des Anrufers (Festnetz: genaue Adresse, Mobilfunk: Standort mit Ungenauigkeit) */
+/** Echtzeit für die Ortung (in Tests austauschbar) */
+let realNow = () => Date.now();
+export function setLocateClock(f: (() => number) | null) {
+  realNow = f ?? (() => Date.now());
+}
+
+/**
+ * Startet die Ortung des Anrufers (Festnetz: Anschlussadresse, Mobilfunk: Standort mit Ungenauigkeit).
+ * Das Ergebnis kommt immer, nach 3–6 Sekunden Echtzeit – auch bei Pause oder hohem Spieltempo.
+ */
 export function startLocating(state: GameState, callId: string): CommandResult {
   const c = state.runtime.calls.find((x) => x.id === callId);
   if (!c || c.state !== 'in_abfrage') return fail('Kein Notruf in Abfrage.');
   if (c.locate?.status === 'laeuft') return fail('Ortung läuft bereits.');
   const now = state.runtime.clock.now;
-  const dur = withRng(state, (rng) => (c.phoneType === 'festnetz' ? rng.range(4, 7) : rng.range(10, 25)) * 1000);
-  c.locate = { startedAt: now, readyAt: now + dur, status: 'laeuft' };
+  const dur = withRng(state, (rng) => rng.range(3, 6) * 1000);
+  c.locate = { startedAt: now, readyAt: now + dur, readyAtReal: realNow() + dur, status: 'laeuft' };
   log(state, 'notruf', `Ortung gestartet (${c.phoneType === 'festnetz' ? 'Festnetz' : 'Mobilfunk'})`, { callId });
   return ok();
 }
 
-function processLocates(state: GameState) {
-  const now = state.runtime.clock.now;
+/** Läuft eine Ortung, deren Ergebnis fällig ist? (auch bei angehaltener Simulation prüfen) */
+export function locatesDue(state: GameState): boolean {
+  return state.runtime.calls.some((c) => c.locate?.status === 'laeuft' && locateReady(state, c.locate));
+}
+
+const locateReady = (state: GameState, l: CallLocate) => (l.readyAtReal !== undefined ? realNow() >= l.readyAtReal : state.runtime.clock.now >= l.readyAt);
+
+export function processLocates(state: GameState) {
   for (const c of state.runtime.calls) {
     const l = c.locate;
-    if (!l || l.status !== 'laeuft' || now < l.readyAt) continue;
+    if (!l || l.status !== 'laeuft' || !locateReady(state, l)) continue;
     withRng(state, (rng) => {
       const loc = c.location;
+      const ix = state.center.places;
       if (c.phoneType === 'festnetz') {
-        // Anschlussadresse – stimmt nur, wenn der Anrufer von zu Hause aus anruft
+        // Anschlussadresse; ruft der Anrufer nicht von zu Hause an, liefert das Netz den Standort des Anschlusses in der Nähe
         const atHome = loc.houseNumber && !/Wald|Ufer|Fahrbahn|Schnellstraße/.test(loc.detail);
-        if (atHome) {
-          Object.assign(l, { status: 'ok', position: loc.position, accuracyM: 0, street: loc.street, houseNumber: loc.houseNumber, postcode: loc.postcode, city: loc.city, message: 'Anschlussadresse ermittelt.' });
-        } else {
-          Object.assign(l, { status: 'fehler', message: 'Festnetzanschluss ohne verwertbare Adresse für diesen Einsatzort – bitte Adresse erfragen.' });
-        }
+        const near = !atHome && ix ? reverseGeocode(ix, loc.position) : null;
+        const parts = near && ix ? describePlace(ix, near.tuple) : null;
+        const street = atHome ? loc.street : (parts?.street ?? loc.street ?? '');
+        const houseNumber = atHome ? loc.houseNumber : (parts?.houseNumber ?? '');
+        Object.assign(l, {
+          status: 'ok',
+          position: loc.position,
+          accuracyM: atHome ? 0 : 50,
+          street,
+          houseNumber,
+          postcode: atHome ? loc.postcode : (parts?.postcode ?? loc.postcode ?? ''),
+          city: atHome ? loc.city : (parts?.city ?? loc.city ?? ''),
+          message: atHome ? 'Anschlussadresse ermittelt.' : `Anschluss in der Nähe ermittelt${street ? `: ${street} ${houseNumber}`.trimEnd() : ''} (±50 m).`,
+        });
         return;
       }
-      if (rng.chance(0.1)) {
-        Object.assign(l, { status: 'fehler', message: 'Ortung fehlgeschlagen (kein Standort vom Netz übermittelt).' });
-        return;
-      }
-      const acc = Math.round(rng.range(15, 500));
+      const acc = Math.round(rng.range(15, 300));
       const ang = rng.range(0, Math.PI * 2);
       const d = rng.range(0, acc * 0.7);
       const pos: LatLng = [loc.position[0] + (Math.cos(ang) * d) / 111_320, loc.position[1] + (Math.sin(ang) * d) / (111_320 * Math.cos((loc.position[0] * Math.PI) / 180))];
-      const ix = state.center.places;
       const near = ix ? reverseGeocode(ix, pos) : null;
       const parts = near && ix ? describePlace(ix, near.tuple) : null;
       Object.assign(l, {
