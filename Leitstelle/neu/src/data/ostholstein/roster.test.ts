@@ -458,3 +458,50 @@ describe('Großeinsatz Rettungsdienst mit den Einheiten der Hilfsorganisationen'
     for (const id of [...all('t1'), ...all('t2'), ...all('betreuung'), ...all('pat_ablage')]) expect(r20.has(id), id).toBe(true);
   });
 });
+
+describe('Ortswehren und Hauptwehr', () => {
+  it('jede Ortswehr kennt ihre Hauptwehr; bei Brand wird die Hauptwehr mitalarmiert, sonst nicht', async () => {
+    const { suggestForIncident } = await import('../../sim/dispatch');
+    const { proposalWithGroups } = await import('../../sim/alarmGroups');
+    const main = (n: string) => center.stations.find((s) => s.id === stationNamed(n).mainStationId)?.name;
+    expect(main('FF Ahrensbök OF Gnissau')).toBe('FF Ahrensbök OF Ahrensbök');
+    expect(main('FF Ahrensbök OF Ahrensbök')).toBeUndefined();
+    expect(main('FF Benz')).toBe('FF Bad Malente-Gremsmühlen');
+    expect(main('FF Gremersdorf OF Neuratjensdorf')).toBe('FF Giddendorf-Seegalendorf-Gremersdorf');
+    expect(main('FF Wangels OF Grammdorf')).toBe('FF Wangels OF Wangels');
+    expect(main('FF Bad Schwartau OF Groß Parin')).toBe('FF Bad Schwartau OF Bad Schwartau-Rensefeld');
+    const groupsFor = (code: string, wache: string) => {
+      const g = createGame(structuredClone(center));
+      const kw = g.center.keywords.find((k) => k.code === code)!;
+      const st = g.center.stations.find((s) => s.name === wache)!;
+      createManualIncident(g, kw.id, st.position, 'Test', 'Test');
+      const inc = g.runtime.incidents[0];
+      return proposalWithGroups(g, inc, suggestForIncident(g, inc)).groups.map((x) => x.station.name);
+    };
+    // Kleinbrand in Gnissau: Ortswehr Gnissau + Hauptwehr Ahrensbök
+    const brand = groupsFor('FEU K 00', 'FF Ahrensbök OF Gnissau');
+    expect(brand).toContain('FF Ahrensbök OF Gnissau');
+    expect(brand).toContain('FF Ahrensbök OF Ahrensbök');
+    // kleine Hilfeleistung: Ortswehr allein (ohne Hauptwehr, sofern der Bedarf sie nicht braucht)
+    const th = groupsFor('TH K 00', 'FF Ahrensbök OF Gnissau');
+    expect(th).toContain('FF Ahrensbök OF Gnissau');
+    expect(th).not.toContain('FF Ahrensbök OF Ahrensbök');
+    // umgekehrt nicht: Brand im Hauptort ohne Ortswehr
+    const haupt = groupsFor('FEU K 00', 'FF Ahrensbök OF Ahrensbök');
+    expect(haupt).toEqual(['FF Ahrensbök OF Ahrensbök']);
+  });
+
+  it('RTW der Ortsvereine (T1) nur beim Großeinsatz, nicht im Alltag', async () => {
+    const { suggestForIncident } = await import('../../sim/dispatch');
+    const g = createGame(structuredClone(center));
+    const kw = g.center.keywords.find((k) => k.code === 'NOTF 01')!;
+    const t1 = new Set(g.center.vehicles.filter((v) => ['oh_rtw_hiorg', 'oh_rtwt1'].includes(v.typeId)).map((v) => v.id));
+    expect(t1.size).toBeGreaterThanOrEqual(5);
+    // Notfall direkt an der Wache eines Ortsvereins mit RTW: trotzdem ein RTW des Rettungsdienstes
+    const st = g.center.stations.find((s) => s.name === 'DRK OV Süsel')!;
+    createManualIncident(g, kw.id, st.position, 'Test', 'Test');
+    const p = suggestForIncident(g, g.runtime.incidents[0]).proposal.map((x) => x.vehicleId);
+    expect(p.length).toBe(1);
+    expect(t1.has(p[0])).toBe(false);
+  });
+});

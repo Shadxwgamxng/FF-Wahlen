@@ -75,6 +75,7 @@ export const schemas = {
     address: z.string().default(''),
     capacity: z.number().int().min(0),
     turnoutSeconds: z.number().min(0).max(3600),
+    mainStationId: z.string().optional(),
   }),
   vehicle: z.object({
     id,
@@ -232,6 +233,8 @@ export function repairReferences(c: CenterConfig): ImportIssue[] {
     }
     return true;
   });
+  // Verweis auf eine nicht mehr vorhandene Hauptwehr entfernen
+  for (const s of c.stations) if (s.mainStationId && !stationIds.has(s.mainStationId)) delete s.mainStationId;
   c.vehicles = c.vehicles.filter((v) => {
     if (!typeIds.has(v.typeId)) issues.push({ path: `vehicles/${v.id}`, message: `Unbekannter Fahrzeugtyp "${v.typeId}" – Fahrzeug verworfen.` });
     else if (!stationIds.has(v.stationId)) issues.push({ path: `vehicles/${v.id}`, message: `Unbekannte Wache "${v.stationId}" – Fahrzeug verworfen.` });

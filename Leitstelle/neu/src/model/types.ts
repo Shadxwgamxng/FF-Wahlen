@@ -136,6 +136,8 @@ export interface Station {
   capacity: number;
   /** Ausrückzeit in Sekunden (Alarm -> Status 3) */
   turnoutSeconds: number;
+  /** Ortswehr: Hauptwehr der Gemeinde, die bei Brandeinsätzen mitalarmiert wird */
+  mainStationId?: ID;
 }
 
 export interface ServiceWindow {

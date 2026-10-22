@@ -103,6 +103,18 @@ export function proposalWithGroups(state: GameState, inc: Incident, sug: Suggest
     const st = state.center.stations.find((s) => s.id === v.stationId)!;
     if (!groups.has(st.id)) groups.set(st.id, { station: st, vehicles: [], etaMs: Infinity, reasons: [] });
   }
+  // Brand: eine Ortswehr wird zusammen mit der Hauptwehr ihrer Gemeinde alarmiert (nicht umgekehrt)
+  const category = state.center.keywords.find((k) => k.id === inc.keywordId)?.category;
+  const asMain = new Set<string>();
+  if (category === 'brand') {
+    for (const g of [...groups.values()]) {
+      const main = g.station.mainStationId ? state.center.stations.find((s) => s.id === g.station.mainStationId) : undefined;
+      if (main && isGroupStation(state, main) && !groups.has(main.id)) {
+        groups.set(main.id, { station: main, vehicles: [], etaMs: Infinity, reasons: [] });
+        asMain.add(main.id);
+      }
+    }
+  }
   // Voraussichtliche Ausrückordnung je Gruppe (nacheinander, damit Gruppen sich nicht doppelt zählen)
   const other = state.center.vehicles.filter((v) => vehicleIds.includes(v.id));
   const taken: Vehicle[] = [...other];
@@ -111,6 +123,8 @@ export function proposalWithGroups(state: GameState, inc: Incident, sug: Suggest
     taken.push(...g.vehicles);
     g.etaMs = Math.min(...g.vehicles.map((v) => etaFor(state, v, inc.position).etaMs), Infinity);
     g.reasons = [`rückt voraussichtlich aus mit ${g.vehicles.map((v) => state.center.vehicleTypes.find((t) => t.id === v.typeId)?.code ?? v.typeId).join(', ')}`];
+    if (asMain.has(g.station.id)) g.reasons.push('Hauptwehr der Gemeinde – bei Brand gemeinsam mit der Ortswehr alarmiert');
   }
-  return { groups: [...groups.values()], vehicleIds };
+  // mitalarmierte Hauptwehr ohne einsatzbereite Fahrzeuge entfällt
+  return { groups: [...groups.values()].filter((g) => g.vehicles.length || !asMain.has(g.station.id)), vehicleIds };
 }

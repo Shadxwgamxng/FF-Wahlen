@@ -76,10 +76,10 @@ export const OSTHOLSTEIN_TYPES: VehicleType[] = [
 
   // ---------------------------------------------------------------- Rettungsdienst und Hilfsorganisationen
   t('oh_mzrtw', 'Mehrzweck-RTW', 'KTW / Mehrzweck-Rettungswagen', 'krankentransport', ['ktw', 'rtw'], 2, 62, { canTransport: true }),
-  t('oh_rtw_hiorg', 'RTW', 'Rettungswagen (Hilfsorganisation, Transportkomponente 1)', 'rettungsdienst', ['rtw', 't1'], 2, 65, { canTransport: true }),
+  t('oh_rtw_hiorg', 'RTW', 'Rettungswagen (Hilfsorganisation, Transportkomponente 1)', 'rettungsdienst', ['t1'], 2, 65, { canTransport: true }),
   t('oh_ktw_hiorg', 'KTW', 'Krankentransportwagen (Hilfsorganisation, Transportkomponente 2)', 'katastrophenschutz', ['ktw', 't2'], 2, 60, { canTransport: true }),
   t('oh_ktwb', 'KTW-B', 'Krankentransportwagen Typ B', 'katastrophenschutz', ['ktw', 't2'], 2, 60, { canTransport: true }),
-  t('oh_rtwt1', 'RTW T1', 'Rettungswagen (Hilfsorganisation)', 'rettungsdienst', ['rtw', 't1'], 2, 65, { canTransport: true }),
+  t('oh_rtwt1', 'RTW T1', 'Rettungswagen (Hilfsorganisation, Transportkomponente 1)', 'rettungsdienst', ['t1'], 2, 65, { canTransport: true }),
   t('oh_elwrd', 'ELW RD', 'Einsatzleitwagen Rettungsdienst (Hilfsorganisation)', 'katastrophenschutz', [], 4, 60),
   t('oh_pkwfue', 'PKW Führung', 'Führungsfahrzeug (Hilfsorganisation)', 'katastrophenschutz', [], 4, 70),
   t('oh_mzfdrohne_san', 'MZF Drohne', 'Mehrzweckfahrzeug mit Drohne (Hilfsorganisation)', 'katastrophenschutz', ['mannschaft'], 6, 60),
@@ -90,6 +90,7 @@ export const OSTHOLSTEIN_TYPES: VehicleType[] = [
   t('oh_ktw4', 'KTW Typ 4', 'Krankentransportwagen Typ 4 (4 Tragen)', 'katastrophenschutz', ['ktw', 't2'], 3, 55, { canTransport: true }),
   t('oh_nktw', 'NKTW', 'Notfallkrankentransportwagen', 'katastrophenschutz', ['ktw', 't2'], 2, 60, { canTransport: true }),
   t('oh_gnktw', 'G-NKTW', 'Notfallkrankentransportwagen (Gefahrenabwehr)', 'katastrophenschutz', ['ktw', 't2'], 2, 60, { canTransport: true }),
+  // RTW der Ortsvereine (T1) nur bei Großeinsatz Rettungsdienst: Fähigkeit t1, nicht rtw (kein Alltagsvorschlag)
   // Führungsfahrzeuge der Hilfsorganisationen: keine Rettungsdienst-Führung (ELRD/OrgL kommt vom Rettungsdienst),
   // daher ohne AAO-Fähigkeit – nur gezielt alarmierbar
   t('oh_kdow_san', 'KdoW', 'Kommandowagen (Sanitätsdienst)', 'katastrophenschutz', [], 4, 70),

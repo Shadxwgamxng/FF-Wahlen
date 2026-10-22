@@ -65,6 +65,32 @@ export const wacheKey = (name: string) =>
     .replace(/[\s-]+/g, ' ')
     .trim();
 
+/** Hauptwehr der Gemeinde, wenn sie nicht "<Gemeinde> OF <Gemeinde>" heißt */
+const MAIN_BY_GEMEINDE: Record<string, string> = {
+  'Bad Schwartau': 'FF Bad Schwartau OF Bad Schwartau-Rensefeld',
+  Fehmarn: 'FF Fehmarn OF Burg auf Fehmarn',
+  Gremersdorf: 'FF Giddendorf-Seegalendorf-Gremersdorf',
+};
+/** Ortswehren, deren Name die Gemeinde nicht nennt */
+const MAIN_OF: Record<string, string> = {
+  'FF Benz': 'FF Bad Malente-Gremsmühlen',
+  'FF Kreuzfeld': 'FF Bad Malente-Gremsmühlen',
+  'FF Malkwitz-Söhren': 'FF Bad Malente-Gremsmühlen',
+  'FF Neukirchen': 'FF Bad Malente-Gremsmühlen',
+  'FF Nüchel': 'FF Bad Malente-Gremsmühlen',
+  'FF Sieversdorf': 'FF Bad Malente-Gremsmühlen',
+  'FF Timmdorf': 'FF Bad Malente-Gremsmühlen',
+  'FF Bujendorf': 'FF Süsel OF Süsel',
+  'FF Kesdorf': 'FF Süsel OF Süsel',
+};
+
+/** Hauptwehr einer Ortswehr ("FF Ahrensbök OF Gnissau" → "FF Ahrensbök OF Ahrensbök"); null = selbst Hauptwehr bzw. keine */
+export function mainWehrOf(name: string, names: Set<string>): string | null {
+  const m = /^(FF|PF) (.+?) OF (.+)$/.exec(name);
+  const main = MAIN_OF[name] ?? (m ? (MAIN_BY_GEMEINDE[m[2]] ?? `${m[1]} ${m[2]} OF ${m[2]}`) : null);
+  return main && main !== name && names.has(main) ? main : null;
+}
+
 /** Woher die Position einer Wache stammt */
 export type PositionSource = 'osm' | 'adresse' | 'tabelle' | 'ortsmitte' | 'gemeinde';
 
@@ -201,6 +227,13 @@ export function createOstholsteinCenter(elements: OverpassElement[]): CenterConf
     osmNames.has(baseName(s.name)) && placedDefs.some((p) => p.kinds.includes(s.kind) && p.keys.has(wacheKey(s.name)) && distanceMeters(p.st.position, s.position) <= 5000);
   c.stations = c.stations.filter((s) => claimed.has(s.id) || !sameWache(s));
   c.stations.push(...added, rthStation);
+  // Ortswehren: Hauptwehr der Gemeinde (wird bei Brand mitalarmiert)
+  const byName = new Map(c.stations.map((st) => [st.name, st]));
+  const names = new Set(byName.keys());
+  for (const st of c.stations) {
+    const main = st.kind === 'feuerwehrhaus' || st.kind === 'feuerwache' ? mainWehrOf(st.name, names) : null;
+    if (main) st.mainStationId = byName.get(main)!.id;
+  }
   for (const a of c.areas) a.responsibleStationIds = c.stations.filter((s) => s.organizationId !== 'org_ext' && pointInArea(s.position, a)).map((s) => s.id);
   lastPlacements = placements;
 
