@@ -80,6 +80,11 @@ export function PolizeiTelefon({ game, inc }: { game: GameState; inc: Incident }
         <div className="mask-title grow">Polizei</div>
         {needed && !p?.sent.length && <span className="chip alarm small">Polizei erforderlich</span>}
         {p?.sent.length ? <span className="chip small">{p.sent.length} Streife(n) unterwegs</span> : null}
+        {p?.incoming && (
+          <button className="btn small alarm" onClick={() => store.cmd('policeAnswer', inc.id)} data-testid="polizei-annehmen">
+            ☎ Polizeileitstelle ruft an – annehmen
+          </button>
+        )}
         {!p?.open ? (
           <button className="btn small primary" onClick={() => store.cmd('policeCallOpen', inc.id)} data-testid="polizei-anrufen">
             ☎ Polizei anrufen

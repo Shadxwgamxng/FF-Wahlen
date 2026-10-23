@@ -6,6 +6,7 @@ import { createRecognizer, germanVoices, speakAs, type Recognizer } from '../voi
 import { getConsent, giveConsent } from '../voice/transcripts';
 import { store, useStore } from '../store/gameStore';
 import { squelch, startHorn } from './audio';
+import { isPoliceVehicle } from '../sim/dispatch';
 import { getPrefs } from './prefs';
 import { fmtClock } from './components/common';
 import type { CommandResult } from '../sim/engine';
@@ -35,6 +36,8 @@ const MAX_SEND_MS = 30_000;
 export function radioGroups(game: GameState): RadioGroup[] {
   const m = new Map<string, RadioGroup>();
   for (const v of game.center.vehicles) {
+    // Polizeifunk gehört nicht zu uns
+    if (isPoliceVehicle(game, v)) continue;
     const g = radioGroupOf(game.center, v);
     if (g?.code && !m.has(g.code)) m.set(g.code, g);
   }

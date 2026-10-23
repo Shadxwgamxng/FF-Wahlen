@@ -273,7 +273,7 @@ export function installAudio() {
   let lastProject = store.project?.id;
   return store.subscribe(() => {
     const s = store.state;
-    setRinging(!!s && getPrefs().sound && s.runtime.calls.some((c) => c.state === 'klingelt'));
+    setRinging(!!s && getPrefs().sound && (s.runtime.calls.some((c) => c.state === 'klingelt') || s.runtime.incidents.some((i) => i.police?.incoming)));
     if (!s) return;
     if (store.project?.id !== lastProject) {
       lastProject = store.project?.id;

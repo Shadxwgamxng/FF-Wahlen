@@ -15,8 +15,8 @@ einen synthetischen Ersatzton.
 
 Quellen:
   anruf.mp3          BBC Sound Effects 07042244 "Telephone, constant ring (Push button telephone)"
-  martinshorn-1.mp3  BBC Sound Effects 07015074 "German police car on constant run, with martinhorn"
-  martinshorn-2.mp3  archive.org "MartinshornKlingeltonDownloadenHD"
+  martinshorn-1.mp3  Pressluft-Horn, Innenaufnahme (vom Nutzer bereitgestellt)
+  martinshorn-2.mp3  E-Horn, Innenaufnahme (vom Nutzer bereitgestellt)
   (BBC-Aufnahmen: RemArc-Lizenz, nur private/nichtkommerzielle Nutzung)
 
 Eigene Aufnahmen können einfach unter demselben Namen abgelegt werden

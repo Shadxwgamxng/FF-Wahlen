@@ -526,6 +526,10 @@ export interface Incident {
   backupRequests: { at: number; text: string; requirements: AaoRequirement[] }[];
   /** Örtliches Führungsfahrzeug: spricht Rückmeldungen und Nachforderungen */
   leadVehicleId?: ID | null;
+  /** Erstmeldung über Funk gegeben (Streifen der Polizei melden nicht über unseren Funk) */
+  firstReportAt?: number | null;
+  /** Polizei war zuerst vor Ort (wurde bewertet, ggf. Anruf der Polizeileitstelle) */
+  policeReported?: boolean;
   escalation: { at: number; requirements: AaoRequirement[]; text: string; triggered: boolean; extraPatients: number } | null;
   /** Mehrspieler: wer den Einsatz bearbeitet */
   owner?: { id: string; name: string };
@@ -534,7 +538,7 @@ export interface Incident {
   /** Mehrspieler: letzte abgelehnte Anfrage (Hinweis beim Anfragenden) */
   takeOverDeclined?: { id: string; name: string; by: string };
   /** Telefonat mit der Polizeileitstelle (sim/polizei.ts) */
-  police?: { open: boolean; shared: boolean; lines: { at: number; from: 'leitstelle' | 'polizei'; text: string }[]; sent: string[]; pending?: { count: number; reason?: string } };
+  police?: { open: boolean; shared: boolean; lines: { at: number; from: 'leitstelle' | 'polizei'; text: string }[]; sent: string[]; pending?: { count: number; reason?: string }; incoming?: boolean };
   log: { at: number; text: string }[];
   /** Bewertungshinweis: richtiges Stichwort gewählt? */
   keywordCorrect: boolean | null;

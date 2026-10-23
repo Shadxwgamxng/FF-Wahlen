@@ -134,6 +134,9 @@ function setStatus(state: GameState, v: Vehicle, meaning: StatusMeaning, note?: 
 
 function radio(state: GameState, msg: Omit<RadioMessage, 'id' | 'at' | 'handled'>) {
   const rt = state.runtime;
+  // Polizeifunk hören wir nicht – Streifen melden sich nie bei uns über Funk
+  const sender = state.center.vehicles.find((x) => x.id === msg.vehicleId);
+  if (sender && isPoliceVehicle(state, sender)) return null;
   rt.counters.radio++;
   // Der Inhalt ist erst bekannt, wenn die Leitstelle das Fahrzeug anspricht (Funk oder "Ansprechen")
   const m: RadioMessage = { ...msg, id: `r_${rt.counters.radio}`, at: rt.clock.now, handled: false, revealed: false };
@@ -230,6 +233,8 @@ export const reqText = (reqs: AaoRequirement[]) => reqs.map((r) => `${r.count >=
 
 /** Zusatzmodule (z. B. Polizeileitstelle) hängen sich in den Simulationstakt */
 export const tickHooks: ((state: GameState) => void)[] = [];
+/** Polizeileitstelle (sim/polizei.ts): ruft an, wenn eine Streife zuerst vor Ort ist und die Lage kritisch ist */
+export const policeHooks: { firstOnScene?: (state: GameState, inc: Incident, report: string) => void } = {};
 
 export function tick(state: GameState, dtMs: number) {
   if (dtMs <= 0) return;
@@ -447,6 +452,7 @@ function arrive(state: GameState, v: Vehicle) {
     } else if (inc) {
       // Führung: das ersteintreffende Fahrzeug, bis ein Führungsfahrzeug eintrifft
       const lead = leaderOf(state, inc);
+      const wasFirst = !inc.firstArrivalAt;
       if (!inc.firstArrivalAt) {
         inc.firstArrivalAt = now;
         inc.lastNeedCheckAt = now;
@@ -455,12 +461,25 @@ function arrive(state: GameState, v: Vehicle) {
         if (inc.escalation && !inc.escalation.triggered) inc.escalation.at = now + (inc.escalation.at - inc.createdAt);
         // Ungehörte Ausrückmeldungen der Wehren sind mit dem Eintreffen überholt
         for (const r of state.runtime.radio) if (r.incidentId === inc.id && !r.handled && r.revealed === false && r.kind === 'lage' && r.text.includes('rückt aus mit')) r.handled = true;
-        // Erste Lagemeldung: das erste Fahrzeug drückt Status 5 und meldet nach dem Ansprechen die Lage
-        // (nicht beim Krankentransport – dort gibt es vor Ort nichts zu melden)
-        const isKtp = state.center.keywords.find((k) => k.id === inc.keywordId)?.category === 'ktp';
-        if (!isKtp) {
-          const bound = state.center.vehicles.filter((x) => inc.activeVehicleIds.includes(x.id));
-          const missing = openRequirements(state, nonMedical(inc.needs), bound).length > 0;
+      }
+      // Erste Lagemeldung: das erste eigene Fahrzeug drückt Status 5 und meldet nach dem Ansprechen die Lage
+      // (nicht beim Krankentransport – dort gibt es vor Ort nichts zu melden). Die Polizei funkt nicht bei uns:
+      // ist eine Streife zuerst da, ruft höchstens die Polizeileitstelle an, wenn es kritisch ist.
+      const isKtp = state.center.keywords.find((k) => k.id === inc.keywordId)?.category === 'ktp';
+      const police = isPoliceVehicle(state, v);
+      // vor der Streife war schon ein eigenes Fahrzeug da (auch ältere Spielstände ohne firstReportAt): bereits gemeldet
+      const due = !inc.firstReportAt && (police ? wasFirst : wasFirst || inc.policeReported === true);
+      if (!isKtp && due) {
+        const bound = state.center.vehicles.filter((x) => inc.activeVehicleIds.includes(x.id));
+        const missing = openRequirements(state, nonMedical(inc.needs), bound).length > 0;
+        if (police) {
+          inc.policeReported = true;
+          // kritisch: es fehlen eigene Kräfte (nicht Polizei), Notarzt nötig oder die Lage hat sich verschärft
+          const ownMissing = openRequirements(state, nonMedical(inc.needs), bound).some((r) => !r.capability.startsWith('polizei'));
+          const critical = ownMissing || inc.patients.some((p) => p.needsDoctor) || (inc.escalation?.triggered ?? false);
+          if (critical) policeHooks.firstOnScene?.(state, inc, arrivalReport(state, inc, missing));
+        } else {
+          inc.firstReportAt = now;
           v.rt.statusBeforeSpeak = 'einsatzort';
           setStatus(state, v, 'sprechwunsch');
           radio(state, { vehicleId: v.id, incidentId: inc.id, kind: 'lage', text: arrivalReport(state, inc, missing) });
@@ -570,9 +589,13 @@ function updateIncidents(state: GameState, dtMs: number) {
       withRng(state, (rng) => {
         for (let i = 0; i < extra; i++) inc.patients.push(newPatient(state, rng, inc.scenarioId, inc.patients.length + 1));
       });
-      const reporter = leaderOf(state, inc, present) ?? state.center.vehicles.find((v) => v.rt.incidentId === inc.id);
+      const reporter = leaderOf(state, inc, present) ?? state.center.vehicles.find((v) => v.rt.incidentId === inc.id && !isPoliceVehicle(state, v));
       if (reporter) {
         addBackupRequest(state, inc, reporter, inc.escalation.requirements, `Lageänderung: ${inc.escalation.text}`);
+      } else if (present.some((v) => isPoliceVehicle(state, v))) {
+        // nur Streifen vor Ort: Lageänderung kommt per Telefon von der Polizeileitstelle
+        inc.backupRequests.push({ at: now, text: `Lageänderung: ${inc.escalation.text}`, requirements: inc.escalation.requirements.map((r) => ({ ...r })) });
+        policeHooks.firstOnScene?.(state, inc, `Lageänderung: ${inc.escalation.text}`);
       }
     }
 
@@ -601,7 +624,8 @@ function updateIncidents(state: GameState, dtMs: number) {
           if (state.center.settings.autoRelease) {
             for (const v of present) releaseVehicleInternal(state, v, 'automatisch entlassen');
           } else {
-            radio(state, { vehicleId: leaderOf(state, inc, present)!.id, incidentId: inc.id, kind: 'lage', text: 'Einsatzstelle abgearbeitet, Kräfte können entlassen werden.' });
+            const lead = leaderOf(state, inc, present);
+            if (lead) radio(state, { vehicleId: lead.id, incidentId: inc.id, kind: 'lage', text: 'Einsatzstelle abgearbeitet, Kräfte können entlassen werden.' });
           }
         }
       }
@@ -686,8 +710,9 @@ export function leaderRank(state: GameState, v: Vehicle): number {
 
 /** Örtliches Führungsfahrzeug unter den Kräften vor Ort (bei Gleichstand bleibt das bisherige) */
 export function leaderOf(state: GameState, inc: Incident, present: Vehicle[] = onScene(state, inc)): Vehicle | undefined {
-  let best = present.find((v) => v.id === inc.leadVehicleId);
-  for (const v of present) if (!best || leaderRank(state, v) < leaderRank(state, best)) best = v;
+  const own = present.filter((v) => !isPoliceVehicle(state, v));
+  let best = own.find((v) => v.id === inc.leadVehicleId);
+  for (const v of own) if (!best || leaderRank(state, v) < leaderRank(state, best)) best = v;
   inc.leadVehicleId = best?.id ?? null;
   return best;
 }
@@ -713,7 +738,10 @@ function checkMissingForces(state: GameState, inc: Incident, present: Vehicle[])
     .map((r) => ({ capability: r.capability, count: r.count - (outstanding.get(r.capability) ?? 0) }))
     .filter((r) => r.count > 0);
   if (fresh.length === 0) return;
-  addBackupRequest(state, inc, leaderOf(state, inc, present)!, fresh, `Nachforderung: ${reqText(fresh)}`);
+  // nur Streifen vor Ort: die Polizei fordert bei uns nichts über Funk nach
+  const lead = leaderOf(state, inc, present);
+  if (!lead) return;
+  addBackupRequest(state, inc, lead, fresh, `Nachforderung: ${reqText(fresh)}`);
 }
 
 function addBackupRequest(state: GameState, inc: Incident, v: Vehicle, reqs: AaoRequirement[], text: string) {

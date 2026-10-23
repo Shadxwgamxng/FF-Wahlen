@@ -1,7 +1,7 @@
 import type { GameState } from '../model/types';
 import * as E from '../sim/engine';
 import { radioCall, radioTalk } from '../sim/funk';
-import { policeCallClose, policeCallOpen, policeShare, policeTalk } from '../sim/polizei';
+import { policeAnswer, policeCallClose, policeCallOpen, policeShare, policeTalk } from '../sim/polizei';
 import type { CommandResult } from '../sim/engine';
 import { getActor } from '../sim/actor';
 
@@ -31,6 +31,7 @@ export const COMMANDS = {
   linkCallToIncident: E.linkCallToIncident,
   radioCall,
   policeCallOpen,
+  policeAnswer,
   policeCallClose,
   policeShare,
   policeTalk,
@@ -61,7 +62,7 @@ export type CommandArgs<K extends CommandName> = (typeof COMMANDS)[K] extends (s
 
 /** Befehle, deren erstes Argument ein Notruf bzw. ein Einsatz ist (Zuständigkeit im Mehrspieler) */
 const CALL_CMDS = new Set<string>(['askQuestion', 'setCallKeyword', 'setCallMeldebild', 'createIncidentFromCall', 'updateCallMask', 'closeCallWithoutIncident', 'forwardCall', 'linkCallToIncident', 'startLocating', 'applyLocate', 'setCallDias', 'applyDiasResult', 'voiceTurn']);
-const INC_CMDS = new Set<string>(['alarmVehicles', 'alarmGroups', 'releaseAllOnScene', 'closeIncident', 'requestBackup', 'changeIncidentKeyword', 'correctIncidentLocation', 'policeCallOpen', 'policeCallClose', 'policeShare', 'policeTalk']);
+const INC_CMDS = new Set<string>(['alarmVehicles', 'alarmGroups', 'releaseAllOnScene', 'closeIncident', 'requestBackup', 'changeIncidentKeyword', 'correctIncidentLocation', 'policeCallOpen', 'policeAnswer', 'policeCallClose', 'policeShare', 'policeTalk']);
 /** Zeit, Neustart und Übungsszenarien steuert nur der Gastgeber */
 const HOST_ONLY = new Set<string>(['toggleRunning', 'setRunning', 'setSpeed', 'restartSimulation', 'injectScenarioCall']);
 

@@ -1,6 +1,7 @@
 import type { FunkLine, FunkState, GameState, Hospital, Incident, RadioMessage, Vehicle } from '../model/types';
 import { radioGroupOf } from '../model/radio';
 import { sceneSummary } from './lagemeldung';
+import { isPoliceVehicle } from './dispatch';
 import { acknowledgeRadio, alarmVehicles, assignHospital, capLabel, log, releaseVehicle, statusDef, type CommandResult } from './engine';
 
 /**
@@ -475,6 +476,11 @@ export function radioTalk(state: GameState, text: string, group: string | null =
           ? 'Rufname nicht erkannt – kein Fahrzeug mit diesem Rufnamen. Bitte wiederholen.'
           : 'Kein Rufname erkannt – bitte das Fahrzeug mit Rufnamen ansprechen, z. B. „Florian Ostholstein 61/48-01 von Leitstelle, kommen“.',
     });
+    f.lastVehicleId = undefined;
+    return ok();
+  }
+  if (isPoliceVehicle(state, v)) {
+    addLine(state, { from: 'system', group: group ?? undefined, text: `${v.callsign} ist im Polizeifunk, nicht in unserem – Absprachen über die Polizeileitstelle (Telefon).` });
     f.lastVehicleId = undefined;
     return ok();
   }

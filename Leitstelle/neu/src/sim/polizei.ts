@@ -1,5 +1,5 @@
 import type { GameState, Incident, Vehicle } from '../model/types';
-import { alarmPolice, log, tickHooks, type CommandResult } from './engine';
+import { alarmPolice, log, policeHooks, tickHooks, type CommandResult } from './engine';
 import { etaFor, isPoliceVehicle, typeOf } from './dispatch';
 import { vehicleAvailability } from './availability';
 import { numberWord } from './funk';
@@ -24,6 +24,8 @@ export interface PoliceCall {
   /** von der Polizei bereits geschickte Streifen */
   sent: string[];
   pending?: { count: number; reason?: string };
+  /** Die Polizeileitstelle ruft uns an (klingelt, bis jemand antwortet) */
+  incoming?: boolean;
 }
 
 const ok = (message?: string): CommandResult => ({ ok: true, message });
@@ -44,6 +46,29 @@ function say(state: GameState, inc: Incident, from: PoliceLine['from'], text: st
 
 const GREETINGS = ['Polizeileitstelle, guten Tag. Was kann ich für Sie tun?', 'Polizei, Einsatzleitstelle, guten Tag?', 'Polizeileitstelle, ja bitte?'];
 
+/**
+ * Die Polizeileitstelle ruft an: Eine Streife war zuerst an der Einsatzstelle und die Lage ist kritisch.
+ * Polizeifunk hören wir nicht – solche Meldungen kommen nur per Telefon.
+ */
+export function policeCallsUs(state: GameState, inc: Incident, report: string) {
+  const c = callOf(inc);
+  c.open = true;
+  c.incoming = true;
+  const lead = /^Lageänderung/.test(report) ? 'Unsere Streife vor Ort meldet eine' : 'Unsere Streife ist als Erste vor Ort.';
+  say(state, inc, 'polizei', `Polizeileitstelle hier, zu Ihrem Einsatz ${inc.address.split(',')[0]}: ${lead} ${report}`);
+  log(state, 'warnung', `Polizeileitstelle ruft an (Einsatz ${inc.number}): Streife zuerst vor Ort, kritische Lage.`, { incidentId: inc.id });
+}
+
+policeHooks.firstOnScene = policeCallsUs;
+
+/** Anruf der Polizeileitstelle annehmen */
+export function policeAnswer(state: GameState, incidentId: string): CommandResult {
+  const inc = findInc(state, incidentId);
+  if (!inc?.police?.incoming) return ok();
+  inc.police.incoming = false;
+  return ok();
+}
+
 /** Anruf bei der Polizeileitstelle beginnen */
 export function policeCallOpen(state: GameState, incidentId: string): CommandResult {
   const inc = findInc(state, incidentId);
@@ -60,6 +85,7 @@ export function policeCallClose(state: GameState, incidentId: string): CommandRe
   const inc = findInc(state, incidentId);
   if (!inc?.police?.open) return ok();
   inc.police.open = false;
+  inc.police.incoming = false;
   say(state, inc, 'polizei', 'Alles klar, auf Wiederhören.');
   return ok();
 }
@@ -126,6 +152,7 @@ export function policeTalk(state: GameState, incidentId: string, text: string): 
   if (!said) return fail('Nichts gesagt.');
   const c = callOf(inc);
   if (!c.open) policeCallOpen(state, incidentId);
+  c.incoming = false;
   say(state, inc, 'leitstelle', said);
   const n = said.toLowerCase();
 

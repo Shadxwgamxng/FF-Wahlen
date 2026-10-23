@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { GameState, RadioGroup, Vehicle } from '../model/types';
 import { compareCallsigns, heardGroups, radioGroupOf } from '../model/radio';
+import { isPoliceVehicle } from '../sim/dispatch';
 import { store, useStore } from '../store/gameStore';
 import { ConfirmHost, fmtClock, StatusBadge, Toasts } from './components/common';
 import { DiasPanel } from './views/desk/DiasPanel';
@@ -193,7 +194,7 @@ function Funkbedienplatz({ game }: { game: GameState }) {
     const m = new Map<string, GroupInfo>();
     for (const v of game.center.vehicles) {
       const g = radioGroupOf(game.center, v);
-      if (!g?.code) continue;
+      if (!g?.code || isPoliceVehicle(game, v)) continue;
       if (!m.has(g.code)) m.set(g.code, { group: g, vehicles: [], pending: 0 });
       m.get(g.code)!.vehicles.push(v);
     }

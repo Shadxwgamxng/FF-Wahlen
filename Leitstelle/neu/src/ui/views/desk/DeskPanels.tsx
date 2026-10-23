@@ -65,6 +65,7 @@ export function IncidentList({ game, selectedId, onSelect, onNewManual }: { game
                   <span className="grow ellipsis small">{kw?.label}</span>
                   <OwnerTag owner={i.owner} />
                   {radio && <span className="status-badge" style={{ background: 'var(--radio)' }} title="Offener Sprechwunsch">5</span>}
+                  {i.police?.incoming && <span className="chip alarm small" title="Die Polizeileitstelle ruft zu diesem Einsatz an" data-testid="polizei-ruft">☎ Polizei</span>}
                 </div>
                 <div className="small ellipsis">{i.address}</div>
                 <div className="row small muted">

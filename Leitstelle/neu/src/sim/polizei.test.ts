@@ -4,7 +4,7 @@ import { createOstholsteinCenter } from '../data/ostholstein';
 import type { OverpassElement } from '../geo/places';
 import { alarmVehicles, createGame, createManualIncident, tick } from './engine';
 import { isPoliceVehicle, suggestForIncident } from './dispatch';
-import { policeCallOpen, policeShare, policeTalk, requestedPatrols } from './polizei';
+import { policeAnswer, policeCallOpen, policeShare, policeTalk, requestedPatrols } from './polizei';
 
 const ELEMENTS: OverpassElement[] = JSON.parse(readFileSync(new URL('../../e2e/fixtures/overpass-ostholstein-sued.json', import.meta.url), 'utf8')).elements;
 
@@ -61,5 +61,29 @@ describe('Polizei per Telefon', () => {
     tick(g, 10_000);
     expect(inc.police!.sent.length).toBe(1);
     expect(inc.police!.pending).toBeUndefined();
+  });
+
+  it('Streifen funken nicht bei uns; zuerst vor Ort und kritisch: Polizeileitstelle ruft an', () => {
+    for (const critical of [false, true]) {
+      const { g, inc } = setup();
+      inc.patients = critical ? [{ id: 'p1', label: 'Patient 1', needsDoctor: true, department: 'Innere', state: 'wartet', vehicleId: null, hospitalId: null, readyAt: null }] : [];
+      policeShare(g, inc.id);
+      policeTalk(g, inc.id, 'Wir brauchen eine Streife');
+      const sent = inc.police!.sent;
+      expect(sent.length).toBeGreaterThan(0);
+      policeTalk(g, inc.id, 'Danke, tschüss');
+      for (let i = 0; i < 400 && !inc.firstArrivalAt; i++) tick(g, 5000);
+      expect(inc.firstArrivalAt).toBeTruthy();
+      // kein Sprechwunsch, kein Funk von der Polizei
+      expect(g.runtime.radio.some((r) => sent.includes(r.vehicleId))).toBe(false);
+      for (const id of sent) expect(g.center.vehicles.find((v) => v.id === id)!.rt.status).not.toBe('sprechwunsch');
+      expect(!!inc.police!.incoming, `kritisch=${critical}`).toBe(critical);
+      if (critical) {
+        expect(inc.police!.open).toBe(true);
+        expect(inc.police!.lines.at(-1)!.text).toMatch(/Polizeileitstelle hier.*Streife ist als Erste vor Ort/);
+        policeAnswer(g, inc.id);
+        expect(inc.police!.incoming).toBe(false);
+      }
+    }
   });
 });
