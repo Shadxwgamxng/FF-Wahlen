@@ -31,7 +31,7 @@ Einen anderen Port wählst du mit `PORT=9000 npm run lan` (unter Windows: `set P
   - Am Ende überträgt **„Daten übernehmen“** Stichwort, Meldebild und Infotext direkt in den Einsatz.
   - Die DIAS-Datei musst du nur am PC importieren, das Tablet holt sie sich vom PC.
 - **Kein Notruf in Abfrage:** Das Tablet ist ein **Funkbedienplatz**.
-  - Du schaltest eine Rufgruppe (z. B. FW_OH) und siehst deren offene Funkmeldungen und Sprechwünsche. Du kannst sie quittieren oder ein Transportziel zuweisen.
+  - Du schaltest eine Rufgruppe (z. B. OH_FW) und siehst deren offene Funkmeldungen und Sprechwünsche. Du kannst sie quittieren oder ein Transportziel zuweisen.
   - Meldungen anderer Rufgruppen erscheinen als Hinweis mit Zähler.
   - Die gewählte Rufgruppe merkt sich das Tablet.
 - Über die Reiter oben wechselst du während eines Notrufs zwischen Notrufabfrage und Funk.

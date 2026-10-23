@@ -152,7 +152,7 @@ function StationCard({ game, station }: { game: GameState; station: Station }) {
             </label>
             <label>
               Funkrufgruppe (Kürzel)*
-              <input value={d.groupCode} onChange={(e) => set({ groupCode: e.target.value })} placeholder="z. B. FW_OH" />
+              <input value={d.groupCode} onChange={(e) => set({ groupCode: e.target.value })} placeholder="z. B. OH_FW" />
             </label>
             <label>
               Funkrufgruppe (Name)*

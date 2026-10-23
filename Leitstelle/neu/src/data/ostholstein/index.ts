@@ -109,14 +109,14 @@ export let lastPlacements: StationPlacement[] = [];
 export function createOstholsteinCenter(elements: OverpassElement[]): CenterConfig {
   const orgs = defaultOrganizations().filter((o) => o.id !== 'org_bf');
   const RG: Record<string, [string, string]> = {
-    org_ff: ['Feuerwehren Ostholstein', 'FW_OH'],
-    org_rd: ['Rettungsdienst Ostholstein', 'RD_OH'],
+    org_ff: ['Feuerwehren Ostholstein', 'OH_FW'],
+    org_rd: ['Rettungsdienst Ostholstein', 'OH_RD'],
     org_ktp: ['Krankentransport Ostholstein', 'KTP_OH'],
     org_na: ['Notarztdienst Ostholstein', 'NA_OH'],
     org_pol: ['Polizei Ostholstein', 'POL_OH'],
     org_thw: ['THW Ostholstein', 'THW_OH'],
-    org_kats: ['Katastrophenschutz Ostholstein', 'KATS_OH'],
-    org_ext: ['Luftrettung', 'LR_SH'],
+    org_kats: ['Katastrophenschutz Ostholstein', 'OH_KATS'],
+    org_ext: ['Luftrettung Schleswig-Holstein', 'SH_LFR'],
   };
   for (const o of orgs) o.radioGroup = { name: RG[o.id]?.[0] ?? o.name, code: RG[o.id]?.[1] ?? 'GRP' };
   // Rettungsdienst der Nachbarn an der Kreisgrenze (Lübeck, Plön) – Anforderung über die Nachbarleitstelle

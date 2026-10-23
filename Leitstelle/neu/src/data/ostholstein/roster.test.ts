@@ -365,13 +365,13 @@ describe('Beispielleitstelle Ostholstein mit echten Fahrzeugen', () => {
     for (const a of c.areas) for (const id of a.responsibleStationIds) expect(cids.has(id), id).toBe(true);
   });
 
-  it('jeder RTW gehört zum Rettungsdienst (RD_OH), auch an einem Ortsverein', () => {
+  it('jeder RTW gehört zum Rettungsdienst (OH_RD), auch an einem Ortsverein', () => {
     const rtw = center.vehicles.filter((v) => v.typeId === 'rtw' && !v.external);
     expect(rtw.length).toBeGreaterThan(10);
     for (const v of rtw) expect(v.organizationId, v.callsign).toBe('org_rd');
     const akkon = vehicle('Akkon Ostholstein 67/83-11');
     expect(center.stations.find((s) => s.id === akkon.stationId)!.name).toBe('JUH OV Eutin');
-    expect(center.organizations.find((o) => o.id === akkon.organizationId)!.radioGroup.code).toBe('RD_OH');
+    expect(center.organizations.find((o) => o.id === akkon.organizationId)!.radioGroup.code).toBe('OH_RD');
   });
 
   it('Wachen haben Stellplätze in Reserve: Editor kann Fahrzeuge hinzufügen', () => {
@@ -427,13 +427,13 @@ describe('Beispielleitstelle Ostholstein mit echten Fahrzeugen', () => {
 
   it('Organisationen und Funkrufgruppen', () => {
     const grp = (cs: string) => center.organizations.find((o) => o.id === vehicle(cs).organizationId)!.radioGroup.code;
-    expect(grp('Florian Ostholstein 61/48-01')).toBe('FW_OH');
-    expect(grp('Rettung Ostholstein 67/83-01')).toBe('RD_OH');
+    expect(grp('Florian Ostholstein 61/48-01')).toBe('OH_FW');
+    expect(grp('Rettung Ostholstein 67/83-01')).toBe('OH_RD');
     expect(grp('Rotkreuz Ostholstein 61/82-01')).toBe('NA_OH');
     expect(grp('Rettung Ostholstein 92/85-01')).toBe('KTP_OH');
     expect(grp('Heros Eutin 24/55')).toBe('THW_OH');
-    expect(grp('Rotkreuz Ostholstein 42/95-01')).toBe('KATS_OH');
-    expect(grp('Christoph 12')).toBe('LR_SH');
+    expect(grp('Rotkreuz Ostholstein 42/95-01')).toBe('OH_KATS');
+    expect(grp('Christoph 12')).toBe('SH_LFR');
     expect(stationNamed('THW OV Eutin').kind).toBe('thw');
     expect(stationNamed('DLRG Bosau').kind).toBe('kats');
     expect(stationNamed('rdh. RW Eutin').kind).toBe('rettungswache');

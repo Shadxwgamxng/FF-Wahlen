@@ -44,7 +44,7 @@ export interface Organization {
 export interface RadioGroup {
   /** Klarname, z. B. "Rettungsdienst Ostholstein" */
   name: string;
-  /** Kürzel, z. B. "RD_OH" */
+  /** Kürzel, z. B. "OH_RD" */
   code: string;
 }
 

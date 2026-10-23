@@ -190,7 +190,7 @@ describe('Funk: Sprechwunsch (Status 5)', () => {
   it('Fahrzeug in anderer Rufgruppe antwortet nicht', () => {
     const g = game();
     const m = sprechwunsch(g, hlf(g), {});
-    radioTalk(g, 'Florian Ostholstein 61/48-01 kommen', 'RD_OH');
+    radioTalk(g, 'Florian Ostholstein 61/48-01 kommen', 'OH_RD');
     expect(m.revealed).toBe(false);
     expect(last(g).from).toBe('system');
     expect(last(g).text).toMatch(/Keine Antwort/);
@@ -212,8 +212,8 @@ describe('Funk: Sprechwunsch (Status 5)', () => {
     expect(last(g).group).toBe(radioGroupOf(g.center, hlf(g))!.code);
     expect(g.runtime.funk!.log.filter((l) => l.from === 'leitstelle').at(-1)!.group).toBe(radioGroupOf(g.center, hlf(g))!.code);
     // per Sprechtaste: Antwort in der geschalteten Gruppe
-    radioTalk(g, 'Florian Ostholstein 61/48-01, Lagemeldung', 'FW_OH');
-    expect(last(g).group).toBe('FW_OH');
+    radioTalk(g, 'Florian Ostholstein 61/48-01, Lagemeldung', 'OH_FW');
+    expect(last(g).group).toBe('OH_FW');
   });
 
   it('liefert den Einsatz nur, wenn ein Sprechwunsch aufgedeckt wurde', () => {
@@ -234,7 +234,7 @@ describe('Funk: Sprechwunsch (Status 5)', () => {
     expect(r2.ok && r2.id).toBeFalsy();
     // falsche Rufgruppe: nichts aufgedeckt
     sprechwunsch(g, v, { incidentId: inc.id });
-    const r3 = radioTalk(g, 'Florian Ostholstein 61/48-01 kommen', 'RD_OH');
+    const r3 = radioTalk(g, 'Florian Ostholstein 61/48-01 kommen', 'OH_RD');
     expect(r3.ok && r3.id).toBeFalsy();
   });
 
@@ -254,11 +254,11 @@ describe('Funk: Sprechwunsch (Status 5)', () => {
 
   it('ohne Rufnamen: Hinweis; danach gilt das zuletzt angesprochene Fahrzeug', () => {
     const g = game();
-    radioTalk(g, 'Kommen Sie mal bitte', 'FW_OH');
+    radioTalk(g, 'Kommen Sie mal bitte', 'OH_FW');
     expect(last(g).from).toBe('system');
-    radioTalk(g, 'Florian Ostholstein 61/48-01 von Leitstelle', 'FW_OH');
+    radioTalk(g, 'Florian Ostholstein 61/48-01 von Leitstelle', 'OH_FW');
     expect(last(g).text).toBe('Hier Florian Ostholstein 61/48-01, hört, kommen.');
-    radioTalk(g, 'Geben Sie mir Ihren Status', 'FW_OH');
+    radioTalk(g, 'Geben Sie mir Ihren Status', 'OH_FW');
     expect(last(g).text).toMatch(/^Status 2, /);
   });
 });
@@ -279,12 +279,12 @@ describe('Funk: Aufträge der Leitstelle', () => {
     const kw = g.center.keywords.find((k) => k.category === 'brand')!;
     expect(createManualIncident(g, kw.id, v.rt.position, 'Kirchhofsallee 10, 23730 Neustadt in Holstein', 'Test').ok).toBe(true);
     const inc = g.runtime.incidents[0];
-    radioTalk(g, 'Florian Ostholstein 61/48-01, übernehmen Sie den Einsatz in der Kirchhofsallee, kommen', 'FW_OH');
+    radioTalk(g, 'Florian Ostholstein 61/48-01, übernehmen Sie den Einsatz in der Kirchhofsallee, kommen', 'OH_FW');
     expect(v.rt.incidentId).toBe(inc.id);
     expect(last(g).text).toMatch(/übernehmen Einsatz Kirchhofsallee 10.*Ende\.$/);
-    radioTalk(g, 'Florian Ostholstein 61/48-01, Lagemeldung', 'FW_OH');
+    radioTalk(g, 'Florian Ostholstein 61/48-01, Lagemeldung', 'OH_FW');
     expect(last(g).text).toMatch(/Anfahrt zur Einsatzstelle Kirchhofsallee 10/);
-    radioTalk(g, 'Florian Ostholstein 61/48-01, rücken Sie ein', 'FW_OH');
+    radioTalk(g, 'Florian Ostholstein 61/48-01, rücken Sie ein', 'OH_FW');
     expect(v.rt.incidentId).toBeNull();
     expect(last(g).text).toMatch(/rücken ein, Ende\.$/);
   });
@@ -296,9 +296,9 @@ describe('Funk: keine Aufträge an das falsche Fahrzeug', () => {
     const v = hlf(g);
     const kw = g.center.keywords.find((k) => k.category === 'brand')!;
     createManualIncident(g, kw.id, v.rt.position, 'Kirchhofsallee 10, 23730 Neustadt in Holstein', 'Test');
-    radioTalk(g, 'Florian Ostholstein 61/48-01, übernehmen Sie den Einsatz in der Kirchhofsallee', 'FW_OH');
+    radioTalk(g, 'Florian Ostholstein 61/48-01, übernehmen Sie den Einsatz in der Kirchhofsallee', 'OH_FW');
     expect(v.rt.incidentId).not.toBeNull();
-    radioTalk(g, 'Florian Ostholstein 9948 01, rücken Sie ein', 'FW_OH');
+    radioTalk(g, 'Florian Ostholstein 9948 01, rücken Sie ein', 'OH_FW');
     expect(v.rt.incidentId).not.toBeNull();
     expect(last(g).from).toBe('system');
     expect(last(g).text).toMatch(/Rufname nicht erkannt/);
