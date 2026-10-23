@@ -397,6 +397,12 @@ describe('Beispielleitstelle Ostholstein mit echten Fahrzeugen', () => {
     expect(st.position[1]).toBeCloseTo(10.7609, 3);
   });
 
+  it('DRK OV Göhl liegt an der Unterkunft Plügge 1, nicht in der Ortsmitte', () => {
+    const st = center.stations.find((s) => s.name === 'DRK OV Göhl')!;
+    expect(st.position[0]).toBeCloseTo(54.2766, 3);
+    expect(st.position[1]).toBeCloseTo(10.9666, 3);
+  });
+
   it('Christoph 12 einmal, extern am Luftrettungszentrum Siblin', () => {
     const rth = center.vehicles.filter((v) => v.callsign === 'Christoph 12');
     expect(rth).toHaveLength(1);
