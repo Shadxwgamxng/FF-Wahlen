@@ -1358,16 +1358,17 @@ export function alarmGroups(state: GameState, incidentId: string, stationIds: st
 }
 
 /**
- * Ausrückmeldung: nur das Führungsfahrzeug (ELW/KdoW/MZF) der zuständigen Wehr meldet beim Ausrücken,
- * mit welchen Fahrzeugen die Wehr kommt. Andere Wehren und übrige Fahrzeuge schweigen.
+ * Ausrückmeldung: jede alarmierte Wehr meldet einmal, mit welchen Fahrzeugen sie kommt.
+ * Rückt ein Führungsfahrzeug (ELW/KdoW/MZF) mit aus, meldet dieses, sonst das erste ausrückende Fahrzeug.
  */
 function reportGroupTurnout(state: GameState, v: Vehicle, inc: Incident) {
-  if (!isGroupVehicle(state, v) || leaderRank(state, v) > 3) return;
-  const area = inc.areaId ? state.center.areas.find((a) => a.id === inc.areaId) : undefined;
-  if (area?.responsibleStationIds.length && !area.responsibleStationIds.includes(v.stationId)) return;
+  if (!isGroupVehicle(state, v)) return;
   const same = state.center.vehicles.filter((x) => x.stationId === v.stationId && x.rt.incidentId === inc.id);
-  // ein Führungsfahrzeug pro Wehr meldet: das ranghöchste
-  if (same.some((x) => x !== v && leaderRank(state, x) < leaderRank(state, v))) return;
+  const leads = same.filter((x) => leaderRank(state, x) <= 3);
+  if (leads.length) {
+    // das ranghöchste Führungsfahrzeug der Wehr meldet beim Ausrücken
+    if (leaderRank(state, v) > 3 || leads.some((x) => x !== v && leaderRank(state, x) < leaderRank(state, v))) return;
+  } else if (same.some((x) => x !== v && x.rt.status !== 'alarmiert')) return;
   const st = state.center.stations.find((s) => s.id === v.stationId)!;
   const codes = same.map((x) => typeOf(state, x)?.code ?? x.typeId).join(', ');
   radio(state, { vehicleId: v.id, incidentId: inc.id, kind: 'lage', text: `${groupName(st)} rückt aus mit ${codes}.` });

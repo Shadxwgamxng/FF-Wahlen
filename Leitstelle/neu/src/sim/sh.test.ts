@@ -183,13 +183,16 @@ describe('Katalog Schleswig-Holstein in der Beispielleitstelle Ostholstein', () 
     const times = alarmed.map((v) => v.rt.phaseUntil! - g.runtime.clock.now).sort((a, b) => a - b);
     expect(times[0]).toBeGreaterThanOrEqual(first.station.turnoutSeconds * 1000 * f * 0.8 - 1);
     for (let i = 1; i < times.length; i++) expect(times[i]).toBeGreaterThan(times[i - 1]);
+    const firstOut = [...alarmed].sort((a, b) => a.rt.phaseUntil! - b.rt.phaseUntil!)[0];
     // Funkrückmeldung beim Ausrücken – genau eine je Wehr
     for (let i = 0; i < 120 && !alarmed.every((v) => v.rt.status !== 'alarmiert'); i++) tick(g, 10 * SEC);
     const reports = g.runtime.radio.filter((r) => r.incidentId === inc.id && r.kind === 'lage' && r.text.includes('rückt aus mit'));
-    // nur das Führungsfahrzeug (ELW/KdoW/MZF) der zuständigen Wehr meldet – ohne Führungsfahrzeug keine Meldung
+    // genau eine Meldung je Wehr: vom Führungsfahrzeug, sonst vom ersten ausrückenden Fahrzeug
+    expect(reports).toHaveLength(1);
     const leads = alarmed.filter((v) => leaderRank(g, v) <= 3);
-    expect(reports).toHaveLength(leads.length ? 1 : 0);
-    for (const r of reports) expect(leaderRank(g, g.center.vehicles.find((v) => v.id === r.vehicleId)!)).toBeLessThanOrEqual(3);
+    const reporter = g.center.vehicles.find((v) => v.id === reports[0].vehicleId)!;
+    if (leads.length) expect(leaderRank(g, reporter)).toBeLessThanOrEqual(3);
+    else expect(reporter.id).toBe(firstOut.id);
     // Zweite Alarmierung derselben Gruppe ohne offenen Bedarf: es rückt noch ein Fahrzeug aus (Verstärkung) oder es gibt eine klare Meldung
     const again = alarmGroups(g, inc.id, [first.station.id]);
     if (!again.ok) expect(again.error).toMatch(/keine einsatzbereiten Fahrzeuge/);
