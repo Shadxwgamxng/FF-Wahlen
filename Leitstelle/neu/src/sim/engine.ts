@@ -445,6 +445,8 @@ function arrive(state: GameState, v: Vehicle) {
         radio(state, { vehicleId: v.id, incidentId: inc.id, kind: 'lage', text: `An der Adresse ${inc.address} ist keine Einsatzstelle feststellbar – erbitten Überprüfung der Adresse.` });
       }
     } else if (inc) {
+      // Führung: das ersteintreffende Fahrzeug, bis ein Führungsfahrzeug eintrifft
+      const lead = leaderOf(state, inc);
       if (!inc.firstArrivalAt) {
         inc.firstArrivalAt = now;
         inc.lastNeedCheckAt = now;
@@ -465,7 +467,9 @@ function arrive(state: GameState, v: Vehicle) {
         }
       }
       if (inc.state === 'abarbeitung_beendet') {
-        radio(state, { vehicleId: v.id, incidentId: inc.id, kind: 'lage', text: 'Eingetroffen, Einsatzstelle bereits abgearbeitet – erbitten Entlassung.' });
+        // die Meldung macht die Einsatzleitung vor Ort, nicht jedes nachrückende Fahrzeug
+        const text = lead && lead !== v ? `${v.callsign} eingetroffen, wird nicht mehr benötigt – kann entlassen werden.` : 'Eingetroffen, Einsatzstelle bereits abgearbeitet – erbitten Entlassung.';
+        radio(state, { vehicleId: (lead ?? v).id, incidentId: inc.id, kind: 'lage', text });
       }
     }
   } else if (m.purpose === 'transport') {
@@ -566,7 +570,7 @@ function updateIncidents(state: GameState, dtMs: number) {
       withRng(state, (rng) => {
         for (let i = 0; i < extra; i++) inc.patients.push(newPatient(state, rng, inc.scenarioId, inc.patients.length + 1));
       });
-      const reporter = present[0] ?? state.center.vehicles.find((v) => v.rt.incidentId === inc.id);
+      const reporter = leaderOf(state, inc, present) ?? state.center.vehicles.find((v) => v.rt.incidentId === inc.id);
       if (reporter) {
         addBackupRequest(state, inc, reporter, inc.escalation.requirements, `Lageänderung: ${inc.escalation.text}`);
       }
@@ -597,7 +601,7 @@ function updateIncidents(state: GameState, dtMs: number) {
           if (state.center.settings.autoRelease) {
             for (const v of present) releaseVehicleInternal(state, v, 'automatisch entlassen');
           } else {
-            radio(state, { vehicleId: present[0].id, incidentId: inc.id, kind: 'lage', text: 'Einsatzstelle abgearbeitet, Kräfte können entlassen werden.' });
+            radio(state, { vehicleId: leaderOf(state, inc, present)!.id, incidentId: inc.id, kind: 'lage', text: 'Einsatzstelle abgearbeitet, Kräfte können entlassen werden.' });
           }
         }
       }
@@ -664,6 +668,30 @@ function startTransport(state: GameState, v: Vehicle, p: Patient, hospitalId: st
   setStatus(state, v, 'transport', `nach ${h.name}`);
 }
 
+/**
+ * Rang als örtliches Führungsfahrzeug (kleiner = führt): ELW 2, ELW 1, KdoW, MZF der Feuerwehr,
+ * dann Rettungsdienst-Führung (ELRD/OrgL, ELW RD), dann NEF. Alle übrigen: das ersteintreffende führt.
+ */
+export function leaderRank(state: GameState, v: Vehicle): number {
+  const caps = capsOf(state, v);
+  const t = typeOf(state, v);
+  if (caps.includes('fuehrung_2')) return 0;
+  if (caps.includes('fuehrung_1')) return 1;
+  if (caps.includes('fuehrung_kdo') || (t?.orgKind === 'feuerwehr' && /^KdoW$/i.test(t.code))) return 2;
+  if (t?.orgKind === 'feuerwehr' && /^MZF\b/.test(t.code)) return 3;
+  if (caps.includes('rd_fuehrung') || /^ELW RD$/i.test(t?.code ?? '')) return 4;
+  if (caps.includes('notarzt') && !t?.canTransport) return 5;
+  return 9;
+}
+
+/** Örtliches Führungsfahrzeug unter den Kräften vor Ort (bei Gleichstand bleibt das bisherige) */
+export function leaderOf(state: GameState, inc: Incident, present: Vehicle[] = onScene(state, inc)): Vehicle | undefined {
+  let best = present.find((v) => v.id === inc.leadVehicleId);
+  for (const v of present) if (!best || leaderRank(state, v) < leaderRank(state, best)) best = v;
+  inc.leadVehicleId = best?.id ?? null;
+  return best;
+}
+
 /** Kräfte vor Ort prüfen Bedarf und fordern ggf. nach (spätestens alle 5 min) */
 function checkMissingForces(state: GameState, inc: Incident, present: Vehicle[]) {
   const now = state.runtime.clock.now;
@@ -685,7 +713,7 @@ function checkMissingForces(state: GameState, inc: Incident, present: Vehicle[])
     .map((r) => ({ capability: r.capability, count: r.count - (outstanding.get(r.capability) ?? 0) }))
     .filter((r) => r.count > 0);
   if (fresh.length === 0) return;
-  addBackupRequest(state, inc, present[0], fresh, `Nachforderung: ${reqText(fresh)}`);
+  addBackupRequest(state, inc, leaderOf(state, inc, present)!, fresh, `Nachforderung: ${reqText(fresh)}`);
 }
 
 function addBackupRequest(state: GameState, inc: Incident, v: Vehicle, reqs: AaoRequirement[], text: string) {
@@ -1301,11 +1329,17 @@ export function alarmGroups(state: GameState, incidentId: string, stationIds: st
   return ok(`${done.length} Alarmgruppe(n) alarmiert${errors.length ? `. Nicht alarmiert: ${errors.join(' ')}` : '.'}`);
 }
 
-/** Das erste ausrückende Fahrzeug einer Wehr meldet über Funk, mit welchen Fahrzeugen die Wehr kommt */
+/**
+ * Ausrückmeldung: nur das Führungsfahrzeug (ELW/KdoW/MZF) der zuständigen Wehr meldet beim Ausrücken,
+ * mit welchen Fahrzeugen die Wehr kommt. Andere Wehren und übrige Fahrzeuge schweigen.
+ */
 function reportGroupTurnout(state: GameState, v: Vehicle, inc: Incident) {
-  if (!isGroupVehicle(state, v)) return;
+  if (!isGroupVehicle(state, v) || leaderRank(state, v) > 3) return;
+  const area = inc.areaId ? state.center.areas.find((a) => a.id === inc.areaId) : undefined;
+  if (area?.responsibleStationIds.length && !area.responsibleStationIds.includes(v.stationId)) return;
   const same = state.center.vehicles.filter((x) => x.stationId === v.stationId && x.rt.incidentId === inc.id);
-  if (same.some((x) => x !== v && x.rt.status !== 'alarmiert')) return;
+  // ein Führungsfahrzeug pro Wehr meldet: das ranghöchste
+  if (same.some((x) => x !== v && leaderRank(state, x) < leaderRank(state, v))) return;
   const st = state.center.stations.find((s) => s.id === v.stationId)!;
   const codes = same.map((x) => typeOf(state, x)?.code ?? x.typeId).join(', ');
   radio(state, { vehicleId: v.id, incidentId: inc.id, kind: 'lage', text: `${groupName(st)} rückt aus mit ${codes}.` });

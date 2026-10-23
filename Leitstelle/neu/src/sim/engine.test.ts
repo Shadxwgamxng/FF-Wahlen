@@ -18,6 +18,8 @@ import {
   createGame,
   createIncidentFromCall,
   keywordHint,
+  leaderOf,
+  leaderRank,
   linkCallToIncident,
   releaseAllOnScene,
   releaseVehicle,
@@ -294,6 +296,42 @@ describe('Disposition und Einsatzlebenszyklus', () => {
     expect(inc.backupRequests.length).toBeGreaterThan(0);
     // Vorschlag berücksichtigt die Nachforderung
     expect(suggestForIncident(g, inc).proposal.length).toBeGreaterThan(0);
+  });
+
+  it('Rückmeldungen: erst das ersteintreffende Fahrzeug, Nachforderungen nur vom Führungsfahrzeug', () => {
+    const g = newGame(11);
+    const call = injectCall(g, 'brand_kueche', 0);
+    acceptCall(g, call.id);
+    askQuestion(g, call.id, 'ort');
+    setCallKeyword(g, call.id, 'kw_b_1');
+    const r = createIncidentFromCall(g, call.id);
+    const id = r.ok ? r.id! : '';
+    const inc = g.runtime.incidents.find((i) => i.id === id)!;
+    const elw = g.center.vehicles.find((v) => v.typeId === 'elw1')!;
+    alarmVehicles(g, id, [...suggestForIncident(g, inc).proposal.map((p) => p.vehicleId), elw.id]);
+    runUntil(g, () => g.runtime.radio.some((m) => m.kind === 'nachforderung' && m.incidentId === id), 60 * MIN);
+    const msgs = g.runtime.radio.filter((m) => m.incidentId === id && m.kind !== 'transportziel');
+    const first = msgs.find((m) => m.kind === 'lage')!;
+    expect(first).toBeDefined(); // Erstmeldung des ersteintreffenden Fahrzeugs
+    const nf = msgs.find((m) => m.kind === 'nachforderung')!;
+    expect(elw.rt.incidentId).toBe(id);
+    if (elw.rt.status === 'einsatzort' || elw.rt.statusBeforeSpeak === 'einsatzort') expect(nf.vehicleId).toBe(elw.id);
+    expect(nf.vehicleId).toBe(inc.leadVehicleId);
+    // nur Erstmeldung und Führungsfahrzeug sprechen
+    for (const m of msgs) expect([first.vehicleId, inc.leadVehicleId], m.text).toContain(m.vehicleId);
+  });
+
+  it('Rang der Führungsfahrzeuge: ELW vor KdoW vor NEF vor RTW', () => {
+    const g = newGame(1);
+    const by = (t: string) => g.center.vehicles.find((v) => v.typeId === t)!;
+    const ranks = ['elw2', 'elw1', 'kdow', 'elrd', 'nef', 'rtw'].map((t) => leaderRank(g, by(t)));
+    expect([...ranks].sort((a, b) => a - b)).toEqual(ranks);
+    expect(new Set(ranks).size).toBe(ranks.length);
+    // ohne Führungsfahrzeug bleibt das ersteintreffende Fahrzeug die Führung
+    const inc = { leadVehicleId: by('rtw').id } as Parameters<typeof leaderOf>[1];
+    const rtw2 = g.center.vehicles.filter((v) => v.typeId === 'rtw')[1];
+    expect(leaderOf(g, inc, [rtw2, by('rtw')])!.id).toBe(by('rtw').id);
+    expect(leaderOf(g, inc, [rtw2, by('rtw'), by('nef')])!.id).toBe(by('nef').id);
   });
 
   it('wiederholte Nachforderungen summieren sich nicht auf, wenn keine Kräfte verfügbar sind', () => {

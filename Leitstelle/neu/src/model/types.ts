@@ -524,6 +524,8 @@ export interface Incident {
   /** Aktuell gebundene Fahrzeuge */
   activeVehicleIds: ID[];
   backupRequests: { at: number; text: string; requirements: AaoRequirement[] }[];
+  /** Örtliches Führungsfahrzeug: spricht Rückmeldungen und Nachforderungen */
+  leadVehicleId?: ID | null;
   escalation: { at: number; requirements: AaoRequirement[]; text: string; triggered: boolean; extraPatients: number } | null;
   /** Mehrspieler: wer den Einsatz bearbeitet */
   owner?: { id: string; name: string };

@@ -29,3 +29,17 @@ export function hearsVehicle(c: CenterConfig, vehicleId: string | undefined, hea
   const g = v ? radioGroupOf(c, v)?.code : undefined;
   return !!g && heard.has(g);
 }
+
+/** Sortierschlüssel eines Rufnamens: Ortskennzahl, Fahrzeugkennung, laufende Nummer ("… 40/44-01") */
+export function callsignKey(callsign: string): [number, number, number] {
+  const m = /(\d+)\s*\/\s*(\d+)(?:\s*-\s*(\d+))?/.exec(callsign);
+  return m ? [Number(m[1]), Number(m[2]), Number(m[3] ?? 0)] : [Infinity, Infinity, Infinity];
+}
+
+/** Rufnamen nach Ortskennzahl sortieren; Rufnamen ohne Kennzahl (z. B. "Christoph 12") ans Ende */
+export function compareCallsigns(a: string, b: string): number {
+  const ka = callsignKey(a);
+  const kb = callsignKey(b);
+  for (let i = 0; i < 3; i++) if (ka[i] !== kb[i]) return ka[i] < kb[i] ? -1 : 1;
+  return a.localeCompare(b, 'de');
+}

@@ -391,6 +391,12 @@ describe('Beispielleitstelle Ostholstein mit echten Fahrzeugen', () => {
     expect(saveVehicle(g, { ...structuredClone(tpl), id: 'v_neu3', callsign: 'Florian Ostholstein 99/99-03' }, true)).toMatch(/keinen freien Stellplatz/);
   });
 
+  it('FF Wangels (Hauptwehr) liegt in Hansühn, nicht in Oldenburg', () => {
+    const st = center.stations.find((s) => s.name === 'FF Wangels OF Wangels')!;
+    expect(st.position[0]).toBeCloseTo(54.2682, 3);
+    expect(st.position[1]).toBeCloseTo(10.7609, 3);
+  });
+
   it('Christoph 12 einmal, extern am Luftrettungszentrum Siblin', () => {
     const rth = center.vehicles.filter((v) => v.callsign === 'Christoph 12');
     expect(rth).toHaveLength(1);

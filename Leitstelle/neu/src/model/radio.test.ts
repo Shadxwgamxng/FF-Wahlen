@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CenterConfig } from './types';
-import { heardGroups, hearsLine, hearsVehicle } from './radio';
+import { compareCallsigns, heardGroups, hearsLine, hearsVehicle } from './radio';
 
 const center = {
   organizations: [{ id: 'o1', radioGroup: { code: 'FW-1', name: 'Feuerwehr' } }],
@@ -34,5 +34,20 @@ describe('Rufgruppen hören', () => {
     expect(hearsVehicle(center, 'v3', heard)).toBe(false);
     expect(hearsVehicle(center, undefined, heard)).toBe(true);
     expect(hearsVehicle(center, 'v1', heardGroups(null, null))).toBe(false);
+  });
+});
+
+describe('Sortierung nach Ortskennzahl', () => {
+  it('Ortskennzahl vor Fahrzeugkennung vor laufender Nummer, Präfix egal', () => {
+    const cs = ['Rotkreuz Ostholstein 61/83-02', 'Florian Ostholstein 40/44-01', 'Christoph 12', 'Akkon Ostholstein 92/83-01', 'Florian Ostholstein 40/11-01', 'Rettung Ostholstein 40/83-01', 'Florian Ostholstein 03/71-01'];
+    expect([...cs].sort(compareCallsigns)).toEqual([
+      'Florian Ostholstein 03/71-01',
+      'Florian Ostholstein 40/11-01',
+      'Florian Ostholstein 40/44-01',
+      'Rettung Ostholstein 40/83-01',
+      'Rotkreuz Ostholstein 61/83-02',
+      'Akkon Ostholstein 92/83-01',
+      'Christoph 12',
+    ]);
   });
 });

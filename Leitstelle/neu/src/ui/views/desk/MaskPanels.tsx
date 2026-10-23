@@ -10,6 +10,9 @@ import { store } from '../../../store/gameStore';
 import { fmtClock, StatusBadge } from '../../components/common';
 import { RadioActions, radioText } from './RadioPanel';
 import { setCallVoiceMuted, useCallVoiceStatus } from '../../callVoice';
+
+/** Suchtext vereinheitlichen: klein, Umlaute/Sonderzeichen egal ("40/44" findet auch "40 44") */
+const norm = (t: string) => t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/ß/g, 'ss').replace(/[^a-z0-9]+/g, ' ').trim();
 import { FunkConsent } from '../../funk';
 
 /** Gesprächsleiste: Dialog mit dem Anrufer und Fragen */
@@ -180,6 +183,7 @@ export function Massnahmen({ game, inc, alarmRequest }: { game: GameState; inc: 
   const [sel, setSel] = useState<Set<string>>(new Set());
   const [selGroups, setSelGroups] = useState<Set<string>>(new Set());
   const [showAll, setShowAll] = useState(false);
+  const [query, setQuery] = useState('');
   const [backupCap, setBackupCap] = useState('loeschen');
   const [backupCount, setBackupCount] = useState(1);
 
@@ -214,10 +218,15 @@ export function Massnahmen({ game, inc, alarmRequest }: { game: GameState; inc: 
   const reasons = new Map(sug.proposal.map((p) => [p.vehicleId, p.reasons]));
   const rank = (c: (typeof sug.candidates)[number]) => (reasons.has(c.vehicle.id) ? 0 : sel.has(c.vehicle.id) ? 1 : c.matches.length ? 2 : 3);
   const vehicleCands = sug.candidates.filter((c) => !isGroupVehicle(game, c.vehicle));
+  // Suche: Rufname, Fahrzeugtyp, Wache/Wehr – Groß-/Kleinschreibung und Sonderzeichen egal
+  const words = norm(query).split(' ').filter(Boolean);
+  const hits = (text: string) => words.every((w) => norm(text).includes(w));
+  const stationName = (id: string) => game.center.stations.find((s) => s.id === id)?.name ?? '';
   const candidates = vehicleCands
     .filter((c) => showAll || c.available)
+    .filter((c) => !words.length || hits(`${c.vehicle.callsign} ${c.type?.code ?? ''} ${c.type?.name ?? ''} ${stationName(c.vehicle.stationId)}`))
     .sort((a, b) => rank(a) - rank(b) || a.etaMs - b.etaMs)
-    .slice(0, showAll ? 300 : 40);
+    .slice(0, showAll || words.length ? 300 : 40);
 
   // Alarmgruppen: je Wache einer Freiwilligen Feuerwehr
   const planned = new Map(plan.groups.map((g) => [g.station.id, g]));
@@ -237,6 +246,7 @@ export function Massnahmen({ game, inc, alarmRequest }: { game: GameState; inc: 
           distanceM: Math.min(...cs.map((c) => c.distanceM)),
           matches: [...new Set(avail.flatMap((c) => c.matches))],
           inArea: cs.some((c) => c.inArea),
+          searchText: cs.map((c) => `${c.vehicle.callsign} ${c.type?.code ?? ''}`).join(' '),
         };
       })
       .filter((g) => g.station && (showAll || g.available.length));
@@ -244,7 +254,9 @@ export function Massnahmen({ game, inc, alarmRequest }: { game: GameState; inc: 
   const groupRank = (g: (typeof groupRows)[number]) => (planned.has(g.station.id) ? 0 : selGroups.has(g.station.id) ? 1 : g.matches.length ? 2 : 3);
   const sortedGroups = [...groupRows].sort((a, b) => groupRank(a) - groupRank(b) || a.etaMs - b.etaMs);
   // ohne "auch nicht verfügbare": vorgeschlagene/gewählte Gruppen und die 5 nächsten weiteren
-  const groups = showAll ? sortedGroups : [...sortedGroups.filter((g) => groupRank(g) < 2), ...sortedGroups.filter((g) => groupRank(g) >= 2).slice(0, 5)];
+  const groups = words.length
+    ? sortedGroups.filter((g) => hits(`${groupName(g.station)} ${g.station.name} ${g.searchText}`))
+    : showAll ? sortedGroups : [...sortedGroups.filter((g) => groupRank(g) < 2), ...sortedGroups.filter((g) => groupRank(g) >= 2).slice(0, 5)];
   const tf = turnoutFactor(game.runtime.clock.now);
 
   if (inc.state === 'abarbeitung_beendet') return <div className="mask-box"><div className="mask-title">Maßnahmen</div><div className="small muted">Maßnahmen beendet.</div></div>;
@@ -277,7 +289,17 @@ export function Massnahmen({ game, inc, alarmRequest }: { game: GameState; inc: 
         >
           Leeren
         </button>
-        <span className="spacer" />
+        <input
+          type="search"
+          className="grow"
+          style={{ minWidth: 160 }}
+          placeholder="Fahrzeug, Wehr oder Alarmgruppe suchen …"
+          aria-label="Einsatzmittel suchen"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => e.stopPropagation()}
+          data-testid="alarm-search"
+        />
         <label className="check small"><input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} /> auch nicht verfügbare</label>
       </div>
       <div style={{ maxHeight: 320, overflow: 'auto', border: '1px solid var(--line)', borderRadius: 4 }}>

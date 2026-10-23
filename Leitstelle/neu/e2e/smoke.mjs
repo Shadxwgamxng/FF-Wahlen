@@ -239,6 +239,19 @@ async function main() {
 
   // ------------------------------------------------------------------ Alarm + Routing
   await im.getByTestId('group-row').first().waitFor();
+  {
+    // Suche nach Wehr bzw. Fahrzeug im Alarmierungsbereich
+    const firstGroup = (await im.getByTestId('group-row').first().locator('td').nth(1).innerText()).replace('AG', '').trim();
+    const word = firstGroup.split(/\s+/).pop();
+    await im.getByTestId('alarm-search').fill(word);
+    const rows = await im.getByTestId('group-row').allInnerTexts();
+    assert(rows.some((r) => r.includes(firstGroup)), `Suche „${word}“ findet ${firstGroup}`);
+    await im.getByTestId('alarm-search').fill('zzzz-nichts');
+    assert((await im.getByTestId('group-row').count()) === 0, 'Suche ohne Treffer blendet Alarmgruppen aus');
+    await im.getByTestId('alarm-search').fill('');
+    await im.getByTestId('group-row').first().waitFor();
+    log(`Alarmierung: Suche nach Wehr/Fahrzeug („${word}“) filtert die Liste`);
+  }
   await page.screenshot({ path: `${shots}02a-alarmgruppen.png` });
   await im.getByTestId('alarm-button').click();
   {

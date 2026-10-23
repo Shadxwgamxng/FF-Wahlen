@@ -137,7 +137,7 @@ FF Timmendorfer Strand OF Timmendorfer Strand;Freiwillige Feuerwehr;Bäderrandst
 FF Wangels OF Döhnsdorf-Weißenhaus;Freiwillige Feuerwehr;Döhnsdorf, 23758 Wangels;54.294873;10.730189;nur Ortsmitte;2;Korrektur Nutzer (Ortsmitte Döhnsdorf, OpenStreetMap);Gerätehaus-Adresse unbekannt
 FF Wangels OF Grammdorf;Freiwillige Feuerwehr;23758 Wangels;54.264379;10.814050;OSM-Standort;1;Korrektur Nutzer (Position OpenStreetMap);
 FF Wangels OF Hansühn-Testorf;Freiwillige Feuerwehr;Ostseestraße 17, 23758 Wangels;54.254874;10.755953;Adresse;3;Korrektur Nutzer (Position OpenStreetMap);
-FF Wangels OF Wangels;Freiwillige Feuerwehr;Birkenweg 8, 23758 Wangels;54.288498;10.896964;Adresse (PLZ);4;https://bos-fahrzeuge.info/wachen/25556/FF_Wangels_OF_Wangels;
+FF Wangels OF Wangels;Freiwillige Feuerwehr;Birkenweg 8, 23758 Wangels-Hansühn;54.268235;10.760925;Adresse;4;Korrektur Nutzer (Birkenweg in Hansühn, OpenStreetMap);
 FTZ Kreis Ostholstein;Freiwillige Feuerwehr;Bäderstraße 47, 23738 Lensahn;54.217273;10.895533;Adresse;15;https://bos-fahrzeuge.info/wachen/23285/FTZ_Kreis_Ostholstein;
 JUH OV Eutin;Johanniter;Max-Planck-Straße 7, 23701 Eutin;54.125078;10.635597;Adresse;12;https://bos-fahrzeuge.info/wachen/17704/JUH_OV_Eutin;
 JUH RW Bad Schwartau;Johanniter;Fünfhausen 1, 23611 Bad Schwartau;53.920784;10.690204;Adresse;6;https://bos-fahrzeuge.info/wachen/4451/JUH_RW_Bad_Schwartau;

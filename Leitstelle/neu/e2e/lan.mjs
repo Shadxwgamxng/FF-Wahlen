@@ -173,8 +173,15 @@ try {
     const s = window.leitwarte;
     const st = s.state;
     const inc = st.runtime.incidents.find((i) => i.id === id);
-    const ff = st.center.stations.find((x) => st.center.organizations.find((o) => o.id === x.organizationId)?.kind === 'freiwillige_feuerwehr' && st.center.vehicles.some((v) => v.stationId === x.id));
+    // Ausrücken meldet nur das Führungsfahrzeug (ELW/KdoW/MZF) der zuständigen Wehr
+    const area = st.center.areas.find((a) => a.id === inc.areaId);
+    const lead = (x) => st.center.vehicles.some((v) => v.stationId === x.id && /^(ELW|KdoW|MZF)/i.test(st.center.vehicleTypes.find((t) => t.id === v.typeId)?.code ?? ''));
+    const isFf = (x) => st.center.organizations.find((o) => o.id === x.organizationId)?.kind === 'freiwillige_feuerwehr';
+    const ff = st.center.stations.find((x) => isFf(x) && lead(x) && (!area?.responsibleStationIds.length || area.responsibleStationIds.includes(x.id)));
     s.cmd('alarmGroups', inc.id, [ff.id]);
+    // Führungsfahrzeug der Wehr mit alarmieren (rückt sonst bei kleinem Bedarf nicht aus)
+    const leadV = st.center.vehicles.find((v) => v.stationId === ff.id && /^(ELW|KdoW|MZF)/i.test(st.center.vehicleTypes.find((t) => t.id === v.typeId)?.code ?? ''));
+    if (leadV && !leadV.rt.incidentId) s.cmd('alarmVehicles', inc.id, [leadV.id]);
     s.cmd('setSpeed', 60);
     s.cmd('toggleRunning');
   }, incId);

@@ -4,7 +4,7 @@ import type { EventKind, GameState, OrgKind } from '../../../model/types';
 import { vehicleAvailability, outOfServiceReason } from '../../../sim/availability';
 import { formatDuration } from '../../../sim/geo';
 import { store } from '../../../store/gameStore';
-import { radioGroupOf } from '../../../model/radio';
+import { compareCallsigns, radioGroupOf } from '../../../model/radio';
 import { VehicleImage } from '../../vehicleImages';
 import { fmtAgo, fmtClock, StatusBadge } from '../../components/common';
 
@@ -102,9 +102,11 @@ export function VehicleBoard({ game, selectedId, onSelect }: { game: GameState; 
         if (kinds.length && (!t || !kinds.includes(t.orgKind))) return false;
         if (onlyFree && !(v.rt.status === 'frei_wache' || v.rt.status === 'frei_funk')) return false;
         return true;
-      }),
+      }).sort((a, b) => compareCallsigns(a.callsign, b.callsign)),
     }))
-    .filter((g) => g.vs.length > 0);
+    .filter((g) => g.vs.length > 0)
+    // Wachen nach der Ortskennzahl ihres ersten Fahrzeugs
+    .sort((a, b) => compareCallsigns(a.vs[0].callsign, b.vs[0].callsign) || a.s.name.localeCompare(b.s.name, 'de'));
   const free = game.center.vehicles.filter((v) => v.rt.status === 'frei_wache' || v.rt.status === 'frei_funk').length;
   return (
     <div className="panel" style={{ flex: 1 }}>

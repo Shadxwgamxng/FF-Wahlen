@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { GameState, RadioGroup, Vehicle } from '../model/types';
-import { heardGroups, radioGroupOf } from '../model/radio';
+import { compareCallsigns, heardGroups, radioGroupOf } from '../model/radio';
 import { store, useStore } from '../store/gameStore';
 import { ConfirmHost, fmtClock, StatusBadge, Toasts } from './components/common';
 import { DiasPanel } from './views/desk/DiasPanel';
@@ -225,8 +225,8 @@ function Funkbedienplatz({ game }: { game: GameState }) {
   const messages = game.runtime.radio.filter((r) => !r.handled && ids.has(r.vehicleId)).sort((a, b) => a.at - b.at);
   const others = groups.filter((g) => g !== active && g.pending > 0);
   const groupVehicles = active?.vehicles ?? [];
-  const busy = groupVehicles.filter((v) => v.rt.status !== 'frei_wache').sort((a, b) => a.callsign.localeCompare(b.callsign));
-  const vehicles = showAll ? [...groupVehicles].sort((a, b) => Number(b.rt.status !== 'frei_wache') - Number(a.rt.status !== 'frei_wache') || a.callsign.localeCompare(b.callsign)) : busy;
+  const busy = groupVehicles.filter((v) => v.rt.status !== 'frei_wache').sort((a, b) => compareCallsigns(a.callsign, b.callsign));
+  const vehicles = showAll ? [...groupVehicles].sort((a, b) => Number(b.rt.status !== 'frei_wache') - Number(a.rt.status !== 'frei_wache') || compareCallsigns(a.callsign, b.callsign)) : busy;
   return (
     <div className="funk-tablet" data-testid="funkbedienplatz">
       <section className="col">
