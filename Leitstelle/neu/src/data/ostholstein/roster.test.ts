@@ -34,11 +34,11 @@ const at = (iso: string) => Date.parse(iso);
 describe('Fahrzeugliste Ostholstein (roster)', () => {
   it('liest alle Einträge der vollständigen Liste und kommt auf eine plausible Fahrzeugzahl', () => {
     const rows = parseCsv(ROSTER_INPUT.fahrzeuge).length;
-    expect(rows).toBe(532);
+    expect(rows).toBe(531);
     // jeder Eintrag ist Fahrzeug, zusammengeführt oder (mit Grund) weggelassen
     const mergedAway = roster.merged.filter((m) => m.reason.startsWith('=') || m.reason.startsWith('doppelt')).length;
     expect(roster.vehicles.length + roster.omitted.length + mergedAway).toBe(rows);
-    expect(roster.vehicles.length).toBe(530);
+    expect(roster.vehicles.length).toBe(529);
     expect(one('Florian Ostholstein 42/41-06').wache).toBe('FF Wangels OF Grammdorf');
     expect(one('Florian Ostholstein 42/41-05').wache).toBe('FF Giddendorf-Seegalendorf-Gremersdorf');
     for (const o of roster.omitted) expect(o.reason.length, o.callsign).toBeGreaterThan(10);
@@ -123,6 +123,10 @@ describe('Fahrzeugliste Ostholstein (roster)', () => {
     expect(oldenburg.every((v) => v.callsign.startsWith('Rotkreuz Ostholstein '))).toBe(true);
     expect(one('Rotkreuz Ostholstein 40/82-01').identifier).toBe('OH-RD 6710');
     expect(byCs('Rettung Ostholstein 40/82-01')).toHaveLength(0);
+    // zwei KTW, nur tagsüber
+    const oldKtw = oldenburg.filter((v) => v.callsign.includes('/85-'));
+    expect(oldKtw.map((v) => v.callsign)).toEqual(['Rotkreuz Ostholstein 40/85-01', 'Rotkreuz Ostholstein 40/85-02']);
+    for (const v of oldKtw) expect(v.serviceWindows, v.callsign).toEqual([{ fromHour: 7, toHour: 19, weekdays: [] }]);
     // CBRN-Erkunder 03/71-01 (LZ-G) bei der FF Oldenburg, nicht Malente
     expect(one('Florian Ostholstein 03/71-01')).toMatchObject({ wache: 'FF Oldenburg in Holstein', typeId: 'oh_cbrn' });
     expect(byCs('Florian Ostholstein 03/18-01')).toHaveLength(0);
