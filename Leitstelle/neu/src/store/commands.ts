@@ -15,6 +15,7 @@ export const COMMANDS = {
   acknowledgeRadio: E.acknowledgeRadio,
   alarmVehicles: E.alarmVehicles,
   alarmGroups: E.alarmGroups,
+  alarmErkundungsgruppen: E.alarmErkundungsgruppen,
   setCallDias: E.setCallDias,
   applyDiasResult: E.applyDiasResult,
   applyLocate: E.applyLocate,
@@ -62,7 +63,7 @@ export type CommandArgs<K extends CommandName> = (typeof COMMANDS)[K] extends (s
 
 /** Befehle, deren erstes Argument ein Notruf bzw. ein Einsatz ist (Zuständigkeit im Mehrspieler) */
 const CALL_CMDS = new Set<string>(['askQuestion', 'setCallKeyword', 'setCallMeldebild', 'createIncidentFromCall', 'updateCallMask', 'closeCallWithoutIncident', 'forwardCall', 'linkCallToIncident', 'startLocating', 'applyLocate', 'setCallDias', 'applyDiasResult', 'voiceTurn']);
-const INC_CMDS = new Set<string>(['alarmVehicles', 'alarmGroups', 'releaseAllOnScene', 'closeIncident', 'requestBackup', 'changeIncidentKeyword', 'correctIncidentLocation', 'policeCallOpen', 'policeAnswer', 'policeCallClose', 'policeShare', 'policeTalk']);
+const INC_CMDS = new Set<string>(['alarmVehicles', 'alarmGroups', 'alarmErkundungsgruppen', 'releaseAllOnScene', 'closeIncident', 'requestBackup', 'changeIncidentKeyword', 'correctIncidentLocation', 'policeCallOpen', 'policeAnswer', 'policeCallClose', 'policeShare', 'policeTalk']);
 /** Zeit, Neustart und Übungsszenarien steuert nur der Gastgeber */
 const HOST_ONLY = new Set<string>(['toggleRunning', 'setRunning', 'setSpeed', 'restartSimulation', 'injectScenarioCall']);
 

@@ -6,6 +6,7 @@ import type { GameState } from '../model/types';
 import {
   acceptCall,
   acknowledgeRadio,
+  alarmErkundungsgruppen,
   alarmGroups,
   alarmVehicles,
   askQuestion,
@@ -22,8 +23,8 @@ import {
   truthKeywordCode,
   truthMeldebild,
 } from './engine';
-import { hospitalOptions, suggestForIncident } from './dispatch';
-import { groupDeployment, isGroupVehicle, proposalWithGroups, turnoutFactor } from './alarmGroups';
+import { aaoRequirements, capsOf, hospitalOptions, openRequirements, suggestForIncident } from './dispatch';
+import { egName, egStations, groupDeployment, isGroupVehicle, proposalWithGroups, turnoutFactor } from './alarmGroups';
 import { injectScenarioCall, leaderRank } from './engine';
 import { policeShare, policeTalk } from './polizei';
 
@@ -62,7 +63,7 @@ describe('Katalog Schleswig-Holstein in der Beispielleitstelle Ostholstein', () 
   it('jede im SH-Katalog geforderte Fähigkeit ist mit echten Fahrzeugen abgedeckt – bis auf Sonderfahrzeuge, die es im Kreis nicht gibt', () => {
     const g = ostholstein(1);
     expect(g.center.catalogId).toBe('sh');
-    const provided = new Set(g.center.vehicles.filter((v) => !v.outOfService).flatMap((v) => g.center.vehicleTypes.find((t) => t.id === v.typeId)?.capabilities ?? []));
+    const provided = new Set(g.center.vehicles.filter((v) => !v.outOfService).flatMap((v) => capsOf(g, v)));
     const missing = new Set<string>();
     for (const r of g.center.aao) for (const { capability } of r.requirements) if (!provided.has(capability)) missing.add(capability);
     // In den Listen nicht enthalten (kommen im Ernstfall aus Nachbarbereichen): ITW/Inkubator, Schwerlast-RTW/-KTW,
@@ -114,12 +115,13 @@ describe('Katalog Schleswig-Holstein in der Beispielleitstelle Ostholstein', () 
           const s = suggestForIncident(g, inc);
           // wie in der Oberfläche: Freiwillige Feuerwehren über Alarmgruppen, alle anderen fahrzeugweise
           const plan = proposalWithGroups(g, inc, s);
+          if (plan.egs.length) alarmErkundungsgruppen(g, inc.id, plan.egs.map((x) => x.station.id));
           if (plan.groups.length) alarmGroups(g, inc.id, plan.groups.map((x) => x.station.id));
           if (plan.vehicleIds.length) alarmVehicles(g, inc.id, plan.vehicleIds);
           // Bedarf, den kein Fahrzeug der Leitstelle erfüllen kann (z. B. KIT, Schwerlast-KTW): wie im Spiel
           // an den Nachbarbereich abgeben und den Einsatz (vorzeitig) abschließen
-          const caps = new Set(g.center.vehicles.flatMap((v) => g.center.vehicleTypes.find((t) => t.id === v.typeId)?.capabilities ?? []));
-          if (inc.state === 'neu' && !plan.groups.length && !plan.vehicleIds.length && s.open.length && s.open.every((o) => !caps.has(o.capability) || o.capability.startsWith('polizei'))) {
+          const caps = new Set(g.center.vehicles.flatMap((v) => capsOf(g, v)));
+          if (inc.state === 'neu' && !plan.egs.length && !plan.groups.length && !plan.vehicleIds.length && s.open.length && s.open.every((o) => !caps.has(o.capability) || o.capability.startsWith('polizei'))) {
             expect(closeIncident(g, inc.id, true).ok).toBe(true);
             continue;
           }
@@ -196,6 +198,88 @@ describe('Katalog Schleswig-Holstein in der Beispielleitstelle Ostholstein', () 
     // Zweite Alarmierung derselben Gruppe ohne offenen Bedarf: es rückt noch ein Fahrzeug aus (Verstärkung) oder es gibt eine klare Meldung
     const again = alarmGroups(g, inc.id, [first.station.id]);
     if (!again.ok) expect(again.error).toMatch(/keine einsatzbereiten Fahrzeuge/);
+  });
+
+  describe('Erkundungsgruppen LZ-G', () => {
+    const withKeyword = (seed: number, code: string) => {
+      const g = ostholstein(seed);
+      tick(g, SEC);
+      expect(injectScenarioCall(g, 'brand_kueche').ok).toBe(true);
+      const call = g.runtime.calls[g.runtime.calls.length - 1];
+      acceptCall(g, call.id);
+      askQuestion(g, call.id, 'ort');
+      setCallKeyword(g, call.id, g.center.keywords.find((k) => k.code === code)!.id);
+      expect(createIncidentFromCall(g, call.id).ok).toBe(true);
+      return { g, inc: g.runtime.incidents[0] };
+    };
+    const need = (g: GameState, code: string, cap: string) =>
+      g.center.aao.find((a) => a.keywordId === g.center.keywords.find((k) => k.code === code)!.id)!.requirements.find((r) => r.capability === cap)?.count ?? 0;
+
+    it('jede Wache mit LZ-G-Fahrzeugen (Kennung 03/) stellt eine Erkundungsgruppe', () => {
+      const g = ostholstein(1);
+      const names = egStations(g).map(egName).sort();
+      expect(names).toEqual(
+        ['Ahrensbök', 'Bad Schwartau-Rensefeld', 'Bisdorf-Hinrichsdorf', 'Eutin', 'Heiligenhafen', 'Oldenburg in Holstein', 'Stockelsdorf'].map((n) => `Erkundungsgruppe ${n}`),
+      );
+      const oldenburg = egStations(g).find((s) => s.name === 'FF Oldenburg in Holstein')!;
+      expect(g.center.vehicles.filter((v) => v.lzg && v.stationId === oldenburg.id).map((v) => v.callsign).sort()).toEqual(['Florian Ostholstein 03/54-01', 'Florian Ostholstein 03/71-01']);
+      // THW ist keine Erkundungsgruppe, stellt aber den GW-Dekon P
+      const thw = g.center.vehicles.find((v) => v.callsign === 'Florian Ostholstein 03/74-01')!;
+      expect(thw.lzg).toBeFalsy();
+      expect(capsOf(g, thw)).toContain('dekon');
+    });
+
+    it('Stichwörter mit X: Erkundungsgruppen statt GW-Gefahrgut, ab TH 00 X zwei Gruppen und das THW', () => {
+      const g = ostholstein(1);
+      for (const code of ['TH K ERK X', 'TH K ERK XY']) {
+        expect(need(g, code, 'erkundungsgruppe')).toBe(1);
+        expect(need(g, code, 'gefahrgut')).toBe(0);
+        expect(need(g, code, 'dekon')).toBe(0);
+      }
+      for (const code of ['TH 00 X', 'TH 00 XY', 'TH BAHN X', 'TH G 00 X', 'TH WASSER X']) {
+        expect(need(g, code, 'erkundungsgruppe')).toBe(2);
+        expect(need(g, code, 'dekon')).toBe(1);
+        expect(need(g, code, 'gefahrgut')).toBe(0);
+      }
+      for (const code of ['FEU 00 X', 'FEU BMA X', 'FEU G 00 X']) {
+        expect(need(g, code, 'erkundungsgruppe')).toBe(1);
+        expect(need(g, code, 'dekon')).toBe(0);
+      }
+      expect(need(g, 'TH 00', 'erkundungsgruppe')).toBe(0);
+    });
+
+    it('TH K ERK X: die nächste Erkundungsgruppe rückt mit allen LZ-G-Fahrzeugen aus', () => {
+      const { g, inc } = withKeyword(9, 'TH K ERK X');
+      const plan = proposalWithGroups(g, inc, suggestForIncident(g, inc));
+      expect(plan.egs).toHaveLength(1);
+      const eg = plan.egs[0];
+      const all = g.center.vehicles.filter((v) => v.lzg && v.stationId === eg.station.id);
+      expect(eg.vehicles.map((v) => v.id).sort()).toEqual(all.map((v) => v.id).sort());
+      // LZ-G-Fahrzeuge stehen weder in den Alarmgruppen noch einzeln im Vorschlag
+      for (const gr of plan.groups) expect(gr.vehicles.some((v) => v.lzg)).toBe(false);
+      for (const id of plan.vehicleIds) expect(g.center.vehicles.find((v) => v.id === id)!.lzg).toBeFalsy();
+      expect(alarmErkundungsgruppen(g, inc.id, [eg.station.id]).ok).toBe(true);
+      expect(g.center.vehicles.filter((v) => v.rt.incidentId === inc.id && v.lzg).map((v) => v.id).sort()).toEqual(all.map((v) => v.id).sort());
+      expect(openRequirements(g, aaoRequirements(g, inc), g.center.vehicles.filter((v) => inc.activeVehicleIds.includes(v.id))).some((r) => r.capability === 'erkundungsgruppe')).toBe(false);
+      // Ausrückmeldung kommt von der Erkundungsgruppe
+      for (let i = 0; i < 120 && all.some((v) => v.rt.status === 'alarmiert'); i++) tick(g, 10 * SEC);
+      expect(g.runtime.radio.some((r) => r.incidentId === inc.id && r.text.startsWith(`${egName(eg.station)} rückt aus mit`))).toBe(true);
+    });
+
+    it('TH 00 X: zwei verschiedene Erkundungsgruppen und der GW-Dekon P des THW', () => {
+      const { g, inc } = withKeyword(9, 'TH 00 X');
+      const plan = proposalWithGroups(g, inc, suggestForIncident(g, inc));
+      expect(plan.egs).toHaveLength(2);
+      expect(new Set(plan.egs.map((e) => e.station.id)).size).toBe(2);
+      const dekon = plan.vehicleIds.map((id) => g.center.vehicles.find((v) => v.id === id)!).filter((v) => capsOf(g, v).includes('dekon'));
+      expect(dekon.map((v) => v.callsign)).toEqual(['Florian Ostholstein 03/74-01']);
+      // eine Gruppe alarmiert: noch eine offen – egal wie viele Fahrzeuge die erste Gruppe hat
+      alarmErkundungsgruppen(g, inc.id, [plan.egs[0].station.id]);
+      const bound = g.center.vehicles.filter((v) => inc.activeVehicleIds.includes(v.id));
+      expect(openRequirements(g, aaoRequirements(g, inc), bound).find((r) => r.capability === 'erkundungsgruppe')?.count).toBe(1);
+      const next = proposalWithGroups(g, inc, suggestForIncident(g, inc));
+      expect(next.egs.map((e) => e.station.id)).not.toContain(plan.egs[0].station.id);
+    });
   });
 
   it('Tageszeitfaktor der Ausrückzeit', () => {

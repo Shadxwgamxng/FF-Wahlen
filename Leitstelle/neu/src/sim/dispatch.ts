@@ -27,8 +27,40 @@ export function typeOf(state: GameState, v: Vehicle): VehicleType | undefined {
   return state.center.vehicleTypes.find((t) => t.id === v.typeId);
 }
 
+/**
+ * Erkundungsgruppe des LZ-G: jede Wache mit LZ-G-Fahrzeugen stellt eine Gruppe. Der Bedarf zählt
+ * Wachen (Gruppen), nicht Fahrzeuge; deckt ein LZ-G-Fahrzeug den Bedarf, rückt die ganze Gruppe aus.
+ */
+export const EG_CAP = 'erkundungsgruppe';
+
 export function capsOf(state: GameState, v: Vehicle): string[] {
-  return typeOf(state, v)?.capabilities ?? [];
+  const caps = typeOf(state, v)?.capabilities ?? [];
+  return v.lzg ? [...caps, EG_CAP] : caps;
+}
+
+/** Wachen, deren Erkundungsgruppe unter den Fahrzeugen vertreten ist */
+export const egStationsOf = (vehicles: Vehicle[]) => new Set(vehicles.filter((v) => v.lzg).map((v) => v.stationId));
+
+const adapted = new WeakMap<Vehicle[], { lzg: boolean; dekon: boolean }>();
+/**
+ * Leitstellen ohne LZ-G bzw. ohne GW-Dekon P: Erkundungsgruppe wird zu GW-Gefahrgut, der Dekon-Bedarf entfällt.
+ */
+export function adaptToCenter(state: GameState, reqs: AaoRequirement[]): AaoRequirement[] {
+  if (!reqs.some((r) => r.capability === EG_CAP || r.capability === 'dekon')) return reqs;
+  let has = adapted.get(state.center.vehicles);
+  if (!has) {
+    has = {
+      lzg: state.center.vehicles.some((v) => v.lzg && !v.outOfService),
+      dekon: state.center.vehicles.some((v) => !v.outOfService && (typeOf(state, v)?.capabilities ?? []).includes('dekon')),
+    };
+    adapted.set(state.center.vehicles, has);
+  }
+  if (has.lzg && has.dekon) return reqs;
+  return mergeRequirements(
+    reqs
+      .filter((r) => has.dekon || r.capability !== 'dekon')
+      .map((r) => (!has.lzg && r.capability === EG_CAP ? { ...r, capability: 'gefahrgut' } : r)),
+  );
 }
 
 /** Summiert Bedarfe gleicher Fähigkeit */
@@ -42,8 +74,8 @@ export function mergeRequirements(...lists: AaoRequirement[][]): AaoRequirement[
 export function openRequirements(state: GameState, reqs: AaoRequirement[], vehicles: Vehicle[]): AaoRequirement[] {
   const have = new Map<string, number>();
   for (const v of vehicles) for (const c of capsOf(state, v)) have.set(c, (have.get(c) ?? 0) + 1);
-  // RTH kann als Notarztzubringer und Rettungsmittel gelten
-  return reqs
+  have.set(EG_CAP, egStationsOf(vehicles).size);
+  return adaptToCenter(state, reqs)
     .map((r) => ({ capability: r.capability, count: Math.max(0, r.count - (have.get(r.capability) ?? 0)) }))
     .filter((r) => r.count > 0);
 }
@@ -69,7 +101,7 @@ export function resolveAll(state: GameState, reqs: AaoRequirement[]): AaoRequire
 export function aaoRequirements(state: GameState, inc: Incident): AaoRequirement[] {
   const rule = state.center.aao.find((a) => a.keywordId === inc.keywordId);
   const backups = inc.backupRequests.map((b) => b.requirements);
-  return resolveAll(state, mergeRequirements(rule?.requirements ?? [], ...backups));
+  return adaptToCenter(state, resolveAll(state, mergeRequirements(rule?.requirements ?? [], ...backups)));
 }
 
 export interface Candidate {
@@ -103,7 +135,7 @@ export function etaFor(state: GameState, v: Vehicle, target: LatLng): { etaMs: n
 export interface Suggestion {
   required: AaoRequirement[];
   open: AaoRequirement[];
-  proposal: { vehicleId: string; reasons: string[] }[];
+  proposal: { vehicleId: string; reasons: string[]; covered: string[] }[];
   unfilled: AaoRequirement[];
   candidates: Candidate[];
 }
@@ -141,6 +173,8 @@ export function suggestForIncident(state: GameState, inc: Incident): Suggestion 
   const remaining = new Map(open.map((o) => [o.capability, o.count]));
   const chosen: Suggestion['proposal'] = [];
   const chosenIds = new Set<string>();
+  // je Wache nur eine Erkundungsgruppe
+  const egStations = egStationsOf(bound);
   // seltene Fähigkeiten zuerst, damit Mehrzweckfahrzeuge nicht "verbraucht" werden
   const order = [...open].sort(
     (a, b) => candidates.filter((c) => c.available && c.matches.includes(a.capability)).length - candidates.filter((c) => c.available && c.matches.includes(b.capability)).length,
@@ -149,6 +183,7 @@ export function suggestForIncident(state: GameState, inc: Incident): Suggestion 
     while ((remaining.get(req.capability) ?? 0) > 0) {
       const best = candidates
         .filter((c) => c.available && !chosenIds.has(c.vehicle.id) && c.matches.includes(req.capability))
+        .filter((c) => req.capability !== EG_CAP || !egStations.has(c.vehicle.stationId))
         .map((c) => ({ c, score: c.etaMs + (c.inArea ? 0 : OUT_OF_AREA_PENALTY_MS) }))
         .sort((a, b) => a.score - b.score)[0];
       if (!best) break;
@@ -156,6 +191,8 @@ export function suggestForIncident(state: GameState, inc: Incident): Suggestion 
       const covered: string[] = [];
       for (const cap of best.c.matches) {
         const n = remaining.get(cap) ?? 0;
+        if (cap === EG_CAP && egStations.has(best.c.vehicle.stationId)) continue;
+        if (cap === EG_CAP) egStations.add(best.c.vehicle.stationId);
         if (n > 0) {
           remaining.set(cap, n - 1);
           covered.push(cap);
@@ -167,7 +204,7 @@ export function suggestForIncident(state: GameState, inc: Incident): Suggestion 
         best.c.inArea ? 'zuständig' : 'nicht zuständig (Malus 90 s)',
       ];
       if (best.c.vehicle.rt.status === 'frei_funk') reasons.push('frei über Funk (unterwegs)');
-      chosen.push({ vehicleId: best.c.vehicle.id, reasons });
+      chosen.push({ vehicleId: best.c.vehicle.id, reasons, covered });
     }
   }
   const unfilled = [...remaining.entries()].filter(([, n]) => n > 0).map(([capability, count]) => ({ capability, count }));

@@ -29,7 +29,7 @@ import { distanceMeters, interpolate, pointInArea, travelTimeMs } from './geo';
 import { cumulative, EMERGENCY_FACTOR, getRoute, requestRoute } from './routing';
 import { isPoliceVehicle, aaoRequirements, capsOf, coverage, hospitalOptions, MEDICAL_CAPS, mergeRequirements, openRequirements, typeOf } from './dispatch';
 import { SIM_START, emptyVehicleRuntime } from '../data/sampleCenter';
-import { groupDeployment, groupName, isGroupStation, isGroupVehicle, turnoutFactor } from './alarmGroups';
+import { egDeployment, egName, groupDeployment, groupName, isGroupStation, isGroupVehicle, turnoutFactor } from './alarmGroups';
 import { emptyMask, maskAddress } from '../model/mask';
 import { arrivalReport } from './lagemeldung';
 import { getActor } from './actor';
@@ -220,6 +220,7 @@ export function capLabel(cap: string) {
 const CAP_SHORT: Record<string, string> = {
   fuehrung_1: 'ELW 1', fuehrung_2: 'ELW 2', fuehrung_kdo: 'KdoW', loeschen: 'Löschfahrzeug', wasser_gross: 'Tanklöschfahrzeug',
   hoehenrettung: 'Drehleiter', th: 'TH-Fahrzeug', th_schwer: 'Rüstwagen/schwere TH', atemschutz: 'GW-Atemschutz', gefahrgut: 'GW-Gefahrgut',
+  erkundungsgruppe: 'Erkundungsgruppe', dekon: 'GW-Dekon P',
   logistik: 'GW-Logistik', mannschaft: 'MTF', wasserrettung: 'Wasserrettung', oel: 'Ölschadenbekämpfung', rtw: 'RTW', ktw: 'KTW',
   notarzt: 'Notarzt', intensiv: 'ITW', san_gross: 'GW-San', rd_fuehrung: 'ELRD/OrgL', rth: 'RTH', polizei: 'Streife',
   polizei_fuehrung: 'Polizeiführung', polizei_gruppe: 'Polizei-Gruppe', thw_bergung: 'THW-Bergung', thw_pumpen: 'THW-Pumpen', tier: 'GW-Tier',
@@ -1358,12 +1359,58 @@ export function alarmGroups(state: GameState, incidentId: string, stationIds: st
 }
 
 /**
+ * Erkundungsgruppen des LZ-G alarmieren: je Wache rücken alle einsatzbereiten LZ-G-Fahrzeuge gemeinsam aus.
+ * Die Ausrückzeit hängt wie bei den Alarmgruppen von der Tageszeit ab (ehrenamtliche Kräfte).
+ */
+export function alarmErkundungsgruppen(state: GameState, incidentId: string, stationIds: string[]): CommandResult {
+  const inc = incident(state, incidentId);
+  if (!inc) return fail('Einsatz nicht gefunden.');
+  if (inc.state === 'abgeschlossen') return fail('Einsatz ist bereits abgeschlossen.');
+  if (stationIds.length === 0) return fail('Keine Erkundungsgruppe ausgewählt.');
+  const now = state.runtime.clock.now;
+  const { factor, label } = turnoutFactor(now);
+  const errors: string[] = [];
+  const done: string[] = [];
+  for (const sid of [...new Set(stationIds)]) {
+    const st = state.center.stations.find((s) => s.id === sid);
+    if (!st || !state.center.vehicles.some((v) => v.lzg && v.stationId === sid)) {
+      errors.push(`${st?.name ?? sid}: keine Erkundungsgruppe.`);
+      continue;
+    }
+    const dep = egDeployment(state, inc, st);
+    if (!dep.length) {
+      errors.push(`${egName(st)}: keine einsatzbereiten Fahrzeuge.`);
+      continue;
+    }
+    const r = alarmVehicles(state, inc.id, dep.map((v) => v.id));
+    if (!r.ok) {
+      errors.push(r.error);
+      continue;
+    }
+    withRng(state, (rng) => {
+      let t = now + st.turnoutSeconds * 1000 * factor * rng.range(0.8, 1.25);
+      for (const v of dep) {
+        if (v.rt.status !== 'alarmiert') continue;
+        v.rt.phaseUntil = Math.round(t);
+        t += rng.range(30, 120) * 1000;
+      }
+    });
+    const codes = dep.map((v) => typeOf(state, v)?.code ?? v.typeId).join(', ');
+    log(state, 'alarm', `${egName(st)} (LZ-G) alarmiert (${label}) – rückt aus mit ${codes}`, { incidentId: inc.id });
+    done.push(egName(st));
+  }
+  if (!done.length) return fail(errors.join(' ') || 'Keine Erkundungsgruppe alarmiert.');
+  return ok(`${done.length} Erkundungsgruppe(n) alarmiert${errors.length ? `. Nicht alarmiert: ${errors.join(' ')}` : '.'}`);
+}
+
+/**
  * Ausrückmeldung: jede alarmierte Wehr meldet einmal, mit welchen Fahrzeugen sie kommt.
  * Rückt ein Führungsfahrzeug (ELW/KdoW/MZF) mit aus, meldet dieses, sonst das erste ausrückende Fahrzeug.
  */
 function reportGroupTurnout(state: GameState, v: Vehicle, inc: Incident) {
   if (!isGroupVehicle(state, v)) return;
-  const same = state.center.vehicles.filter((x) => x.stationId === v.stationId && x.rt.incidentId === inc.id);
+  // Erkundungsgruppe (LZ-G) und Ortswehr melden getrennt
+  const same = state.center.vehicles.filter((x) => x.stationId === v.stationId && x.rt.incidentId === inc.id && Boolean(x.lzg) === Boolean(v.lzg));
   const leads = same.filter((x) => leaderRank(state, x) <= 3);
   if (leads.length) {
     // das ranghöchste Führungsfahrzeug der Wehr meldet beim Ausrücken
@@ -1371,7 +1418,7 @@ function reportGroupTurnout(state: GameState, v: Vehicle, inc: Incident) {
   } else if (same.some((x) => x !== v && x.rt.status !== 'alarmiert')) return;
   const st = state.center.stations.find((s) => s.id === v.stationId)!;
   const codes = same.map((x) => typeOf(state, x)?.code ?? x.typeId).join(', ');
-  radio(state, { vehicleId: v.id, incidentId: inc.id, kind: 'lage', text: `${groupName(st)} rückt aus mit ${codes}.` });
+  radio(state, { vehicleId: v.id, incidentId: inc.id, kind: 'lage', text: `${v.lzg ? egName(st) : groupName(st)} rückt aus mit ${codes}.` });
 }
 
 function releaseVehicleInternal(state: GameState, v: Vehicle, note: string) {

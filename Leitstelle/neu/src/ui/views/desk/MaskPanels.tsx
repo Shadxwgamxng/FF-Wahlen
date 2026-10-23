@@ -3,7 +3,7 @@ import type { Call, GameState, Incident } from '../../../model/types';
 import { CAPABILITIES } from '../../../data/vehicleTypes';
 import { capLabel, prefetchRoutes, reqText, statusDef } from '../../../sim/engine';
 import { aaoRequirements, openRequirements, suggestForIncident } from '../../../sim/dispatch';
-import { groupName, isGroupVehicle, proposalWithGroups, turnoutFactor } from '../../../sim/alarmGroups';
+import { egName, groupName, isGroupVehicle, proposalWithGroups, turnoutFactor } from '../../../sim/alarmGroups';
 import { formatDuration, formatKm } from '../../../sim/geo';
 import { radioGroupOf } from '../../../model/radio';
 import { store } from '../../../store/gameStore';
@@ -187,6 +187,8 @@ export function Massnahmen({ game, inc, alarmRequest }: { game: GameState; inc: 
   // Auswahl: Fahrzeuge (hauptamtlich, RD, Polizei …) und Alarmgruppen (Freiwillige Feuerwehren, je Wache)
   const [sel, setSel] = useState<Set<string>>(new Set());
   const [selGroups, setSelGroups] = useState<Set<string>>(new Set());
+  // Erkundungsgruppen des LZ-G (je Wache)
+  const [selEgs, setSelEgs] = useState<Set<string>>(new Set());
   const [showAll, setShowAll] = useState(false);
   const [query, setQuery] = useState('');
   const [backupCap, setBackupCap] = useState('loeschen');
@@ -199,6 +201,7 @@ export function Massnahmen({ game, inc, alarmRequest }: { game: GameState; inc: 
   const applyProposal = () => {
     setSel(new Set(plan.vehicleIds));
     setSelGroups(new Set(plan.groups.map((g) => g.station.id)));
+    setSelEgs(new Set(plan.egs.map((g) => g.station.id)));
   };
   useEffect(() => {
     applyProposal();
@@ -208,7 +211,9 @@ export function Massnahmen({ game, inc, alarmRequest }: { game: GameState; inc: 
   const alarm = () => {
     const ids = [...sel].filter((id) => sug.candidates.find((c) => c.vehicle.id === id)?.available);
     const groups = [...selGroups];
-    if (ids.length === 0 && groups.length === 0) return store.toast('fehler', 'Keine Einsatzmittel ausgewählt.');
+    const egs = [...selEgs];
+    if (ids.length === 0 && groups.length === 0 && egs.length === 0) return store.toast('fehler', 'Keine Einsatzmittel ausgewählt.');
+    if (egs.length) store.cmd('alarmErkundungsgruppen', inc.id, egs);
     if (groups.length) store.cmd('alarmGroups', inc.id, groups);
     if (ids.length) store.cmd('alarmVehicles', inc.id, ids);
   };
@@ -222,7 +227,7 @@ export function Massnahmen({ game, inc, alarmRequest }: { game: GameState; inc: 
   const open = openRequirements(game, required, bound);
   const reasons = new Map(sug.proposal.map((p) => [p.vehicleId, p.reasons]));
   const rank = (c: (typeof sug.candidates)[number]) => (reasons.has(c.vehicle.id) ? 0 : sel.has(c.vehicle.id) ? 1 : c.matches.length ? 2 : 3);
-  const vehicleCands = sug.candidates.filter((c) => !isGroupVehicle(game, c.vehicle));
+  const vehicleCands = sug.candidates.filter((c) => !isGroupVehicle(game, c.vehicle) && !c.vehicle.lzg);
   // Suche: Rufname, Fahrzeugtyp, Wache/Wehr – Groß-/Kleinschreibung und Sonderzeichen egal
   const words = norm(query).split(' ').filter(Boolean);
   const hits = (text: string) => words.every((w) => norm(text).includes(w));
@@ -237,11 +242,16 @@ export function Massnahmen({ game, inc, alarmRequest }: { game: GameState; inc: 
   const planned = new Map(plan.groups.map((g) => [g.station.id, g]));
   const groupRows = useMemo(() => {
     const byStation = new Map<string, (typeof sug.candidates)[number][]>();
+    const byEg = new Map<string, (typeof sug.candidates)[number][]>();
     for (const c of sug.candidates) {
+      if (c.vehicle.lzg) {
+        byEg.set(c.vehicle.stationId, [...(byEg.get(c.vehicle.stationId) ?? []), c]);
+        continue;
+      }
       if (!isGroupVehicle(game, c.vehicle)) continue;
       byStation.set(c.vehicle.stationId, [...(byStation.get(c.vehicle.stationId) ?? []), c]);
     }
-    return [...byStation.entries()]
+    const rows = (m: typeof byStation) => [...m.entries()]
       .map(([sid, cs]) => {
         const avail = cs.filter((c) => c.available);
         return {
@@ -255,14 +265,22 @@ export function Massnahmen({ game, inc, alarmRequest }: { game: GameState; inc: 
         };
       })
       .filter((g) => g.station && (showAll || g.available.length));
+    return { ag: rows(byStation), eg: rows(byEg) };
   }, [sug, game, showAll]);
-  const groupRank = (g: (typeof groupRows)[number]) => (planned.has(g.station.id) ? 0 : selGroups.has(g.station.id) ? 1 : g.matches.length ? 2 : 3);
-  const sortedGroups = [...groupRows].sort((a, b) => groupRank(a) - groupRank(b) || a.etaMs - b.etaMs);
+  const groupRank = (g: (typeof groupRows.ag)[number]) => (planned.has(g.station.id) ? 0 : selGroups.has(g.station.id) ? 1 : g.matches.length ? 2 : 3);
+  const sortedGroups = [...groupRows.ag].sort((a, b) => groupRank(a) - groupRank(b) || a.etaMs - b.etaMs);
   // ohne "auch nicht verfügbare": vorgeschlagene/gewählte Gruppen und die 5 nächsten weiteren
   const groups = words.length
     ? sortedGroups.filter((g) => hits(`${groupName(g.station)} ${g.station.name} ${g.searchText}`))
     : showAll ? sortedGroups : [...sortedGroups.filter((g) => groupRank(g) < 2), ...sortedGroups.filter((g) => groupRank(g) >= 2).slice(0, 5)];
   const tf = turnoutFactor(game.runtime.clock.now);
+  // Erkundungsgruppen: vorgeschlagene/gewählte und bei offenem Bedarf die 3 nächsten weiteren, sonst nur bei Suche oder "auch nicht verfügbare"
+  const plannedEg = new Map(plan.egs.map((g) => [g.station.id, g]));
+  const egRank = (g: (typeof groupRows.eg)[number]) => (plannedEg.has(g.station.id) ? 0 : selEgs.has(g.station.id) ? 1 : g.matches.length ? 2 : 3);
+  const sortedEgs = [...groupRows.eg].sort((a, b) => egRank(a) - egRank(b) || a.etaMs - b.etaMs);
+  const egs = words.length
+    ? sortedEgs.filter((g) => hits(`${egName(g.station)} Erkundungsgruppe LZ-G ${g.station.name} ${g.searchText}`))
+    : showAll ? sortedEgs : [...sortedEgs.filter((g) => egRank(g) < 2), ...sortedEgs.filter((g) => egRank(g) >= 2 && g.matches.includes('erkundungsgruppe')).slice(0, 3)];
 
   if (inc.state === 'abarbeitung_beendet') return <div className="mask-box"><div className="mask-title">Maßnahmen</div><div className="small muted">Maßnahmen beendet.</div></div>;
 
@@ -281,8 +299,8 @@ export function Massnahmen({ game, inc, alarmRequest }: { game: GameState; inc: 
         </div>
       )}
       <div className="row wrap">
-        <button className="btn alarm" onClick={alarm} disabled={sel.size + selGroups.size === 0} data-testid="alarm-button">
-          Alarmieren ({selGroups.size ? `${selGroups.size} AG` : ''}{selGroups.size && sel.size ? ' + ' : ''}{sel.size ? `${sel.size} Fzg` : ''}{!sel.size && !selGroups.size ? '0' : ''}) <kbd>A</kbd>
+        <button className="btn alarm" onClick={alarm} disabled={sel.size + selGroups.size + selEgs.size === 0} data-testid="alarm-button">
+          Alarmieren ({[selEgs.size ? `${selEgs.size} EG` : '', selGroups.size ? `${selGroups.size} AG` : '', sel.size ? `${sel.size} Fzg` : ''].filter(Boolean).join(' + ') || '0'}) <kbd>A</kbd>
         </button>
         <button className="btn small" onClick={applyProposal}>Vorschlag</button>
         <button
@@ -290,6 +308,7 @@ export function Massnahmen({ game, inc, alarmRequest }: { game: GameState; inc: 
           onClick={() => {
             setSel(new Set());
             setSelGroups(new Set());
+            setSelEgs(new Set());
           }}
         >
           Leeren
@@ -313,6 +332,41 @@ export function Massnahmen({ game, inc, alarmRequest }: { game: GameState; inc: 
             <tr><th></th><th>Alarmgruppe / Fahrzeug</th><th>Typ</th><th>St</th><th>ETA</th><th>Entf.</th><th>Hinweis</th></tr>
           </thead>
           <tbody>
+            {egs.length > 0 && (
+              <tr className="group-head">
+                <td colSpan={7} className="small muted">Erkundungsgruppen LZ-G · alle LZ-G-Fahrzeuge der Wache rücken gemeinsam aus</td>
+              </tr>
+            )}
+            {egs.map((g) => {
+              const pl = plannedEg.get(g.station.id);
+              const usable = g.available.length > 0;
+              return (
+                <tr key={`eg-${g.station.id}`} className={usable ? (selEgs.has(g.station.id) ? 'selected' : '') : 'unavailable'} data-testid="eg-row">
+                  <td>
+                    <input
+                      type="checkbox"
+                      aria-label={`${egName(g.station)} auswählen`}
+                      disabled={!usable}
+                      checked={selEgs.has(g.station.id)}
+                      onChange={(e) => {
+                        const n = new Set(selEgs);
+                        if (e.target.checked) n.add(g.station.id);
+                        else n.delete(g.station.id);
+                        setSelEgs(n);
+                      }}
+                    />
+                  </td>
+                  <td className="nowrap"><span className="chip small">EG</span> {egName(g.station)}</td>
+                  <td className="small">{g.available.map((c) => c.type?.code ?? c.vehicle.typeId).join(', ') || '–'}</td>
+                  <td />
+                  <td className="mono nowrap">{Number.isFinite(g.etaMs) ? `${Math.round((g.etaMs + (tf.factor - 1) * g.station.turnoutSeconds * 1000) / 60000)} min` : '–'}</td>
+                  <td className="mono small nowrap">{formatKm(g.distanceM)}</td>
+                  <td className="small">
+                    {!usable ? <span className="field-error">keine Fahrzeuge einsatzbereit</span> : pl ? <span style={{ color: 'var(--ok)' }}>Vorschlag: {pl.reasons.join(' · ')}</span> : g.matches.length ? `passt: ${g.matches.map(capLabel).join(', ')}` : <span className="dim">kein offener Bedarf</span>}
+                  </td>
+                </tr>
+              );
+            })}
             {groups.length > 0 && (
               <tr className="group-head">
                 <td colSpan={7} className="small muted">Alarmgruppen FF · Ausrückzeit {tf.label}{tf.factor > 1 ? ' (verlängert)' : ''}</td>
@@ -348,7 +402,7 @@ export function Massnahmen({ game, inc, alarmRequest }: { game: GameState; inc: 
                 </tr>
               );
             })}
-            {groups.length > 0 && candidates.length > 0 && (
+            {groups.length + egs.length > 0 && candidates.length > 0 && (
               <tr className="group-head">
                 <td colSpan={7} className="small muted">Fahrzeuge</td>
               </tr>

@@ -266,6 +266,8 @@ export function createOstholsteinCenter(elements: OverpassElement[]): CenterConf
       identifier: rv.identifier,
       serviceWindows: rv.serviceWindows,
       ...(rv.outOfService ? { outOfService: true } : {}),
+      // Kreiseinheiten der Feuerwehr (Kennung 03/…) bilden den LZ-G; jede Wache stellt eine Erkundungsgruppe
+      ...(st.organizationId === 'org_ff' && /\s03\/\d/.test(rv.callsign) ? { lzg: true } : {}),
       ...(rv.typeId === 'rth' ? { external: { neighborId: 'nb_luft', requestDelaySeconds: 120 } } : {}),
     });
   }

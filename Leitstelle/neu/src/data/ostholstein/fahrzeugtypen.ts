@@ -58,7 +58,7 @@ export const OSTHOLSTEIN_TYPES: VehicleType[] = [
   fw('oh_wlf', 'WLF', 'Wechselladerfahrzeug', ['logistik', 'oel'], 3),
   fw('oh_sw2000', 'SW 2000', 'Schlauchwagen 2000', ['logistik'], 3),
   fw('oh_abcerkw', 'ABC-ErkKW', 'ABC-Erkundungskraftwagen', ['gefahrgut'], 4),
-  fw('oh_dekonp', 'GW-Dekon P', 'Gerätewagen Dekontamination Personal', ['gefahrgut'], 6, 50),
+  fw('oh_dekonp', 'GW-Dekon P', 'Gerätewagen Dekontamination Personal', ['gefahrgut', 'dekon'], 6, 50),
   fw('oh_fmf', 'Fernmeldefahrzeug', 'Fernmeldefahrzeug (Kreis)', ['fuehrung_2'], 4),
   fw('oh_tel', 'TEL', 'Technische Einsatzleitung (Kreis)', ['fuehrung_2', 'fuehrung_1'], 6),
   fw('oh_utv', 'UTV', 'Geländefahrzeug (Utility Task Vehicle)', ['logistik'], 2, 40),

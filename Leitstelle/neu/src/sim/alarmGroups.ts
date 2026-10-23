@@ -20,6 +20,24 @@ export function isGroupVehicle(state: GameState, v: Vehicle): boolean {
   return !v.external && isGroupStation(state, state.center.stations.find((s) => s.id === v.stationId));
 }
 
+/** Fahrzeug der Alarmgruppe der Ortswehr (LZ-G-Fahrzeuge rücken nur mit der Erkundungsgruppe aus) */
+export const isAgVehicle = (state: GameState, v: Vehicle) => !v.lzg && isGroupVehicle(state, v);
+
+// ---------------------------------------------------------------- Erkundungsgruppen (LZ-G)
+
+/** "FF Fehmarn OF Bisdorf-Hinrichsdorf" → "Erkundungsgruppe Bisdorf-Hinrichsdorf" */
+export const egName = (st: Station) => `Erkundungsgruppe ${st.name.includes(' OF ') ? st.name.split(' OF ').pop() : st.name.replace(/^(FF|THW OV|Feuerwehr)\s+/, '')}`;
+
+/** Einsatzbereite LZ-G-Fahrzeuge der Wache, die noch nicht im Einsatz gebunden sind (rücken alle gemeinsam aus) */
+export function egDeployment(state: GameState, inc: Incident, st: Station): Vehicle[] {
+  return state.center.vehicles.filter((v) => v.lzg && v.stationId === st.id && !inc.activeVehicleIds.includes(v.id) && vehicleAvailability(state, v).available);
+}
+
+export function egStations(state: GameState): Station[] {
+  const ids = new Set(state.center.vehicles.filter((v) => v.lzg).map((v) => v.stationId));
+  return state.center.stations.filter((s) => ids.has(s.id));
+}
+
 export function groupStations(state: GameState): Station[] {
   return state.center.stations.filter((s) => isGroupStation(state, s));
 }
@@ -36,7 +54,7 @@ const FIRST_OUT = ['loeschen', 'th', 'th_schwer'];
  * @param alsoBound Fahrzeuge, die im selben Alarm schon anderen Gruppen/Fahrzeugen zugeteilt sind
  */
 export function groupDeployment(state: GameState, inc: Incident, st: Station, alsoBound: Vehicle[] = []): Vehicle[] {
-  const pool = state.center.vehicles.filter((v) => v.stationId === st.id && !v.external && !inc.activeVehicleIds.includes(v.id) && vehicleAvailability(state, v).available);
+  const pool = state.center.vehicles.filter((v) => v.stationId === st.id && !v.external && !v.lzg && !inc.activeVehicleIds.includes(v.id) && vehicleAvailability(state, v).available);
   if (!pool.length) return [];
   const bound = [...state.center.vehicles.filter((v) => inc.activeVehicleIds.includes(v.id)), ...alsoBound];
   const chosen: Vehicle[] = [];
@@ -90,12 +108,27 @@ export interface GroupProposal {
  * Wandelt den fahrzeugbezogenen Einsatzmittelvorschlag um: Fahrzeuge Freiwilliger Feuerwehren werden
  * durch ihre Alarmgruppe ersetzt. Liefert die vorgeschlagenen Gruppen und die übrigen Fahrzeuge.
  */
-export function proposalWithGroups(state: GameState, inc: Incident, sug: Suggestion): { groups: GroupProposal[]; vehicleIds: string[] } {
+export function proposalWithGroups(state: GameState, inc: Incident, sug: Suggestion): { groups: GroupProposal[]; egs: GroupProposal[]; vehicleIds: string[] } {
   const groups = new Map<string, GroupProposal>();
+  const egs = new Map<string, GroupProposal>();
   const vehicleIds: string[] = [];
   for (const p of sug.proposal) {
     const v = state.center.vehicles.find((x) => x.id === p.vehicleId);
     if (!v) continue;
+    // LZ-G-Fahrzeug vorgeschlagen: die Erkundungsgruppe seiner Wache rückt aus
+    if (v.lzg) {
+      const st = state.center.stations.find((s) => s.id === v.stationId)!;
+      if (!egs.has(st.id)) {
+        const vs = egDeployment(state, inc, st);
+        egs.set(st.id, {
+          station: st,
+          vehicles: vs,
+          etaMs: Math.min(...vs.map((x) => etaFor(state, x, inc.position).etaMs), Infinity),
+          reasons: [`rückt aus mit ${vs.map((x) => state.center.vehicleTypes.find((t) => t.id === x.typeId)?.code ?? x.typeId).join(', ')}`],
+        });
+      }
+      continue;
+    }
     if (!isGroupVehicle(state, v)) {
       vehicleIds.push(v.id);
       continue;
@@ -117,7 +150,7 @@ export function proposalWithGroups(state: GameState, inc: Incident, sug: Suggest
   }
   // Voraussichtliche Ausrückordnung je Gruppe (nacheinander, damit Gruppen sich nicht doppelt zählen)
   const other = state.center.vehicles.filter((v) => vehicleIds.includes(v.id));
-  const taken: Vehicle[] = [...other];
+  const taken: Vehicle[] = [...other, ...[...egs.values()].flatMap((g) => g.vehicles)];
   for (const g of groups.values()) {
     g.vehicles = groupDeployment(state, inc, g.station, taken);
     taken.push(...g.vehicles);
@@ -126,5 +159,5 @@ export function proposalWithGroups(state: GameState, inc: Incident, sug: Suggest
     if (asMain.has(g.station.id)) g.reasons.push('Hauptwehr der Gemeinde – bei Brand gemeinsam mit der Ortswehr alarmiert');
   }
   // mitalarmierte Hauptwehr ohne einsatzbereite Fahrzeuge entfällt
-  return { groups: [...groups.values()].filter((g) => g.vehicles.length || !asMain.has(g.station.id)), vehicleIds };
+  return { groups: [...groups.values()].filter((g) => g.vehicles.length || !asMain.has(g.station.id)), egs: [...egs.values()], vehicleIds };
 }

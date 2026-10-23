@@ -16,6 +16,8 @@ export const CAPABILITIES: Record<string, string> = {
   th_schwer: 'Schwere technische Hilfe (RW)',
   atemschutz: 'Atemschutz-Sonderausrüstung',
   gefahrgut: 'Gefahrgut / ABC',
+  erkundungsgruppe: 'Erkundungsgruppe (LZ-G, je Wache)',
+  dekon: 'Dekontamination Personal (GW-Dekon P)',
   logistik: 'Logistik / Material',
   mannschaft: 'Mannschaftstransport',
   wasserrettung: 'Wasserrettung',

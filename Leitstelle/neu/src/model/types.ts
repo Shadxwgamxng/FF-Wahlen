@@ -174,6 +174,11 @@ export interface Vehicle {
   /** Dauerhaft außer Dienst (z. B. Info-/Werbefahrzeug, Jugendfeuerwehr): wird nie disponiert */
   outOfService?: boolean;
   maintenance: MaintenanceWindow[];
+  /**
+   * Gehört zum Löschzug Gefahrgut (LZ-G) des Kreises: rückt mit der Erkundungsgruppe seiner Wache aus
+   * (alle LZ-G-Fahrzeuge der Wache gemeinsam), nicht über die Alarmgruppe der Ortswehr.
+   */
+  lzg?: boolean;
   /** Extern (Nachbarleitstelle / Luftrettung) – Alarmierung über Anforderung */
   external?: { neighborId: ID; requestDelaySeconds: number };
   /** Laufzeitdaten */

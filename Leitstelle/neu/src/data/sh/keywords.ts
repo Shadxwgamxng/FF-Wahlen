@@ -59,7 +59,13 @@ const MANV_TEXT: Record<string, string> = Object.fromEntries(MANV_LEVELS.map(([r
 const MANV_CODES = MANV_LEVELS.map(([r]) => r);
 
 const Y: Needs = [['loeschen', 1], ['rtw', 1], ['notarzt', 1]];
-const X: Needs = [['gefahrgut', 1], ['atemschutz', 1]];
+/**
+ * Gefahrstoff (X): statt eines GW-Gefahrgut kommen Erkundungsgruppen des LZ-G (je Wache alle LZ-G-Fahrzeuge).
+ * Brand: die nächste Erkundungsgruppe. TH ab TH 00 X: die zwei nächsten und das THW (GW-Dekon P).
+ */
+const X: Needs = [['erkundungsgruppe', 1], ['atemschutz', 1]];
+const X_TH: Needs = [['erkundungsgruppe', 2], ['dekon', 1], ['atemschutz', 1]];
+const xNeeds = (gsa: string) => (gsa.startsWith('TH') ? X_TH : X);
 
 const FULL = ['', ...MANV_CODES, 'Übung', 'X', ...MANV_CODES.map((r) => `X${r}`), 'XY', 'Y'];
 
@@ -71,10 +77,11 @@ interface Mod {
   urgent?: boolean;
 }
 
-function modifier(eg: string): Mod {
+function modifier(eg: string, gsa: string): Mod {
   if (eg === '') return { suffix: '', needs: [] };
   if (eg === 'Übung') return { suffix: ' (Übungseinsatz)', needs: [], exercise: true };
   if (eg === 'Y') return { suffix: ' – Menschenleben in Gefahr', needs: Y, urgent: true };
+  const X = xNeeds(gsa);
   if (eg === 'X') return { suffix: ' – Gefahrstoffaustritt', needs: X, urgent: true };
   if (eg === 'XY') return { suffix: ' – Gefahrstoff und Menschenleben in Gefahr', needs: add(X, Y), urgent: true };
   if (MANV[eg]) return { suffix: ` – Großeinsatz Rettungsdienst ${MANV_TEXT[eg]}`, needs: MANV[eg], urgent: true };
@@ -90,7 +97,7 @@ const code = (...parts: string[]) => parts.filter(Boolean).join(' ');
 
 function family(gsa: string, ew: string, label: string, category: KeywordCategory, priority: 1 | 2 | 3, base: Needs, egs: string[], extra: Partial<KeywordSeed> = {}) {
   for (const eg of egs) {
-    const m = modifier(eg);
+    const m = modifier(eg, gsa);
     seeds.push({
       code: code(gsa, ew, eg),
       label: label + m.suffix,
@@ -228,8 +235,8 @@ one('TH K A', 'Technische Hilfe – Arbeitseinsatz', 'th', 3, [['th', 1]], { eme
 one('TH K A COVID', 'Technische Hilfe – Arbeitseinsatz, Infektionsverdacht (COVID)', 'th', 3, [['th', 1]], { emergency: false, infection: 'covid' });
 one('TH K AUST', 'Auslaufende Betriebsstoffe (klein)', 'th', 3, [['th', 1]]);
 one('TH K ERK', 'Erkundung (unklare Lage)', 'th', 2, [['loeschen', 1]]);
-one('TH K ERK X', 'Erkundung – Verdacht auf Gefahrstoff', 'th', 1, [['loeschen', 1], ['gefahrgut', 1]]);
-one('TH K ERK XY', 'Erkundung – Gefahrstoff und Menschenleben in Gefahr', 'th', 1, [['loeschen', 1], ['gefahrgut', 1], ['rtw', 1]]);
+one('TH K ERK X', 'Erkundung – Verdacht auf Gefahrstoff', 'th', 1, [['loeschen', 1], ['erkundungsgruppe', 1]]);
+one('TH K ERK XY', 'Erkundung – Gefahrstoff und Menschenleben in Gefahr', 'th', 1, [['loeschen', 1], ['erkundungsgruppe', 1], ['rtw', 1]]);
 one('TH K FLUSI', 'Absicherung einer Hubschrauberlandung', 'th', 2, [['loeschen', 1]]);
 one('TH K TV', 'Türöffnung', 'th', 2, [['th', 1]]);
 one('TH K TV 01', 'Türöffnung mit RTW (Person hilflos)', 'th', 1, [['th', 1], ['rtw', 1]]);
