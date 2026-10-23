@@ -209,11 +209,16 @@ const CONVERSATION: { id: ConversationIntent; patterns: RegExp[] }[] = [
     id: 'beruhigen',
     patterns: [
       w('ruhig|beruhigen|keine sorge|keine angst|alles gut'),
-      p(' ich schicke '),
-      p(' (ich )?hab(e)? (\\w+ ){0,4}(alarmiert|verstaendigt|informiert|losgeschickt) '),
-      p(' (feuerwehr|rettungsdienst|rettungswagen|krankenwagen|notarzt|polizei|hilfe|kollegen) (ist|sind|kommt|kommen) (schon |gleich |sofort )*(unterwegs|alarmiert|informiert|verstaendigt|auf dem weg|gleich|sofort)'),
-      p(' (ist|es ist) (schon )?(jemand|hilfe) unterwegs'),
-      p(' (wir|die kollegen) (kommen|sind unterwegs|sind gleich)'),
+      // "ich schick(e) Ihnen den Rettungsdienst (vorbei)", "wir schicken …", "ich alarmiere …"
+      p(' (ich|wir) (schick|schicke|schicken|sende|senden|alarmiere|alarmieren|verstaendige|verstaendigen|informiere|informieren) '),
+      p(' (ich )?hab(e)? (\\w+ ){0,4}(alarmiert|verstaendigt|informiert|losgeschickt|geschickt|bescheid gegeben) '),
+      p(' (wir )?haben (\\w+ ){0,4}(alarmiert|verstaendigt|informiert|losgeschickt|geschickt) '),
+      // "Der Rettungsdienst kommt.", "Die Feuerwehr ist alarmiert", "Der RTW ist gleich bei Ihnen"
+      p(' (feuerwehr|rettungsdienst|rettungswagen|rtw|krankenwagen|notarzt|nef|polizei|hilfe|kollegen|einsatzkraefte|kraefte|jemand) (\\w+ ){0,2}(ist|sind|kommt|kommen|wird|werden|faehrt|fahren) '),
+      p(' (ist|sind|wird|werden) (\\w+ ){0,3}(unterwegs|alarmiert|informiert|verstaendigt|auf dem weg|losgeschickt|gleich bei ihnen|gleich da) '),
+      p(' (wir|die kollegen) (kommen|sind unterwegs|sind gleich|sind auf dem weg)'),
+      p(' (kommt|kommen) (\\w+ ){0,3}(vorbei|zu ihnen|gleich|sofort|schnellstmoeglich) '),
+      w('hilfe kommt|hilfe ist unterwegs|ist alles veranlasst|alles veranlasst|habe ich veranlasst'),
     ],
   },
   { id: 'wiederholen', patterns: [w('wie bitte|nochmal|noch mal|noch einmal|wiederholen|nicht verstanden|langsamer|etwas lauter')] },
@@ -221,7 +226,8 @@ const CONVERSATION: { id: ConversationIntent; patterns: RegExp[] }[] = [
   {
     id: 'anweisung',
     patterns: [
-      p(' (gehen|verlassen|schliessen|bleiben|legen|machen|oeffnen|halten|warten|druecken|stellen|bringen|holen|schicken|loeschen) sie'),
+      p(' (gehen|verlassen|schliessen|bleiben|legen|machen|oeffnen|halten|warten|druecken|stellen|bringen|holen|schicken|loeschen|sperren|winken|weisen|lotsen|schalten|sichern|ziehen|setzen|lassen|sorgen|nehmen|rufen) sie'),
+      p(' (auf sich aufmerksam|bemerkbar|an die strasse|vor die tuer|vors haus|vor das haus|die tuer auf|haustuer auf|licht an|einweisen)'),
       p(' (tueren?|fenster) (zu|schliessen)'),
       p(' (beginnen|fangen) sie (mit|an)'),
     ],

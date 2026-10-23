@@ -89,6 +89,16 @@ describe('Absichtserkennung', () => {
     expect(matchIntents('Auf Wiederhören.', 'brand').intents).toContain('ende');
   });
 
+  it('Ankündigungen und Hinweise des Disponenten werden verstanden (kein „Wie bitte?“)', () => {
+    for (const t of ['Alles klar, ich schick den Rettungsdienst vorbei.', 'Der Rettungsdienst kommt.', 'Die Feuerwehr kommt', 'Wir schicken Ihnen einen Rettungswagen.', 'Der RTW ist gleich bei Ihnen.', 'Ich habe die Feuerwehr alarmiert.', 'Hilfe ist unterwegs.'])
+      expect(matchIntents(t, 'rd').intents, t).toContain('beruhigen');
+    for (const t of ['Stellen Sie sich an die Straße und machen auf sich aufmerksam.', 'Machen Sie sich bemerkbar.', 'Sperren Sie die Haustür auf.', 'Schalten Sie das Licht an.', 'Weisen Sie die Kollegen ein.'])
+      expect(matchIntents(t, 'rd').intents, t).toContain('anweisung');
+    // Fragen bleiben Fragen
+    for (const t of ['Ist jemand verletzt?', 'Wo genau ist der Notfallort?', 'Atmet die Person normal?', 'Kommt jemand nicht mehr raus?'])
+      expect(matchIntents(t, 'brand').intents, t).not.toContain('beruhigen');
+  });
+
   it('jede Abfragefrage des Spiels wird über ihren eigenen Fragetext erkannt', () => {
     for (const cat of ['brand', 'th', 'vu', 'rd', 'ktp', 'abc', 'wasser', 'tier', 'pol', 'sonstiges'] as const)
       for (const q of questionsFor(cat)) expect(matchIntents(q.text, cat).questions, `${cat}: ${q.text}`).toContain(q.id);

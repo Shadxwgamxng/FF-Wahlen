@@ -83,6 +83,12 @@ export function mapDiasKeyword(dias: string, catalogCodes: Iterable<string>): Ke
   let tokens = mapR(s.toUpperCase().split(' '));
   // NOTF 11 BAB → NOTF BAB 11
   if (tokens[0] === 'NOTF' && /^\d\d$/.test(tokens[1] ?? '') && tokens[2] === 'BAB') tokens = ['NOTF', 'BAB', tokens[1], ...tokens.slice(3)];
+  // NOTF 11 TV (Notfall hinter verschlossener Tür) → TH K TV 11 (Türöffnung mit RTW und Notarzt)
+  if (tokens[0] === 'NOTF' && /^\d\d$/.test(tokens[1] ?? '') && tokens.includes('TV')) {
+    const covid = tokens.includes('COVID') ? ' COVID' : '';
+    const tv = find(`TH K TV ${tokens[1]}${covid}`) ?? find(`TH K TV ${tokens[1]}`) ?? find(`TH K TV ${tokens[1] === '00' ? '' : '01'}`.trim());
+    if (tv) return { code: tv, exact: false, note: `„${raw}“ = Notfall hinter verschlossener Tür – zugeordnet: ${tv} (Türöffnung mit Rettungsdienst)` };
+  }
   const full = find(tokens.join(' ')) ?? find(insert00(tokens)?.join(' '));
   if (full) return { code: full, exact: false };
   // Unbekanntes Objektwort vor Zusätzen weglassen, Zusätze behalten: "TH G FLUG2 R5" → "TH G 00 R5"
@@ -90,12 +96,12 @@ export function mapDiasKeyword(dias: string, catalogCodes: Iterable<string>): Ke
   if (firstMod > 1 && !['K', 'G', '00'].includes(tokens[firstMod - 1])) {
     const t = [...tokens.slice(0, firstMod - 1), ...tokens.slice(firstMod)];
     const c = find(t.join(' ')) ?? find(insert00(t)?.join(' '));
-    if (c) return { code: c, exact: false, note: `DIAS: ${raw}` };
+    if (c) return { code: c, exact: false, note: `„${raw}“ steht so nicht im Katalog – zugeordnet: ${c}` };
   }
   for (let n = tokens.length; n >= 1; n--) {
     const t = tokens.slice(0, n);
     const c = find(t.join(' ')) ?? find(insert00(t)?.join(' ')) ?? find(TABLE[t.join(' ')]);
-    if (c) return { code: c, exact: false, note: n < tokens.length ? `DIAS: ${raw}` : undefined };
+    if (c) return { code: c, exact: false, note: n < tokens.length ? `„${raw}“ steht so nicht im Katalog – Zusatz „${tokens.slice(n).join(' ')}“ entfällt, zugeordnet: ${c}` : undefined };
   }
   return { code: null, exact: false, note: `Kein passendes Stichwort für „${raw}“ im Katalog – bitte selbst wählen.` };
 }

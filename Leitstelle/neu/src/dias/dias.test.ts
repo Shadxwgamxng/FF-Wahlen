@@ -90,6 +90,8 @@ describe('Zuordnung DIAS-Stichwort → Katalog Schleswig-Holstein', () => {
     ['NOTF 11 FIRST NAIK', 'NOTF 11 First'],
     ['NOTF 11 NAIKStat', 'NOTF 11'],
     ['NOTF 11 BAB', 'NOTF BAB 11'],
+    ['NOTF 11 TV', 'TH K TV 11'],
+    ['NOTF 01 TV', 'TH K TV 01'],
     ['NOTF R10', 'NOTF R10'],
     ['FEU', 'FEU 00'],
     ['FEU Y', 'FEU 00 Y'],

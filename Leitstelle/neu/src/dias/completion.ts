@@ -35,6 +35,11 @@ export interface Gap {
 }
 
 /** Wo steht die Abfrage? Liefert die Lücke, wenn der Mitschnitt an dieser Stelle nicht weitergeht. */
+/** Bahn/Gleis als eigenes Wort – "Fahrbahn reinigen" ist kein Gleisbereich */
+export const mentionsRailway = (text: string) => /(^|[^a-zäöüß])(bahn[a-zäöüß]*|gleis[a-zäöüß]*|zug|züge|zuges)(?![a-zäöüß])/i.test(text) || /Straßenbahn|S-Bahn|U-Bahn/i.test(text);
+/** Gas als eigenes Wort – "Gasse" oder "Gast" zählen nicht */
+export const mentionsGas = (text: string) => /\b(Erd|Flüssig|Propan)?gas(geruch|austritt|leitung|flasche)?\b/i.test(text);
+
 export function gapAt(tree: DiasTree, steps: Step[]): Gap | null {
   const last = steps[steps.length - 1];
   const currentId = last ? tree.nodes[last.nodeId]?.options[last.option]?.to : tree.root;
@@ -373,8 +378,8 @@ export function deriveResult(tree: DiasTree, steps: Step[], c: Completion): LwRe
       const y = yes('gefahr') || /eingeschlossen|vermisst|eingeklemmt|verschüttet/i.test(hay);
       const x = yes('gefahrstoff');
       const r = many ? R_LEVEL(persons!) : null;
-      if (/Gas/i.test(hay)) candidates.push('TH GAS');
-      if (/Bahn|Gleis/i.test(hay)) candidates.push(...withModifiers('TH BAHN', { x, y, r }));
+      if (mentionsGas(hay)) candidates.push('TH GAS');
+      if (mentionsRailway(hay)) candidates.push(...withModifiers('TH BAHN', { x, y, r }));
       if (/abgestürzt|Höhe|Tiefe|droht zu springen|abzustürzen/i.test(hay)) candidates.push(/springen|abzustürzen/i.test(hay) ? 'TH PDRZS' : 'TH SRHT');
       if (a.th_lage === 'tuer' || /Tür|Türe|in Wohnung eingeschlossen/i.test(hay)) candidates.push('TH K TV');
       if (a.th_lage === 'wasser' || /Wasser|Überflut/i.test(hay)) candidates.push(...withModifiers('TH WASSER', { y, r }));

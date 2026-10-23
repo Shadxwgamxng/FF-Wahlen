@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { SH_KEYWORD_SEEDS } from '../data/sh/keywords';
 import { parseDiasExport } from './model';
-import { deriveResult, domainOf, followUpsFor, gapAt, nextFollowUp, pickKeyword, type Step } from './completion';
+import { deriveResult, domainOf, followUpsFor, gapAt, mentionsGas, mentionsRailway, nextFollowUp, pickKeyword, type Step } from './completion';
 
 /** Selbst geschriebener Mini-Abfragebaum (keine Originaltexte) */
 const tree = parseDiasExport({
@@ -68,5 +68,15 @@ describe('LEITWARTE-Ergänzung der Notrufabfrage', () => {
     expect(r.info).toContain('Med. Notruf');
     expect(r.info).toContain('Angabe: Sturz auf der Treppe');
     expect(r.meldebild).toContain('Atmung erschwert');
+  });
+});
+
+describe('Stichwortwörter nur als ganzes Wort', () => {
+  it('Fahrbahn ist kein Gleisbereich, Gasse kein Gas', () => {
+    expect(mentionsRailway('Technische Hilfeleistung, Fahrbahn reinigen / Unfallstelle sichern, PKW / Kleinbus, Straße')).toBe(false);
+    expect(mentionsRailway('Zugang zur Wohnung')).toBe(false);
+    for (const t of ['Person im Gleis', 'Bahnübergang', 'Zug erfasst Person', 'Straßenbahn', 'Bahnhof Eutin', 'Gleisbereich']) expect(mentionsRailway(t), t).toBe(true);
+    expect(mentionsGas('Gasse hinter dem Haus')).toBe(false);
+    for (const t of ['Gasgeruch im Keller', 'Gasaustritt', 'Erdgas', 'Gas strömt aus']) expect(mentionsGas(t), t).toBe(true);
   });
 });

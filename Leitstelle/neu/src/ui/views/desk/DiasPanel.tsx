@@ -228,7 +228,13 @@ function DiasResultView({ game, call, node, pathText, mismatch, tablet, tree, st
   const [infos, setInfos] = useState<Set<string>>(new Set());
   const codes = useMemo(() => game.center.keywords.map((k) => k.code), [game.center.keywords]);
   const mapped = res.sections.map((s) => (s.stichwort ? { s, m: mapDiasKeyword(s.stichwort, codes) } : { s, m: null }));
-  const target = mapped.find((x) => x.m?.code) ?? null;
+  // mehrere Abschnitte (z. B. Rettungsdienst + Brandschutz): das Stichwort mit dem umfassendsten Bedarf
+  const weight = (code: string) => {
+    const kw = game.center.keywords.find((k) => k.code === code);
+    const rule = kw && game.center.aao.find((a) => a.keywordId === kw.id);
+    return (rule?.requirements ?? []).reduce((n, r) => n + Math.min(r.count, 10), 0);
+  };
+  const target = mapped.filter((x) => x.m?.code).sort((a, b) => weight(b.m!.code!) - weight(a.m!.code!))[0] ?? null;
   const targetKw = target?.m?.code ? game.center.keywords.find((k) => k.code === target.m!.code) : undefined;
   const notes = mapped.map((x) => x.m?.note).filter((n): n is string => Boolean(n));
 
@@ -267,7 +273,12 @@ function DiasResultView({ game, call, node, pathText, mismatch, tablet, tree, st
           </div>
         </div>
       ))}
-      {notes.length > 0 && <div className="small warn-text">{notes.join(' ')}</div>}
+      {notes.length > 0 && (
+        <div className="small warn-text" data-testid="dias-notes">
+          {notes.map((n) => <div key={n}>{n}</div>)}
+          {targetKw && mapped.filter((x) => x.m?.code).length > 1 && <div>Übernommen wird {targetKw.code} – deckt den Bedarf aller Abschnitte am weitesten ab.</div>}
+        </div>
+      )}
       {res.infoIntern.length > 0 && (
         <details>
           <summary className="small">Info intern ({res.infoIntern.length})</summary>
