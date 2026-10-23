@@ -361,6 +361,8 @@ async function main() {
   await pop.close({ runBeforeUnload: true });
   await pop2.close({ runBeforeUnload: true });
   await page.waitForFunction(() => window.leitwarte.popouts.length === 0, null, { timeout: 10000 });
+  // Neuzeichnen abwarten, bevor geprüft wird
+  await page.locator('.desk-right').first().waitFor({ timeout: 5000 }).catch(() => {});
   assert((await page.locator('.desk-right').count()) === 1, 'Fahrzeugliste wieder da');
   log('Zweitfenster geschlossen – Bereiche wieder im Hauptfenster');
 
