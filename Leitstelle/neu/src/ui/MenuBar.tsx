@@ -76,7 +76,7 @@ export function MenuBar({ nav, view, setView, onHelp }: { nav: [string, string][
         )
       : []),
     { label: '', sep: true },
-    { label: 'Stil Behörde', checked: style === 'behoerde', onClick: () => setPrefs({ uiStyle: 'behoerde' }) },
+    { label: 'Stil Klassisch', checked: style === 'klassisch', onClick: () => setPrefs({ uiStyle: 'klassisch' }) },
     { label: 'Stil Modern', checked: style === 'modern', onClick: () => setPrefs({ uiStyle: 'modern' }) },
   ];
   return (

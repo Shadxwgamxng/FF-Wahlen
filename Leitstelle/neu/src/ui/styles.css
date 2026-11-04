@@ -392,9 +392,9 @@ html[data-style='modern'] .nav button.active { background: #18202b; box-shadow: 
 html[data-style='modern'] .window, html[data-style='modern'] .modal, html[data-style='modern'] .card { border-radius: 10px; border-color: #222c38; }
 
 /* =====================================================================
-   Stil „Behörde“: hell, nüchtern, dicht – wie Einsatzleitsoftware
+   Stil „Klassisch“: hell, nüchtern, dicht – wie Einsatzleitsoftware
    ===================================================================== */
-html[data-style='behoerde'] {
+html[data-style='klassisch'] {
   color-scheme: light;
   --bg: #d6dbe2; --bg-2: #e8ebef; --panel: #ffffff; --panel-2: #f1f3f6; --line: #bcc4ce; --line-2: #8f9aa7;
   --text: #15191e; --text-2: #3f4954; --text-3: #6b7581; --accent: #0a4a92; --accent-2: #0a4a92;
@@ -411,49 +411,49 @@ html[data-style='behoerde'] {
   --font: 'Segoe UI', Tahoma, Arial, sans-serif;
   --mono: Consolas, 'Lucida Console', 'Courier New', monospace;
 }
-html[data-style='behoerde'] body { font-size: 12px; }
-html[data-style='behoerde'] .topbar { background: var(--topbar-bg); color: var(--topbar-fg); border-bottom: 1px solid #0b2747; padding: 4px 10px; }
-html[data-style='behoerde'] .topbar .brand { color: #fff; letter-spacing: .08em; }
-html[data-style='behoerde'] .topbar .muted, html[data-style='behoerde'] .topbar .dim { color: #c9d6e6; }
-html[data-style='behoerde'] .topbar .btn { background: linear-gradient(#fdfdfd, #dfe4ea); color: #15191e; border-color: #0b2747; }
-html[data-style='behoerde'] .topbar .btn.active, html[data-style='behoerde'] .topbar .btn.primary { background: linear-gradient(#ffe48a, #f2c230); border-color: #7a5a00; color: #15191e; }
-html[data-style='behoerde'] .topbar .chip { background: #0d2c50; border-color: #5c84b5; color: #fff; border-radius: 2px; }
-html[data-style='behoerde'] .topbar .chip.alarm { background: #c4161c; border-color: #fff; color: #fff; }
-html[data-style='behoerde'] .topbar .chip.warn { background: #b56b00; border-color: #fff; color: #fff; }
-html[data-style='behoerde'] .btn { background: linear-gradient(#fdfdfd, #e3e7ec); border-color: var(--line-2); border-radius: 2px; color: var(--text); box-shadow: inset 0 1px 0 #fff; }
-html[data-style='behoerde'] .btn:hover:not(:disabled) { background: linear-gradient(#ffffff, #d7e3f1); border-color: var(--accent); }
-html[data-style='behoerde'] .btn.primary { background: linear-gradient(#2a65ad, #0a4a92); color: #fff; border-color: #07335f; box-shadow: none; }
-html[data-style='behoerde'] .btn.alarm { background: linear-gradient(#e2363b, #b3121a); color: #fff; border-color: #7a0b10; box-shadow: none; }
-html[data-style='behoerde'] .btn.danger { background: linear-gradient(#fbe9e9, #f2cfcf); color: #8a0f13; border-color: #c98a8c; }
-html[data-style='behoerde'] .btn.warn { color: #5a3a00; }
-html[data-style='behoerde'] .btn.ghost { background: transparent; box-shadow: none; border-color: transparent; }
-html[data-style='behoerde'] .btn.active { background: linear-gradient(#d7e5f7, #bfd4ef); border-color: var(--accent); }
-html[data-style='behoerde'] input[type=text], html[data-style='behoerde'] input[type=number], html[data-style='behoerde'] input[type=search], html[data-style='behoerde'] input:not([type]), html[data-style='behoerde'] select, html[data-style='behoerde'] textarea { background: #fff; border-color: #8f9aa7; border-radius: 0; }
-html[data-style='behoerde'] .chip { border-radius: 2px; background: var(--panel-2); }
-html[data-style='behoerde'] .chip.alarm { background: var(--alarm-bg); color: var(--alarm-fg); }
-html[data-style='behoerde'] .nav { background: #c7ced8 !important; border-bottom: 1px solid #8f9aa7 !important; padding-top: 3px !important; }
-html[data-style='behoerde'] .nav button { border-radius: 0; border: 1px solid transparent; border-bottom: none; color: #26303b; padding: 4px 12px; }
-html[data-style='behoerde'] .nav button:hover { background: #dde3ea; }
-html[data-style='behoerde'] .nav button.active { background: #ffffff; color: #0a2a52; border-color: #8f9aa7; box-shadow: none; font-weight: 600; }
-html[data-style='behoerde'] .panel-head, html[data-style='behoerde'] .window-head, html[data-style='behoerde'] .dias-head, html[data-style='behoerde'] .mask-head { background: var(--head-bg); color: var(--head-fg); }
-html[data-style='behoerde'] .mask-head { border-bottom-color: var(--accent); }
-html[data-style='behoerde'] h4 { color: #26303b; letter-spacing: .02em; }
-html[data-style='behoerde'] .window, html[data-style='behoerde'] .modal, html[data-style='behoerde'] .card, html[data-style='behoerde'] .mask-box { border-radius: 0; box-shadow: none; }
-html[data-style='behoerde'] .window { border-color: #5c6876; box-shadow: 2px 2px 0 #0002; }
-html[data-style='behoerde'] table.grid th { background: linear-gradient(#f4f6f9, #e1e6ec); color: #26303b; border: 1px solid var(--line); text-transform: none; letter-spacing: 0; font-size: 12px; }
-html[data-style='behoerde'] table.grid td { border: 1px solid #e0e4e9; }
-html[data-style='behoerde'] table.grid tr:nth-child(even) td { background: #f7f9fb; }
-html[data-style='behoerde'] table.grid tr:hover td { background: #e6eef8; }
-html[data-style='behoerde'] .status-badge { border-radius: 0; border: 1px solid #0006; }
-html[data-style='behoerde'] .list-item.selected { box-shadow: inset 3px 0 0 var(--accent); }
-html[data-style='behoerde'] .count { background: #c7ced8; }
-html[data-style='behoerde'] .toast { background: #fff; box-shadow: 2px 2px 0 #0003; border-radius: 0; }
-html[data-style='behoerde'] .bubble { border-radius: 0; }
-html[data-style='behoerde'] .hero h1 { color: var(--accent); }
-html[data-style='behoerde'] .map-legend { color: var(--text); }
-html[data-style='behoerde'] .menu-list { border-radius: 0; }
-html[data-style='behoerde'] .ptt-big { border-radius: 2px; }
-html[data-style='behoerde'] .dias-code { background: #dbe6f4; }
+html[data-style='klassisch'] body { font-size: 12px; }
+html[data-style='klassisch'] .topbar { background: var(--topbar-bg); color: var(--topbar-fg); border-bottom: 1px solid #0b2747; padding: 4px 10px; }
+html[data-style='klassisch'] .topbar .brand { color: #fff; letter-spacing: .08em; }
+html[data-style='klassisch'] .topbar .muted, html[data-style='klassisch'] .topbar .dim { color: #c9d6e6; }
+html[data-style='klassisch'] .topbar .btn { background: linear-gradient(#fdfdfd, #dfe4ea); color: #15191e; border-color: #0b2747; }
+html[data-style='klassisch'] .topbar .btn.active, html[data-style='klassisch'] .topbar .btn.primary { background: linear-gradient(#ffe48a, #f2c230); border-color: #7a5a00; color: #15191e; }
+html[data-style='klassisch'] .topbar .chip { background: #0d2c50; border-color: #5c84b5; color: #fff; border-radius: 2px; }
+html[data-style='klassisch'] .topbar .chip.alarm { background: #c4161c; border-color: #fff; color: #fff; }
+html[data-style='klassisch'] .topbar .chip.warn { background: #b56b00; border-color: #fff; color: #fff; }
+html[data-style='klassisch'] .btn { background: linear-gradient(#fdfdfd, #e3e7ec); border-color: var(--line-2); border-radius: 2px; color: var(--text); box-shadow: inset 0 1px 0 #fff; }
+html[data-style='klassisch'] .btn:hover:not(:disabled) { background: linear-gradient(#ffffff, #d7e3f1); border-color: var(--accent); }
+html[data-style='klassisch'] .btn.primary { background: linear-gradient(#2a65ad, #0a4a92); color: #fff; border-color: #07335f; box-shadow: none; }
+html[data-style='klassisch'] .btn.alarm { background: linear-gradient(#e2363b, #b3121a); color: #fff; border-color: #7a0b10; box-shadow: none; }
+html[data-style='klassisch'] .btn.danger { background: linear-gradient(#fbe9e9, #f2cfcf); color: #8a0f13; border-color: #c98a8c; }
+html[data-style='klassisch'] .btn.warn { color: #5a3a00; }
+html[data-style='klassisch'] .btn.ghost { background: transparent; box-shadow: none; border-color: transparent; }
+html[data-style='klassisch'] .btn.active { background: linear-gradient(#d7e5f7, #bfd4ef); border-color: var(--accent); }
+html[data-style='klassisch'] input[type=text], html[data-style='klassisch'] input[type=number], html[data-style='klassisch'] input[type=search], html[data-style='klassisch'] input:not([type]), html[data-style='klassisch'] select, html[data-style='klassisch'] textarea { background: #fff; border-color: #8f9aa7; border-radius: 0; }
+html[data-style='klassisch'] .chip { border-radius: 2px; background: var(--panel-2); }
+html[data-style='klassisch'] .chip.alarm { background: var(--alarm-bg); color: var(--alarm-fg); }
+html[data-style='klassisch'] .nav { background: #c7ced8 !important; border-bottom: 1px solid #8f9aa7 !important; padding-top: 3px !important; }
+html[data-style='klassisch'] .nav button { border-radius: 0; border: 1px solid transparent; border-bottom: none; color: #26303b; padding: 4px 12px; }
+html[data-style='klassisch'] .nav button:hover { background: #dde3ea; }
+html[data-style='klassisch'] .nav button.active { background: #ffffff; color: #0a2a52; border-color: #8f9aa7; box-shadow: none; font-weight: 600; }
+html[data-style='klassisch'] .panel-head, html[data-style='klassisch'] .window-head, html[data-style='klassisch'] .dias-head, html[data-style='klassisch'] .mask-head { background: var(--head-bg); color: var(--head-fg); }
+html[data-style='klassisch'] .mask-head { border-bottom-color: var(--accent); }
+html[data-style='klassisch'] h4 { color: #26303b; letter-spacing: .02em; }
+html[data-style='klassisch'] .window, html[data-style='klassisch'] .modal, html[data-style='klassisch'] .card, html[data-style='klassisch'] .mask-box { border-radius: 0; box-shadow: none; }
+html[data-style='klassisch'] .window { border-color: #5c6876; box-shadow: 2px 2px 0 #0002; }
+html[data-style='klassisch'] table.grid th { background: linear-gradient(#f4f6f9, #e1e6ec); color: #26303b; border: 1px solid var(--line); text-transform: none; letter-spacing: 0; font-size: 12px; }
+html[data-style='klassisch'] table.grid td { border: 1px solid #e0e4e9; }
+html[data-style='klassisch'] table.grid tr:nth-child(even) td { background: #f7f9fb; }
+html[data-style='klassisch'] table.grid tr:hover td { background: #e6eef8; }
+html[data-style='klassisch'] .status-badge { border-radius: 0; border: 1px solid #0006; }
+html[data-style='klassisch'] .list-item.selected { box-shadow: inset 3px 0 0 var(--accent); }
+html[data-style='klassisch'] .count { background: #c7ced8; }
+html[data-style='klassisch'] .toast { background: #fff; box-shadow: 2px 2px 0 #0003; border-radius: 0; }
+html[data-style='klassisch'] .bubble { border-radius: 0; }
+html[data-style='klassisch'] .hero h1 { color: var(--accent); }
+html[data-style='klassisch'] .map-legend { color: var(--text); }
+html[data-style='klassisch'] .menu-list { border-radius: 0; }
+html[data-style='klassisch'] .ptt-big { border-radius: 2px; }
+html[data-style='klassisch'] .dias-code { background: #dbe6f4; }
 .topbar { gap: 8px; }
 .topbar .chip, .topbar .btn.small { padding-left: 6px; padding-right: 6px; }
 html[data-style='modern'] { --ring-a: #241a14; --ring-b: #3a2618; }
@@ -503,25 +503,25 @@ h4 { text-transform: none; letter-spacing: 0; font-size: 12px; color: var(--head
 .count { border-radius: 2px; }
 .chip { border-radius: 3px; }
 
-/* Behörde: klassische Titelleisten und Statuszeile */
-html[data-style='behoerde'] .menubar { background: #f0f0f0; border-bottom-color: #a0a0a0; }
-html[data-style='behoerde'] .mb-brand { color: #0a2a52; }
-html[data-style='behoerde'] .mb-title:hover, html[data-style='behoerde'] .mb-title.open { background: #cfe0f6; }
-html[data-style='behoerde'] .mb-list { background: #f8f8f8; border-color: #8f9aa7; }
-html[data-style='behoerde'] .mb-item:hover:not(:disabled) { background: #0a4a92; }
-html[data-style='behoerde'] .panel-head { background: linear-gradient(#5b84b8, #3a6497); color: #fff; border-bottom: 1px solid #23456f; }
-html[data-style='behoerde'] .panel-head h4, html[data-style='behoerde'] .panel-head .muted, html[data-style='behoerde'] .panel-head .small { color: #fff; }
-html[data-style='behoerde'] .panel-head .btn, html[data-style='behoerde'] .panel-head .btn.small { padding: 0 6px; color: #0a2a52; }
-html[data-style='behoerde'] .panel-head .count { background: #fff; color: #0a2a52; }
-html[data-style='behoerde'] .mask-title { color: #0a2a52; border-bottom: 1px solid var(--line); padding-bottom: 2px; }
-html[data-style='behoerde'] .statusbar { background: #e4e4e4; border-top-color: #a0a0a0; color: #222; }
-html[data-style='behoerde'] .topbar { padding: 3px 8px; }
-html[data-style='behoerde'] .topbar .tb-field { background: #0d2c50; border-color: #5c84b5; color: #fff; }
-html[data-style='behoerde'] .topbar .tb-field.alarm { background: #c4161c; border-color: #fff; }
-html[data-style='behoerde'] .topbar .tb-field.warn { background: #b56b00; border-color: #fff; }
-html[data-style='behoerde'] .clock { font-family: var(--mono); font-size: 17px; background: #000; color: #3cff6b; padding: 0 8px; border: 1px solid #5c84b5; }
-html[data-style='behoerde'] .list-item { padding: 4px 8px; }
-html[data-style='behoerde'] .list-item.ringing { animation: ring-b 1s steps(1) infinite; }
+/* Klassisch: klassische Titelleisten und Statuszeile */
+html[data-style='klassisch'] .menubar { background: #f0f0f0; border-bottom-color: #a0a0a0; }
+html[data-style='klassisch'] .mb-brand { color: #0a2a52; }
+html[data-style='klassisch'] .mb-title:hover, html[data-style='klassisch'] .mb-title.open { background: #cfe0f6; }
+html[data-style='klassisch'] .mb-list { background: #f8f8f8; border-color: #8f9aa7; }
+html[data-style='klassisch'] .mb-item:hover:not(:disabled) { background: #0a4a92; }
+html[data-style='klassisch'] .panel-head { background: linear-gradient(#5b84b8, #3a6497); color: #fff; border-bottom: 1px solid #23456f; }
+html[data-style='klassisch'] .panel-head h4, html[data-style='klassisch'] .panel-head .muted, html[data-style='klassisch'] .panel-head .small { color: #fff; }
+html[data-style='klassisch'] .panel-head .btn, html[data-style='klassisch'] .panel-head .btn.small { padding: 0 6px; color: #0a2a52; }
+html[data-style='klassisch'] .panel-head .count { background: #fff; color: #0a2a52; }
+html[data-style='klassisch'] .mask-title { color: #0a2a52; border-bottom: 1px solid var(--line); padding-bottom: 2px; }
+html[data-style='klassisch'] .statusbar { background: #e4e4e4; border-top-color: #a0a0a0; color: #222; }
+html[data-style='klassisch'] .topbar { padding: 3px 8px; }
+html[data-style='klassisch'] .topbar .tb-field { background: #0d2c50; border-color: #5c84b5; color: #fff; }
+html[data-style='klassisch'] .topbar .tb-field.alarm { background: #c4161c; border-color: #fff; }
+html[data-style='klassisch'] .topbar .tb-field.warn { background: #b56b00; border-color: #fff; }
+html[data-style='klassisch'] .clock { font-family: var(--mono); font-size: 17px; background: #000; color: #3cff6b; padding: 0 8px; border: 1px solid #5c84b5; }
+html[data-style='klassisch'] .list-item { padding: 4px 8px; }
+html[data-style='klassisch'] .list-item.ringing { animation: ring-b 1s steps(1) infinite; }
 @keyframes ring-b { 0%, 100% { background: #fff; } 50% { background: #ffd2c2; } }
 
 /* Modern: ruhige Menüleiste */
@@ -536,3 +536,155 @@ html .btn.alarm:not(:disabled), html[data-style] .btn.alarm:not(:disabled) { ani
 html .btn.alarm:disabled, html[data-style] .btn.alarm:disabled { opacity: .55; }
 @keyframes alarm-blink { 0% { background: #c4161c; } 50% { background: #ff4d4f; box-shadow: 0 0 8px #ff4d4f; } }
 @media (prefers-reduced-motion: reduce) { html[data-style] .btn.alarm:not(:disabled) { animation-duration: 1.8s; } }
+
+/* =====================================================================
+   Wachentableau (beide Stile)
+   ===================================================================== */
+.tableau { height: 100%; display: flex; flex-direction: column; min-height: 0; background: var(--bg); position: relative; }
+.tableau-bar { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-bottom: 1px solid var(--line); background: var(--bg-2); }
+.tableau-bar select { min-width: 200px; }
+.tableau-legend { display: flex; gap: 2px; }
+.tableau-key { display: inline-block; min-width: 20px; text-align: center; font-family: var(--mono); font-weight: 700; border: 1px solid #0004; padding: 0 3px; }
+.tableau-body { flex: 1; min-height: 0; overflow: auto; padding: 8px; }
+.tableau-cols { column-width: 240px; column-gap: 8px; }
+.tableau-block { width: 100%; border-collapse: collapse; break-inside: avoid; margin: 0 0 8px; background: var(--panel); border: 1px solid var(--line-2); font-size: 12px; table-layout: fixed; }
+.tableau-block th { background: var(--panel-2); color: var(--text); text-align: left; font-weight: 400; padding: 2px 5px; border-bottom: 1px solid var(--line-2); border-left: 1px solid var(--line); }
+.tableau-block th:first-child { border-left: none; }
+.tableau-block th:nth-child(2) { width: 20px; text-align: center; }
+.tableau-block th:nth-child(3) { width: 44px; }
+.tableau-block td { padding: 1px 5px; border-bottom: 1px solid var(--line); cursor: default; white-space: nowrap; }
+.tableau-block td.tb-name { text-align: center; font-weight: 600; }
+.tableau-block td.tb-st { width: 18px; text-align: center; font-weight: 700; border-left: 2px solid var(--panel); }
+.tableau-block td.tb-info { width: 20px; text-align: center; color: var(--alarm); background: var(--panel-2); }
+.tableau-block td.tb-time { width: 44px; }
+.tableau-block tr.sel td { outline: 2px solid var(--accent); outline-offset: -2px; }
+.tableau-detail { position: absolute; right: 10px; top: 44px; width: 380px; z-index: 20; box-shadow: 0 4px 16px #0006; }
+
+/* =====================================================================
+   Stil „Klassisch“ – nach dem Vorbild klassischer Einsatzleitsysteme:
+   graublaue Fensterflächen, Abschnitte mit Titelleisten, beschriftete
+   Felder links, Pflichtfelder orange, Reiter-Kacheln, Statustableau
+   ===================================================================== */
+html[data-style='klassisch'] {
+  --bg: #d6d9e0; --bg-2: #e4e6eb; --panel: #ffffff; --panel-2: #eceef2; --line: #c3c7ce; --line-2: #9aa1ab;
+  --text: #111111; --text-2: #3c4048; --text-3: #6d727c; --accent: #2a5d9f; --accent-2: #2a5d9f;
+  --sel: #b8cfe5; --head-bg: linear-gradient(#f3f4f6, #dcdfe5); --head-fg: #111111;
+  --req-bg: #ffa449; --req-line: #d9822b;
+  --topbar-bg: linear-gradient(#f4f5f7, #dfe2e7); --topbar-fg: #111111;
+  --radius: 2px;
+  --font: Tahoma, 'Segoe UI', Verdana, Arial, sans-serif;
+}
+html[data-style='klassisch'] body { font-size: 12px; background: var(--bg); }
+/* Menüleiste und Werkzeugleiste: hell wie eine Desktopanwendung */
+html[data-style='klassisch'] .menubar { background: #f5f6f8; border-bottom: 1px solid #c9ccd2; }
+html[data-style='klassisch'] .mb-brand { color: #111; font-weight: 700; }
+html[data-style='klassisch'] .mb-brand::before { content: ''; display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #e9a2ff, #7a1fa2); margin-right: 6px; }
+html[data-style='klassisch'] .mb-title:hover, html[data-style='klassisch'] .mb-title.open { background: #cfe0f3; }
+html[data-style='klassisch'] .mb-item:hover:not(:disabled) { background: #2a5d9f; }
+html[data-style='klassisch'] .topbar { background: var(--topbar-bg); color: #111; border-bottom: 1px solid #b4b8bf; }
+html[data-style='klassisch'] .topbar .brand { color: #111; letter-spacing: .02em; }
+html[data-style='klassisch'] .topbar .muted, html[data-style='klassisch'] .topbar .dim { color: #3c4048; }
+html[data-style='klassisch'] .topbar .btn { background: linear-gradient(#ffffff, #e2e5ea); color: #111; border-color: #9aa1ab; }
+html[data-style='klassisch'] .topbar .btn.active, html[data-style='klassisch'] .topbar .btn.primary { background: linear-gradient(#dbe8f7, #b8cfe5); border-color: #2a5d9f; color: #111; }
+html[data-style='klassisch'] .topbar .chip, html[data-style='klassisch'] .topbar .tb-field { background: #fff; border-color: #9aa1ab; color: #111; }
+html[data-style='klassisch'] .topbar .tb-field.alarm, html[data-style='klassisch'] .topbar .chip.alarm { background: #ff6665; border-color: #c43c3b; color: #fff; }
+html[data-style='klassisch'] .topbar .tb-field.warn, html[data-style='klassisch'] .topbar .chip.warn { background: #ffff00; border-color: #b0a400; color: #111; }
+html[data-style='klassisch'] .clock { font-family: var(--mono); font-size: 16px; background: #fff; color: #111; border: 1px solid #9aa1ab; padding: 0 8px; }
+/* Bereichsreiter wie Registerkarten */
+html[data-style='klassisch'] .nav { background: #d6d9e0 !important; border-bottom: 1px solid #9aa1ab !important; padding-top: 4px !important; }
+html[data-style='klassisch'] .nav button { border: 1px solid #9aa1ab; border-bottom: none; border-radius: 3px 3px 0 0; background: linear-gradient(#e9ebef, #cfd3da); color: #111; padding: 3px 12px; margin-right: 2px; }
+html[data-style='klassisch'] .nav button.active { background: #f5f6f8; font-weight: 700; color: #111; border-color: #9aa1ab; }
+/* Knöpfe und Felder */
+html[data-style='klassisch'] .btn { background: linear-gradient(#ffffff, #e2e5ea); border: 1px solid #9aa1ab; border-radius: 3px; color: #111; box-shadow: none; }
+html[data-style='klassisch'] .btn:hover:not(:disabled) { background: linear-gradient(#ffffff, #cfe0f3); border-color: #2a5d9f; }
+html[data-style='klassisch'] .btn.primary { background: linear-gradient(#e7f0fb, #b8cfe5); color: #0e2a50; border-color: #2a5d9f; font-weight: 700; }
+html[data-style='klassisch'] .btn.active { background: linear-gradient(#dbe8f7, #b8cfe5); border-color: #2a5d9f; }
+html[data-style='klassisch'] input[type=text], html[data-style='klassisch'] input[type=number], html[data-style='klassisch'] input[type=search], html[data-style='klassisch'] input:not([type]), html[data-style='klassisch'] select, html[data-style='klassisch'] textarea { background: #fff; border: 1px solid #b4b8bf; border-radius: 1px; padding: 2px 5px; }
+html[data-style='klassisch'] input:disabled, html[data-style='klassisch'] select:disabled, html[data-style='klassisch'] textarea:disabled { background: #e9ebef; color: #4a4f57; }
+html[data-style='klassisch'] input:focus, html[data-style='klassisch'] select:focus, html[data-style='klassisch'] textarea:focus { outline: 1px solid #2a5d9f; outline-offset: 0; }
+/* Listenfenster mit Reiterkopf */
+html[data-style='klassisch'] .panel { background: #fff; border: 1px solid #9aa1ab; margin: 3px; }
+html[data-style='klassisch'] .panel + .panel { border-top: 1px solid #9aa1ab; }
+html[data-style='klassisch'] .panel-head { background: #d6d9e0; color: #111; border-bottom: 1px solid #9aa1ab; padding: 3px 4px 0; min-height: 22px; align-items: flex-end; }
+html[data-style='klassisch'] .panel-head h4 { background: #c9ced8; border: 1px solid #8c95a3; border-bottom: none; border-radius: 3px 3px 0 0; padding: 1px 8px; color: #111; font-weight: 400; flex: none; }
+html[data-style='klassisch'] .panel-head h4.grow { flex: none; margin-right: auto; }
+html[data-style='klassisch'] .panel-head .muted, html[data-style='klassisch'] .panel-head .small { color: #3c4048; }
+html[data-style='klassisch'] .panel-head .btn, html[data-style='klassisch'] .panel-head .btn.small { padding: 0 6px; margin-bottom: 2px; color: #111; }
+html[data-style='klassisch'] .panel-head .count { background: #fff; color: #111; border: 1px solid #9aa1ab; margin-bottom: 2px; }
+html[data-style='klassisch'] .station-group h4 { background: #eceef2; border-bottom: 1px solid #c3c7ce; color: #111; font-weight: 700; }
+html[data-style='klassisch'] .list-item { padding: 3px 6px; border-bottom: 1px solid #e0e2e6; }
+html[data-style='klassisch'] .list-item.selected { background: #b8cfe5; box-shadow: none; }
+html[data-style='klassisch'] .list-item.ringing { animation: ring-k 1s steps(1) infinite; }
+@keyframes ring-k { 0%, 100% { background: #fff; } 50% { background: #ffa449; } }
+/* Tabellen */
+html[data-style='klassisch'] table.grid th { background: linear-gradient(#fbfbfc, #e6e8ec); color: #111; border: 1px solid #c3c7ce; font-weight: 400; font-size: 12px; text-transform: none; letter-spacing: 0; }
+html[data-style='klassisch'] table.grid td { border: none; border-bottom: 1px solid #eceef2; }
+html[data-style='klassisch'] table.grid tr:nth-child(even) td { background: #fff; }
+html[data-style='klassisch'] table.grid tr:hover td { background: #e3edf8; }
+html[data-style='klassisch'] table.grid tr.selected td { background: #b8cfe5; }
+html[data-style='klassisch'] .status-badge { border-radius: 0; border: 1px solid #0005; min-width: 20px; height: 18px; }
+/* Einsatzmaske: graue Fläche, Abschnitte mit Titelleiste, Beschriftung links */
+html[data-style='klassisch'] .mask { background: #d6d9e0; border-left: 1px solid #9aa1ab; }
+html[data-style='klassisch'] .mask-head { background: #f5f6f8; border-bottom: 1px solid #b4b8bf; color: #111; padding: 3px 8px; }
+html[data-style='klassisch'] .mask-head .chip { background: #fff; border-color: #9aa1ab; color: #111; }
+html[data-style='klassisch'] .mask-head .chip.alarm { background: #ff6665; color: #fff; border-color: #c43c3b; }
+html[data-style='klassisch'] .cb-toolbar { display: flex; align-items: center; gap: 4px; padding: 3px 8px; background: #e4e6eb; border-bottom: 1px solid #b4b8bf; }
+html[data-style='klassisch'] .cb-ico { width: 26px; height: 24px; display: inline-grid; place-items: center; font-size: 15px; line-height: 1; background: linear-gradient(#ffffff, #dfe2e7); border: 1px solid #9aa1ab; border-radius: 2px; color: #1d3f73; cursor: default; padding: 0; }
+html[data-style='klassisch'] .cb-ico:hover:not(:disabled) { background: linear-gradient(#ffffff, #cfe0f3); border-color: #2a5d9f; }
+html[data-style='klassisch'] .cb-ico:disabled { color: #a2a7b0; }
+html[data-style='klassisch'] .cb-sep { width: 1px; align-self: stretch; background: #b4b8bf; margin: 0 4px; }
+html[data-style='klassisch'] .mask-body { grid-template-columns: minmax(420px, 560px) 1fr; gap: 6px; padding: 6px; }
+html[data-style='klassisch'] .mask-left { gap: 6px; }
+/* Reihenfolge wie im klassischen System: Einsatzort, Anruferdaten, Einsatzanlass, Zielort */
+html[data-style='klassisch'] .sec-ort { order: 1; }
+html[data-style='klassisch'] .sec-anrufer { order: 2; }
+html[data-style='klassisch'] .sec-anlass { order: 3; }
+html[data-style='klassisch'] .sec-ziel { order: 4; }
+html[data-style='klassisch'] .sec-bem { order: 5; }
+html[data-style='klassisch'] .mask-left > :not(.sec) { order: 9; }
+html[data-style='klassisch'] fieldset.sec { background: #e6e8ec; border: 1px solid #b4b8bf; border-radius: 2px; padding: 0 8px 6px; }
+html[data-style='klassisch'] fieldset.sec > legend { float: left; width: calc(100% + 16px); margin: 0 -8px 6px; padding: 3px 8px; display: flex; align-items: center; background: linear-gradient(#f6f7f9, #dcdfe5); border-bottom: 1px solid #b4b8bf; font-weight: 700; color: #111; font-size: 12px; }
+html[data-style='klassisch'] fieldset.sec > legend .sec-title { flex: 1; }
+html[data-style='klassisch'] fieldset.sec > legend + * { clear: both; }
+html[data-style='klassisch'] .sec-toggle { background: none; border: none; padding: 0 2px; font-size: 12px; color: #111; cursor: default; }
+html[data-style='klassisch'] .mask-left .mask-grid { grid-template-columns: 1fr !important; gap: 4px; }
+html[data-style='klassisch'] .mask-grid label, html[data-style='klassisch'] .mask-grid1 { display: grid; grid-template-columns: 118px 1fr; align-items: center; gap: 6px; font-size: 12px; color: #111; }
+html[data-style='klassisch'] .mask-grid1 { margin-top: 4px; }
+/* Straße/Hausnr. und Ort/PLZ jeweils in einer Zeile */
+html[data-style='klassisch'] .sec-ort .mask-grid { grid-template-columns: 1fr 96px !important; }
+html[data-style='klassisch'] .sec-ort .mask-grid > label:nth-child(even) { grid-template-columns: 1fr; font-size: 0; gap: 0; }
+html[data-style='klassisch'] .sec-ort .mask-grid > label:nth-child(even) input { font-size: 12px; }
+html[data-style='klassisch'] .mask input[type=text], html[data-style='klassisch'] .mask select, html[data-style='klassisch'] .mask textarea { font-size: 12px; padding: 2px 5px; }
+/* Pflichtfelder: orange, solange sie leer sind */
+html[data-style='klassisch'] .mask label.req input, html[data-style='klassisch'] .mask label.req select { background: #fff; border-color: #b4b8bf; }
+html[data-style='klassisch'] .mask label.req select:has(option[value='']:checked), html[data-style='klassisch'] .mask label.req input[value=''] { background: var(--req-bg); border-color: var(--req-line); }
+/* rechte Seite im Einsatz: Kacheln mit Reiterköpfen (R E-Mittel, F E-Mittel, Maßnahmen, Meldungen …) */
+html[data-style='klassisch'] .mask-right.einsatz { display: grid; grid-template-columns: 1fr 1fr; align-content: start; gap: 6px; }
+html[data-style='klassisch'] .mask-right.einsatz > * { min-width: 0; }
+html[data-style='klassisch'] .mask-right.einsatz > .box-massnahmen, html[data-style='klassisch'] .mask-right.einsatz > details { grid-column: 1 / -1; }
+html[data-style='klassisch'] .mask-right.einsatz > .box-meldungen { min-height: 220px; }
+html[data-style='klassisch'] .mask-right .mask-box { background: #d6d9e0; border: none; padding: 0; display: flex; flex-direction: column; gap: 3px; }
+html[data-style='klassisch'] .mask-right .mask-box > *:not(.mask-title):not(.row) { background: #fff; }
+html[data-style='klassisch'] .mask-right .mask-box > .small { background: transparent !important; padding: 1px 2px; }
+html[data-style='klassisch'] .mask-title { display: inline-block; align-self: flex-start; background: #c9ced8; border: 1px solid #8c95a3; border-radius: 3px 3px 0 0; padding: 1px 10px; color: #111; font-weight: 400; font-size: 12px; margin: 0; }
+html[data-style='klassisch'] .mask-title::after { content: ' ×'; color: #3c4048; font-size: 11px; }
+html[data-style='klassisch'] .mask-box .row > .mask-title.grow { flex: none; margin-right: auto; }
+html[data-style='klassisch'] .mask-table td, html[data-style='klassisch'] .mask-table th { padding: 1px 5px; font-size: 12px; }
+html[data-style='klassisch'] .mask-right .dialog { background: #fff; border: 1px solid #b4b8bf; padding: 4px; }
+html[data-style='klassisch'] .bubble { border-radius: 0; }
+html[data-style='klassisch'] .log-line { border-bottom: 1px solid #eceef2; }
+/* Notrufabfrage, Fenster, Dialoge */
+html[data-style='klassisch'] .dias-head, html[data-style='klassisch'] .window-head { background: linear-gradient(#f6f7f9, #dcdfe5); color: #111; border-bottom: 1px solid #b4b8bf; }
+html[data-style='klassisch'] .window, html[data-style='klassisch'] .modal { border: 1px solid #7d8590; border-radius: 0; box-shadow: 2px 3px 10px #0004; background: #e6e8ec; }
+html[data-style='klassisch'] .card { border-radius: 0; box-shadow: none; }
+html[data-style='klassisch'] .statusbar { background: #e4e6eb; border-top: 1px solid #b4b8bf; color: #111; }
+html[data-style='klassisch'] .toast { background: #fff; border-radius: 0; box-shadow: 2px 2px 6px #0004; }
+/* Wachentableau im klassischen Stil */
+html[data-style='klassisch'] .tableau { background: #d6d9e0; }
+html[data-style='klassisch'] .tableau-bar { background: #d6d9e0; border-bottom: 1px solid #b4b8bf; }
+html[data-style='klassisch'] .tableau-block { border: 1px solid #9aa1ab; }
+html[data-style='klassisch'] .tableau-block th { background: linear-gradient(#fbfbfc, #e6e8ec); border-bottom-color: #9aa1ab; }
+html[data-style='klassisch'] .tableau-block td { border-bottom: 1px solid #fff; font-family: Arial, Tahoma, sans-serif; }
+html[data-style='klassisch'] .tableau-block td.tb-st { border-left: 2px solid #fff; }
+html[data-style='klassisch'] .tableau-block td.tb-info { background: #d3d6dd; }
+html[data-style='klassisch'] .tableau-block td.tb-time { background: #fff; }

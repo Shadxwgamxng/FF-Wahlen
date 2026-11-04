@@ -1,5 +1,5 @@
 import { OwnerBanner, OwnerTag } from '../../players';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { Call, EinsatzMask, GameState, Incident, LatLng } from '../../../model/types';
 import { CATEGORY_LABELS } from '../../../data/keywords';
 import {
@@ -16,6 +16,7 @@ import { confirmDialog, fmtAgo, fmtClock } from '../../components/common';
 import { KeywordSelect } from './KeywordSelect';
 import { DispoListe, Gespraech, Massnahmen, PolizeiTelefon, Rueckmeldungen } from './MaskPanels';
 import { DiasPanel } from './DiasPanel';
+import { usePrefs } from '../../prefs';
 
 /**
  * Einsatzmaske (Einsatzbearbeitung). Öffnet sich beim Annehmen eines Notrufs und bleibt für den
@@ -45,6 +46,7 @@ const STATE_LABEL: Record<Incident['state'], string> = {
 export function Maske(p: Props) {
   const { game, call, incident: inc } = p;
   const now = game.runtime.clock.now;
+  const classic = usePrefs().uiStyle === 'klassisch';
   const kwId = inc?.keywordId ?? call?.keywordId ?? null;
   const kw = game.center.keywords.find((k) => k.id === kwId);
 
@@ -114,6 +116,31 @@ export function Maske(p: Props) {
         <button className="btn small" onClick={p.onClose} title="Schließen (Esc)">Zur Karte ✕</button>
       </div>
       {inc ? <OwnerBanner kind="incident" id={inc.id} owner={inc.owner} /> : call && <OwnerBanner kind="call" id={call.id} owner={call.owner} />}
+      {classic && !(call && call.state === 'klingelt') && (
+        <div className="cb-toolbar" role="toolbar" aria-label="Symbolleiste">
+          {mode === 'notruf' && call && call.state === 'in_abfrage' && (
+            <button className="cb-ico" title="Einsatz anlegen (Strg+Enter)" aria-label="Symbol: Einsatz anlegen" onClick={create} disabled={!kw?.forward && (!call.keywordId || !resolved || 'error' in resolved)}>⎙</button>
+          )}
+          {mode === 'notruf' && call && (
+            <button className="cb-ico" title="Anrufer orten" aria-label="Symbol: Orten" onClick={() => store.cmd('startLocating', call.id)} disabled={call.locate?.status === 'laeuft'}>⌖</button>
+          )}
+          {resolved && !('error' in resolved) && (
+            <button className="cb-ico" title="Einsatzort in der Karte" aria-label="Symbol: Karte" onClick={() => p.onShowOnMap(resolved.position)}>▦</button>
+          )}
+          {inc && (
+            <button className="cb-ico" title="Polizeileitstelle anrufen" aria-label="Symbol: Polizei" onClick={() => store.cmd('policeCallOpen', inc.id)} disabled={inc.police?.open}>✆</button>
+          )}
+          {inc && (
+            <button className="cb-ico" title="Alle Einsatzmittel entlassen" aria-label="Symbol: Entlassung aller Einsatzmittel" onClick={() => store.cmd('releaseAllOnScene', inc.id)} disabled={inc.activeVehicleIds.length === 0}>⇤</button>
+          )}
+          <span className="cb-sep" />
+          <span className="small muted">{kw ? `${kw.code} – ${kw.label}` : 'kein Stichwort'}</span>
+          <span className="spacer" />
+          {inc && (
+            <button className="cb-ico" title="Einsatz abschließen" aria-label="Symbol: Einsatz abschließen" onClick={closeInc}>✓</button>
+          )}
+        </div>
+      )}
 
       {call && call.state === 'klingelt' ? (
         <div className="col" style={{ alignItems: 'center', justifyContent: 'center', flex: 1 }}>
@@ -126,16 +153,14 @@ export function Maske(p: Props) {
         <div className="mask-body">
           {/* ------------------------------------------------ linke Spalte: Einsatzdaten */}
           <div className="mask-left">
-            <fieldset className="mask-box">
-              <legend>Mitteiler</legend>
+            <Section id="anrufer" title="Mitteiler" classic="Anruferdaten">
               <div className="mask-grid">
                 <label>Name<input type="text" value={mask.callerName} onChange={(e) => setMask({ callerName: e.target.value })} disabled={mode === 'einsatz'} /></label>
                 <label>Telefon<input type="text" value={mask.callerPhone} onChange={(e) => setMask({ callerPhone: e.target.value })} disabled={mode === 'einsatz'} /></label>
               </div>
-            </fieldset>
+            </Section>
 
-            <fieldset className="mask-box">
-              <legend>Einsatzort</legend>
+            <Section id="ort" title="Einsatzort" classic="Einsatzort">
               <div className="mask-grid" style={{ gridTemplateColumns: '3fr 1fr' }}>
                 <label className="req">Straße<StreetInput game={game} value={mask.street} onChange={(street, extra) => setMask({ street, ...extra })} /></label>
                 <label>Nr.<input type="text" value={mask.houseNumber} onChange={(e) => setMask({ houseNumber: e.target.value })} aria-label="Hausnummer" /></label>
@@ -161,10 +186,9 @@ export function Maske(p: Props) {
               </div>
               {call?.locate && call.locate.status !== 'laeuft' && <div className={`small ${call.locate.status === 'ok' ? 'muted' : 'field-error'}`}>Ortung ({call.phoneType}): {call.locate.message}</div>}
               {call && <div className="dim small">Anschluss: {call.phoneType === 'festnetz' ? 'Festnetz' : 'Mobilfunk'}</div>}
-            </fieldset>
+            </Section>
 
-            <fieldset className="mask-box">
-              <legend>Ereignis</legend>
+            <Section id="anlass" title="Ereignis" classic="Einsatzanlass">
               {game.center.meldebilder.length > 0 && (
                 <label className="mask-grid1">
                   Meldebild
@@ -221,10 +245,9 @@ export function Maske(p: Props) {
                   {kw.note && ` · ${kw.note}`}
                 </div>
               )}
-            </fieldset>
+            </Section>
 
-            <fieldset className="mask-box">
-              <legend>Patient / Zielort</legend>
+            <Section id="ziel" title="Patient / Zielort" classic="Zielort">
               <div className="mask-grid">
                 <label>Patient<input type="text" value={mask.patientName} onChange={(e) => setMask({ patientName: e.target.value })} disabled={mode === 'einsatz'} /></label>
                 <label>
@@ -238,12 +261,11 @@ export function Maske(p: Props) {
                 </label>
               </div>
               <label className="mask-grid1">Zieladresse<input type="text" value={mask.targetAddress ?? ''} onChange={(e) => setMask({ targetAddress: e.target.value })} disabled={mode === 'einsatz'} placeholder="Straße Nr., Ort / Station" /></label>
-            </fieldset>
+            </Section>
 
-            <fieldset className="mask-box">
-              <legend>Hinweise</legend>
+            <Section id="bem" title="Hinweise" classic="Bemerkung intern">
               <textarea rows={2} value={mask.remarks} onChange={(e) => setMask({ remarks: e.target.value })} disabled={mode === 'einsatz'} style={{ width: '100%' }} />
-            </fieldset>
+            </Section>
 
             {mode === 'notruf' && call && call.state === 'in_abfrage' && (
               <div className="col" style={{ gap: 6 }}>
@@ -284,7 +306,7 @@ export function Maske(p: Props) {
           </div>
 
           {/* ------------------------------------------------ rechte Spalte */}
-          <div className="mask-right">
+          <div className={`mask-right ${mode}`}>
             {mode === 'notruf' && call && call.state === 'in_abfrage' && <DiasPanel game={game} call={call} />}
             {mode === 'notruf' && call && <Gespraech game={game} call={call} />}
             {mode === 'einsatz' && inc && (
@@ -305,6 +327,28 @@ export function Maske(p: Props) {
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * Abschnitt der Einsatzmaske. Im Stil „Klassisch“ als Abschnitt mit Titelleiste („Einsatzort:“) zum
+ * Ein- und Ausklappen, sonst als Feldgruppe.
+ */
+function Section({ id, title, classic, children }: { id: string; title: string; classic: string; children: ReactNode }) {
+  const isClassic = usePrefs().uiStyle === 'klassisch';
+  const [open, setOpen] = useState(true);
+  return (
+    <fieldset className={`mask-box sec sec-${id}`}>
+      <legend>
+        <span className="sec-title">{isClassic ? `${classic}:` : title}</span>
+        {isClassic && (
+          <button type="button" className="sec-toggle" onClick={() => setOpen(!open)} aria-label={`${classic} ${open ? 'einklappen' : 'ausklappen'}`} aria-expanded={open}>
+            {open ? '⌃' : '⌄'}
+          </button>
+        )}
+      </legend>
+      {(open || !isClassic) && children}
+    </fieldset>
   );
 }
 

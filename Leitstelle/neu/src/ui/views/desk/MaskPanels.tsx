@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { Call, GameState, Incident } from '../../../model/types';
 import { CAPABILITIES } from '../../../data/vehicleTypes';
-import { capLabel, prefetchRoutes, reqText, statusDef } from '../../../sim/engine';
-import { aaoRequirements, openRequirements, suggestForIncident } from '../../../sim/dispatch';
+import { capLabel, prefetchRoutes, reqText } from '../../../sim/engine';
+import { aaoRequirements, capsOf, MEDICAL_CAPS, openRequirements, suggestForIncident } from '../../../sim/dispatch';
+import { usePrefs } from '../../prefs';
 import { egName, groupName, isGroupVehicle, proposalWithGroups, turnoutFactor } from '../../../sim/alarmGroups';
 import { formatDuration, formatKm } from '../../../sim/geo';
 import { radioGroupOf } from '../../../model/radio';
@@ -133,55 +134,83 @@ const T = (t?: number) => (t ? fmtClock(t) : '');
 /** Dispoliste: alle für den Einsatz alarmierten Fahrzeuge mit Statuszeiten */
 export function DispoListe({ game, inc, onSelectVehicle }: { game: GameState; inc: Incident; onSelectVehicle: (id: string) => void }) {
   const now = game.runtime.clock.now;
+  const classic = usePrefs().uiStyle === 'klassisch';
+  const table = (ids: string[], testId: string) => (
+    <div style={{ overflow: 'auto', maxHeight: 220 }}>
+      <table className="grid mask-table" data-testid={testId}>
+        <thead>
+          <tr><th>St</th><th>Einsatzmittel</th><th>Typ</th><th>FuRG</th><th>Alarm</th><th>3</th><th>4</th><th>7</th><th>8</th><th>Frei</th><th>ETA</th><th></th></tr>
+        </thead>
+        <tbody>
+          {ids.map((id) => {
+            const v = game.center.vehicles.find((x) => x.id === id);
+            if (!v) return null;
+            const t = inc.times[id] ?? {};
+            const active = inc.activeVehicleIds.includes(id);
+            return (
+              <tr key={id} className={active ? '' : 'unavailable'}>
+                <td>{active ? <StatusBadge game={game} meaning={v.rt.status} /> : <span className="dim">–</span>}</td>
+                <td className="nowrap"><a href="#" onClick={(e) => (e.preventDefault(), onSelectVehicle(id))}>{v.callsign}</a></td>
+                <td>{game.center.vehicleTypes.find((x) => x.id === v.typeId)?.code}</td>
+                <td className="mono small">{radioGroupOf(game.center, v)?.code}</td>
+                <td className="mono small">{T(t.alarm)}</td>
+                <td className="mono small">{T(t.anfahrt)}</td>
+                <td className="mono small">{T(t.einsatzort)}</td>
+                <td className="mono small">{T(t.transport)}</td>
+                <td className="mono small">{T(t.am_ziel)}</td>
+                <td className="mono small">{T(t.frei)}</td>
+                <td className="mono small nowrap">{active && v.rt.move ? formatDuration(v.rt.move.arriveAt - now) : active && v.rt.status === 'alarmiert' && v.rt.phaseUntil ? `+${formatDuration(v.rt.phaseUntil - now)}` : ''}</td>
+                <td className="right">
+                  {active && (
+                    <button className="btn small" disabled={v.rt.status === 'transport' || v.rt.status === 'am_ziel'} onClick={() => store.cmd('releaseVehicle', v.id)}>
+                      Entlassen
+                    </button>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+          {ids.length === 0 && (
+            <tr><td colSpan={12} className="empty">Keine Einsatzmittel alarmiert.</td></tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+  if (classic) {
+    // wie im klassischen Einsatzleitsystem getrennt: Rettungsdienst (R) und Feuerwehr/übrige (F)
+    const isR = (id: string) => {
+      const v = game.center.vehicles.find((x) => x.id === id);
+      return !!v && capsOf(game, v).some((c) => MEDICAL_CAPS.has(c));
+    };
+    const r = inc.vehicleIds.filter(isR);
+    const f = inc.vehicleIds.filter((id) => !isR(id));
+    const bound = (ids: string[]) => ids.filter((id) => inc.activeVehicleIds.includes(id)).length;
+    return (
+      <>
+        <div className="mask-box box-emittel">
+          <div className="mask-title">R E-Mittel</div>
+          <div className="small"><b>Stärke: {bound(r)}</b> <span className="dim">({r.length} alarmiert)</span></div>
+          {table(r, 'dispoliste')}
+        </div>
+        <div className="mask-box box-emittel">
+          <div className="mask-title">F E-Mittel</div>
+          <div className="small"><b>Stärke: {bound(f)}</b> <span className="dim">({f.length} alarmiert)</span></div>
+          {table(f, 'dispoliste-f')}
+        </div>
+      </>
+    );
+  }
   return (
     <div className="mask-box">
       <div className="mask-title">Dispoliste ({inc.activeVehicleIds.length} gebunden / {inc.vehicleIds.length} alarmiert)</div>
-      <div style={{ overflow: 'auto', maxHeight: 220 }}>
-        <table className="grid mask-table" data-testid="dispoliste">
-          <thead>
-            <tr><th>St</th><th>Einsatzmittel</th><th>Typ</th><th>FuRG</th><th>Alarm</th><th>3</th><th>4</th><th>7</th><th>8</th><th>Frei</th><th>ETA</th><th></th></tr>
-          </thead>
-          <tbody>
-            {inc.vehicleIds.map((id) => {
-              const v = game.center.vehicles.find((x) => x.id === id);
-              if (!v) return null;
-              const t = inc.times[id] ?? {};
-              const active = inc.activeVehicleIds.includes(id);
-              return (
-                <tr key={id} className={active ? '' : 'unavailable'}>
-                  <td>{active ? <StatusBadge game={game} meaning={v.rt.status} /> : <span className="dim">–</span>}</td>
-                  <td className="nowrap"><a href="#" onClick={(e) => (e.preventDefault(), onSelectVehicle(id))}>{v.callsign}</a></td>
-                  <td>{game.center.vehicleTypes.find((x) => x.id === v.typeId)?.code}</td>
-                  <td className="mono small">{radioGroupOf(game.center, v)?.code}</td>
-                  <td className="mono small">{T(t.alarm)}</td>
-                  <td className="mono small">{T(t.anfahrt)}</td>
-                  <td className="mono small">{T(t.einsatzort)}</td>
-                  <td className="mono small">{T(t.transport)}</td>
-                  <td className="mono small">{T(t.am_ziel)}</td>
-                  <td className="mono small">{T(t.frei)}</td>
-                  <td className="mono small nowrap">{active && v.rt.move ? formatDuration(v.rt.move.arriveAt - now) : active && v.rt.status === 'alarmiert' && v.rt.phaseUntil ? `+${formatDuration(v.rt.phaseUntil - now)}` : ''}</td>
-                  <td className="right">
-                    {active && (
-                      <button className="btn small" disabled={v.rt.status === 'transport' || v.rt.status === 'am_ziel'} onClick={() => store.cmd('releaseVehicle', v.id)}>
-                        Entlassen
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-            {inc.vehicleIds.length === 0 && (
-              <tr><td colSpan={12} className="empty">Keine Einsatzmittel alarmiert.</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      {table(inc.vehicleIds, 'dispoliste')}
     </div>
   );
 }
 
-/** Maßnahmen: Einsatzmittelvorschlag, freie Auswahl und Alarmierung */
 export function Massnahmen({ game, inc, alarmRequest }: { game: GameState; inc: Incident; alarmRequest: number }) {
+  const classic = usePrefs().uiStyle === 'klassisch';
   const sug = useMemo(() => suggestForIncident(game, inc), [game, inc]);
   const plan = useMemo(() => proposalWithGroups(game, inc, sug), [game, inc, sug]);
   // Auswahl: Fahrzeuge (hauptamtlich, RD, Polizei …) und Alarmgruppen (Freiwillige Feuerwehren, je Wache)
@@ -285,9 +314,9 @@ export function Massnahmen({ game, inc, alarmRequest }: { game: GameState; inc: 
   if (inc.state === 'abarbeitung_beendet') return <div className="mask-box"><div className="mask-title">Maßnahmen</div><div className="small muted">Maßnahmen beendet.</div></div>;
 
   return (
-    <div className="mask-box col" style={{ gap: 6 }}>
+    <div className="mask-box col box-massnahmen" style={{ gap: 6 }}>
       <div className="row wrap">
-        <div className="mask-title grow">Maßnahmen / Einsatzmittelvorschlag</div>
+        <div className="mask-title grow">{classic ? 'Maßnahmen' : 'Maßnahmen / Einsatzmittelvorschlag'}</div>
         <span className="small muted">AAO{inc.backupRequests.length ? ' + Nachforderungen' : ''}: {reqText(required) || '–'}</span>
       </div>
       {open.length === 0 ? (
@@ -453,16 +482,17 @@ export function Massnahmen({ game, inc, alarmRequest }: { game: GameState; inc: 
 
 /** Rückmeldungen: offene Sprechwünsche und Einsatzprotokoll */
 export function Rueckmeldungen({ game, inc }: { game: GameState; inc: Incident }) {
+  const classic = usePrefs().uiStyle === 'klassisch';
   const radio = game.runtime.radio.filter((r) => r.incidentId === inc.id && !r.handled);
   return (
-    <div className="mask-box col" style={{ gap: 6, flex: 1, minHeight: 0 }}>
-      <div className="mask-title">Rückmeldungen</div>
+    <div className="mask-box col box-meldungen" style={{ gap: 6, flex: 1, minHeight: 0 }}>
+      <div className="mask-title">{classic ? 'Meldungen' : 'Rückmeldungen'}</div>
       {radio.map((r) => {
         const v = game.center.vehicles.find((x) => x.id === r.vehicleId);
         return (
           <div key={r.id} className="warnbox col" style={{ gap: 4 }}>
             <span>
-              <span className="status-badge" style={{ background: statusDef(game, 'sprechwunsch').color }}>{statusDef(game, 'sprechwunsch').code}</span> <b>{v?.callsign}:</b> {radioText(r)}
+              <StatusBadge game={game} meaning="sprechwunsch" /> <b>{v?.callsign}:</b> {radioText(r)}
             </span>
             <RadioActions game={game} msg={r} />
           </div>

@@ -7,8 +7,8 @@ export interface Prefs {
   tts: boolean;
   ttsRate: number;
   mapDark: boolean;
-  /** Oberfläche: "behoerde" (hell, nüchtern) oder "modern" (dunkel) */
-  uiStyle: 'behoerde' | 'modern';
+  /** Oberfläche: "klassisch" (hell, wie ein klassisches Einsatzleitsystem) oder "modern" (dunkel) */
+  uiStyle: 'klassisch' | 'modern';
   /** Adresse des lokalen OSRM-Routing-Servers */
   routingUrl: string;
   routingEnabled: boolean;
@@ -17,14 +17,17 @@ export interface Prefs {
 }
 
 const KEY = 'leitwarte.prefs';
-const DEFAULTS: Prefs = { sound: true, volume: 0.4, tts: true, ttsRate: 1.1, mapDark: true, uiStyle: 'behoerde', routingUrl: 'http://localhost:5000', routingEnabled: true, funkHorn: true };
+const DEFAULTS: Prefs = { sound: true, volume: 0.4, tts: true, ttsRate: 1.1, mapDark: true, uiStyle: 'klassisch', routingUrl: 'http://localhost:5000', routingEnabled: true, funkHorn: true };
 
 let prefs: Prefs = load();
 const listeners = new Set<() => void>();
 
 function load(): Prefs {
   try {
-    return { ...DEFAULTS, ...JSON.parse(localStorage.getItem(KEY) ?? '{}') };
+    const p: Prefs = { ...DEFAULTS, ...JSON.parse(localStorage.getItem(KEY) ?? '{}') };
+    // früherer Name des klassischen Stils
+    if ((p.uiStyle as string) === 'behoerde') p.uiStyle = 'klassisch';
+    return p;
   } catch {
     return { ...DEFAULTS };
   }

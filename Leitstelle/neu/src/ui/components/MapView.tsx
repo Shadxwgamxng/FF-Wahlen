@@ -6,6 +6,7 @@ import type { GameState, LatLng } from '../../model/types';
 import { statusDef } from '../../sim/engine';
 import { safeRemoveMap, TILE_ATTRIBUTION, TILE_URL } from './mapConfig';
 import { usePrefs } from '../prefs';
+import { statusColors } from '../statusColors';
 
 interface Props {
   game: GameState;
@@ -141,6 +142,7 @@ export function MapView(p: Props) {
         const free = v.rt.status === 'frei_wache' || v.rt.status === 'ausser_dienst';
         if (free && !show.freeVehicles && v.id !== p.selectedVehicleId) continue;
         const d = statusDef(g, v.rt.status);
+        const sc = statusColors(g, v.rt.status);
         const type = g.center.vehicleTypes.find((t) => t.id === v.typeId);
         const short = v.callsign.split(' ').slice(-1)[0];
         const sel = v.id === p.selectedVehicleId;
@@ -154,8 +156,8 @@ export function MapView(p: Props) {
           `v:${v.id}`,
           v.rt.position,
           base
-            ? `<div class="veh-img ${blink ? 'blink' : ''} ${glow ? 'glow' : ''} ${sel ? 'sel' : ''}"><img src="${base}" alt="">${blink ? `<img class="bl" src="${img!.blaulicht}" alt="">` : ''}<span class="veh-tag" style="background:${d.color}">${esc(d.code)} ${esc(short)}</span></div>`
-            : `<div class="veh-marker" style="background:${d.color};${sel ? 'outline:2px solid #fff' : ''}">${esc(d.code)} ${esc(type?.code ?? '')} ${esc(short)}</div>`,
+            ? `<div class="veh-img ${blink ? 'blink' : ''} ${glow ? 'glow' : ''} ${sel ? 'sel' : ''}"><img src="${base}" alt="">${blink ? `<img class="bl" src="${img!.blaulicht}" alt="">` : ''}<span class="veh-tag" style="background:${sc.bg};color:${sc.fg}">${esc(d.code)} ${esc(short)}</span></div>`
+            : `<div class="veh-marker" style="background:${sc.bg};color:${sc.fg};${sel ? 'outline:2px solid #fff' : ''}">${esc(d.code)} ${esc(type?.code ?? '')} ${esc(short)}</div>`,
           [0, 0],
           `<b>${esc(v.callsign)}</b><br>${esc(d.code)} – ${esc(d.label)}`,
           () => cbs.current.onSelectVehicle(v.id),

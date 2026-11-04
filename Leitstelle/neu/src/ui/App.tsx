@@ -14,6 +14,7 @@ import { MultiplayerView } from './views/MultiplayerView';
 import { DataView } from './views/DataView';
 import { VoiceTestView } from './views/VoiceTestView';
 import { VehicleSetup } from './views/VehicleSetup';
+import { WachentableauView } from './views/WachentableauView';
 import { installAudio } from './audio';
 import { openPopout, POPOUTS } from './PopoutApp';
 import { installRouting } from './routingService';
@@ -22,11 +23,12 @@ import { CallVoiceController } from './callVoice';
 import { JoinScreen, PlayerChips, TakeOverNotice, usePlayerHeartbeat } from './players';
 import { MenuBar, StatusBar } from './MenuBar';
 
-export type ViewId = 'leitstand' | 'einrichten' | 'wachen' | 'fahrzeuge' | 'aao' | 'kliniken' | 'statistik' | 'editor' | 'simulation' | 'mehrspieler' | 'daten' | 'sprachtest';
+export type ViewId = 'leitstand' | 'tableau' | 'einrichten' | 'wachen' | 'fahrzeuge' | 'aao' | 'kliniken' | 'statistik' | 'editor' | 'simulation' | 'mehrspieler' | 'daten' | 'sprachtest';
 
 /** Mitspieler: nur spielen */
 const NAV_PLAYER: [ViewId, string][] = [
   ['leitstand', 'Leitstand'],
+  ['tableau', 'Wachentableau'],
   ['statistik', 'Archiv & Statistik'],
   ['sprachtest', 'Sprachtest'],
 ];
@@ -34,6 +36,7 @@ const NAV_PLAYER: [ViewId, string][] = [
 /** Im Spiel: nur Leitstand und Spielfunktionen – bearbeitet wird im Bearbeitungsmodus */
 const NAV_PLAY: [ViewId, string][] = [
   ['leitstand', 'Leitstand'],
+  ['tableau', 'Wachentableau'],
   ['statistik', 'Archiv & Statistik'],
   ['sprachtest', 'Sprachtest'],
   ['daten', 'Daten & Einstellungen'],
@@ -169,6 +172,7 @@ export function App() {
       </nav>
       <main className="main">
         {view === 'leitstand' && mode === 'spielen' && <Desk game={game} />}
+        {view === 'tableau' && mode === 'spielen' && <WachentableauView game={game} />}
         {view === 'einrichten' && <VehicleSetup game={game} />}
         {view === 'wachen' && <StationsView game={game} />}
         {view === 'fahrzeuge' && <VehiclesView game={game} />}

@@ -6,6 +6,7 @@ import { ConfirmHost, fmtClock, fmtDate, Toasts } from './components/common';
 import { MapView } from './components/MapView';
 import { CallList, EventLog, IncidentList, VehicleBoard, VehicleDetail } from './views/desk/DeskPanels';
 import { RadioPanel } from './views/desk/RadioPanel';
+import { Wachentableau } from './views/WachentableauView';
 
 /**
  * Weiteres Browserfenster (z. B. auf dem zweiten Bildschirm). Zeigt einen Teil des Leitstands
@@ -17,6 +18,7 @@ export const POPOUTS: [string, string][] = [
   ['fahrzeuge', 'Fahrzeugstatus'],
   ['einsaetze', 'Notrufe & Einsätze'],
   ['funk', 'Funk & Protokoll'],
+  ['tableau', 'Wachentableau'],
 ];
 
 export function openPopout(kind: string) {
@@ -89,6 +91,7 @@ export function PopoutApp({ kind }: { kind: string }) {
             <IncidentList game={game} selectedId={null} onSelect={openIncident} onNewManual={() => store.toast('info', 'Nur im Hauptfenster')} />
           </div>
         )}
+        {kind === 'tableau' && <Wachentableau game={game} onOpenIncident={openIncident} />}
         {kind === 'funk' && (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', flex: 1, minHeight: 0 }}>
             <RadioPanel game={game} onOpenIncident={openIncident} />

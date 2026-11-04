@@ -2,11 +2,15 @@ import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } fro
 import type { GameState, StatusMeaning } from '../../model/types';
 import { statusDef } from '../../sim/engine';
 import { store, useStore } from '../../store/gameStore';
+import { usePrefs } from '../prefs';
+import { statusColors } from '../statusColors';
 
 export function StatusBadge({ game, meaning, title }: { game: GameState; meaning: StatusMeaning; title?: string }) {
+  usePrefs();
   const d = statusDef(game, meaning);
+  const c = statusColors(game, meaning);
   return (
-    <span className="status-badge" style={{ background: d.color }} title={title ?? `${d.code} – ${d.label}`}>
+    <span className="status-badge" style={{ background: c.bg, color: c.fg }} title={title ?? `${d.code} – ${d.label}`}>
       {d.code}
     </span>
   );

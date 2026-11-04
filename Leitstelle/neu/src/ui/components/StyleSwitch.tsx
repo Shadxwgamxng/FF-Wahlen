@@ -6,8 +6,8 @@ export function StyleSwitch() {
   return (
     <div className="row" role="group" aria-label="Oberflächenstil" data-testid="style-switch">
       <span className="small muted">Stil:</span>
-      <button className={`btn small ${p.uiStyle === 'behoerde' ? 'active' : ''}`} onClick={() => setPrefs({ uiStyle: 'behoerde' })}>
-        Behörde
+      <button className={`btn small ${p.uiStyle === 'klassisch' ? 'active' : ''}`} onClick={() => setPrefs({ uiStyle: 'klassisch' })}>
+        Klassisch
       </button>
       <button className={`btn small ${p.uiStyle === 'modern' ? 'active' : ''}`} onClick={() => setPrefs({ uiStyle: 'modern' })}>
         Modern
