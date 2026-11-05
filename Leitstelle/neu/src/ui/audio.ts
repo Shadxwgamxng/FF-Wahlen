@@ -12,7 +12,8 @@ import { speakAs } from '../voice/speech';
  */
 
 let ctx: AudioContext | null = null;
-function ac(): AudioContext | null {
+/** gemeinsamer AudioContext (Töne, Aufnahmen, Sprachausgabe) */
+export function ac(): AudioContext | null {
   if (typeof window === 'undefined' || !('AudioContext' in window)) return null;
   ctx ??= new AudioContext();
   if (ctx.state === 'suspended') void ctx.resume();

@@ -11,6 +11,9 @@ import { setPrefs, usePrefs } from '../prefs';
 import { sounds, speak, ttsAvailable } from '../audio';
 import { HelpModal } from '../App';
 import { testRouting } from '../routingService';
+import { neuralAvailable } from '../neuralVoice';
+import { speakAs } from '../../voice/speech';
+import { testLlm } from '../../voice/llm';
 import { importDias, removeDias, useDias } from '../../dias/store';
 
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9äöüß]+/gi, '-').replace(/^-|-$/g, '');
@@ -156,6 +159,7 @@ Stichwörter:  code;bezeichnung;kategorie;prioritaet;bedarf   (bedarf z. B. loes
           {!ttsAvailable() && <span className="dim small">(nicht verfügbar)</span>}
         </label>
         {prefs.tts && <button className="btn small" style={{ alignSelf: 'flex-start' }} onClick={() => speak('Florian Bergstadt eins sechsundvierzig eins, Status vier.')}>Sprachausgabe testen</button>}
+        <VoiceSettings />
         <StyleSwitch />
         <label className="check"><input type="checkbox" checked={prefs.mapDark} onChange={(e) => setPrefs({ mapDark: e.target.checked })} /> Karte dunkel (Modern)</label>
         <h4 style={{ marginTop: 8 }}>Straßenrouting (OSRM)</h4>
@@ -251,3 +255,48 @@ function DiasCard() {
     </div>
   );
 }
+
+/** Stimmen, Geräusche und optionale lokale KI */
+function VoiceSettings() {
+  const prefs = usePrefs();
+  const [neural, setNeural] = useState<boolean | null>(null);
+  const [llmTest, setLlmTest] = useState('');
+  useEffect(() => {
+    void neuralAvailable().then(setNeural);
+  }, []);
+  const probe = (emotion: 0 | 1 | 2, channel: 'telefon' | 'funk') =>
+    void speakAs(
+      channel === 'funk' ? 'Florian Ostholstein zweiundvierzig achtundvierzig eins, Status drei.' : ['Ja, guten Tag … hier ist Hahn. Bei uns riecht es so komisch im Keller.', 'Hallo? Ja – bei uns brennt es in der Küche, der Rauch kommt schon raus!', 'Hallo?! Bitte, schnell – mein Mann atmet nicht mehr! Bitte!'][emotion],
+      { rate: 1, pitch: 1, emotion, personality: emotion === 0 ? 'aelter' : 'aufgeregt', voiceSeed: `probe-${emotion}-${Date.now() % 7}` },
+      undefined,
+      channel,
+    );
+  return (
+    <div className="col" style={{ gap: 4, marginTop: 6 }} data-testid="voice-settings">
+      <h4>Stimmen</h4>
+      <label className="check">
+        <input type="checkbox" checked={prefs.neuralVoices} onChange={(e) => setPrefs({ neuralVoices: e.target.checked })} /> Natürliche Stimmen (offline, kostenlos)
+        <span className={`small ${neural === false ? 'field-error' : 'dim'}`}>{neural === null ? '' : neural ? '· Stimmdateien gefunden' : '· Stimmdateien fehlen (public/voices) – Browserstimme'}</span>
+      </label>
+      <label className="check"><input type="checkbox" checked={prefs.callerVoice} onChange={(e) => setPrefs({ callerVoice: e.target.checked })} /> Anrufer antworten hörbar (auch beim Abfragen per Klick)</label>
+      <label className="check"><input type="checkbox" checked={prefs.ambience} onChange={(e) => setPrefs({ ambience: e.target.checked })} /> Geräusche beim Anrufer (Rauchmelder, Straße, Wind …)</label>
+      <div className="row wrap">
+        <span className="small muted">Hörprobe:</span>
+        <button className="btn small" onClick={() => probe(0, 'telefon')}>ruhig</button>
+        <button className="btn small" onClick={() => probe(1, 'telefon')}>aufgeregt</button>
+        <button className="btn small" onClick={() => probe(2, 'telefon')}>Panik</button>
+        <button className="btn small" onClick={() => probe(0, 'funk')}>Funk</button>
+      </div>
+      <h4 style={{ marginTop: 6 }}>Lokale KI für Anruferantworten (optional)</h4>
+      <label className="check"><input type="checkbox" checked={prefs.llmEnabled} onChange={(e) => setPrefs({ llmEnabled: e.target.checked })} /> Antworten beim Freisprechen frei formulieren lassen (Ollama auf diesem PC)</label>
+      <div className="row wrap">
+        <input type="text" value={prefs.llmUrl} onChange={(e) => setPrefs({ llmUrl: e.target.value.trim() })} style={{ width: 220 }} aria-label="Adresse von Ollama" />
+        <input type="text" value={prefs.llmModel} onChange={(e) => setPrefs({ llmModel: e.target.value.trim() })} style={{ width: 140 }} aria-label="KI-Modell" />
+        <button className="btn small" onClick={async () => setLlmTest(await testLlm({ url: prefs.llmUrl, model: prefs.llmModel }))}>Verbindung testen</button>
+        {llmTest && <span className={`small ${llmTest.startsWith('OK') ? '' : 'field-error'}`}>{llmTest}</span>}
+      </div>
+      <span className="dim small">Einmalig: Ollama von ollama.com installieren und „ollama pull {prefs.llmModel}“ ausführen. Ohne Ollama antworten die Anrufer wie bisher.</span>
+    </div>
+  );
+}
+

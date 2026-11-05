@@ -14,10 +14,20 @@ export interface Prefs {
   routingEnabled: boolean;
   /** Martinshorn leise im Hintergrund, wenn Fahrzeuge auf Einsatzfahrt funken */
   funkHorn: boolean;
+  /** natürliche Stimmen (Piper, offline) statt der Browserstimme */
+  neuralVoices: boolean;
+  /** Anrufer antworten hörbar, auch beim Abfragen per Klick */
+  callerVoice: boolean;
+  /** leise Hintergrundgeräusche beim Anrufer (Rauchmelder, Straße, Wind …) */
+  ambience: boolean;
+  /** optionale lokale KI (Ollama) formuliert die Antworten der Anrufer frei */
+  llmEnabled: boolean;
+  llmUrl: string;
+  llmModel: string;
 }
 
 const KEY = 'leitwarte.prefs';
-const DEFAULTS: Prefs = { sound: true, volume: 0.4, tts: true, ttsRate: 1.1, mapDark: true, uiStyle: 'klassisch', routingUrl: 'http://localhost:5000', routingEnabled: true, funkHorn: true };
+const DEFAULTS: Prefs = { sound: true, volume: 0.4, tts: true, ttsRate: 1.1, mapDark: true, uiStyle: 'klassisch', routingUrl: 'http://localhost:5000', routingEnabled: true, funkHorn: true, neuralVoices: true, callerVoice: true, ambience: true, llmEnabled: false, llmUrl: 'http://localhost:11434', llmModel: 'qwen2.5:7b' };
 
 let prefs: Prefs = load();
 const listeners = new Set<() => void>();

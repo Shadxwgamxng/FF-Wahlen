@@ -246,7 +246,7 @@ export function onEmergencyRun(vehicleId?: string, state: GameState | null = sto
 /** Jede Besatzung klingt etwas anders (Tonhöhe, Stimme) – gleiches Fahrzeug, gleiche Stimme */
 function voiceFor(vehicleId?: string) {
   const h = hashSeed(vehicleId ?? 'x');
-  return { rate: 1.05 + ((h % 7) - 3) * 0.02, pitch: 0.85 + ((h >> 3) % 9) * 0.04 };
+  return { rate: 1.05 + ((h % 7) - 3) * 0.02, pitch: 0.85 + ((h >> 3) % 9) * 0.04, voiceSeed: vehicleId ?? 'funk', emotion: 0 as const, personality: 'knapp' as const };
 }
 function pickVoice(vehicleId?: string) {
   const vs = germanVoices();

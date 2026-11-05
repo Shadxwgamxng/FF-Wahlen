@@ -1,0 +1,15 @@
+Natürliche Stimmen für LEITWARTE (Piper, offline im Browser)
+============================================================
+
+Die Stimmdateien sind zu groß für das Repository und liegen nur in der ZIP.
+Benötigt werden jeweils die .onnx- und die .onnx.json-Datei:
+
+  de_DE-eva_k-x_low                Frauenstimme
+  de_DE-kerstin-low                Frauenstimme
+  de_DE-ramona-low                 Frauenstimme
+  de_DE-thorsten_emotional-medium  Männerstimme mit Gefühlslagen (aufgeregt, genervt …), auch für Ansagen
+  de_DE-pavoque-low                Männerstimme
+  de_DE-karlsson-low               Männerstimme
+
+Quelle (kostenlos): https://huggingface.co/rhasspy/piper-voices/tree/main/de/de_DE
+Fehlen die Dateien, spricht das Spiel mit der Stimme des Browsers.

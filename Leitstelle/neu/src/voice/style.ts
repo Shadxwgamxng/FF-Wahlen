@@ -24,6 +24,11 @@ export const PERSONALITY_LABEL: Record<Personality, string> = {
 export interface VoicePersona {
   rate: number;
   pitch: number;
+  /** für natürliche Stimmen: Gefühlslage und Persönlichkeit des Sprechers */
+  emotion?: Emotion;
+  personality?: Personality;
+  /** gleicher Wert, gleiche Stimme (z. B. Notruf-ID oder Fahrzeug) */
+  voiceSeed?: string;
 }
 
 /** Persönlichkeit aus dem Anruf ableiten (gleicher Anruf, gleiche Persönlichkeit) */
@@ -51,7 +56,7 @@ export function initialEmotion(facts: Facts, personality?: Personality): Emotion
 /** Stimme: Tempo und Tonhöhe nach Persönlichkeit und Gefühlslage */
 export function voiceFor(personality: Personality, emotion: Emotion): VoicePersona {
   const base = { ruhig: [0.98, 1], aufgeregt: [1.08, 1.06], aelter: [0.86, 0.94], knapp: [1.04, 0.98], redselig: [1.02, 1.02] }[personality];
-  return { rate: Math.min(1.35, base[0] + emotion * 0.09), pitch: base[1] + emotion * 0.07 };
+  return { rate: Math.min(1.35, base[0] + emotion * 0.09), pitch: base[1] + emotion * 0.07, emotion, personality };
 }
 
 /** Feste Gesprächsfloskeln je Persönlichkeit – nie mit Sachinhalt */

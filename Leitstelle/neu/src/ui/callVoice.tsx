@@ -1,6 +1,8 @@
 import { useEffect, useSyncExternalStore } from 'react';
 import type { Call } from '../model/types';
-import { CallerSim, personaFor, type VoiceCall } from '../voice/caller';
+import { CallerSim, callSeed, personaFor, type VoiceCall } from '../voice/caller';
+import { initialEmotion, personalityFor, type Emotion } from '../voice/style';
+import { getPrefs } from './prefs';
 import { hashSeed } from '../voice/details/types';
 import { createRecognizer, germanVoices, speakAs, stopSpeaking, type Recognizer } from '../voice/speech';
 import { getConsent } from '../voice/transcripts';
@@ -8,6 +10,8 @@ import { store } from '../store/gameStore';
 import { isMine } from './players';
 import { loadDias } from '../dias/store';
 import { currentQuestion } from '../dias/completion';
+import { sceneFor, startAmbience } from './ambience';
+import { llmAnswer } from '../voice/llm';
 
 /**
  * Freisprechen bei echten Notrufen im Spiel: Sobald ein Notruf angenommen ist, ist am Leitstand-PC das
@@ -96,6 +100,8 @@ interface Session {
   /** Fehler der Erkennung in Folge */
   errors: number;
   voice?: string;
+  /** Geräusche beim Anrufer beenden */
+  stopAmbience?: () => void;
 }
 
 /** Gesprächspartner am Telefon: laufender Notruf, sonst ein offenes Telefonat mit der Polizei */
@@ -116,8 +122,19 @@ function activeTarget(): { key: string; respond: (text: string) => Promise<Turn>
         const game = store.state?.runtime.calls.find((x) => x.id === c.id);
         const patch: Record<string, string | number | boolean> = {};
         for (const [k, v] of Object.entries(sim.call.facts)) if (k.startsWith('x_') && game && game.facts[k] === undefined) patch[k] = v;
-        store.cmdQuiet('voiceTurn', c.id, text, turn.text || '…', turn.questions, patch);
-        return { text: turn.text, ended: turn.ended, persona: personaFor(turn.emotion, sim.personality) };
+        // optional: lokale KI formuliert die Antwort frei (Inhalt bleibt der der Simulation)
+        const p = getPrefs();
+        let reply = turn.text;
+        if (p.llmEnabled && reply) {
+          const history = (game?.dialog ?? []).filter((d) => d.questionId.startsWith('sprache_')).map((d) => ({ said: d.question, answer: d.answer }));
+          const free = await llmAnswer(
+            { url: p.llmUrl, model: p.llmModel },
+            { opening: c.opening, relation: c.caller.relation, facts: c.facts, address: c.location.address, history, said: text, draft: reply, emotion: turn.emotion, personality: sim.personality },
+          );
+          if (free) reply = free;
+        }
+        store.cmdQuiet('voiceTurn', c.id, text, reply || '…', turn.questions, patch);
+        return { text: reply, ended: turn.ended, persona: personaFor(turn.emotion, sim.personality) };
       },
     };
   }
@@ -201,7 +218,7 @@ export function CallVoiceController() {
         // Anrufer redet auch während Funkverkehr – eingereiht direkt hinter den laufenden Satz
         s.speaking = true;
         setStatus({ state: 'spricht', interim: '' });
-        await speakAs(turn.text, turn.persona, s.voice, 'telefon');
+        await speakAs(turn.text, { ...turn.persona, voiceSeed: s.callId }, s.voice, 'telefon');
         s.speaking = false;
       }
       s.busy = false;
@@ -213,6 +230,7 @@ export function CallVoiceController() {
     const end = () => {
       if (!session) return;
       session.rec?.abort();
+      session.stopAmbience?.();
       // nur das Telefon verstummt – laufender Funk bleibt
       stopSpeaking('telefon');
       session = null;
@@ -229,6 +247,9 @@ export function CallVoiceController() {
       if (target && !session) {
         const vs = germanVoices();
         session = { callId: target.key, respond: target.respond, rec: null, speaking: false, busy: false, errors: 0, voice: vs.length ? vs[hashSeed(target.key) % vs.length].voiceURI : undefined };
+        // Geräuschkulisse beim Anrufer (nicht beim Telefonat mit der Polizei)
+        const call = store.state?.runtime.calls.find((c) => c.id === target.key);
+        if (call) session.stopAmbience = startAmbience(sceneFor(call));
         setStatus({ callId: target.key, state: 'hoert', interim: '', error: '', muted: false });
         if (target.greeting) {
           // Polizei meldet sich am Telefon
@@ -236,7 +257,7 @@ export function CallVoiceController() {
           const greeting = target.greeting;
           s.speaking = true;
           setStatus({ state: 'spricht' });
-          void speakAs(greeting, { rate: 1.05, pitch: 0.95 }, s.voice, 'telefon')
+          void speakAs(greeting, { rate: 1.05, pitch: 0.95, voiceSeed: s.callId, emotion: 0, personality: 'knapp' }, s.voice, 'telefon')
             .then(() => {
               s.speaking = false;
               if (session === s) listen();
@@ -262,7 +283,35 @@ export function CallVoiceController() {
         listen();
       }
     };
-    const unsub = store.subscribe(sync);
+    /*
+     * Abfrage per Klick (Fragen, Notrufabfrage): Der Anrufer sagt seine Antwort hörbar. Ohne Mikrofon
+     * meldet er sich nach dem Annehmen auch gleich mit seinem ersten Satz. Die Aufregung legt sich
+     * im Lauf des Gesprächs.
+     */
+    const heard = new Map<string, number>();
+    const speakClicks = () => {
+      const c = activeCall();
+      if (!c || !getPrefs().callerVoice) return;
+      const seen = heard.get(c.id);
+      heard.set(c.id, c.dialog.length);
+      const personality = personalityFor(callSeed(c), c.facts);
+      const start = initialEmotion(c.facts, personality);
+      const persona = () => {
+        const asked = c.dialog.filter((d) => !d.questionId.startsWith('sprache_')).length;
+        const emotion = Math.max(0, start - Math.floor(asked / 3)) as Emotion;
+        return { ...personaFor(emotion, personality), voiceSeed: c.id };
+      };
+      if (seen === undefined) {
+        const consent = getConsent();
+        if (c.dialog.length === 0 && (!consent || consent.mode === 'text')) void speakAs(c.opening, persona(), session?.voice, 'telefon');
+        return;
+      }
+      for (const d of c.dialog.slice(seen)) if (!d.questionId.startsWith('sprache_')) void speakAs(d.answer, persona(), session?.voice, 'telefon');
+    };
+    const unsub = store.subscribe(() => {
+      sync();
+      speakClicks();
+    });
     window.addEventListener('leitwarte-freisprechen', retry);
     sync();
     return () => {

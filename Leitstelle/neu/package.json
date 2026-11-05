@@ -5,8 +5,8 @@
   "description": "LEITWARTE – Leitstellen-Simulationsspiel (Browser, Einzelspieler, lokale Speicherung)",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "dev": "node scripts/piper-assets.mjs && vite",
+    "build": "node scripts/piper-assets.mjs && tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
@@ -18,8 +18,10 @@
     "test:mehrspieler": "node e2e/mehrspieler.mjs"
   },
   "dependencies": {
+    "@diffusionstudio/piper-wasm": "^1.0.0",
     "immer": "^11.1.21",
     "leaflet": "^1.9.4",
+    "onnxruntime-web": "^1.22.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "ws": "^8.22.0",

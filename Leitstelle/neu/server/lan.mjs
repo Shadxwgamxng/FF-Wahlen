@@ -35,6 +35,11 @@ const MIME = {
   '.mp3': 'audio/mpeg',
   '.ogg': 'audio/ogg',
   '.wav': 'audio/wav',
+  '.mjs': 'text/javascript; charset=utf-8',
+  '.wasm': 'application/wasm',
+  '.onnx': 'application/octet-stream',
+  '.data': 'application/octet-stream',
+  '.txt': 'text/plain; charset=utf-8',
 };
 
 try {

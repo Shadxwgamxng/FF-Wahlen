@@ -7,3 +7,7 @@ src/**/_real*.test.ts
 # eigene Tonaufnahmen bleiben lokal (siehe public/sounds/LIESMICH.txt)
 public/sounds/*
 !public/sounds/LIESMICH.txt
+# Stimmen (große Modelldateien) und Laufzeitdateien der Sprachausgabe (aus node_modules kopiert)
+public/voices/*
+!public/voices/LIESMICH.txt
+public/piper/

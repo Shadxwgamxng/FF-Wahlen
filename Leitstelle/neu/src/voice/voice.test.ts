@@ -346,6 +346,7 @@ describe('Sprachausgabe: gemeinsame Warteschlange', () => {
     void speakAs('Anrufer 1', p, undefined, 'telefon').then(() => done.push('t1'));
     void speakAs('Anrufer 2', p, undefined, 'telefon').then(() => done.push('t2'));
     void speakAs('Funk', p, undefined, 'funk').then(() => done.push('f'));
+    await vi.advanceTimersByTimeAsync(0);
     // der angefangene Satz läuft weiter, nur er ist beim Browser
     expect(handed.map((u) => u.text)).toEqual(['Anrufer 1']);
     finish();

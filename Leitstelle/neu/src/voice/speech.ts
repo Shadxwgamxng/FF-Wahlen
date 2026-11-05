@@ -210,28 +210,41 @@ interface SpeechItem {
   voiceURI?: string;
   channel: SpeechChannel;
   resolve: () => void;
+  /** natürliche Stimme: schon beim Einreihen berechnet, damit zwischen zwei Sätzen keine Lücke entsteht */
+  prepared?: Promise<unknown>;
+}
+
+/**
+ * Natürliche Stimmen (ui/neuralVoice.ts) – optional. Liefert prepare null, spricht die Browserstimme.
+ */
+export interface NeuralSpeaker {
+  prepare(text: string, persona: VoicePersona, channel: SpeechChannel): Promise<unknown>;
+  play(prepared: unknown, channel: SpeechChannel): { done: Promise<void>; stop: () => void } | null;
+}
+let neural: NeuralSpeaker | null = null;
+export function setNeuralSpeaker(n: NeuralSpeaker | null) {
+  neural = n;
 }
 
 /*
- * Gemeinsame Warteschlange aller Sprachausgaben: Der Browser bekommt immer nur eine Äußerung, damit
+ * Gemeinsame Warteschlange aller Sprachausgaben: Es spricht immer nur eine Äußerung, damit
  * Funk und Telefon nie übereinander reden und stopSpeaking(kanal) nur den eigenen Kanal abbricht.
  */
 const waiting: SpeechItem[] = [];
-let current: { item: SpeechItem; finish: () => void } | null = null;
+interface Speaking {
+  item: SpeechItem;
+  finish: () => void;
+  stopNeural?: () => void;
+}
+let current: Speaking | null = null;
 
 const hasSynthesis = () => typeof window !== 'undefined' && 'speechSynthesis' in window;
 
 function pump() {
-  if (current || !hasSynthesis()) return;
+  if (current) return;
   // in Reihenfolge des Eintreffens: Funk und Anrufer sprechen abwechselnd, keiner wartet auf den anderen
   const item = waiting.shift();
   if (!item) return;
-  const u = new SpeechSynthesisUtterance(item.text);
-  u.lang = 'de-DE';
-  u.rate = item.persona.rate;
-  u.pitch = item.persona.pitch;
-  const voice = germanVoices().find((v) => v.voiceURI === item.voiceURI);
-  if (voice) u.voice = voice;
   let done = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
   const finish = () => {
@@ -242,13 +255,37 @@ function pump() {
     item.resolve();
     pump();
   };
+  const cur: Speaking = { item, finish };
+  current = cur;
+  void (item.prepared ?? Promise.resolve(null)).then((prepared) => {
+    if (done) return;
+    const h = prepared && neural ? neural.play(prepared, item.channel) : null;
+    if (h) {
+      cur.stopNeural = h.stop;
+      void h.done.then(finish);
+      return;
+    }
+    if (!hasSynthesis()) return finish();
+    browserSpeak(item, finish, (t) => (timer = t));
+  });
+}
+
+/** Stimme des Browsers (Rückfall ohne natürliche Stimmen) */
+function browserSpeak(item: SpeechItem, finish: () => void, setTimer: (t: ReturnType<typeof setTimeout>) => void) {
+  const u = new SpeechSynthesisUtterance(item.text);
+  u.lang = 'de-DE';
+  u.rate = item.persona.rate;
+  u.pitch = item.persona.pitch;
+  const voice = germanVoices().find((v) => v.voiceURI === item.voiceURI);
+  if (voice) u.voice = voice;
+  let timer: ReturnType<typeof setTimeout> | undefined;
   // Ersatz, falls kein "end" kommt: ca. 14 Zeichen pro Sekunde (großzügig mit 10 gerechnet) plus Puffer –
   // gezählt ab Übergabe an den Browser und erneut ab Sprechbeginn
   const arm = () => {
     clearTimeout(timer);
     timer = setTimeout(finish, 2000 + (item.text.length / (10 * item.persona.rate)) * 1000);
+    setTimer(timer);
   };
-  current = { item, finish };
   u.onstart = arm;
   u.onend = finish;
   u.onerror = finish;
@@ -262,13 +299,13 @@ function pump() {
 
 /** Bricht die Sprachausgabe ab – nur eines Kanals oder (ohne Angabe) alles */
 export function stopSpeaking(channel?: SpeechChannel) {
-  if (!hasSynthesis()) return;
   for (let i = waiting.length - 1; i >= 0; i--) if (!channel || waiting[i].channel === channel) waiting.splice(i, 1)[0].resolve();
   const c = current;
   if (c && (!channel || c.item.channel === channel)) {
-    window.speechSynthesis.cancel();
+    if (c.stopNeural) c.stopNeural();
+    else if (hasSynthesis()) window.speechSynthesis.cancel();
     c.finish();
-  } else if (!channel) window.speechSynthesis.cancel();
+  } else if (!channel && hasSynthesis()) window.speechSynthesis.cancel();
 }
 
 /**
@@ -277,9 +314,9 @@ export function stopSpeaking(channel?: SpeechChannel) {
  * "end"-Ereignis liefert (z. B. ohne installierte Stimmen) – spätestens nach einer geschätzten Sprechdauer.
  */
 export function speakAs(text: string, persona: VoicePersona, voiceURI?: string, channel: SpeechChannel = 'ansage'): Promise<void> {
-  if (!text || !hasSynthesis()) return Promise.resolve();
+  if (!text || (!hasSynthesis() && !neural)) return Promise.resolve();
   return new Promise((resolve) => {
-    waiting.push({ text, persona, voiceURI, channel, resolve });
+    waiting.push({ text, persona, voiceURI, channel, resolve, prepared: neural?.prepare(text, persona, channel) });
     pump();
   });
 }
