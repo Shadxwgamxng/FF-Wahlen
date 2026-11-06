@@ -4,6 +4,7 @@ import { hashSeed } from '../voice/details/types';
 import type { SynthRequest, SynthResponse } from '../voice/neural/piperWorker';
 import { ac } from './audio';
 import { getPrefs } from './prefs';
+import { elSynthesize } from './elevenLabs';
 
 /**
  * Natürliche Stimmen (Piper, läuft offline im Browser) für Anrufer, Funk und Ansagen.
@@ -12,7 +13,7 @@ import { getPrefs } from './prefs';
  * Fehlen die Stimmdateien (public/voices), übernimmt die Stimme des Browsers.
  */
 
-interface Cast {
+export interface Cast {
   model: string;
   speaker: number;
   /** Tonhöhe beim Abspielen (leicht verstellt für mehr Vielfalt) */
@@ -145,8 +146,14 @@ export interface Prepared {
 /** Satz vorab berechnen (läuft, während noch jemand anderes spricht) */
 export async function prepare(text: string, persona: VoicePersona, channel: SpeechChannel): Promise<Prepared | null> {
   const c = ac();
-  if (!c || !getPrefs().neuralVoices || !(await neuralAvailable())) return null;
+  if (!c) return null;
   const cast = castFor(channel, persona.voiceSeed ?? channel, persona.personality);
+  // mit eigenem Schlüssel zuerst ElevenLabs (gleiches Geschlecht wie die Piper-Besetzung)
+  if (getPrefs().elevenKey) {
+    const buffer = await elSynthesize(c, hesitate(text, persona), persona, channel, cast.female);
+    if (buffer) return { buffer, cast: { ...cast, model: 'elevenlabs', pitch: 1 } };
+  }
+  if (!getPrefs().neuralVoices || !(await neuralAvailable())) return null;
   const pr = prosody(persona, cast);
   const parts = phrases(hesitate(text, persona));
   if (!parts.length) return null;

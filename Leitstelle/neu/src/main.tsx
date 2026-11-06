@@ -8,11 +8,14 @@ import { store } from './store/gameStore';
 import { applyStyle } from './ui/prefs';
 import { setNeuralSpeaker } from './voice/speech';
 import { play, prepare, preloadNeural, renderOffline, type Prepared } from './ui/neuralVoice';
+import { refreshQuota } from './ui/elevenLabs';
 
 applyStyle();
 // natürliche Stimmen für Anrufer, Funk und Ansagen (Rückfall: Stimme des Browsers)
 setNeuralSpeaker({ prepare, play: (p, ch) => play(p as Prepared, ch) });
 window.addEventListener('pointerdown', preloadNeural, { once: true });
+// ElevenLabs (falls Schlüssel eingetragen): Guthaben kennen, bevor der erste Satz gesprochen wird
+void refreshQuota();
 
 // Für Konsolen-Diagnose und End-to-End-Tests
 (window as unknown as { leitwarte: typeof store }).leitwarte = store;

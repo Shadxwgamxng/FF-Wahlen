@@ -24,10 +24,13 @@ export interface Prefs {
   llmEnabled: boolean;
   llmUrl: string;
   llmModel: string;
+  /** optional: eigener ElevenLabs-Schlüssel (bleibt in diesem Browser) und Modell */
+  elevenKey: string;
+  elevenModel: string;
 }
 
 const KEY = 'leitwarte.prefs';
-const DEFAULTS: Prefs = { sound: true, volume: 0.4, tts: true, ttsRate: 1.1, mapDark: true, uiStyle: 'klassisch', routingUrl: 'http://localhost:5000', routingEnabled: true, funkHorn: true, neuralVoices: true, callerVoice: true, ambience: true, llmEnabled: false, llmUrl: 'http://localhost:11434', llmModel: 'qwen2.5:7b' };
+const DEFAULTS: Prefs = { sound: true, volume: 0.4, tts: true, ttsRate: 1.1, mapDark: true, uiStyle: 'klassisch', routingUrl: 'http://localhost:5000', routingEnabled: true, funkHorn: true, neuralVoices: true, callerVoice: true, ambience: true, llmEnabled: false, llmUrl: 'http://localhost:11434', llmModel: 'qwen2.5:7b', elevenKey: '', elevenModel: 'eleven_v4_turbo' };
 
 let prefs: Prefs = load();
 const listeners = new Set<() => void>();

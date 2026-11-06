@@ -14,6 +14,7 @@ import { testRouting } from '../routingService';
 import { neuralAvailable } from '../neuralVoice';
 import { speakAs } from '../../voice/speech';
 import { testLlm } from '../../voice/llm';
+import { currentQuota, EL_MODELS, forgetElevenLabs, onQuota, refreshQuota, testElevenLabs, type Quota } from '../elevenLabs';
 import { importDias, removeDias, useDias } from '../../dias/store';
 
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9äöüß]+/gi, '-').replace(/^-|-$/g, '');
@@ -287,6 +288,7 @@ function VoiceSettings() {
         <button className="btn small" onClick={() => probe(2, 'telefon')}>Panik</button>
         <button className="btn small" onClick={() => probe(0, 'funk')}>Funk</button>
       </div>
+      <ElevenLabsSettings />
       <h4 style={{ marginTop: 6 }}>Lokale KI für Anruferantworten (optional)</h4>
       <label className="check"><input type="checkbox" checked={prefs.llmEnabled} onChange={(e) => setPrefs({ llmEnabled: e.target.checked })} /> Antworten beim Freisprechen frei formulieren lassen (Ollama auf diesem PC)</label>
       <div className="row wrap">
@@ -296,6 +298,70 @@ function VoiceSettings() {
         {llmTest && <span className={`small ${llmTest.startsWith('OK') ? '' : 'field-error'}`}>{llmTest}</span>}
       </div>
       <span className="dim small">Einmalig: Ollama von ollama.com installieren und „ollama pull {prefs.llmModel}“ ausführen. Ohne Ollama antworten die Anrufer wie bisher.</span>
+    </div>
+  );
+}
+
+/** ElevenLabs: eigener Schlüssel, Modell, Guthaben */
+function ElevenLabsSettings() {
+  const prefs = usePrefs();
+  const [key, setKey] = useState('');
+  const [test, setTest] = useState('');
+  const [quota, setQuotaState] = useState<Quota | null>(currentQuota());
+  useEffect(() => {
+    const off = onQuota(setQuotaState);
+    if (prefs.elevenKey) void refreshQuota();
+    return () => {
+      off();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const left = quota ? Math.max(0, quota.limit - quota.used) : null;
+  return (
+    <div className="col" style={{ gap: 4, marginTop: 6 }} data-testid="elevenlabs-settings">
+      <h4>ElevenLabs (optional, eigenes Konto)</h4>
+      {prefs.elevenKey ? (
+        <div className="row wrap">
+          <span className="small">Schlüssel eingetragen ({prefs.elevenKey.slice(0, 4)}…)</span>
+          <button className="btn small" onClick={forgetElevenLabs}>Schlüssel entfernen</button>
+        </div>
+      ) : (
+        <form
+          className="row wrap"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!key.trim()) return;
+            setPrefs({ elevenKey: key.trim() });
+            setKey('');
+            void testElevenLabs().then(setTest);
+          }}
+        >
+          <input type="password" value={key} onChange={(e) => setKey(e.target.value)} placeholder="API-Schlüssel von elevenlabs.io" autoComplete="off" style={{ width: 280 }} aria-label="ElevenLabs-Schlüssel" />
+          <button className="btn small" type="submit">Speichern</button>
+        </form>
+      )}
+      <label className="row small">
+        Modell
+        <select value={prefs.elevenModel} onChange={(e) => setPrefs({ elevenModel: e.target.value })} aria-label="ElevenLabs-Modell">
+          {EL_MODELS.map(([k, l]) => (
+            <option key={k} value={k}>{l}</option>
+          ))}
+        </select>
+      </label>
+      <div className="row wrap">
+        <button className="btn small" disabled={!prefs.elevenKey} onClick={async () => setTest(await testElevenLabs())}>Verbindung testen</button>
+        {test && <span className={`small ${test.startsWith('OK') ? '' : 'field-error'}`}>{test}</span>}
+      </div>
+      {quota && left !== null && (
+        <div className="small" data-testid="elevenlabs-quota">
+          Guthaben: <b>{left.toLocaleString('de-DE')}</b> von {quota.limit.toLocaleString('de-DE')} Zeichen
+          {quota.resetAt ? ` · neues Guthaben am ${new Date(quota.resetAt).toLocaleDateString('de-DE')}` : ''}
+          {left < 500 && <span className="field-error"> · fast aufgebraucht – es sprechen die Piper-Stimmen</span>}
+        </div>
+      )}
+      <span className="dim small">
+        Mit Schlüssel sprechen Anrufer und Funk mit ElevenLabs-Stimmen; gesendet wird nur der Text, der gesprochen werden soll. Schon erzeugte Sätze werden gespeichert und nicht erneut berechnet. Ist das Guthaben aufgebraucht oder keine Verbindung da, sprechen automatisch wieder die Piper-Stimmen.
+      </span>
     </div>
   );
 }
